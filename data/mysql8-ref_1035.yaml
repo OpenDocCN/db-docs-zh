@@ -1,0 +1,576 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/signal.html](https://dev.mysql.com/doc/refman/8.0/en/signal.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/signal.html](https://dev.mysql.com/doc/refman/8.0/en/signal.html)
+- en: 15.6.7.5 SIGNAL Statement
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.6.7.5 信号语句
+- en: '[PRE0]'
+  id: totrans-2
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") is the way to “return”
+    an error. [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") provides error information
+    to a handler, to an outer portion of the application, or to the client. Also,
+    it provides control over the error''s characteristics (error number, `SQLSTATE`
+    value, message). Without [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement"),
+    it is necessary to resort to workarounds such as deliberately referring to a nonexistent
+    table to cause a routine to return an error.'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")是“返回”错误的方法。[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")向处理程序、应用程序的外部部分或客户端提供错误信息。此外，它还可以控制错误的特性（错误编号、`SQLSTATE`值、消息）。没有[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")，就必须诉诸解决方法，例如故意引用一个不存在的表来导致例程返回错误。'
+- en: No privileges are required to execute the [`SIGNAL`](signal.html "15.6.7.5 SIGNAL
+    Statement") statement.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")语句不需要特权。
+- en: To retrieve information from the diagnostics area, use the [`GET DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement") statement (see [Section 15.6.7.3, “GET DIAGNOSTICS
+    Statement”](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS Statement")). For information
+    about the diagnostics area, see [Section 15.6.7.7, “The MySQL Diagnostics Area”](diagnostics-area.html
+    "15.6.7.7 The MySQL Diagnostics Area").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从诊断区域检索信息，请使用[`GET DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS
+    Statement")语句（参见[第15.6.7.3节，“GET DIAGNOSTICS语句”](get-diagnostics.html "15.6.7.3 GET
+    DIAGNOSTICS Statement")）。有关诊断区域的信息，请参阅[第15.6.7.7节，“MySQL诊断区域”](diagnostics-area.html
+    "15.6.7.7 The MySQL Diagnostics Area")。
+- en: '[SIGNAL Overview](signal.html#signal-overview "SIGNAL Overview")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[信号概述](signal.html#signal-overview "SIGNAL Overview")'
+- en: '[Signal Condition Information Items](signal.html#signal-condition-information-items
+    "Signal Condition Information Items")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[信号条件信息项](signal.html#signal-condition-information-items "Signal Condition
+    Information Items")'
+- en: '[Effect of Signals on Handlers, Cursors, and Statements](signal.html#signal-effects
+    "Effect of Signals on Handlers, Cursors, and Statements")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[信号对处理程序、游标和语句的影响](signal.html#signal-effects "Effect of Signals on Handlers,
+    Cursors, and Statements")'
+- en: SIGNAL Overview
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 信号概述
+- en: The *`condition_value`* in a [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    statement indicates the error value to be returned. It can be an `SQLSTATE` value
+    (a 5-character string literal) or a *`condition_name`* that refers to a named
+    condition previously defined with [`DECLARE ... CONDITION`](declare-condition.html
+    "15.6.7.1 DECLARE ... CONDITION Statement") (see [Section 15.6.7.1, “DECLARE ...
+    CONDITION Statement”](declare-condition.html "15.6.7.1 DECLARE ... CONDITION Statement")).
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")语句中的*`condition_value`*表示要返回的错误值。它可以是一个`SQLSTATE`值（一个5个字符的字符串文字）或一个*`condition_name`*，它引用先前使用[`DECLARE
+    ... CONDITION`](declare-condition.html "15.6.7.1 DECLARE ... CONDITION Statement")定义的命名条件（参见[第15.6.7.1节，“DECLARE
+    ... CONDITION语句”](declare-condition.html "15.6.7.1 DECLARE ... CONDITION Statement")）。
+- en: An `SQLSTATE` value can indicate errors, warnings, or “not found.” The first
+    two characters of the value indicate its error class, as discussed in [Signal
+    Condition Information Items](signal.html#signal-condition-information-items "Signal
+    Condition Information Items"). Some signal values cause statement termination;
+    see [Effect of Signals on Handlers, Cursors, and Statements](signal.html#signal-effects
+    "Effect of Signals on Handlers, Cursors, and Statements").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个`SQLSTATE`值可以指示错误、警告或“未找到”。该值的前两个字符表示其错误类别，如[信号条件信息项](signal.html#signal-condition-information-items
+    "Signal Condition Information Items")中所讨论的那样。一些信号值会导致语句终止；请参阅[信号对处理程序、游标和语句的影响](signal.html#signal-effects
+    "Effect of Signals on Handlers, Cursors, and Statements")。
+- en: The `SQLSTATE` value for a [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    statement should not start with `'00'` because such values indicate success and
+    are not valid for signaling an error. This is true whether the `SQLSTATE` value
+    is specified directly in the [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    statement or in a named condition referred to in the statement. If the value is
+    invalid, a `Bad SQLSTATE` error occurs.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")语句的`SQLSTATE`值不应以`''00''`开头，因为这样的值表示成功，不适用于发出错误信号。无论`SQLSTATE`值是直接在[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")语句中指定还是在语句中引用的命名条件中引用，都是如此。如果该值无效，则会发生`Bad SQLSTATE`错误。'
+- en: To signal a generic `SQLSTATE` value, use `'45000'`, which means “unhandled
+    user-defined exception.”
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要发出通用的`SQLSTATE`值，请使用`'45000'`，表示“未处理的用户定义异常”。
+- en: The [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") statement optionally
+    includes a `SET` clause that contains multiple signal items, in a list of *`condition_information_item_name`*
+    = *`simple_value_specification`* assignments, separated by commas.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")语句可选地包含一个`SET`子句，其中包含多个信号项，以*`condition_information_item_name`*
+    = *`simple_value_specification`*分配的列表，用逗号分隔。'
+- en: Each *`condition_information_item_name`* may be specified only once in the `SET`
+    clause. Otherwise, a `Duplicate condition information item` error occurs.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个*`condition_information_item_name`*在`SET`子句中只能指定一次。否则，会出现`Duplicate condition
+    information item`错误。
+- en: Valid *`simple_value_specification`* designators can be specified using stored
+    procedure or function parameters, stored program local variables declared with
+    [`DECLARE`](declare.html "15.6.3 DECLARE Statement"), user-defined variables,
+    system variables, or literals. A character literal may include a *`_charset`*
+    introducer.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用存储过程或函数参数、使用[`DECLARE`](declare.html "15.6.3 DECLARE Statement")声明的存储程序本地变量、用户定义变量、系统变量或文字指定有效的*`simple_value_specification`*标识符。字符文字可能包括一个*`_charset`*引导符。
+- en: For information about permissible *`condition_information_item_name`* values,
+    see [Signal Condition Information Items](signal.html#signal-condition-information-items
+    "Signal Condition Information Items").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关可接受的*`condition_information_item_name`*值的信息，请参阅[Signal Condition Information
+    Items](signal.html#signal-condition-information-items "Signal Condition Information
+    Items")。
+- en: 'The following procedure signals an error or warning depending on the value
+    of `pval`, its input parameter:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下过程根据其输入参数`pval`的值发出错误或警告：
+- en: '[PRE1]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If `pval` is 0, `p()` signals a warning because `SQLSTATE` values that begin
+    with `'01'` are signals in the warning class. The warning does not terminate the
+    procedure, and can be seen with [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement") after the procedure returns.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`pval`为0，`p()`会发出一个警告，因为以`'01'`开头的`SQLSTATE`值属于警告类别。警告不会终止该过程，并且在过程返回后可以使用[`SHOW
+    WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")查看。
+- en: If `pval` is 1, `p()` signals an error and sets the `MESSAGE_TEXT` condition
+    information item. The error terminates the procedure, and the text is returned
+    with the error information.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`pval`为1，`p()`会发出一个错误并设置`MESSAGE_TEXT`条件信息项。错误会终止该过程，并且文本将随错误信息一起返回。
+- en: If `pval` is 2, the same error is signaled, although the `SQLSTATE` value is
+    specified using a named condition in this case.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`pval`为2，则会发出相同的错误，尽管在这种情况下使用命名条件指定了`SQLSTATE`值。
+- en: If `pval` is anything else, `p()` first signals a warning and sets the message
+    text and error number condition information items. This warning does not terminate
+    the procedure, so execution continues and `p()` then signals an error. The error
+    does terminate the procedure. The message text and error number set by the warning
+    are replaced by the values set by the error, which are returned with the error
+    information.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`pval`为其他任何值，`p()`首先发出一个警告并设置消息文本和错误编号条件信息项。此警告不会终止该过程，因此执行会继续，然后`p()`会发出一个错误。错误会终止该过程。警告设置的消息文本和错误编号将被错误设置的值替换，这些值将与错误信息一起返回。
+- en: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") is typically used within
+    stored programs, but it is a MySQL extension that it is permitted outside handler
+    context. For example, if you invoke the [**mysql**](mysql.html "6.5.1 mysql —
+    The MySQL Command-Line Client") client program, you can enter any of these statements
+    at the prompt:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")通常在存储程序中使用，但是MySQL扩展允许在处理程序上下文之外使用。例如，如果调用[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")客户端程序，则可以在提示符下输入以下任何语句：'
+- en: '[PRE2]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") executes according to the
+    following rules:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")根据以下规则执行：'
+- en: 'If the [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") statement indicates
+    a particular `SQLSTATE` value, that value is used to signal the condition specified.
+    Example:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")语句指示特定的`SQLSTATE`值，则该值用于发出指定的条件。例如：
+- en: '[PRE3]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'If the [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") statement uses a
+    named condition, the condition must be declared in some scope that applies to
+    the [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") statement, and must be
+    defined using an `SQLSTATE` value, not a MySQL error number. Example:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") 语句使用了一个命名条件，该条件必须在适用于
+    [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") 语句的某个范围内声明，并且必须使用 `SQLSTATE`
+    值而不是 MySQL 错误编号进行定义。示例：
+- en: '[PRE4]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: If the named condition does not exist in the scope of the [`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement") statement, an `Undefined CONDITION` error occurs.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在 [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") 语句的范围内不存在命名条件，则会发生 `Undefined
+    CONDITION` 错误。
+- en: 'If [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") refers to a named condition
+    that is defined with a MySQL error number rather than an `SQLSTATE` value, a `SIGNAL/RESIGNAL
+    can only use a CONDITION defined with SQLSTATE` error occurs. The following statements
+    cause that error because the named condition is associated with a MySQL error
+    number:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") 引用了一个使用 MySQL 错误编号而不是
+    `SQLSTATE` 值定义的命名条件，则会发生 `SIGNAL/RESIGNAL 只能使用使用 SQLSTATE 定义的 CONDITION` 错误。以下语句会导致该错误，因为命名条件与
+    MySQL 错误编号相关联：
+- en: '[PRE5]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'If a condition with a given name is declared multiple times in different scopes,
+    the declaration with the most local scope applies. Consider the following procedure:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在不同范围内多次声明具有相同名称的条件，则具有最局部范围的声明适用。考虑以下过程：
+- en: '[PRE6]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: If `divisor` is 0, the first [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    statement executes. The innermost `my_error` condition declaration applies, raising
+    `SQLSTATE` `'22012'`.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 `divisor` 为 0，则执行第一个 [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    语句。最内层的 `my_error` 条件声明适用，引发 `SQLSTATE` `'22012'`。
+- en: If `divisor` is not 0, the second [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    statement executes. The outermost `my_error` condition declaration applies, raising
+    `SQLSTATE` `'45000'`.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 `divisor` 不为 0，则执行第二个 [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    语句。最外层的 `my_error` 条件声明适用，引发 `SQLSTATE` `'45000'`。
+- en: For information about how the server chooses handlers when a condition occurs,
+    see [Section 15.6.7.6, “Scope Rules for Handlers”](handler-scope.html "15.6.7.6 Scope
+    Rules for Handlers").
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关服务器在发生条件时选择处理程序的信息，请参阅 [第 15.6.7.6 节，“处理程序的作用域规则”](handler-scope.html "15.6.7.6 Scope
+    Rules for Handlers")。
+- en: 'Signals can be raised within exception handlers:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 异常处理程序内部可以引发信号：
+- en: '[PRE7]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '`CALL p()` reaches the [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")
+    statement. There is no table named `no_such_table`, so the error handler is activated.
+    The error handler destroys the original error (“no such table”) and makes a new
+    error with `SQLSTATE` `''99999''` and message `An error occurred`.'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`CALL p()` 到达 [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")
+    语句。没有名为 `no_such_table` 的表，因此激活了错误处理程序。错误处理程序销毁原始错误（“没有这样的表”），并生成一个具有 `SQLSTATE`
+    `''99999''` 和消息 `An error occurred` 的新错误。'
+- en: Signal Condition Information Items
+  id: totrans-42
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 信号条件信息项
+- en: The following table lists the names of diagnostics area condition information
+    items that can be set in a [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    (or [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement")) statement. All
+    items are standard SQL except `MYSQL_ERRNO`, which is a MySQL extension. For more
+    information about these items see [Section 15.6.7.7, “The MySQL Diagnostics Area”](diagnostics-area.html
+    "15.6.7.7 The MySQL Diagnostics Area").
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表列出了可以在 [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")（或 [`RESIGNAL`](resignal.html
+    "15.6.7.4 RESIGNAL Statement")）语句中设置的诊断区域条件信息项的名称。所有项目都是标准 SQL，除了 `MYSQL_ERRNO`，它是
+    MySQL 的扩展。有关这些项目的更多信息，请参阅 [第 15.6.7.7 节，“MySQL 诊断区域”](diagnostics-area.html "15.6.7.7 The
+    MySQL Diagnostics Area")。
+- en: '[PRE8]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: The character set for character items is UTF-8.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 字符项的字符集为 UTF-8。
+- en: It is illegal to assign `NULL` to a condition information item in a [`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement") statement.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") 语句中将 `NULL` 赋给条件信息项是非法的。
+- en: 'A [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") statement always specifies
+    an `SQLSTATE` value, either directly, or indirectly by referring to a named condition
+    defined with an `SQLSTATE` value. The first two characters of an `SQLSTATE` value
+    are its class, and the class determines the default value for the condition information
+    items:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") 语句总是指定一个 `SQLSTATE` 值，可以直接指定，也可以间接引用具有
+    `SQLSTATE` 值的命名条件。`SQLSTATE` 值的前两个字符是其类别，类别确定条件信息项的默认值：'
+- en: Class = `'00'` (success)
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类 = `'00'`（成功）
+- en: Illegal. `SQLSTATE` values that begin with `'00'` indicate success and are not
+    valid for [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement").
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 非法。以`'00'`开头的`SQLSTATE`值表示成功，并且对于[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")无效。
+- en: Class = `'01'` (warning)
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 = `'01'`（警告）
+- en: '[PRE9]'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Class = `'02'` (not found)
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 = `'02'`（未找到）
+- en: '[PRE10]'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: Class > `'02'` (exception)
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 > `'02'`（异常）
+- en: '[PRE11]'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'For legal classes, the other condition information items are set as follows:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于合法类别，其他条件信息项设置如下：
+- en: '[PRE12]'
+  id: totrans-57
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'The error values that are accessible after [`SIGNAL`](signal.html "15.6.7.5 SIGNAL
+    Statement") executes are the `SQLSTATE` value raised by the [`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement") statement and the `MESSAGE_TEXT` and `MYSQL_ERRNO`
+    items. These values are available from the C API:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")执行后可访问的错误值是由[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")语句引发的`SQLSTATE`值以及`MESSAGE_TEXT`和`MYSQL_ERRNO`项。这些值可从C
+    API中获取：
+- en: '[`mysql_sqlstate()`](/doc/c-api/8.0/en/mysql-sqlstate.html) returns the `SQLSTATE`
+    value.'
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`mysql_sqlstate()`](/doc/c-api/8.0/en/mysql-sqlstate.html)返回`SQLSTATE`值。'
+- en: '[`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html) returns the `MYSQL_ERRNO`
+    value.'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)返回`MYSQL_ERRNO`值。'
+- en: '[`mysql_error()`](/doc/c-api/8.0/en/mysql-error.html) returns the `MESSAGE_TEXT`
+    value.'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`mysql_error()`](/doc/c-api/8.0/en/mysql-error.html)返回`MESSAGE_TEXT`值。'
+- en: At the SQL level, the output from [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement") and [`SHOW ERRORS`](show-errors.html "15.7.7.17 SHOW ERRORS
+    Statement") indicates the `MYSQL_ERRNO` and `MESSAGE_TEXT` values in the `Code`
+    and `Message` columns.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在SQL级别，[`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")和[`SHOW
+    ERRORS`](show-errors.html "15.7.7.17 SHOW ERRORS Statement")的输出指示`Code`和`Message`列中的`MYSQL_ERRNO`和`MESSAGE_TEXT`值。
+- en: To retrieve information from the diagnostics area, use the [`GET DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement") statement (see [Section 15.6.7.3, “GET DIAGNOSTICS
+    Statement”](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS Statement")). For information
+    about the diagnostics area, see [Section 15.6.7.7, “The MySQL Diagnostics Area”](diagnostics-area.html
+    "15.6.7.7 The MySQL Diagnostics Area").
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从诊断区域检索信息，请使用[`GET DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS
+    Statement")语句（参见[Section 15.6.7.3, “GET DIAGNOSTICS Statement”](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement")）。有关诊断区域的信息，请参阅[Section 15.6.7.7, “The MySQL
+    Diagnostics Area”](diagnostics-area.html "15.6.7.7 The MySQL Diagnostics Area")。
+- en: Effect of Signals on Handlers, Cursors, and Statements
+  id: totrans-64
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 信号对处理程序、游标和语句的影响
+- en: 'Signals have different effects on statement execution depending on the signal
+    class. The class determines how severe an error is. MySQL ignores the value of
+    the [`sql_mode`](server-system-variables.html#sysvar_sql_mode) system variable;
+    in particular, strict SQL mode does not matter. MySQL also ignores `IGNORE`: The
+    intent of [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") is to raise a user-generated
+    error explicitly, so a signal is never ignored.'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 信号对语句执行的影响取决于信号类别。类别确定错误的严重程度。MySQL忽略[`sql_mode`](server-system-variables.html#sysvar_sql_mode)系统变量的值；特别是，严格的SQL模式无关紧要。MySQL还忽略`IGNORE`：[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")的目的是明确引发用户生成的错误，因此信号永远不会被忽略。
+- en: In the following descriptions, “unhandled” means that no handler for the signaled
+    `SQLSTATE` value has been defined with [`DECLARE ... HANDLER`](declare-handler.html
+    "15.6.7.2 DECLARE ... HANDLER Statement").
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以下描述中，“未处理”表示未使用[`DECLARE ... HANDLER`](declare-handler.html "15.6.7.2 DECLARE
+    ... HANDLER Statement")为信号的`SQLSTATE`值定义处理程序。
+- en: Class = `'00'` (success)
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 = `'00'`（成功）
+- en: Illegal. `SQLSTATE` values that begin with `'00'` indicate success and are not
+    valid for [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement").
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 非法。以`'00'`开头的`SQLSTATE`值表示成功，并且对于[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")无效。
+- en: Class = `'01'` (warning)
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 = `'01'`（警告）
+- en: The value of the [`warning_count`](server-system-variables.html#sysvar_warning_count)
+    system variable goes up. [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement") shows the signal. `SQLWARNING` handlers catch the signal.
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`warning_count`](server-system-variables.html#sysvar_warning_count)系统变量的值增加。[`SHOW
+    WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")显示信号。`SQLWARNING`处理程序捕获信号。'
+- en: Warnings cannot be returned from stored functions because the [`RETURN`](return.html
+    "15.6.5.7 RETURN Statement") statement that causes the function to return clears
+    the diagnostic area. The statement thus clears any warnings that may have been
+    present there (and resets [`warning_count`](server-system-variables.html#sysvar_warning_count)
+    to 0).
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于导致函数返回的[`RETURN`](return.html "15.6.5.7 RETURN Statement")语句清除了诊断区域，因此无法从存储函数中返回警告。该语句清除了可能存在的任何警告（并将[`warning_count`](server-system-variables.html#sysvar_warning_count)重置为0）。
+- en: Class = `'02'` (not found)
+  id: totrans-72
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 = `'02'`（未找到）
+- en: '`NOT FOUND` handlers catch the signal. There is no effect on cursors. If the
+    signal is unhandled in a stored function, statements end.'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`NOT FOUND`处理程序捕获信号。对游标没有影响。如果在存储函数中未处理信号，则语句结束。'
+- en: Class > `'02'` (exception)
+  id: totrans-74
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 > `'02'`（异常）
+- en: '`SQLEXCEPTION` handlers catch the signal. If the signal is unhandled in a stored
+    function, statements end.'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`SQLEXCEPTION`处理程序捕获信号。如果在存储函数中未处理信号，则语句结束。'
+- en: Class = `'40'`
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类别 = `'40'`
+- en: Treated as an ordinary exception.
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 被视为普通异常。

@@ -1,0 +1,220 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-usage.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-usage.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-usage.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-usage.html)
+- en: 19.2.1.2 Usage of Row-Based Logging and Replication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.2.1.2 基于行的日志记录和复制的用法
+- en: MySQL uses statement-based logging (SBL), row-based logging (RBL) or mixed-format
+    logging. The type of binary log used impacts the size and efficiency of logging.
+    Therefore the choice between row-based replication (RBR) or statement-based replication
+    (SBR) depends on your application and environment. This section describes known
+    issues when using a row-based format log, and describes some best practices using
+    it in replication.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL使用基于语句的日志记录（SBL）、基于行的日志记录（RBL）或混合格式日志。所使用的二进制日志类型会影响日志的大小和效率。因此，在基于行的复制（RBR）和基于语句的复制（SBR）之间的选择取决于您的应用程序和环境。本节描述了使用基于行格式日志时的已知问题，并描述了在复制中使用它的一些最佳实践。
+- en: For additional information, see [Section 19.2.1, “Replication Formats”](replication-formats.html
+    "19.2.1 Replication Formats"), and [Section 19.2.1.1, “Advantages and Disadvantages
+    of Statement-Based and Row-Based Replication”](replication-sbr-rbr.html "19.2.1.1 Advantages
+    and Disadvantages of Statement-Based and Row-Based Replication").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 欲了解更多信息，请参阅[第19.2.1节，“复制格式”](replication-formats.html "19.2.1 复制格式")和[第19.2.1.1节，“基于语句和基于行复制的优缺点”](replication-sbr-rbr.html
+    "19.2.1.1 基于语句和基于行复制的优缺点")。
+- en: For information about issues specific to NDB Cluster Replication (which depends
+    on row-based replication), see [Section 25.7.3, “Known Issues in NDB Cluster Replication”](mysql-cluster-replication-issues.html
+    "25.7.3 Known Issues in NDB Cluster Replication").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关NDB集群复制特定问题的信息（依赖于基于行的复制），请参阅[第25.7.3节，“NDB集群复制中的已知问题”](mysql-cluster-replication-issues.html
+    "25.7.3 NDB集群复制中的已知问题")。
+- en: '**Row-based logging of temporary tables. ** As noted in [Section 19.5.1.31,
+    “Replication and Temporary Tables”](replication-features-temptables.html "19.5.1.31 Replication
+    and Temporary Tables"), temporary tables are not replicated when using row-based
+    format or (from MySQL 8.0.4) mixed format. For more information, see [Section 19.2.1.1,
+    “Advantages and Disadvantages of Statement-Based and Row-Based Replication”](replication-sbr-rbr.html
+    "19.2.1.1 Advantages and Disadvantages of Statement-Based and Row-Based Replication").'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**临时表的基于行日志记录。** 如[第19.5.1.31节，“复制和临时表”](replication-features-temptables.html
+    "19.5.1.31 复制和临时表")所述，当使用基于行格式或（从MySQL 8.0.4开始）混合格式时，临时表不会被复制。有关更多信息，请参阅[第19.2.1.1节，“基于语句和基于行复制的优缺点”](replication-sbr-rbr.html
+    "19.2.1.1 基于语句和基于行复制的优缺点")。'
+- en: Temporary tables are not replicated when using row-based or mixed format because
+    there is no need. In addition, because temporary tables can be read only from
+    the thread which created them, there is seldom if ever any benefit obtained from
+    replicating them, even when using statement-based format.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当使用基于行或混合格式时，临时表不会被复制，因为没有必要。此外，由于临时表只能从创建它们的线程中读取，即使使用基于语句的格式，复制它们也很少或几乎没有任何好处。
+- en: You can switch from statement-based to row-based binary logging format at runtime
+    even when temporary tables have been created. However, in MySQL 8.0, you cannot
+    switch from row-based or mixed format for binary logging to statement-based format
+    at runtime, due to any `CREATE TEMPORARY TABLE` statements having been omitted
+    from the binary log in the previous mode.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 即使已创建临时表，您可以在运行时从基于语句切换到基于行的二进制日志格式。然而，在MySQL 8.0中，您无法在运行时从基于行或混合格式切换到基于语句的二进制日志格式，因为在先前模式中省略了任何`CREATE
+    TEMPORARY TABLE`语句。
+- en: The MySQL server tracks the logging mode that was in effect when each temporary
+    table was created. When a given client session ends, the server logs a `DROP TEMPORARY
+    TABLE IF EXISTS` statement for each temporary table that still exists and was
+    created when statement-based binary logging was in use. If row-based or mixed
+    format binary logging was in use when the table was created, the `DROP TEMPORARY
+    TABLE IF EXISTS` statement is not logged. In releases before MySQL 8.0.4 and 5.7.25,
+    the `DROP TEMPORARY TABLE IF EXISTS` statement was logged regardless of the logging
+    mode that was in effect.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL服务器跟踪创建每个临时表时生效的日志记录模式。当给定的客户端会话结束时，服务器会为仍然存在且在使用基于语句的二进制日志记录时创建的每个临时表记录一个`DROP
+    TEMPORARY TABLE IF EXISTS`语句。如果在创建表时使用基于行或混合格式的二进制日志记录，则不会记录`DROP TEMPORARY TABLE
+    IF EXISTS`语句。在MySQL 8.0.4和5.7.25之前的版本中，无论生效的日志记录模式如何，都会记录`DROP TEMPORARY TABLE
+    IF EXISTS`语句。
+- en: 'Nontransactional DML statements involving temporary tables are allowed when
+    using [`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format),
+    as long as any nontransactional tables affected by the statements are temporary
+    tables (Bug #14272672).'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '当使用[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)时，涉及临时表的非事务性DML语句是允许的，只要语句影响的非事务性表都是临时表（Bug
+    #14272672）。'
+- en: '**RBL and synchronization of nontransactional tables. ** When many rows are
+    affected, the set of changes is split into several events; when the statement
+    commits, all of these events are written to the binary log. When executing on
+    the replica, a table lock is taken on all tables involved, and then the rows are
+    applied in batch mode. Depending on the engine used for the replica''s copy of
+    the table, this may or may not be effective.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**RBL和非事务性表的同步。** 当影响到许多行时，更改集会被拆分为几个事件；当语句提交时，所有这些事件都将写入二进制日志。在副本上执行时，会对涉及的所有表进行表锁定，然后以批处理模式应用行。根据副本表的引擎使用情况，这可能有效也可能无效。'
+- en: '**Latency and binary log size. ** RBL writes changes for each row to the binary
+    log and so its size can increase quite rapidly. This can significantly increase
+    the time required to make changes on the replica that match those on the source.
+    You should be aware of the potential for this delay in your applications.'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**延迟和二进制日志大小。** RBL将每行的更改写入二进制日志，因此其大小可能会迅速增加。这可能会显著增加使副本上的更改与源上的更改匹配所需的时间。您应该意识到这种延迟可能对您的应用程序产生影响。'
+- en: '**Reading the binary log. ** [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") displays row-based events in the binary
+    log using the [`BINLOG`](binlog.html "15.7.8.1 BINLOG Statement") statement. This
+    statement displays an event as a base 64-encoded string, the meaning of which
+    is not evident. When invoked with the [`--base64-output=DECODE-ROWS`](mysqlbinlog.html#option_mysqlbinlog_base64-output)
+    and [`--verbose`](mysqlbinlog.html#option_mysqlbinlog_verbose) options, [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") formats the contents
+    of the binary log to be human readable. When binary log events were written in
+    row-based format and you want to read or recover from a replication or database
+    failure you can use this command to read contents of the binary log. For more
+    information, see [Section 6.6.9.2, “mysqlbinlog Row Event Display”](mysqlbinlog-row-events.html
+    "6.6.9.2 mysqlbinlog Row Event Display").'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**读取二进制日志。** [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") 使用[`BINLOG`](binlog.html "15.7.8.1 BINLOG Statement")语句在二进制日志中显示基于行的事件。该语句将事件显示为一个base
+    64编码的字符串，其含义不明显。当使用[`--base64-output=DECODE-ROWS`](mysqlbinlog.html#option_mysqlbinlog_base64-output)和[`--verbose`](mysqlbinlog.html#option_mysqlbinlog_verbose)选项调用时，[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")将二进制日志的内容格式化为人类可读的形式。当二进制日志事件以基于行的格式编写，并且您想要读取或从复制或数据库故障中恢复时，您可以使用此命令读取二进制日志的内容。有关更多信息，请参见[Section 6.6.9.2,
+    “mysqlbinlog Row Event Display”](mysqlbinlog-row-events.html "6.6.9.2 mysqlbinlog
+    Row Event Display")。'
+- en: '**Binary log execution errors and replica execution mode. ** Using [`slave_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_slave_exec_mode)
+    is generally only useful with MySQL NDB Cluster replication, for which `IDEMPOTENT`
+    is the default value. (See [Section 25.7.10, “NDB Cluster Replication: Bidirectional
+    and Circular Replication”](mysql-cluster-replication-multi-source.html "25.7.10 NDB
+    Cluster Replication: Bidirectional and Circular Replication")). When the system
+    variable [`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)
+    or [`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)
+    is `IDEMPOTENT`, a failure to apply changes from RBL because the original row
+    cannot be found does not trigger an error or cause replication to fail. This means
+    that it is possible that updates are not applied on the replica, so that the source
+    and replica are no longer synchronized. Latency issues and use of nontransactional
+    tables with RBR when [`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)
+    or [`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)
+    is `IDEMPOTENT` can cause the source and replica to diverge even further. For
+    more information about [`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)
+    and [`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode),
+    see [Section 7.1.8, “Server System Variables”](server-system-variables.html "7.1.8 Server
+    System Variables").'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**二进制日志执行错误和副本执行模式。** 使用[`slave_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_slave_exec_mode)通常仅在MySQL
+    NDB Cluster复制中有用，其中`IDEMPOTENT`是默认值。（参见[第25.7.10节，“NDB Cluster Replication: 双向和循环复制”](mysql-cluster-replication-multi-source.html
+    "25.7.10 NDB Cluster Replication: Bidirectional and Circular Replication")）。当系统变量[`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)或[`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)为`IDEMPOTENT`时，由于找不到原始行而无法应用来自RBL的更改不会触发错误或导致复制失败。这意味着可能不会在副本上应用更新，导致源和副本不再同步。当[`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)或[`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)为`IDEMPOTENT`时，延迟问题和在RBR中使用非事务表可能导致源和副本进一步分歧。有关[`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)和[`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)的更多信息，请参见[第7.1.8节，“服务器系统变量”](server-system-variables.html
+    "7.1.8 Server System Variables")。'
+- en: For other scenarios, setting [`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)
+    or [`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)
+    to `STRICT` is normally sufficient; this is the default value for storage engines
+    other than [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0").
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于其他情况，将[`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)或[`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)设置为`STRICT`通常足够；这是除[`NDB`](mysql-cluster.html
+    "第25��� MySQL NDB Cluster 8.0")之外的存储引擎的默认值。
+- en: '**Filtering based on server ID not supported. ** You can filter based on server
+    ID by using the `IGNORE_SERVER_IDS` option for the [`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement") statement (from MySQL 8.0.23) or [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement (before MySQL 8.0.23). This option
+    works with statement-based and row-based logging formats, but is deprecated for
+    use when [`GTID_MODE=ON`](replication-options-gtids.html#sysvar_gtid_mode) is
+    set. Another method to filter out changes on some replicas is to use a `WHERE`
+    clause that includes the relation `@@server_id <> *`id_value`*` clause with [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") and [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    statements. For example, `WHERE @@server_id <> 1`. However, this does not work
+    correctly with row-based logging. To use the [`server_id`](replication-options.html#sysvar_server_id)
+    system variable for statement filtering, use statement-based logging.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**基于服务器ID的过滤不受支持。** 您可以通过在[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement")语句（从MySQL 8.0.23开始）或[`CHANGE
+    MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement")语句（MySQL
+    8.0.23之前）中使用`IGNORE_SERVER_IDS`选项来基于服务器ID进行过滤。此选项适用于基于语句和基于行的日志格式，但在设置[`GTID_MODE=ON`](replication-options-gtids.html#sysvar_gtid_mode)时已被弃用。另一种在某些副本中过滤更改的方法是使用包含关系`@@server_id
+    <> *`id_value`*`子句的`WHERE`子句与[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")语句。例如，`WHERE @@server_id <> 1`。但是，这在基于行的日志记录中无法正常工作。要使用[`server_id`](replication-options.html#sysvar_server_id)系统变量进行语句过滤，请使用基于语句的日志记录。'
+- en: '**RBL, nontransactional tables, and stopped replicas. ** When using row-based
+    logging, if the replica server is stopped while a replica thread is updating a
+    nontransactional table, the replica database can reach an inconsistent state.
+    For this reason, it is recommended that you use a transactional storage engine
+    such as [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    for all tables replicated using the row-based format. Use of [`STOP REPLICA`](stop-replica.html
+    "15.4.2.8 STOP REPLICA Statement") or [`STOP REPLICA SQL_THREAD`](stop-replica.html
+    "15.4.2.8 STOP REPLICA Statement") (prior to MySQL 8.0.22, use [`STOP slave`](stop-slave.html
+    "15.4.2.9 STOP SLAVE Statement") or [`STOP SLAVE SQL_THREAD`](stop-slave.html
+    "15.4.2.9 STOP SLAVE Statement")) prior to shutting down the replica MySQL server
+    helps prevent issues from occurring, and is always recommended regardless of the
+    logging format or storage engine you use.'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**RBL、非事务表和停止的副本。** 当使用基于行的日志记录时，如果在副本线程更新非事务表时停止副本服务器，副本数据库可能会达到不一致的状态。因此，建议您对使用基于行格式复制的所有表使用事务存储引擎，如[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")。在关闭副本MySQL服务器之前使用[`STOP REPLICA`](stop-replica.html "15.4.2.8
+    STOP REPLICA语句")或[`STOP REPLICA SQL_THREAD`](stop-replica.html "15.4.2.8 STOP
+    REPLICA语句")（在MySQL 8.0.22之前，使用[`STOP slave`](stop-slave.html "15.4.2.9 STOP SLAVE语句")或[`STOP
+    SLAVE SQL_THREAD`](stop-slave.html "15.4.2.9 STOP SLAVE语句")）有助于防止问题发生，并且无论您使用的是哪种日志格式或存储引擎，都建议始终这样做。'

@@ -1,0 +1,322 @@
+- en: 26.1 Overview of Partitioning in MySQL
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 26.1 MySQL 中分区的概述
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-overview.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-overview.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-overview.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-overview.html)
+- en: This section provides a conceptual overview of partitioning in MySQL 8.0.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节提供了 MySQL 8.0 中分区的概念概述。
+- en: For information on partitioning restrictions and feature limitations, see [Section 26.6,
+    “Restrictions and Limitations on Partitioning”](partitioning-limitations.html
+    "26.6 Restrictions and Limitations on Partitioning").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关分区限制和功能限制的信息，请参见 [第 26.6 节，“分区的限制和限制”](partitioning-limitations.html "26.6
+    分区的限制和限制")。
+- en: The SQL standard does not provide much in the way of guidance regarding the
+    physical aspects of data storage. The SQL language itself is intended to work
+    independently of any data structures or media underlying the schemas, tables,
+    rows, or columns with which it works. Nonetheless, most advanced database management
+    systems have evolved some means of determining the physical location to be used
+    for storing specific pieces of data in terms of the file system, hardware or even
+    both. In MySQL, the `InnoDB` storage engine has long supported the notion of a
+    tablespace (see [Section 17.6.3, “Tablespaces”](innodb-tablespace.html "17.6.3 Tablespaces")),
+    and the MySQL Server, even prior to the introduction of partitioning, could be
+    configured to employ different physical directories for storing different databases
+    (see [Section 10.12.2, “Using Symbolic Links”](symbolic-links.html "10.12.2 Using
+    Symbolic Links"), for an explanation of how this is done).
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SQL 标准在数据存储的物理方面并没有提供太多指导。SQL 语言本身旨在独立于其所使用的模式、表、行或列的任何数据结构或媒体而工作。尽管如此，大多数先进的数据库管理系统已经发展出一些确定特定数据存储的物理位置的方法，涉及文件系统、硬件甚至两者。在
+    MySQL 中，`InnoDB` 存储引擎长期以来一直支持表空间的概念（参见 [第 17.6.3 节，“表空间”](innodb-tablespace.html
+    "17.6.3 表空间")），即使在引入分区之前，MySQL 服务器也可以配置为使用不同的物理目录来存储不同的数据库（参见 [第 10.12.2 节，“使用符号链接”](symbolic-links.html
+    "10.12.2 使用符号链接")，了解如何实现）。
+- en: Partitioning takes this notion a step further, by enabling you to distribute
+    portions of individual tables across a file system according to rules which you
+    can set largely as needed. In effect, different portions of a table are stored
+    as separate tables in different locations. The user-selected rule by which the
+    division of data is accomplished is known as a partitioning function, which in
+    MySQL can be the modulus, simple matching against a set of ranges or value lists,
+    an internal hashing function, or a linear hashing function. The function is selected
+    according to the partitioning type specified by the user, and takes as its parameter
+    the value of a user-supplied expression. This expression can be a column value,
+    a function acting on one or more column values, or a set of one or more column
+    values, depending on the type of partitioning that is used.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分区通过使您能够根据您基本上可以根据需要设置的规则将个别表的部分分布到文件系统中，进一步发展了这一概念。实际上，表的不同部分以不同位置的单独表的形式存储。用户选择的数据划分规则称为分区函数，在
+    MySQL 中可以是模数、简单匹配一组范围或值列表、内部哈希函数或线性哈希函数。该函数根据用户指定的分区类型进行选择，并将用户提供的表达式的值作为其参数。该表达式可以是列值、作用于一个或多个列值的函数，或一个或多个列值的集合，具体取决于所使用的分区类型。
+- en: In the case of `RANGE`, `LIST`, and [`LINEAR`] `HASH` partitioning, the value
+    of the partitioning column is passed to the partitioning function, which returns
+    an integer value representing the number of the partition in which that particular
+    record should be stored. This function must be nonconstant and nonrandom. It may
+    not contain any queries, but may use an SQL expression that is valid in MySQL,
+    as long as that expression returns either `NULL` or an integer *`intval`* such
+    that
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 `RANGE`、`LIST` 和 [`LINEAR`] `HASH` 分区，分区列的值将传递给分区函数，该函数返回表示应将该特定记录存储在哪个分区中的整数值。该函数必须是非常量且非随机的。它不能包含任何查询，但可以使用在
+    MySQL 中有效的 SQL 表达式，只要该表达式返回 `NULL` 或整数 *`intval`*，使得
+- en: '[PRE0]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: (`MAXVALUE` is used to represent the least upper bound for the type of integer
+    in question. `-MAXVALUE` represents the greatest lower bound.)
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: （`MAXVALUE` 用于表示所讨论整数类型的最小上界。`-MAXVALUE` 表示最大下界。）
+- en: For [`LINEAR`] `KEY`, `RANGE COLUMNS`, and `LIST COLUMNS` partitioning, the
+    partitioning expression consists of a list of one or more columns.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`LINEAR`] `KEY`、`RANGE COLUMNS`和`LIST COLUMNS`分区，分区表达式由一个或多个列的列表组成。
+- en: For [`LINEAR`] `KEY` partitioning, the partitioning function is supplied by
+    MySQL.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`LINEAR`] `KEY`分区，分区函数由MySQL提供。
+- en: For more information about permitted partitioning column types and partitioning
+    functions, see [Section 26.2, “Partitioning Types”](partitioning-types.html "26.2 Partitioning
+    Types"), as well as [Section 15.1.20, “CREATE TABLE Statement”](create-table.html
+    "15.1.20 CREATE TABLE Statement"), which provides partitioning syntax descriptions
+    and additional examples. For information about restrictions on partitioning functions,
+    see [Section 26.6.3, “Partitioning Limitations Relating to Functions”](partitioning-limitations-functions.html
+    "26.6.3 Partitioning Limitations Relating to Functions").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关允许的分区列类型和分区函数的更多信息，请参见[第26.2节“分区类型”](partitioning-types.html "26.2 分区类型")，以及提供分区语法描述和其他示例的[第15.1.20节“CREATE
+    TABLE语句”](create-table.html "15.1.20 CREATE TABLE语句")。有关分区函数的限制信息，请参见[第26.6.3节“与函数相关的分区限制”](partitioning-limitations-functions.html
+    "26.6.3 与函数相关的分区限制")。
+- en: This is known as horizontal partitioning—that is, different rows of a table
+    may be assigned to different physical partitions. MySQL 8.0 does not support vertical
+    partitioning, in which different columns of a table are assigned to different
+    physical partitions. There are no plans at this time to introduce vertical partitioning
+    into MySQL.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这被称为水平分区，即表的不同行可以分配给不同的物理分区。MySQL 8.0不支持垂直分区，即表的不同列分配给不同的物理分区。目前没有计划将垂直分区引入MySQL中。
+- en: For creating partitioned tables, you must use a storage engine that supports
+    them. In MySQL 8.0, all partitions of the same partitioned table must use the
+    same storage engine. However, there is nothing preventing you from using different
+    storage engines for different partitioned tables on the same MySQL server or even
+    in the same database.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要创建分区表，必须使用支持它们的存储引擎。在MySQL 8.0中，同一分区表的所有分区必须使用相同的存储引擎。但是，没有任何阻止您在同一MySQL服务器上或甚至在同一数据库中为不同的分区表使用不同的存储引擎。
+- en: In MySQL 8.0, the only storage engines that support partitioning are `InnoDB`
+    and [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0"). Partitioning
+    cannot be used with storage engines that do not support it; these include the
+    `MyISAM`, `MERGE`, `CSV`, and `FEDERATED` storage engines.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0中，仅支持分区的存储引擎是`InnoDB`和[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster
+    8.0")。不能与不支持分区的存储引擎一起使用分区；这些包括`MyISAM`、`MERGE`、`CSV`和`FEDERATED`存储引擎。
+- en: Partitioning by `KEY` or `LINEAR KEY` is possible with [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0"), but other types of user-defined partitioning
+    are not supported for tables using this storage engine. In addition, an [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") table that employs user-defined partitioning
+    must have an explicit primary key, and any columns referenced in the table's partitioning
+    expression must be part of the primary key. However, if no columns are listed
+    in the `PARTITION BY KEY` or `PARTITION BY LINEAR KEY` clause of the [`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") or [`ALTER TABLE`](alter-table-partition-operations.html
+    "15.1.9.1 ALTER TABLE Partition Operations") statement used to create or modify
+    a user-partitioned [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    table, then the table is not required to have an explicit primary key. For more
+    information, see [Section 25.2.7.1, “Noncompliance with SQL Syntax in NDB Cluster”](mysql-cluster-limitations-syntax.html
+    "25.2.7.1 Noncompliance with SQL Syntax in NDB Cluster").
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")进行`KEY`或`LINEAR KEY`分区是可能的，但不支持使用其他类型的用户定义分区的表使用此存储引擎。此外，使用用户定义分区的[`NDB`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")表必须具有显式主键，并且表的分区表达式中引用的任何列必须是主键的一部分。但是，如果在用于创建或修改用户分区的[`NDB`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")表的`PARTITION BY KEY`或`PARTITION BY LINEAR KEY`子句中未列出任何列，则不需要该表具有显式主键。有关更多信息，请参见[第25.2.7.1节“NDB
+    Cluster中的SQL语法不兼容”](mysql-cluster-limitations-syntax.html "25.2.7.1 NDB Cluster中的SQL语法不兼容")。
+- en: 'When creating a partitioned table, the default storage engine is used just
+    as when creating any other table; to override this behavior, it is necessary only
+    to use the `[STORAGE] ENGINE` option just as you would for a table that is not
+    partitioned. The target storage engine must provide native partitioning support,
+    or the statement fails. You should keep in mind that `[STORAGE] ENGINE` (and other
+    table options) need to be listed *before* any partitioning options are used in
+    a [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") statement.
+    This example shows how to create a table that is partitioned by hash into 6 partitions
+    and which uses the `InnoDB` storage engine (regardless of the value of [`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)):'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建分区表时，默认使用与创建任何其他表时相同的存储引擎；要覆盖此行为，只需像为非分区表一样使用`[STORAGE] ENGINE`选项即可。目标存储引擎必须提供本机分区支持，否则语句将失败。需要记住，在[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句中使用任何分区选项之前，需要将`[STORAGE]
+    ENGINE`（以及其他表选项）列在*之前*。此示例显示了如何创建一个表，该表按哈希分区为6个分区，并使用`InnoDB`存储引擎（不管[`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)的值是什么）：
+- en: '[PRE1]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Each `PARTITION` clause can include a `[STORAGE] ENGINE` option, but in MySQL
+    8.0 this has no effect.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个`PARTITION`子句可以包括一个`[STORAGE] ENGINE`选项，但在MySQL 8.0中，这没有任何效果。
+- en: Unless otherwise specified, the remaining examples in this discussion assume
+    that [`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)
+    is `InnoDB`.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除非另有说明，在本讨论中的其余示例假定[`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)为`InnoDB`。
+- en: Important
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Partitioning applies to all data and indexes of a table; you cannot partition
+    only the data and not the indexes, or vice versa, nor can you partition only a
+    portion of the table.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分区适用于表的所有数据和索引；您不能仅对数据进行分区而不对索引进行分区，反之亦然，也不能仅对表的一部分进行分区。
+- en: Data and indexes for each partition can be assigned to a specific directory
+    using the `DATA DIRECTORY` and `INDEX DIRECTORY` options for the `PARTITION` clause
+    of the [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") statement
+    used to create the partitioned table.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个分区的数据和索引可以使用`DATA DIRECTORY`和`INDEX DIRECTORY`选项分配到特定目录，这些选项是用于创建分区表的[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句的`PARTITION`子句。
+- en: Only the `DATA DIRECTORY` option is supported for individual partitions and
+    subpartitions of `InnoDB` tables. As of MySQL 8.0.21, the directory specified
+    in a `DATA DIRECTORY` clause must be known to `InnoDB`. For more information,
+    see [Using the DATA DIRECTORY Clause](innodb-create-table-external.html#innodb-create-table-external-data-directory
+    "Using the DATA DIRECTORY Clause").
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅支持`InnoDB`表的各个分区和子分区的`DATA DIRECTORY`选项。截至MySQL 8.0.21，`DATA DIRECTORY`子句中指定的目录必须为`InnoDB`所知。有关更多信息，请参阅[使用DATA
+    DIRECTORY子句](innodb-create-table-external.html#innodb-create-table-external-data-directory
+    "Using the DATA DIRECTORY Clause")。
+- en: 'All columns used in the table''s partitioning expression must be part of every
+    unique key that the table may have, including any primary key. This means that
+    a table such as this one, created by the following SQL statement, cannot be partitioned:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表的分区表达式中使用的所有列必须是表可能具有的每个唯一键的一部分，包括任何主键。这意味着通过以下SQL语句创建的这样一个表不能进行分区：
+- en: '[PRE2]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Because the keys `pk` and `uk` have no columns in common, there are no columns
+    available for use in a partitioning expression. Possible workarounds in this situation
+    include adding the `name` column to the table's primary key, adding the `id` column
+    to `uk`, or simply removing the unique key altogether. See [Section 26.6.1, “Partitioning
+    Keys, Primary Keys, and Unique Keys”](partitioning-limitations-partitioning-keys-unique-keys.html
+    "26.6.1 Partitioning Keys, Primary Keys, and Unique Keys"), for more information.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为`pk`和`uk`键没有共同的列，所以没有列可用于分区表达式。在这种情况下的可能解决方法包括将`name`列添加到表的主键中，将`id`列添加到`uk`中，或者简单地完全删除唯一键。有关更多信息，请参阅[第26.6.1节，“分区键、主键和唯一键”](partitioning-limitations-partitioning-keys-unique-keys.html
+    "26.6.1 Partitioning Keys, Primary Keys, and Unique Keys")。
+- en: In addition, `MAX_ROWS` and `MIN_ROWS` can be used to determine the maximum
+    and minimum numbers of rows, respectively, that can be stored in each partition.
+    See [Section 26.3, “Partition Management”](partitioning-management.html "26.3 Partition
+    Management"), for more information on these options.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，`MAX_ROWS`和`MIN_ROWS`可用于确定每个分区中可以存储的最大和最小行数。有关这些选项的更多信息，请参阅[第26.3节“分区管理”](partitioning-management.html
+    "26.3 Partition Management")。
+- en: The `MAX_ROWS` option can also be useful for creating NDB Cluster tables with
+    extra partitions, thus allowing for greater storage of hash indexes. See the documentation
+    for the [`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory)
+    data node configuration parameter, as well as [Section 25.2.2, “NDB Cluster Nodes,
+    Node Groups, Fragment Replicas, and Partitions”](mysql-cluster-nodes-groups.html
+    "25.2.2 NDB Cluster Nodes, Node Groups, Fragment Replicas, and Partitions"), for
+    more information.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`MAX_ROWS`选项还可用于创建具有额外分区的NDB Cluster表，从而允许更大的哈希索引存储。有关[`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory)数据节点配置参数的文档，以及更多信息，请参阅[第25.2.2节“NDB
+    Cluster节点、节点组、片段副本和分区”](mysql-cluster-nodes-groups.html "25.2.2 NDB Cluster Nodes,
+    Node Groups, Fragment Replicas, and Partitions")。'
+- en: 'Some advantages of partitioning are listed here:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分区的一些优点列在这里：
+- en: Partitioning makes it possible to store more data in one table than can be held
+    on a single disk or file system partition.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 分区使得可以在一个表中存储比单个磁盘或文件系统分区能够容纳的更多数据。
+- en: Data that loses its usefulness can often be easily removed from a partitioned
+    table by dropping the partition (or partitions) containing only that data. Conversely,
+    the process of adding new data can in some cases be greatly facilitated by adding
+    one or more new partitions for storing specifically that data.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数据如果失去了其用处，通常可以通过删除仅包含该数据的分区（或分区）来轻松地从分区表中删除。相反，通过为存储特定数据添加一个或多个新分区，在某些情况下可以极大地促进添加新数据的过程。
+- en: Some queries can be greatly optimized in virtue of the fact that data satisfying
+    a given `WHERE` clause can be stored only on one or more partitions, which automatically
+    excludes any remaining partitions from the search. Because partitions can be altered
+    after a partitioned table has been created, you can reorganize your data to enhance
+    frequent queries that may not have been often used when the partitioning scheme
+    was first set up. This ability to exclude non-matching partitions (and thus any
+    rows they contain) is often referred to as partition pruning. For more information,
+    see [Section 26.4, “Partition Pruning”](partitioning-pruning.html "26.4 Partition
+    Pruning").
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由于满足给定`WHERE`子句的数据只能存储在一个或多个分区中，因此某些查询可以在很大程度上进行优化，自动排除搜索中的任何剩余分区。由于分区表创建后可以更改分区，因此您可以重新组织数据以增强在设置分区方案时可能未经常使用的频繁查询。排除非匹配分区（以及它们包含的任何行）的能力通常被称为分区修剪。有关更多信息，请参阅[第26.4节“分区修剪”](partitioning-pruning.html
+    "26.4 Partition Pruning")。
+- en: In addition, MySQL supports explicit partition selection for queries. For example,
+    [`SELECT * FROM t PARTITION (p0,p1) WHERE c < 5`](select.html "15.2.13 SELECT
+    Statement") selects only those rows in partitions `p0` and `p1` that match the
+    `WHERE` condition. In this case, MySQL does not check any other partitions of
+    table `t`; this can greatly speed up queries when you already know which partition
+    or partitions you wish to examine. Partition selection is also supported for the
+    data modification statements [`DELETE`](delete.html "15.2.2 DELETE Statement"),
+    [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`REPLACE`](replace.html "15.2.12 REPLACE
+    Statement"), [`UPDATE`](update.html "15.2.17 UPDATE Statement"), and [`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement"), [`LOAD XML`](load-xml.html "15.2.10 LOAD XML Statement").
+    See the descriptions of these statements for more information and examples.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此外，MySQL支持对查询进行显式分区选择。例如，[`SELECT * FROM t PARTITION (p0,p1) WHERE c < 5`](select.html
+    "15.2.13 SELECT Statement") 仅选择与`WHERE`条件匹配的`p0`和`p1`分区中的行。在这种情况下，MySQL不会检查表`t`的其他分区；当您已经知道要检查哪个分区或哪些分区时，这可以极大地加快查询速度。分区选择也支持数据修改语句[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")、[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement")、[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement")、[`LOAD XML`](load-xml.html
+    "15.2.10 LOAD XML Statement")。有关这些语句的更多信息和示例，请参阅这些语句的描述。

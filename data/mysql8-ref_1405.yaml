@@ -1,0 +1,107 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-privilege-checks-gr.html](https://dev.mysql.com/doc/refman/8.0/en/replication-privilege-checks-gr.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-privilege-checks-gr.html](https://dev.mysql.com/doc/refman/8.0/en/replication-privilege-checks-gr.html)
+- en: 19.3.3.2 Privilege Checks For Group Replication Channels
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.3.3.2 组复制通道的权限检查
+- en: From MySQL 8.0.19, as well as securing asynchronous and semi-synchronous replication,
+    you may choose to use a `PRIVILEGE_CHECKS_USER` account to secure the two replication
+    applier threads used by Group Replication. The `group_replication_applier` thread
+    on each group member is used for applying the group's transactions, and the `group_replication_recovery`
+    thread on each group member is used for state transfer from the binary log as
+    part of distributed recovery when the member joins or rejoins the group.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.19开始，除了保护异步和半同步复制外，您还可以选择使用`PRIVILEGE_CHECKS_USER`帐户来保护组复制使用的两个复制应用程序线程。每个组成员上的`group_replication_applier`线程用于应用组的事务，每个组成员上的`group_replication_recovery`线程用于从二进制日志中进行状态传输，作为成员加入或重新加入组时的分布式恢复的一部分。
+- en: 'To secure one of these threads, stop Group Replication, then issue the [`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement") statement (from MySQL 8.0.23) or [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement (before MySQL 8.0.23) with the
+    `PRIVILEGE_CHECKS_USER` option, specifying `group_replication_applier` or `group_replication_recovery`
+    as the channel name. For example:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要保护其中一个线程，停止组复制，然后使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement")语句（从MySQL 8.0.23开始）或[`CHANGE
+    MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement")语句（在MySQL
+    8.0.23之前）并指定`PRIVILEGE_CHECKS_USER`选项，将`group_replication_applier`或`group_replication_recovery`作为通道名称。例如：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: For Group Replication channels, the `REQUIRE_ROW_FORMAT` setting is automatically
+    enabled when the channel is created, and cannot be disabled, so you do not need
+    to specify this.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于组复制通道，当通道创建时会自动启用`REQUIRE_ROW_FORMAT`设置，无法禁用，因此您无需指定此设置。
+- en: Important
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: In MySQL 8.0.19, ensure that you do not issue the [`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement") statement with the `PRIVILEGE_CHECKS_USER` option while Group Replication
+    is running. This action causes the relay log files for the channel to be purged,
+    which might cause the loss of transactions that have been received and queued
+    in the relay log, but not yet applied.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.19中，请确保在运行组复制时不要使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement")语句与`PRIVILEGE_CHECKS_USER`选项。此操作会导致通道的中继日志文件被清除，可能导致已接收并排队在中继日志中但尚未应用的事务丢失。
+- en: Group Replication requires every table that is to be replicated by the group
+    to have a defined primary key, or primary key equivalent where the equivalent
+    is a non-null unique key. Rather than using the checks carried out by the [`sql_require_primary_key`](server-system-variables.html#sysvar_sql_require_primary_key)
+    system variable, Group Replication has its own built-in set of checks for primary
+    keys or primary key equivalents. You may set the `REQUIRE_TABLE_PRIMARY_KEY_CHECK`
+    option of the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement to `ON` for a Group Replication
+    channel. However, be aware that you might find some transactions that are permitted
+    under Group Replication's built-in checks are not permitted under the checks carried
+    out when you set `sql_require_primary_key = ON` or `REQUIRE_TABLE_PRIMARY_KEY_CHECK
+    = ON`. For this reason, new and upgraded Group Replication channels from MySQL
+    8.0.20 (when the option was introduced) have `REQUIRE_TABLE_PRIMARY_KEY_CHECK`
+    set to the default of `STREAM`, rather than to `ON`.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication要求每个要被组复制的表都必须有一个定义的主键，或者等效的主键，其中等效的主键是一个非空唯一键。与[`sql_require_primary_key`](server-system-variables.html#sysvar_sql_require_primary_key)系统变量执行的检查不同，Group
+    Replication有自己内置的一套用于主键或主键等效的检查。您可以为Group Replication通道设置[`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement")语句的`REQUIRE_TABLE_PRIMARY_KEY_CHECK`选项为`ON`。但是，请注意，您可能会发现一些在Group
+    Replication内置检查下允许的事务，在设置`sql_require_primary_key = ON`或`REQUIRE_TABLE_PRIMARY_KEY_CHECK
+    = ON`时不被允许。因此，从MySQL 8.0.20（引入该选项时）开始，新的和升级的Group Replication通道将`REQUIRE_TABLE_PRIMARY_KEY_CHECK`设置为默认的`STREAM`，而不是`ON`。
+- en: If a remote cloning operation is used for distributed recovery in Group Replication
+    (see [Section 20.5.4.2, “Cloning for Distributed Recovery”](group-replication-cloning.html
+    "20.5.4.2 Cloning for Distributed Recovery")), from MySQL 8.0.19, the `PRIVILEGE_CHECKS_USER`
+    account and related settings from the donor are cloned to the joining member.
+    If the joining member is set to start Group Replication on boot, it automatically
+    uses the account for privilege checks on the appropriate replication channels.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在Group Replication中使用远程克隆操作进行分布式恢复（参见[Section 20.5.4.2, “Cloning for Distributed
+    Recovery”](group-replication-cloning.html "20.5.4.2 Cloning for Distributed Recovery")），从MySQL
+    8.0.19开始，`PRIVILEGE_CHECKS_USER`账户和相关设置从捐赠方克隆到加入成员。如果设置加入成员在启动时启动Group Replication，则它会自动使用该账户对适当的复制通道进行特权检查。
+- en: In MySQL 8.0.18, due to a number of limitations, it is recommended that you
+    do not use a `PRIVILEGE_CHECKS_USER` account with Group Replication channels.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.18中，由于一些限制，建议不要在Group Replication通道中使用`PRIVILEGE_CHECKS_USER`账户。

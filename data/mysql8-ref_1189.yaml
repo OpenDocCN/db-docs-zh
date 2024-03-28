@@ -1,0 +1,350 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html)
+- en: 17.7.2.4 Locking Reads
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.7.2.4 锁定读取
+- en: 'If you query data and then insert or update related data within the same transaction,
+    the regular `SELECT` statement does not give enough protection. Other transactions
+    can update or delete the same rows you just queried. `InnoDB` supports two types
+    of [locking reads](glossary.html#glos_locking_read "locking read") that offer
+    extra safety:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您在同一事务中查询数据然后插入或更新相关数据，常规的 `SELECT` 语句不提供足够的保护。其他事务可以更新或删除您刚刚查询的相同行。`InnoDB`
+    支持两种提供额��安全性的 [锁定读取](glossary.html#glos_locking_read "locking read") 类型：
+- en: '[`SELECT ... FOR SHARE`](select.html "15.2.13 SELECT Statement")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SELECT ... FOR SHARE`](select.html "15.2.13 SELECT Statement")'
+- en: Sets a shared mode lock on any rows that are read. Other sessions can read the
+    rows, but cannot modify them until your transaction commits. If any of these rows
+    were changed by another transaction that has not yet committed, your query waits
+    until that transaction ends and then uses the latest values.
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对读取的任何行设置共享模式锁定。其他会话可以读取这些行，但在您的事务提交之前不能修改它们。如果这些行中的任何行已被另一个尚未提交的事务更改，您的查询将等待该事务结束，然后使用最新值。
+- en: Note
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`SELECT ... FOR SHARE` is a replacement for `SELECT ... LOCK IN SHARE MODE`,
+    but `LOCK IN SHARE MODE` remains available for backward compatibility. The statements
+    are equivalent. However, `FOR SHARE` supports `OF *`table_name`*`, `NOWAIT`, and
+    `SKIP LOCKED` options. See [Locking Read Concurrency with NOWAIT and SKIP LOCKED](innodb-locking-reads.html#innodb-locking-reads-nowait-skip-locked
+    "Locking Read Concurrency with NOWAIT and SKIP LOCKED").'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`SELECT ... FOR SHARE` 是 `SELECT ... LOCK IN SHARE MODE` 的替代品，但 `LOCK IN SHARE
+    MODE` 仍然可用于向后兼容。这两个语句是等效的。然而，`FOR SHARE` 支持 `OF *`table_name`*`、`NOWAIT` 和 `SKIP
+    LOCKED` 选项。请参阅 [Locking Read Concurrency with NOWAIT and SKIP LOCKED](innodb-locking-reads.html#innodb-locking-reads-nowait-skip-locked
+    "Locking Read Concurrency with NOWAIT and SKIP LOCKED")。'
+- en: Prior to MySQL 8.0.22, `SELECT ... FOR SHARE` requires the [`SELECT`](privileges-provided.html#priv_select)
+    privilege and at least one of the [`DELETE`](privileges-provided.html#priv_delete),
+    [`LOCK TABLES`](privileges-provided.html#priv_lock-tables), or [`UPDATE`](privileges-provided.html#priv_update)
+    privileges. From MySQL 8.0.22, only the [`SELECT`](privileges-provided.html#priv_select)
+    privilege is required.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.22 之前，`SELECT ... FOR SHARE` 需要 [`SELECT`](privileges-provided.html#priv_select)
+    权限和至少一个 [`DELETE`](privileges-provided.html#priv_delete)、[`LOCK TABLES`](privileges-provided.html#priv_lock-tables)
+    或 [`UPDATE`](privileges-provided.html#priv_update) 权限。从 MySQL 8.0.22 开始，只需要 [`SELECT`](privileges-provided.html#priv_select)
+    权限。
+- en: From MySQL 8.0.22, `SELECT ... FOR SHARE` statements do not acquire read locks
+    on MySQL grant tables. For more information, see [Grant Table Concurrency](grant-tables.html#grant-tables-concurrency
+    "Grant Table Concurrency").
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.22 开始，`SELECT ... FOR SHARE` 语句不会在 MySQL 授权表上获取读取锁。有关更多信息，请参阅 [Grant
+    Table Concurrency](grant-tables.html#grant-tables-concurrency "Grant Table Concurrency")。
+- en: '[`SELECT ... FOR UPDATE`](select.html "15.2.13 SELECT Statement")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SELECT ... FOR UPDATE`](select.html "15.2.13 SELECT Statement")'
+- en: For index records the search encounters, locks the rows and any associated index
+    entries, the same as if you issued an `UPDATE` statement for those rows. Other
+    transactions are blocked from updating those rows, from doing `SELECT ... FOR
+    SHARE`, or from reading the data in certain transaction isolation levels. Consistent
+    reads ignore any locks set on the records that exist in the read view. (Old versions
+    of a record cannot be locked; they are reconstructed by applying [undo logs](glossary.html#glos_undo_log
+    "undo log") on an in-memory copy of the record.)
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于搜索遇到的索引记录，锁定行和任何相关的索引条目，就像您为这些行发出 `UPDATE` 语句一样。其他事务被阻止更新这些行，执行 `SELECT ...
+    FOR SHARE`，或在某些事务隔离级别下读取数据。一致性读取会忽略在读取视图中存在的记录上设置的任何锁定。（旧版本的记录不能被锁定；它们通过在记录的内存副本上应用
+    [undo logs](glossary.html#glos_undo_log "undo log") 来重建。）
+- en: '`SELECT ... FOR UPDATE` requires the [`SELECT`](privileges-provided.html#priv_select)
+    privilege and at least one of the [`DELETE`](privileges-provided.html#priv_delete),
+    [`LOCK TABLES`](privileges-provided.html#priv_lock-tables), or [`UPDATE`](privileges-provided.html#priv_update)
+    privileges.'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`SELECT ... FOR UPDATE` 需要 [`SELECT`](privileges-provided.html#priv_select)
+    权限和至少一个 [`DELETE`](privileges-provided.html#priv_delete)、[`LOCK TABLES`](privileges-provided.html#priv_lock-tables)
+    或 [`UPDATE`](privileges-provided.html#priv_update) 权限。'
+- en: These clauses are primarily useful when dealing with tree-structured or graph-structured
+    data, either in a single table or split across multiple tables. You traverse edges
+    or tree branches from one place to another, while reserving the right to come
+    back and change any of these “pointer” values.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些子句主要在处理树形结构或图形结构数据时非常有用，无论是在单个表中还是跨多个表中。您可以从一个地方遍历边缘或树枝到另一个地方，同时保留回来更改任何这些“指针”值的权利。
+- en: All locks set by `FOR SHARE` and `FOR UPDATE` queries are released when the
+    transaction is committed or rolled back.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由`FOR SHARE`和`FOR UPDATE`查询设置的所有锁定在事务提交或回滚时释放。
+- en: Note
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Locking reads are only possible when autocommit is disabled (either by beginning
+    transaction with [`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") or by setting [`autocommit`](server-system-variables.html#sysvar_autocommit)
+    to 0.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有在禁用自动提交时（通过使用[`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements")开始事务或将[`autocommit`](server-system-variables.html#sysvar_autocommit)设置为0）才能进行锁定读取。
+- en: A locking read clause in an outer statement does not lock the rows of a table
+    in a nested subquery unless a locking read clause is also specified in the subquery.
+    For example, the following statement does not lock rows in table `t2`.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 外部语句中的锁定读取子句不会锁定嵌套子查询中表的行，除非在子查询中也指定了锁定读取子句。例如，以下语句不会锁定表`t2`中的行。
+- en: '[PRE0]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To lock rows in table `t2`, add a locking read clause to the subquery:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要锁定表`t2`中的行，请向子查询添加一个锁定读取子句：
+- en: '[PRE1]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Locking Read Examples
+  id: totrans-20
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 锁定读取示例
+- en: Suppose that you want to insert a new row into a table `child`, and make sure
+    that the child row has a parent row in table `parent`. Your application code can
+    ensure referential integrity throughout this sequence of operations.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您想要向表`child`中插入新行，并确保子行在表`parent`中有父行。您的应用程序代码可以确保在这一系列操作中保持引用完整性。
+- en: First, use a consistent read to query the table `PARENT` and verify that the
+    parent row exists. Can you safely insert the child row to table `CHILD`? No, because
+    some other session could delete the parent row in the moment between your `SELECT`
+    and your `INSERT`, without you being aware of it.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，使用一致性读取查询表`PARENT`并验证父行是否存在。您可以安全地将子行插入到`CHILD`表中吗？不可以，因为在您的`SELECT`和`INSERT`之间的某一时刻，其他会话可能会删除父行，而您却不知情。
+- en: 'To avoid this potential issue, perform the [`SELECT`](select.html "15.2.13 SELECT
+    Statement") using `FOR SHARE`:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为避免这种潜在问题，使用`FOR SHARE`执行[`SELECT`](select.html "15.2.13 SELECT Statement")：
+- en: '[PRE2]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: After the `FOR SHARE` query returns the parent `'Jones'`, you can safely add
+    the child record to the `CHILD` table and commit the transaction. Any transaction
+    that tries to acquire an exclusive lock in the applicable row in the `PARENT`
+    table waits until you are finished, that is, until the data in all tables is in
+    a consistent state.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在`FOR SHARE`查询返回父记录`'Jones'`后，您可以安全地将子记录添加到`CHILD`表中并提交事务。任何试图在`PARENT`表中适用行中获取独占锁的事务都会等待，直到您完成，也就是说，直到所有表中的数据处于一致状态。
+- en: For another example, consider an integer counter field in a table `CHILD_CODES`,
+    used to assign a unique identifier to each child added to table `CHILD`. Do not
+    use either consistent read or a shared mode read to read the present value of
+    the counter, because two users of the database could see the same value for the
+    counter, and a duplicate-key error occurs if two transactions attempt to add rows
+    with the same identifier to the `CHILD` table.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 举个例子，考虑一个表`CHILD_CODES`中的整数计数器字段，用于为添加到`CHILD`表中的每个子记录分配唯一标识符。不要使用一致性读取或共享模式读取来读取计数器的当前值，因为数据库的两个用户可能会看到计数器的相同值，并且如果两个事务尝试向`CHILD`表中添加具有相同标识符的行，则会发生重复键错误。
+- en: Here, `FOR SHARE` is not a good solution because if two users read the counter
+    at the same time, at least one of them ends up in deadlock when it attempts to
+    update the counter.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这里，`FOR SHARE`不是一个好的解决方案，因为如果两个用户同时读取计数器，其中至少一个在尝试更新计数器时会陷入死锁。
+- en: 'To implement reading and incrementing the counter, first perform a locking
+    read of the counter using `FOR UPDATE`, and then increment the counter. For example:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要实现对计数器的读取和递增操作，首先使用`FOR UPDATE`执行计数器的锁定读取，然后再递增计数器。例如：
+- en: '[PRE3]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: A [`SELECT ... FOR UPDATE`](select.html "15.2.13 SELECT Statement") reads the
+    latest available data, setting exclusive locks on each row it reads. Thus, it
+    sets the same locks a searched SQL [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    would set on the rows.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SELECT ... FOR UPDATE`](select.html "15.2.13 SELECT Statement")读取最新可用数据，在读取的每一行上设置排他锁。因此，它设置了与搜索的SQL
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement")在行上设置的相同锁。'
+- en: 'The preceding description is merely an example of how [`SELECT ... FOR UPDATE`](select.html
+    "15.2.13 SELECT Statement") works. In MySQL, the specific task of generating a
+    unique identifier actually can be accomplished using only a single access to the
+    table:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 上述描述仅仅是演示了[`SELECT ... FOR UPDATE`](select.html "15.2.13 SELECT Statement")的工作方式的一个例子。在MySQL中，实际上可以仅通过一次访问表来完成生成唯一标识符的特定任务：
+- en: '[PRE4]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The [`SELECT`](select.html "15.2.13 SELECT Statement") statement merely retrieves
+    the identifier information (specific to the current connection). It does not access
+    any table.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SELECT`](select.html "15.2.13 SELECT Statement")语句仅仅检索标识符信息（特定于当前连接）。它不访问任何表。'
+- en: Locking Read Concurrency with NOWAIT and SKIP LOCKED
+  id: totrans-34
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用`NOWAIT`和`SKIP LOCKED`进行锁定读取并发
+- en: If a row is locked by a transaction, a `SELECT ... FOR UPDATE` or `SELECT ...
+    FOR SHARE` transaction that requests the same locked row must wait until the blocking
+    transaction releases the row lock. This behavior prevents transactions from updating
+    or deleting rows that are queried for updates by other transactions. However,
+    waiting for a row lock to be released is not necessary if you want the query to
+    return immediately when a requested row is locked, or if excluding locked rows
+    from the result set is acceptable.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一行被事务锁定，请求相同锁定行的`SELECT ... FOR UPDATE`或`SELECT ... FOR SHARE`事务必须等待阻塞事务释放行锁。这种行为防止了事务更新或删除被其他事务查询更新的行。然而，如果希望查询在请求的行被锁定时立即返回，或者接受将被锁定的行排除在结果集之外，则无需等待行锁被释放。
+- en: To avoid waiting for other transactions to release row locks, `NOWAIT` and `SKIP
+    LOCKED` options may be used with `SELECT ... FOR UPDATE` or `SELECT ... FOR SHARE`
+    locking read statements.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免等待其他事务释放行锁，可以在`SELECT ... FOR UPDATE`或`SELECT ... FOR SHARE`锁定读取语句中使用`NOWAIT`和`SKIP
+    LOCKED`选项。
+- en: '`NOWAIT`'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NOWAIT`'
+- en: A locking read that uses `NOWAIT` never waits to acquire a row lock. The query
+    executes immediately, failing with an error if a requested row is locked.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用`NOWAIT`的锁定读取永远不会等待获取行锁。查询立即执行，如果请求的行被锁定，则失败并返回错误。
+- en: '`SKIP LOCKED`'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SKIP LOCKED`'
+- en: A locking read that uses `SKIP LOCKED` never waits to acquire a row lock. The
+    query executes immediately, removing locked rows from the result set.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用`SKIP LOCKED`的锁定读取永远不会等待获取行锁。查询立即执行，从结果集中移除被锁定的行。
+- en: Note
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Queries that skip locked rows return an inconsistent view of the data. `SKIP
+    LOCKED` is therefore not suitable for general transactional work. However, it
+    may be used to avoid lock contention when multiple sessions access the same queue-like
+    table.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 跳过被锁定行的查询返回数据的不一致视图。因此，`SKIP LOCKED`不适用于一般的事务工作。然而，当多个会话访问相同的类似队列的表时，可以用于避免锁争用。
+- en: '`NOWAIT` and `SKIP LOCKED` only apply to row-level locks.'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NOWAIT`和`SKIP LOCKED`仅适用于行级锁。'
+- en: Statements that use `NOWAIT` or `SKIP LOCKED` are unsafe for statement based
+    replication.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`NOWAIT`或`SKIP LOCKED`的语句对基于语句的复制是不安全的。
+- en: The following example demonstrates `NOWAIT` and `SKIP LOCKED`. Session 1 starts
+    a transaction that takes a row lock on a single record. Session 2 attempts a locking
+    read on the same record using the `NOWAIT` option. Because the requested row is
+    locked by Session 1, the locking read returns immediately with an error. In Session
+    3, the locking read with `SKIP LOCKED` returns the requested rows except for the
+    row that is locked by Session 1.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了`NOWAIT`和`SKIP LOCKED`。会话1启动一个事务，锁定单个记录的行。会话2尝试使用`NOWAIT`选项对相同记录进行锁定读取。由于请求的行被会话1锁定，锁定读取立即返回错误。在会话3中，使用`SKIP
+    LOCKED`的锁定读取返回请求的行，除了被会话1锁定的行。
+- en: '[PRE5]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'

@@ -1,0 +1,613 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-differing-tables.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-differing-tables.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-differing-tables.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-differing-tables.html)
+- en: 19.5.1.9 Replication with Differing Table Definitions on Source and Replica
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.9 源表和副本表定义不同的复制
+- en: Source and target tables for replication do not have to be identical. A table
+    on the source can have more or fewer columns than the replica's copy of the table.
+    In addition, corresponding table columns on the source and the replica can use
+    different data types, subject to certain conditions.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 源表和目标表的复制不必完全相同。源表可以比副本表的副本具有更多或更少的列。此外，源表和副本的对应表列可以使用不同的数据类型，但必须满足一定条件。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Replication between tables which are partitioned differently from one another
+    is not supported. See [Section 19.5.1.24, “Replication and Partitioning”](replication-features-partitioning.html
+    "19.5.1.24 Replication and Partitioning").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不支持不同分区的表之间的复制。参见[Section 19.5.1.24, “复制和分区”](replication-features-partitioning.html
+    "19.5.1.24 Replication and Partitioning")。
+- en: In all cases where the source and target tables do not have identical definitions,
+    the database and table names must be the same on both the source and the replica.
+    Additional conditions are discussed, with examples, in the following two sections.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在所有源表和目标表定义不完全相同的情况下，数据库和表名必须在源表和副本上相同。在以下两个部分中讨论了其他条件，并给出了示例。
+- en: 19.5.1.9.1 Replication with More Columns on Source or Replica
+  id: totrans-6
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 19.5.1.9.1 源表或副本表中有更多列的复制
+- en: 'You can replicate a table from the source to the replica such that the source
+    and replica copies of the table have differing numbers of columns, subject to
+    the following conditions:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以将表从源复制到副本，使得源表和副本表的列数不同，但必须满足以下条件：
+- en: Columns common to both versions of the table must be defined in the same order
+    on the source and the replica. (This is true even if both tables have the same
+    number of columns.)
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 两个表共有的列必须在源表和副本上以相同顺序定义。（即使两个表具有相同数量的列也是如此。）
+- en: Columns common to both versions of the table must be defined before any additional
+    columns.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 两个表共有的列必须在任何额外列之前定义。
+- en: 'This means that executing an [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") statement on the replica where a new column is inserted into
+    the table within the range of columns common to both tables causes replication
+    to fail, as shown in the following example:'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这意味着在副本上执行[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句，向表中插入一个新列，该列位于两个表共有的列范围内，会导致复制失败，如下例所示：
+- en: 'Suppose that a table `t`, existing on the source and the replica, is defined
+    by the following [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    statement:'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设表`t`在源和副本上存在，并由以下[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE
+    Statement")语句定义：
+- en: '[PRE0]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Suppose that the [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    statement shown here is executed on the replica:'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设在副本上执行了以下[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句：
+- en: '[PRE1]'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The previous [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    is permitted on the replica because the columns `c1`, `c2`, and `c3` that are
+    common to both versions of table `t` remain grouped together in both versions
+    of the table, before any columns that differ.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 之前的[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")在副本上是允许的，因为表`t`的两个版本中共有的列`c1`、`c2`和`c3`在任何不同的列之前都保持在一起。
+- en: 'However, the following [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") statement cannot be executed on the replica without causing replication
+    to break:'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 然而，在副本上执行以下[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句会导致复制中断：
+- en: '[PRE2]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Replication fails after execution on the replica of the [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") statement just shown, because the new column `cnew2`
+    comes between columns common to both versions of `t`.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在副本上执行刚刚显示的[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句后，复制失败，因为新列`cnew2`位于`t`两个版本共有的列之间。
+- en: Each “extra” column in the version of the table having more columns must have
+    a default value.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在列更多的表版本中，每个“额外”列必须有一个默认值。
+- en: A column's default value is determined by a number of factors, including its
+    type, whether it is defined with a `DEFAULT` option, whether it is declared as
+    `NULL`, and the server SQL mode in effect at the time of its creation; for more
+    information, see [Section 13.6, “Data Type Default Values”](data-type-defaults.html
+    "13.6 Data Type Default Values")).
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 列的默认值由多种因素决定，包括其类型、是否使用`DEFAULT`选项定义、是否声明为`NULL`，以及创建时服务器SQL模式的有效性；更多信息，请参见[第13.6节，“数据类型默认值”](data-type-defaults.html
+    "13.6 数据类型默认值")）。
+- en: In addition, when the replica's copy of the table has more columns than the
+    source's copy, each column common to the tables must use the same data type in
+    both tables.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，当副本表比源表具有更多列时，两个表中共有的每一列必须在两个表中使用相同的数据类型。
+- en: '**Examples. ** The following examples illustrate some valid and invalid table
+    definitions:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**示例。** 以下示例说明了一些有效和无效的表定义：'
+- en: '**More columns on the source. ** The following table definitions are valid
+    and replicate correctly:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**源表中有更多列。** 以下表定义是有效的，并且可以正确复制：'
+- en: '[PRE3]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'The following table definitions would raise an error because the definitions
+    of the columns common to both versions of the table are in a different order on
+    the replica than they are on the source:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下表定义会引发错误，因为两个版本表共有的列的定义在副本表上的顺序与源表上的顺序不同：
+- en: '[PRE4]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'The following table definitions would also raise an error because the definition
+    of the extra column on the source appears before the definitions of the columns
+    common to both versions of the table:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下表定义也会引发错误，因为源表中额外列的定义出现在两个版本共有的列定义之前：
+- en: '[PRE5]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: '**More columns on the replica. ** The following table definitions are valid
+    and replicate correctly:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**副本表中有更多列。** 以下表定义是有效的，并且可以正确复制：'
+- en: '[PRE6]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'The following definitions raise an error because the columns common to both
+    versions of the table are not defined in the same order on both the source and
+    the replica:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下列定义会引发错误，因为两个版本表共有的列在源表和副本表上的定义顺序不同：
+- en: '[PRE7]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The following table definitions also raise an error because the definition
+    for the extra column in the replica''s version of the table appears before the
+    definitions for the columns which are common to both versions of the table:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下表定义也会引发错误，因为副本版本表中额外列的定义出现在两个版本共有的列定义之前：
+- en: '[PRE8]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'The following table definitions fail because the replica''s version of the
+    table has additional columns compared to the source''s version, and the two versions
+    of the table use different data types for the common column `c2`:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下表定义失败，因为副本版本表比源版本表多了额外列，并且两个版本的表对于共有列`c2`使用了不同的数据类型：
+- en: '[PRE9]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 19.5.1.9.2 Replication of Columns Having Different Data Types
+  id: totrans-37
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 19.5.1.9.2 具有不同数据类型的列的复制
+- en: Corresponding columns on the source's and the replica's copies of the same table
+    ideally should have the same data type. However, this is not always strictly enforced,
+    as long as certain conditions are met.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 源表和副本表中相应的列的副本应该具有相同的数据类型。然而，并不总是严格执行这一规定，只要满足一定条件即可。
+- en: It is usually possible to replicate from a column of a given data type to another
+    column of the same type and same size or width, where applicable, or larger. For
+    example, you can replicate from a `CHAR(10)` column to another `CHAR(10)`, or
+    from a `CHAR(10)` column to a `CHAR(25)` column without any problems. In certain
+    cases, it also possible to replicate from a column having one data type (on the
+    source) to a column having a different data type (on the replica); when the data
+    type of the source's version of the column is promoted to a type that is the same
+    size or larger on the replica, this is known as attribute promotion.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常可以从具有特定数据类型的列复制到具有相同类型和大小或宽度的另一列，如适用，或更大的列。例如，可以从`CHAR(10)`列复制到另一个`CHAR(10)`列，或者从`CHAR(10)`列复制到`CHAR(25)`列而不会出现问题。在某些情况下，还可以从源表中具有一种数据类型的列复制到副本中具有不同数据类型的列；当源表中列的数据类型提升为副本中相同大小或更大的类型时，这称为属性提升。
+- en: Attribute promotion can be used with both statement-based and row-based replication,
+    and is not dependent on the storage engine used by either the source or the replica.
+    However, the choice of logging format does have an effect on the type conversions
+    that are permitted; the particulars are discussed later in this section.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 属性提升可用于基于语句和基于行的复制，并且不依赖于源或副本使用的存储引擎。但是，日志格式的选择确实会影响允许的类型转换；具体内容将在本节后面讨论。
+- en: Important
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Whether you use statement-based or row-based replication, the replica's copy
+    of the table cannot contain more columns than the source's copy if you wish to
+    employ attribute promotion.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论您使用基于语句还是基于行的复制，如果希望使用属性提升，则副本表的副本不能包含比源表的副本更多的列。
+- en: '**Statement-based replication. ** When using statement-based replication, a
+    simple rule of thumb to follow is, “If the statement run on the source would also
+    execute successfully on the replica, it should also replicate successfully”. In
+    other words, if the statement uses a value that is compatible with the type of
+    a given column on the replica, the statement can be replicated. For example, you
+    can insert any value that fits in a `TINYINT` column into a `BIGINT` column as
+    well; it follows that, even if you change the type of a `TINYINT` column in the
+    replica''s copy of a table to `BIGINT`, any insert into that column on the source
+    that succeeds should also succeed on the replica, since it is impossible to have
+    a legal `TINYINT` value that is large enough to exceed a `BIGINT` column.'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**基于语句的复制。** 在使用基于语句的复制时，一个简单的经验法则是，“如果在源上运行的语句也可以在副本上成功执行，则它也应该成功复制”。换句话说，如果语句使用与副本上给定列类型兼容的值，则可以复制该语句。例如，您可以将适合`TINYINT`列的任何值插入到`BIGINT`列中；因此，即使您将副本表中的`TINYINT`列的类型更改为`BIGINT`，任何成功插入该列的源上的插入也应该在副本上成功，因为不可能有一个合法的`TINYINT`值大到足以超过`BIGINT`列。'
+- en: '**Row-based replication: attribute promotion and demotion. ** Row-based replication
+    supports attribute promotion and demotion between smaller data types and larger
+    types. It is also possible to specify whether or not to permit lossy (truncated)
+    or non-lossy conversions of demoted column values, as explained later in this
+    section.'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**基于行的复制：属性提升和降级。** 基于行的复制支持较小数据类型和较大类型之间的属性提升和降级。还可以指定是否允许对降级列值进行有损（截断）或无损转换，如本节后面所述。'
+- en: '**Lossy and non-lossy conversions. ** In the event that the target type cannot
+    represent the value being inserted, a decision must be made on how to handle the
+    conversion. If we permit the conversion but truncate (or otherwise modify) the
+    source value to achieve a “fit” in the target column, we make what is known as
+    a lossy conversion. A conversion which does not require truncation or similar
+    modifications to fit the source column value in the target column is a non-lossy
+    conversion.'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**有损和无损转换。** 在目标类型无法表示要插入的值的情况下，必须决定如何处理转换。如果我们允许转换但截断（或以其他方式修改）源值以在目标列中实现“适合”，我们进行的是所谓的有损转换。不需要截断或类似修改以使源列值适合目标列的转换是无损转换。'
+- en: '**Type conversion modes. ** The global value of the system variable `replica_type_conversions`
+    (from MySQL 8.0.26) or `slave_type_conversions` (before MySQL 8.0.26) controls
+    the type conversion mode used on the replica. This variable takes a set of values
+    from the following list, which describes the effects of each mode on the replica''s
+    type-conversion behavior:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**类型转换模式。** 系统变量`replica_type_conversions`（从MySQL 8.0.26开始）或`slave_type_conversions`（在MySQL
+    8.0.26之前）的全局值控制副本上使用的类型转换模式。此变量接受以下列表中的一组值，描述了每种模式对副本的类型转换行为的影响：'
+- en: ALL_LOSSY
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: ALL_LOSSY
+- en: In this mode, type conversions that would mean loss of information are permitted.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此模式下，允许会导致信息丢失的类型转换。
+- en: This does not imply that non-lossy conversions are permitted, merely that only
+    cases requiring either lossy conversions or no conversion at all are permitted;
+    for example, enabling *only* this mode permits an `INT` column to be converted
+    to `TINYINT` (a lossy conversion), but not a `TINYINT` column to an `INT` column
+    (non-lossy). Attempting the latter conversion in this case would cause replication
+    to stop with an error on the replica.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这并不意味着允许非损失转换，仅表示只允许需要损失转换或根本不需要转换的情况；例如，仅启用*此*模式允许将`INT`列转换为`TINYINT`（损失转换），但不允许将`TINYINT`列转换为`INT`列（非损失）。在这种情况下尝试后者的转换会导致副本停止并显示错误。
+- en: ALL_NON_LOSSY
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: ALL_NON_LOSSY
+- en: This mode permits conversions that do not require truncation or other special
+    handling of the source value; that is, it permits conversions where the target
+    type has a wider range than the source type.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此模式允许不需要截断或其他特殊处理源值的转换；也就是说，它允许目标类型的范围比源类型更宽的转换。
+- en: Setting this mode has no bearing on whether lossy conversions are permitted;
+    this is controlled with the `ALL_LOSSY` mode. If only `ALL_NON_LOSSY` is set,
+    but not `ALL_LOSSY`, then attempting a conversion that would result in the loss
+    of data (such as `INT` to `TINYINT`, or `CHAR(25)` to `VARCHAR(20)`) causes the
+    replica to stop with an error.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 设置此模式不影响是否允许有损转换；这由`ALL_LOSSY`模式控制。如果只设置了`ALL_NON_LOSSY`，但没有设置`ALL_LOSSY`，那么尝试进行可能导致数据丢失的转换（例如`INT`到`TINYINT`，或`CHAR(25)`到`VARCHAR(20)`）会导致副本停止并显示错误。
+- en: ALL_LOSSY,ALL_NON_LOSSY
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: ALL_LOSSY,ALL_NON_LOSSY
+- en: When this mode is set, all supported type conversions are permitted, whether
+    or not they are lossy conversions.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当设置此模式时，允许所有支持的类型转换，无论它们是否是有损转换。
+- en: ALL_SIGNED
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: ALL_SIGNED
+- en: Treat promoted integer types as signed values (the default behavior).
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将提升的整数类型视为有符号值（默认行为）。
+- en: ALL_UNSIGNED
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: ALL_UNSIGNED
+- en: Treat promoted integer types as unsigned values.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将提升的整数类型视为无符号值。
+- en: ALL_SIGNED,ALL_UNSIGNED
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: ALL_SIGNED,ALL_UNSIGNED
+- en: Treat promoted integer types as signed if possible, otherwise as unsigned.
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽可能将提升的整数类型视为有符号，否则视为无符号。
+- en: '[*empty*]'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[*空*]'
+- en: When `replica_type_conversions` or `slave_type_conversions` is not set, no attribute
+    promotion or demotion is permitted; this means that all columns in the source
+    and target tables must be of the same types.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当未设置`replica_type_conversions`或`slave_type_conversions`时，不允许进行属性提升或降级；这意味着源表和目标表中的所有列必须是相同类型。
+- en: This mode is the default.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是默认模式。
+- en: When an integer type is promoted, its signedness is not preserved. By default,
+    the replica treats all such values as signed. You can control this behavior using
+    `ALL_SIGNED`, `ALL_UNSIGNED`, or both. `ALL_SIGNED` tells the replica to treat
+    all promoted integer types as signed; `ALL_UNSIGNED` instructs it to treat these
+    as unsigned. Specifying both causes the replica to treat the value as signed if
+    possible, otherwise to treat it as unsigned; the order in which they are listed
+    is not significant. Neither `ALL_SIGNED` nor `ALL_UNSIGNED` has any effect if
+    at least one of `ALL_LOSSY` or `ALL_NONLOSSY` is not also used.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当整数类型被提升时，其符号性不会被保留。默认情况下，副本将所有这些值视为有符号的。您可以使用`ALL_SIGNED`、`ALL_UNSIGNED`或两者来控制此行为。`ALL_SIGNED`告诉副本将所有提升的整数类型视为有符号；`ALL_UNSIGNED`指示将其视为无符号。如果同时指定两者，副本将尽可能将值视为有符号，否则将视为无符号；它们列出的顺序并不重要。如果至少没有使用`ALL_LOSSY`或`ALL_NONLOSSY`中的一个，那么`ALL_SIGNED`和`ALL_UNSIGNED`都不会产生任何效果。
+- en: Changing the type conversion mode requires restarting the replica with the new
+    `replica_type_conversions` or `slave_type_conversions` setting.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更改类型转换模式需要使用新的`replica_type_conversions`或`slave_type_conversions`设置重新启动副本。
+- en: '**Supported conversions. ** Supported conversions between different but similar
+    data types are shown in the following list:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**支持的转换。** 支持不同但相似数据类型之间的转换列在以下列表中：'
+- en: Between any of the integer types [`TINYINT`](integer-types.html "13.1.2 Integer
+    Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT"), [`SMALLINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT"), [`MEDIUMINT`](integer-types.html "13.1.2 Integer Types (Exact Value)
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT"), [`INT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT"), and [`BIGINT`](integer-types.html "13.1.2 Integer Types (Exact Value)
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT").
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在任何整数类型[`TINYINT`](integer-types.html "13.1.2 整数类型（精确值） - INTEGER, INT, SMALLINT,
+    TINYINT, MEDIUMINT, BIGINT")，[`SMALLINT`](integer-types.html "13.1.2 整数类型（精确值）
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")，[`MEDIUMINT`](integer-types.html
+    "13.1.2 整数类型（精确值） - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")，[`INT`](integer-types.html
+    "13.1.2 整数类型（精确值） - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")和[`BIGINT`](integer-types.html
+    "13.1.2 整数类型（精确值） - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")之间。
+- en: This includes conversions between the signed and unsigned versions of these
+    types.
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这包括这些类型的有符号和无符号版本之间的转换。
+- en: Lossy conversions are made by truncating the source value to the maximum (or
+    minimum) permitted by the target column. For ensuring non-lossy conversions when
+    going from unsigned to signed types, the target column must be large enough to
+    accommodate the range of values in the source column. For example, you can demote
+    `TINYINT UNSIGNED` non-lossily to `SMALLINT`, but not to `TINYINT`.
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 通过将源值截断为目标列允许的最大（或最小）值来进行有损转换。为了确保从无符号到有符号类型的非有损转换，目标列必须足够大，以容纳源列中的值范围。例如，您可以将`TINYINT
+    UNSIGNED`非有损地降级为`SMALLINT`，但不能降级为`TINYINT`。
+- en: Between any of the decimal types [`DECIMAL`](fixed-point-types.html "13.1.3 Fixed-Point
+    Types (Exact Value) - DECIMAL, NUMERIC"), [`FLOAT`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE"), [`DOUBLE`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE"), and [`NUMERIC`](fixed-point-types.html
+    "13.1.3 Fixed-Point Types (Exact Value) - DECIMAL, NUMERIC").
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在任何十进制类型[`DECIMAL`](fixed-point-types.html "13.1.3 定点类型（精确值） - DECIMAL, NUMERIC")，[`FLOAT`](floating-point-types.html
+    "13.1.4 浮点类型（近似值） - FLOAT, DOUBLE")，[`DOUBLE`](floating-point-types.html "13.1.4 浮点类型（近似值）
+    - FLOAT, DOUBLE")和[`NUMERIC`](fixed-point-types.html "13.1.3 定点类型（精确值） - DECIMAL,
+    NUMERIC")之间。
+- en: '`FLOAT` to `DOUBLE` is a non-lossy conversion; `DOUBLE` to `FLOAT` can only
+    be handled lossily. A conversion from `DECIMAL(*`M`*,*`D`*)` to `DECIMAL(*`M''`*,*`D''`*)`
+    where `*`D''`* >= *`D`*` and `(*`M''`*-*`D''`*) >= (*`M`*-*`D`*`) is non-lossy;
+    for any case where `*`M''`* < *`M`*`, `*`D''`* < *`D`*`, or both, only a lossy
+    conversion can be made.'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`FLOAT`到`DOUBLE`是非有损转换；`DOUBLE`到`FLOAT`只能以有损方式处理。从`DECIMAL(*`M`*,*`D`*)`到`DECIMAL(*`M''`*,*`D''`*)`的转换，其中`*`D''`*
+    >= *`D`*`和`(*`M''`*-*`D''`*) >= (*`M`*-*`D`*`)是非有损的；对于任何`*`M''`* < *`M`*`，`*`D''`*
+    < *`D`*`，或两者都是的情况，只能进行有损转换。'
+- en: For any of the decimal types, if a value to be stored cannot be fit in the target
+    type, the value is rounded down according to the rounding rules defined for the
+    server elsewhere in the documentation. See [Section 14.24.4, “Rounding Behavior”](precision-math-rounding.html
+    "14.24.4 Rounding Behavior"), for information about how this is done for decimal
+    types.
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于任何十进制类型，如果要存储的值无法适应目标类型，则根据文档中其他地方定义的服务器舍入规则将该值向下舍入。有关十进制类型的此类操作的详细信息，请参见[第14.24.4节，“舍入行为”](precision-math-rounding.html
+    "14.24.4 舍入行为")。
+- en: Between any of the string types [`CHAR`](char.html "13.3.2 The CHAR and VARCHAR
+    Types"), [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), and [`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types"), including conversions between different widths.
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在任何字符串类型[`CHAR`](char.html "13.3.2 CHAR和VARCHAR类型")，[`VARCHAR`](char.html "13.3.2 CHAR和VARCHAR类型")和[`TEXT`](blob.html
+    "13.3.4 BLOB和TEXT类型")之间，包括不同宽度之间的转换。
+- en: Conversion of a `CHAR`, `VARCHAR`, or `TEXT` to a `CHAR`, `VARCHAR`, or `TEXT`
+    column the same size or larger is never lossy. Lossy conversion is handled by
+    inserting only the first *`N`* characters of the string on the replica, where
+    *`N`* is the width of the target column.
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将`CHAR`，`VARCHAR`或`TEXT`转换为大小相同或更大的`CHAR`，`VARCHAR`或`TEXT`列永远不会有损。有损转换通过在副本上仅插入字符串的前*`N`*个字符来处理，其中*`N`*是目标列的宽度。
+- en: Important
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Replication between columns using different character sets is not supported.
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不支持在使用不同字符集的列之间进行复制。
+- en: Between any of the binary data types [`BINARY`](binary-varbinary.html "13.3.3 The
+    BINARY and VARBINARY Types"), [`VARBINARY`](binary-varbinary.html "13.3.3 The
+    BINARY and VARBINARY Types"), and [`BLOB`](blob.html "13.3.4 The BLOB and TEXT
+    Types"), including conversions between different widths.
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 任意二进制数据类型[`BINARY`](binary-varbinary.html "13.3.3 The BINARY and VARBINARY Types")，[`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types")和[`BLOB`](blob.html "13.3.4 The BLOB and
+    TEXT Types")之间的转换，包括不同宽度之间的转换。
+- en: Conversion of a `BINARY`, `VARBINARY`, or `BLOB` to a `BINARY`, `VARBINARY`,
+    or `BLOB` column the same size or larger is never lossy. Lossy conversion is handled
+    by inserting only the first *`N`* bytes of the string on the replica, where *`N`*
+    is the width of the target column.
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将`BINARY`，`VARBINARY`或`BLOB`转换为相同大小或更大的`BINARY`，`VARBINARY`或`BLOB`列永远不会有损失。有损转换通过仅在副本上插入字符串的前*`N`*字节来处理，其中*`N`*是目标列的宽度。
+- en: Between any 2 [`BIT`](bit-type.html "13.1.5 Bit-Value Type - BIT") columns of
+    any 2 sizes.
+  id: totrans-79
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 任意两个不同大小的[`BIT`](bit-type.html "13.1.5 Bit-Value Type - BIT")列之间。
+- en: When inserting a value from a `BIT(*`M`*)` column into a `BIT(*`M'`*)` column,
+    where `*`M'`* > *`M`*`, the most significant bits of the `BIT(*`M'`*)` columns
+    are cleared (set to zero) and the *`M`* bits of the `BIT(*`M`*)` value are set
+    as the least significant bits of the `BIT(*`M'`*)` column.
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当将来自`BIT(*`M`*)`列的值插入到`BIT(*`M'`*)`列中，其中`*`M'`* > *`M`*`时，`BIT(*`M'`*)`列的最高有效位被清除（设置为零），而`BIT(*`M`*)`值的*`M`*位被设置为`BIT(*`M'`*)`列的最低有效位。
+- en: When inserting a value from a source `BIT(*`M`*)` column into a target `BIT(*`M'`*)`
+    column, where `*`M'`* < *`M`*`, the maximum possible value for the `BIT(*`M'`*)`
+    column is assigned; in other words, an “all-set” value is assigned to the target
+    column.
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当将来自源`BIT(*`M`*)`列的值插入到目标`BIT(*`M'`*)`列中，其中`*`M'`* < *`M`*`时，`BIT(*`M'`*)`列被赋予最大可能的值；换句话说，目标列被赋予“全置位”值。
+- en: Conversions between types not in the previous list are not permitted.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 类型转换不在前述列表中的类型是不允许的。

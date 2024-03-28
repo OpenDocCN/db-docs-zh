@@ -1,0 +1,276 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/clone-plugin-replication.html](https://dev.mysql.com/doc/refman/8.0/en/clone-plugin-replication.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/clone-plugin-replication.html](https://dev.mysql.com/doc/refman/8.0/en/clone-plugin-replication.html)
+- en: 7.6.7.7 Cloning for Replication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.6.7.7 复制用的克隆
+- en: The clone plugin supports replication. In addition to cloning data, a cloning
+    operation extracts replication coordinates from the donor and transfers them to
+    the recipient, which enables using the clone plugin for provisioning Group Replication
+    members and replicas. Using the clone plugin for provisioning is considerably
+    faster and more efficient than replicating a large number of transactions.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 克隆插件支持复制。除了克隆数据外，克隆操作还会从捐赠者提取复制坐标并将其传输给接收者，这使得可以使用克隆插件为配置组复制成员和副本提供服务。使用克隆插件进行配置比复制大量事务要快得多且更有效率。
+- en: Group Replication members can also be configured to use the clone plugin as
+    an option for distributed recovery, in which case joining members automatically
+    choose the most efficient way to retrieve group data from existing group members.
+    For more information, see [Section 20.5.4.2, “Cloning for Distributed Recovery”](group-replication-cloning.html
+    "20.5.4.2 Cloning for Distributed Recovery").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 配置组复制成员也可以配置为使用克隆插件作为分布式恢复的选项，这样加入成员会自动选择从现有组成员检索组数据的最有效方式。有关更多信息，请参见[Section 20.5.4.2,
+    “Cloning for Distributed Recovery”](group-replication-cloning.html "20.5.4.2 Cloning
+    for Distributed Recovery")。
+- en: During the cloning operation, both the binary log position (filename, offset)
+    and the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID set are extracted and transferred from the donor MySQL server instance to
+    the recipient. This data permits initiating replication at a consistent position
+    in the replication stream. The binary logs and relay logs, which are held in files,
+    are not copied from the donor to the recipient. To initiate replication, the binary
+    logs required for the recipient to catch up to the donor must not be purged between
+    the time that the data is cloned and the time that replication is started. If
+    the required binary logs are not available, a replication handshake error is reported.
+    A cloned instance should therefore be added to a replication group without excessive
+    delay to avoid required binary logs being purged or the new member lagging behind
+    significantly, requiring more recovery time.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在克隆操作期间，二进制日志位置（文件名、偏移量）和[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID 集都会从捐赠者的 MySQL 服务器实例中提取并传输到接收者。这些数据允许在复制流中的一致位置启动复制。二进制日志和中继日志（保存在文件中）不会从捐赠者复制到接收者。为了启动复制，接收者需要的二进制日志必须在数据克隆和启动复制之间不被清除。如果所需的二进制日志不可用，则会报告复制握手错误。因此，克隆实例应尽快添加到复制组中，以避免所需的二进制日志被清除或新成员明显滞后，需要更多的恢复时间。
+- en: 'Issue this query on a cloned MySQL server instance to check the binary log
+    position that was transferred to the recipient:'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在克隆的 MySQL 服务器实例上执行此查询，以检查已传输给接收者的二进制日志位置：
+- en: '[PRE0]'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Issue this query on a cloned MySQL server instance to check the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID set that was transferred to the recipient:'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在克隆的 MySQL 服务器实例上执行此查询，以检查已传输给接收者的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID 集：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: By default in MySQL 8.0, the replication metadata repositories are held in tables
+    that are copied from the donor to the recipient during the cloning operation.
+    The replication metadata repositories hold replication-related configuration settings
+    that can be used to resume replication correctly after the cloning operation.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0 中，默认情况下，复制元数据存储库保存在在克隆操作期间从捐赠者复制到接收者的表中。复制元数据存储库保存了可以在克隆操作后正确恢复复制的与复制相关的配置设置。
+- en: In MySQL 8.0.17 and 8.0.18, only the table `mysql.slave_master_info` (the connection
+    metadata repository) is copied.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.17 和 8.0.18 中，只会复制表 `mysql.slave_master_info`（连接元数据存储库）。
+- en: From MySQL 8.0.19, the tables `mysql.slave_relay_log_info` (the applier metadata
+    repository) and `mysql.slave_worker_info` (the applier worker metadata repository)
+    are also copied.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.19 开始，表 `mysql.slave_relay_log_info`（应用程序元数据存储库）和 `mysql.slave_worker_info`（应用程序工作程序元数据存储库）也会被复制。
+- en: For a list of what is included in each table, see [Section 19.2.4.2, “Replication
+    Metadata Repositories”](replica-logs-status.html "19.2.4.2 Replication Metadata
+    Repositories"). Note that if the settings [`master_info_repository=FILE`](replication-options-replica.html#sysvar_master_info_repository)
+    and [`relay_log_info_repository=FILE`](replication-options-replica.html#sysvar_relay_log_info_repository)
+    are used on the server (which is not the default in MySQL 8.0 and is deprecated),
+    the replication metadata repositories are not cloned; they are only cloned if
+    `TABLE` is set.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看每个表中包含的内容列表，请参阅 [Section 19.2.4.2, “Replication Metadata Repositories”](replica-logs-status.html
+    "19.2.4.2 Replication Metadata Repositories")。请注意，如果服务器上使用了设置 [`master_info_repository=FILE`](replication-options-replica.html#sysvar_master_info_repository)
+    和 [`relay_log_info_repository=FILE`](replication-options-replica.html#sysvar_relay_log_info_repository)（这在
+    MySQL 8.0 中不是默认设置且已被弃用），则不会克隆复制元数据存储库；只有在设置为 `TABLE` 时才会克隆。
+- en: 'To clone for replication, perform the following steps:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要进行复制克隆，请执行以下步骤：
+- en: For a new group member for Group Replication, first configure the MySQL Server
+    instance for Group Replication, following the instructions in [Section 20.2.1.6,
+    “Adding Instances to the Group”](group-replication-adding-instances.html "20.2.1.6 Adding
+    Instances to the Group"). Also set up the prerequisites for cloning described
+    in [Section 20.5.4.2, “Cloning for Distributed Recovery”](group-replication-cloning.html
+    "20.5.4.2 Cloning for Distributed Recovery"). When you issue [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") on the joining member, the cloning
+    operation is managed automatically by Group Replication, so you do not need to
+    carry out the operation manually, and you do not need to perform any further setup
+    steps on the joining member.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对于 Group Replication 的新成员，首先按照 [Section 20.2.1.6, “Adding Instances to the Group”](group-replication-adding-instances.html
+    "20.2.1.6 Adding Instances to the Group") 中的说明配置 MySQL Server 实例以进行 Group Replication。同时，设置克隆的先决条件，详见
+    [Section 20.5.4.2, “Cloning for Distributed Recovery”](group-replication-cloning.html
+    "20.5.4.2 Cloning for Distributed Recovery")。当在加入成员上发出 [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") 命令时，克隆操作将由 Group Replication 自动管理，因此您无需手动执行操作，也无需在加入成员上执行任何进一步的设置步骤。
+- en: For a replica in a source/replica MySQL replication topology, first clone the
+    data from the donor MySQL server instance to the recipient manually. The donor
+    must be a source or replica in the replication topology. For cloning instructions,
+    see [Section 7.6.7.3, “Cloning Remote Data”](clone-plugin-remote.html "7.6.7.3 Cloning
+    Remote Data").
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对于源/复制 MySQL 复制拓扑中的副本，首先手动将数据从捐赠方 MySQL 服务器实例克隆到接收方。捐赠方必须是复制拓扑中的源或副本。有关克隆说明，请参阅
+    [Section 7.6.7.3, “Cloning Remote Data”](clone-plugin-remote.html "7.6.7.3 Cloning
+    Remote Data")。
+- en: After the cloning operation completes successfully, if you want to use the same
+    replication channels on the recipient MySQL server instance that were present
+    on the donor, verify which of them can resume replication automatically in the
+    source/replica MySQL replication topology, and which need to be set up manually.
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 克隆操作成功完成后，如果您希望在接收方 MySQL 服务器实例上使用与捐赠方相同的复制通道，请验证哪些通道可以在源/复制 MySQL 复制拓扑中自动恢复复制，哪些需要手动设置。
+- en: For GTID-based replication, if the recipient is configured with [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)
+    and has cloned from a donor with [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode),
+    `ON_PERMISSIVE`, or `OFF_PERMISSIVE`, the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID set from the donor is applied on the recipient. If the recipient is cloned
+    from a replica already in the topology, replication channels on the recipient
+    that use GTID auto-positioning can resume replication automatically after the
+    cloning operation when the channel is started. You do not need to perform any
+    manual setup if you just want to use these same channels.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于基于 GTID 的复制，如果接收方配置为 [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)
+    并且从配置为 [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)、`ON_PERMISSIVE`
+    或 `OFF_PERMISSIVE` 的捐赠方克隆，那么从捐赠方应用 [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID 集到接收方。如果接收方是从已在拓扑中的副本克隆而来，那么在克隆操作后，使用 GTID 自动定位的复制通道可以在启动通道后自动恢复复制。如果您只想使用这些相同通道，则无需执行任何手动设置。
+- en: For binary log file position based replication, if the recipient is at MySQL
+    8.0.17 or 8.0.18, the binary log position from the donor is not applied on the
+    recipient, only recorded in the Performance Schema [`clone_status`](performance-schema-clone-status-table.html
+    "29.12.19.1 The clone_status Table") table. Replication channels on the recipient
+    that use binary log file position based replication must therefore be set up manually
+    to resume replication after the cloning operation. Ensure that these channels
+    are not configured to start replication automatically at server startup, as they
+    do not yet have the binary log position and attempt to start replication from
+    the beginning.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于基于二进制日志文件位置的复制，如果接收端是 MySQL 8.0.17 或 8.0.18，则从提供端的二进制日志位置不会应用到接收端，只会记录在性能模式
+    [`clone_status`](performance-schema-clone-status-table.html "29.12.19.1 The clone_status
+    Table") 表中。因此，接收端上使用基于二进制日志文件位置的复制通道必须手动设置以在克隆操作后恢复复制。确保这些通道未配置为在服务器启动时自动开始复制，因为它们尚未具有二进制日志位置，并尝试从头开始复制。
+- en: For binary log file position based replication, if the recipient is at MySQL
+    8.0.19 or above, the binary log position from the donor is applied on the recipient.
+    Replication channels on the recipient that use binary log file position based
+    replication automatically attempt to carry out the relay log recovery process,
+    using the cloned relay log information, before restarting replication. For a single-threaded
+    replica ([`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    or [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)
+    is set to 0), relay log recovery should succeed in the absence of any other issues,
+    enabling the channel to resume replication with no further setup. For a multithreaded
+    replica ([`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    or [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)
+    is greater than 0), relay log recovery is likely to fail because it cannot usually
+    be completed automatically. In this case, an error message is issued, and you
+    must set the channel up manually.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于基于二进制日志文件位置的复制，如果接收端是 MySQL 8.0.19 或更高版本，则从提供端应用二进制日志位置到接收端。接收端上使用基于二进制日志文件位置的复制通道会自动尝试执行中继日志恢复过程，使用克隆的中继日志信息，在重新启动复制之前。对于单线程副本（[`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    或 [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)
+    设置为 0），在没有其他问题的情况下，中继日志恢复应该成功，使通道能够在没有进一步设置的情况下恢复复制。对于多线程副本（[`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    或 [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)
+    大于 0），中继日志恢复可能会失败，因为通常无法自动完成。在这种情况下，会发出错误消息，您必须手动设置通道。
+- en: If you need to set up cloned replication channels manually, or want to use different
+    replication channels on the recipient, the following instructions provide a summary
+    and abbreviated examples for adding a recipient MySQL server instance to a replication
+    topology. Also refer to the detailed instructions that apply to your replication
+    setup.
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您需要手动设置克隆复制通道，或者希望在接收端使用不同的复制通道，以下说明提供了一个摘要和简化示例，用于将接收端 MySQL 服务器实例添加到复制拓扑中。还请参考适用于您的复制设置的详细说明。
+- en: 'To add a recipient MySQL server instance to a MySQL replication topology that
+    uses GTID-based transactions as the replication data source, configure the instance
+    as required, following the instructions in [Section 19.1.3.4, “Setting Up Replication
+    Using GTIDs”](replication-gtids-howto.html "19.1.3.4 Setting Up Replication Using
+    GTIDs"). Add replication channels for the instance as shown in the following abbreviated
+    example. The [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement (from MySQL 8.0.23)
+    or [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement")
+    statement (before MySQL 8.0.23) must define the host address and port number of
+    the source, and the `SOURCE_AUTO_POSITION` | `MASTER_AUTO_POSITION` option should
+    be enabled, as shown:'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要将一个接收方 MySQL 服务器实例添加到使用基于 GTID 的事务作为复制数据源的 MySQL 复制拓扑中，请根据需要配置实例，并按照[Section
+    19.1.3.4，“使用 GTID 设置复制”](replication-gtids-howto.html "19.1.3.4 设置使用 GTIDs 的复制")中的说明操作。按照以下简化示例为实例添加复制通道。[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")语句（从 MySQL 8.0.23 开始）或[`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement")语句（在 MySQL 8.0.23 之前）必须定义源的主机地址和端口号，并且应启用`SOURCE_AUTO_POSITION`
+    | `MASTER_AUTO_POSITION`选项，如下所示：
+- en: '[PRE2]'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To add a recipient MySQL server instance to a MySQL replication topology that
+    uses binary log file position based replication, configure the instance as required,
+    following the instructions in [Section 19.1.2, “Setting Up Binary Log File Position
+    Based Replication”](replication-howto.html "19.1.2 Setting Up Binary Log File
+    Position Based Replication"). Add replication channels for the instance as shown
+    in the following abbreviated example, using the binary log position that was transferred
+    to the recipient during the cloning operation:'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要将一个接收方 MySQL 服务器实例添加到使用基于二进制日志文件位置的复制的 MySQL 复制拓扑中，请根据需要配置实例，并按照[Section 19.1.2，“设置基于二进制日志文件位置的复制”](replication-howto.html
+    "19.1.2 设置基于二进制日志文件位置的复制")中的说明操作。按照以下简化示例为实例添加复制通道，使用在克隆操作期间传输给接收方的二进制日志位置：
+- en: '[PRE3]'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'

@@ -1,0 +1,142 @@
+- en: 17.12.8 Online DDL Limitations
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.12.8 在线 DDL 限制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-limitations.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-limitations.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-limitations.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-limitations.html)
+- en: 'The following limitations apply to online DDL operations:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在线 DDL 操作有以下限制：
+- en: The table is copied when creating an index on a `TEMPORARY TABLE`.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 `TEMPORARY TABLE` 上创建索引时，表会被复制。
+- en: The [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") clause
+    `LOCK=NONE` is not permitted if there are `ON...CASCADE` or `ON...SET NULL` constraints
+    on the table.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表上存在 `ON...CASCADE` 或 `ON...SET NULL` 约束，则不允许使用 [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") 子句 `LOCK=NONE`。
+- en: Before an in-place online DDL operation can finish, it must wait for transactions
+    that hold metadata locks on the table to commit or roll back. An online DDL operation
+    may briefly require an exclusive metadata lock on the table during its execution
+    phase, and always requires one in the final phase of the operation when updating
+    the table definition. Consequently, transactions holding metadata locks on the
+    table can cause an online DDL operation to block. The transactions that hold metadata
+    locks on the table may have been started before or during the online DDL operation.
+    A long running or inactive transaction that holds a metadata lock on the table
+    can cause an online DDL operation to timeout.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在原地在线 DDL 操作完成之前，必须等待持有表上元数据锁的事务提交或回滚。在线 DDL 操作在执行阶段可能会短暂地需要表上的独占元数据锁，并且在更新表定义时的操作的最后阶段始终需要一个。因此，持有表上元数据锁的事务可能会导致在线
+    DDL 操作阻塞。持有表上元数据锁的事务可能在在线 DDL 操作之前或期间启动。持有表上元数据锁的长时间运行或不活动事务可能会导致在线 DDL 操作超时。
+- en: 'When running an in-place online DDL operation, the thread that runs the [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statement applies an
+    online log of DML operations that were run concurrently on the same table from
+    other connection threads. When the DML operations are applied, it is possible
+    to encounter a duplicate key entry error (ERROR 1062 (23000): Duplicate entry),
+    even if the duplicate entry is only temporary and would be reverted by a later
+    entry in the online log. This is similar to the idea of a foreign key constraint
+    check in `InnoDB` in which constraints must hold during a transaction.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '在运行原地在线 DDL 操作时，运行 [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    语句的线程会应用同时在其他连接线程上并发运行的 DML 操作的在线日志。当应用 DML 操作时，可能会遇到重复键入错误（ERROR 1062 (23000):
+    Duplicate entry），即使重复条目只是临时的，并且会在在线日志中的后续条目中被撤销。这类似于 `InnoDB` 中外键约束检查的概念，在事务期间约束必须保持。'
+- en: '[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")
+    for an `InnoDB` table is mapped to an [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") operation to rebuild the table and update index statistics and
+    free unused space in the clustered index. Secondary indexes are not created as
+    efficiently because keys are inserted in the order they appeared in the primary
+    key. [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")
+    is supported with the addition of online DDL support for rebuilding regular and
+    partitioned `InnoDB` tables.'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 `InnoDB` 表的 [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE
+    Statement") 被映射为一个 [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    操作，用于重建表并更新索引统计信息以及释放聚簇索引中未使用的空间。由于键按照它们在主键中出现的顺序插入，次要索引的创建效率不高。通过为重建常规和分区 `InnoDB`
+    表提供在线 DDL 支持，支持 [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE
+    Statement")。
+- en: 'Tables created before MySQL 5.6 that include temporal columns ([`DATE`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types"), [`DATETIME`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") or [`TIMESTAMP`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")) and have not been rebuilt using
+    `ALGORITHM=COPY` do not support `ALGORITHM=INPLACE`. In this case, an [`ALTER
+    TABLE ... ALGORITHM=INPLACE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    operation returns the following error:'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 MySQL 5.6 之前创建的包含时间列（[`DATE`](datetime.html "13.2.2 The DATE, DATETIME, and
+    TIMESTAMP Types")、[`DATETIME`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP
+    Types") 或 [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP
+    Types")）且未使用 `ALGORITHM=COPY` 重建的表不支持 `ALGORITHM=INPLACE`。在这种情况下，[`ALTER TABLE
+    ... ALGORITHM=INPLACE`](alter-table.html "15.1.9 ALTER TABLE Statement") 操作会返回以下错误：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The following limitations are generally applicable to online DDL operations
+    on large tables that involve rebuilding the table:'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在涉及重建表的大表的在线DDL操作中，通常适用以下限制：
+- en: There is no mechanism to pause an online DDL operation or to throttle I/O or
+    CPU usage for an online DDL operation.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有机制可以暂停在线DDL操作或限制在线DDL操作的I/O或CPU使用率。
+- en: Rollback of an online DDL operation can be expensive should the operation fail.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在线DDL操作失败，回滚操作可能会很昂贵。
+- en: Long running online DDL operations can cause replication lag. An online DDL
+    operation must finish running on the source before it is run on the replica. Also,
+    DML that was processed concurrently on the source is only processed on the replica
+    after the DDL operation on the replica is completed.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 长时间运行的在线DDL操作可能导致复制延迟。在线DDL操作必须在源端完成运行后才能在副本上运行。此外，在源端并发处理的DML仅在副本上在副本上的DDL操作完成后才会处理。
+- en: For additional information related to running online DDL operations on large
+    tables, see [Section 17.12.2, “Online DDL Performance and Concurrency”](innodb-online-ddl-performance.html
+    "17.12.2 Online DDL Performance and Concurrency").
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关在大表上运行在线DDL操作的更多信息，请参见[第17.12.2节，“在线DDL性能和并发性”](innodb-online-ddl-performance.html
+    "17.12.2 Online DDL Performance and Concurrency")。

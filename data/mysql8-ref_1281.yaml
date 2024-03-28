@@ -1,0 +1,473 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-mysql.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-mysql.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-mysql.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-mysql.html)
+- en: 17.20.6.1 Adapting an Existing MySQL Schema for the InnoDB memcached Plugin
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.20.6.1 调整现有的 MySQL 模式以适应 InnoDB memcached 插件
+- en: 'Consider these aspects of **memcached** applications when adapting an existing
+    MySQL schema or application to use the `daemon_memcached` plugin:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在调整现有的 MySQL 模式或应用程序以使用`daemon_memcached`插件时，请考虑这些**memcached**应用程序的方面：
+- en: '**memcached** keys cannot contain spaces or newlines, because these characters
+    are used as separators in the ASCII protocol. If you are using lookup values that
+    contain spaces, transform or hash them into values without spaces before using
+    them as keys in calls to `add()`, `set()`, `get()`, and so on. Although theoretically
+    these characters are allowed in keys in programs that use the binary protocol,
+    you should restrict the characters used in keys to ensure compatibility with a
+    broad range of clients.'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**memcached** 键不能包含空格或换行符，因为这些字符在 ASCII 协议中用作分隔符。如果您使用包含空格的查找值，请在将其用作`add()`、`set()`、`get()`等调用中的键之前将其转换或哈希为无空格的值。尽管在使用二进制协议的程序中理论上允许这些字符作为键，但为了确保与广泛范围的客户端兼容性，您应限制键中使用的字符。'
+- en: If there is a short numeric [primary key](glossary.html#glos_primary_key "primary
+    key") column in an `InnoDB` table, use it as the unique lookup key for **memcached**
+    by converting the integer to a string value. If the **memcached** server is used
+    for multiple applications, or with more than one `InnoDB` table, consider modifying
+    the name to ensure that it is unique. For example, prepend the table name, or
+    the database name and the table name, before the numeric value.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在`InnoDB`表中有一个短的数字[主键](glossary.html#glos_primary_key "主键")列，请将其转换为字符串值，以将其用作**memcached**的唯一查找键。如果**memcached**服务器用于多个应用程序，或与多个`InnoDB`表一起使用，请考虑修改名称以确保其唯一性。例如，在数字值之前添加表名，或数据库名和表名。
+- en: Note
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `daemon_memcached` plugin supports inserts and reads on mapped `InnoDB`
+    tables that have an `INTEGER` defined as the primary key.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`daemon_memcached`插件支持在具有`INTEGER`定义为主键的映射`InnoDB`表上进行插入和读取。'
+- en: You cannot use a partitioned table for data queried or stored using **memcached**.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不能使用分区表来查询或存储使用**memcached**的数据。
+- en: 'The **memcached** protocol passes numeric values around as strings. To store
+    numeric values in the underlying `InnoDB` table, to implement counters that can
+    be used in SQL functions such as `SUM()` or `AVG()`, for example:'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**memcached** 协议将数字值作为字符串传递。为了在底层的`InnoDB`表中存储数字值，实现可以用于 SQL 函数如`SUM()`或`AVG()`的计数器，例如：'
+- en: Use [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types") columns with
+    enough characters to hold all the digits of the largest expected number (and additional
+    characters if appropriate for the negative sign, decimal point, or both).
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用足够字符的[`VARCHAR`](char.html "13.3.2 CHAR 和 VARCHAR 类型")列来容纳预期最大数字的所有数字（如果适用，还有负号、小数点或两者的其他字符）。
+- en: 'In any query that performs arithmetic using column values, use the `CAST()`
+    function to convert the values from string to integer, or to some other numeric
+    type. For example:'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在执行使用列值进行算术运算的任何查询中，使用`CAST()`函数将值从字符串转换为整数，或转换为其他数值类型。例如：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Any alphabetic values in the result set are converted into 0 by the call to
+    `CAST()`. When using functions such as `AVG()`, which depend on the number of
+    rows in the result set, include `WHERE` clauses to filter out non-numeric values.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 结果集中的任何字母值在调用`CAST()`时都会转换为0。在使用诸如`AVG()`之类依赖于结果集中的行数的函数时，包括`WHERE`子句以过滤非数字值。
+- en: If the `InnoDB` column used as a key could have values longer than 250 bytes,
+    hash the value to less than 250 bytes.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果用作键的`InnoDB`列可能具有超过250字节的值，请将该值哈希为少于250字节。
+- en: To use an existing table with the `daemon_memcached` plugin, define an entry
+    for it in the `innodb_memcache.containers` table. To make that table the default
+    for all **memcached** requests, specify a value of `default` in the `name` column,
+    then restart the MySQL server to make the change take effect. If you use multiple
+    tables for different classes of **memcached** data, set up multiple entries in
+    the `innodb_memcache.containers` table with `name` values of your choice, then
+    issue a **memcached** request in the form of `get @@*`name`*` or `set @@*`name`*`
+    within the application to specify the table to be used for subsequent **memcached**
+    requests.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要在`daemon_memcached`插件中使用现有表，需在`innodb_memcache.containers`表中为其定义一个条目。要使该表成为所有**memcached**请求的默认表，需在`name`列中指定一个值为`default`，然后重新启动MySQL服务器以使更改生效。如果您为不同类别的**memcached**数据使用多个表，请在`innodb_memcache.containers`表中设置多个条目，其中`name`值由您选择，然后在应用程序中发出形式为`get
+    @@*`name`*`或`set @@*`name`*`的**memcached**请求，以指定用于后续**memcached**请求的表。
+- en: For an example of using a table other than the predefined `test.demo_test` table,
+    see [Example 17.13, “Using Your Own Table with an InnoDB memcached Application”](innodb-memcached-porting-mysql.html#innodb-memcached-tutorial-python
+    "Example 17.13 Using Your Own Table with an InnoDB memcached Application"). For
+    the required table layout, see [Section 17.20.8, “InnoDB memcached Plugin Internals”](innodb-memcached-internals.html
+    "17.20.8 InnoDB memcached Plugin Internals").
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要查看使用预定义的`test.demo_test`表之外的表的示例，请参阅[示例 17.13，“使用自己的表与InnoDB memcached应用程序”](innodb-memcached-porting-mysql.html#innodb-memcached-tutorial-python
+    "示例 17.13 使用自己的表与InnoDB memcached应用程序")。有关所需表布局，请参阅[第17.20.8节，“InnoDB memcached插件内部”](innodb-memcached-internals.html
+    "17.20.8 InnoDB memcached插件内部")。
+- en: To use multiple `InnoDB` table column values with **memcached** key-value pairs,
+    specify column names separated by comma, semicolon, space, or pipe characters
+    in the `value_columns` field of the `innodb_memcache.containers` entry for the
+    `InnoDB` table. For example, specify `col1,col2,col3` or `col1|col2|col3` in the
+    `value_columns` field.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要使用多个`InnoDB`表列值与**memcached**键值对，需在`innodb_memcache.containers`条目的`value_columns`字段中指定以逗号、分号、空格或竖线字符分隔的列名。例如，在`value_columns`字段中指定`col1,col2,col3`或`col1|col2|col3`。
+- en: Concatenate the column values into a single string using the pipe character
+    as a separator before passing the string to **memcached** `add` or `set` calls.
+    The string is unpacked automatically into the correct column. Each `get` call
+    returns a single string containing the column values that is also delimited by
+    the pipe character. You can unpack the values using the appropriate application
+    language syntax.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在将字符串传递给**memcached**的`add`或`set`调用之前，使用竖线字符作为分隔符将列值连接成单个字符串。字符串会自动解包为正确的列。每个`get`调用返回一个包含以竖线字符分隔的列值的单个字符串。您可以使用适当的应用程序语法解包这些值。
+- en: '**Example 17.13 Using Your Own Table with an InnoDB memcached Application**'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**示例 17.13 使用自己的表与InnoDB memcached应用程序**'
+- en: This example shows how to use your own table with a sample Python application
+    that uses `memcached` for data manipulation.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该示例展示了如何使用自己的表与一个使用`memcached`进行数据操作的示例Python应用程序。
+- en: The example assumes that the `daemon_memcached` plugin is installed as described
+    in [Section 17.20.3, “Setting Up the InnoDB memcached Plugin”](innodb-memcached-setup.html
+    "17.20.3 Setting Up the InnoDB memcached Plugin"). It also assumes that your system
+    is configured to run a Python script that uses the `python-memcache` module.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该示例假定`daemon_memcached`插件已按照[第17.20.3节，“设置InnoDB memcached插件”](innodb-memcached-setup.html
+    "17.20.3 设置InnoDB memcached插件")中描述的方式安装。还假定您的系统已配置为运行使用`python-memcache`模块的Python脚本。
+- en: Create the `multicol` table which stores country information including population,
+    area, and driver side data (`'R'` for right and `'L'` for left).
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建`multicol`表，其中存储包括人口、面积和驾驶侧数据（右侧为`'R'`，左侧为`'L'`）的国家信息。
+- en: '[PRE1]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Insert a record into the `innodb_memcache.containers` table so that the `daemon_memcached`
+    plugin can access the `multicol` table.
+  id: totrans-24
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将记录插入`innodb_memcache.containers`表中，以便`daemon_memcached`插件可以访问`multicol`表。
+- en: '[PRE2]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The `innodb_memcache.containers` record for the `multicol` table specifies a
+    `name` value of `'bbb'`, which is the table identifier.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`innodb_memcache.containers`记录中的`multicol`表指定了一个`name`值为`''bbb''`，这是表标识符。'
+- en: Note
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If a single `InnoDB` table is used for all **memcached** applications, the `name`
+    value can be set to `default` to avoid using `@@` notation to switch tables.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果单个`InnoDB`表用于所有**memcached**应用程序，则可以将`name`值设置为`default`，以避免使用`@@`符号切换表。
+- en: The `db_schema` column is set to `test`, which is the name of the database where
+    the `multicol` table resides.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db_schema`列设置为`test`，这是`multicol`表所在的数据库的名称。'
+- en: The `db_table` column is set to `multicol`, which is the name of the `InnoDB`
+    table.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db_table`列设置为`multicol`，这是`InnoDB`表的名称。'
+- en: '`key_columns` is set to the unique `country` column. The `country` column is
+    defined as the primary key in the `multicol` table definition.'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_columns`设置为唯一的`country`列。`country`列在`multicol`表定义中被定义为主键。'
+- en: Rather than a single `InnoDB` table column to hold a composite data value, data
+    is divided among three table columns (`population`, `area_sq_km`, and `drive_side`).
+    To accommodate multiple value columns, a comma-separated list of columns is specified
+    in the `value_columns` field. The columns defined in the `value_columns` field
+    are the columns used when storing or retrieving values.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不是使用单个`InnoDB`表列来保存复合数据值，数据分布在三个表列（`population`，`area_sq_km`和`drive_side`）之间。为了容纳多个值列，`value_columns`字段中指定了一个逗号分隔的列列表。在存储或检索值时，`value_columns`字段中定义的列将被使用。
+- en: Values for the `flags`, `expire_time`, and `cas_column` fields are based on
+    values used in the `demo.test` sample table. These fields are typically not significant
+    in applications that use the `daemon_memcached` plugin because MySQL keeps data
+    synchronized, and there is no need to worry about data expiring or becoming stale.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`flags`，`expire_time`和`cas_column`字段的值基于`demo.test`示例表中使用的值。在使用`daemon_memcached`插件的应用程序中，这些字段通常不重要，因为MySQL会保持数据同步，不需要担心数据过期或变得陈旧。'
+- en: The `unique_idx_name_on_key` field is set to `PRIMARY`, which refers to the
+    primary index defined on the unique `country` column in the `multicol` table.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`unique_idx_name_on_key`字段设置为`PRIMARY`，指的是在`multicol`表中唯一的`country`列上定义的主索引。'
+- en: Copy the sample Python application into a file. In this example, the sample
+    script is copied to a file named `multicol.py`.
+  id: totrans-35
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将示例Python应用程序复制到一个文件中。在本例中，示例脚本被复制到一个名为`multicol.py`的文件中。
+- en: The sample Python application inserts data into the `multicol` table and retrieves
+    data for all keys, demonstrating how to access an `InnoDB` table through the `daemon_memcached`
+    plugin.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例Python应用程序将数据插入`multicol`表，并检索所有键的数据，演示如何通过`daemon_memcached`插件访问`InnoDB`表。
+- en: '[PRE3]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Sample Python application notes:'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例Python应用程序注意事项：
+- en: No database authorization is required to run the application, since data manipulation
+    is performed through the **memcached** interface. The only required information
+    is the port number on the local system where the **memcached** daemon listens.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 运行应用程序不需要数据库授权，因为数据操作是通过**memcached**接口执行的。唯一需要的信息是**memcached**守护程序在本地系统上监听的端口号。
+- en: To make sure the application uses the `multicol` table, the `switch_table()`
+    function is called, which performs a dummy `get` or `set` request using `@@` notation.
+    The `name` value in the request is `bbb`, which is the `multicol` table identifier
+    defined in the `innodb_memcache.containers.name` field.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为确保应用程序使用`multicol`表，调用`switch_table()`函数，该函数使用`@@`符号执行虚拟的`get`或`set`请求。请求中的`name`值为`bbb`，这是在`innodb_memcache.containers.name`字段中定义的`multicol`表标识符。
+- en: A more descriptive `name` value might be used in a real-world application. This
+    example simply illustrates that a table identifier is specified rather than the
+    table name in `get @@...` requests.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在实际应用程序中可能会使用更具描述性的`name`值。这个例子只是说明了在`get @@...`请求中指定了一个表标识符，而不是表名。
+- en: The utility functions used to insert and query data demonstrate how to turn
+    a Python data structure into pipe-separated values for sending data to MySQL with
+    `add` or `set` requests, and how to unpack the pipe-separated values returned
+    by `get` requests. This extra processing is only required when mapping a single
+    **memcached** value to multiple MySQL table columns.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于插入和查询数据的实用函数演示了如何将Python数据结构转换为用于通过`add`或`set`请求将数据发送到MySQL的管道分隔值，以及如何解压`get`请求返回的管道分隔值。只有在将单个**memcached**值映射到多个MySQL表列时才需要进行这种额外处理。
+- en: Run the sample Python application.
+  id: totrans-43
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 运行示例Python应用程序。
+- en: '[PRE4]'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'If successful, the sample application returns this output:'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果成功，示例应用程序将返回以下输出：
+- en: '[PRE5]'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Query the `innodb_memcache.containers` table to view the record you inserted
+    earlier for the `multicol` table. The first record is the sample entry for the
+    `demo_test` table that is created during the initial `daemon_memcached` plugin
+    setup. The second record is the entry you inserted for the `multicol` table.
+  id: totrans-47
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 查询`innodb_memcache.containers`表以查看您之前为`multicol`表插入的记录。第一条记录是在初始`daemon_memcached`插件设置期间创建的`demo_test`表的示例条目。第二条记录是您为`multicol`表插入的条目。
+- en: '[PRE6]'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Query the `multicol` table to view data inserted by the sample Python application.
+    The data is available for MySQL [queries](glossary.html#glos_query "query"), which
+    demonstrates how the same data can be accessed using SQL or through applications
+    (using the appropriate [MySQL Connector or API](connectors-apis.html "Chapter 31 Connectors
+    and APIs")).
+  id: totrans-49
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 查询`multicol`表以查看样本Python应用程序插入的数据。这些数据可供MySQL [查询](glossary.html#glos_query
+    "query")，演示了如何使用SQL或通过应用程序（使用适当的[MySQL连接器或API](connectors-apis.html "第31章 连接器和API")）访问相同的数据。
+- en: '[PRE7]'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: Note
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Always allow sufficient size to hold necessary digits, decimal points, sign
+    characters, leading zeros, and so on when defining the length for columns that
+    are treated as numbers. Too-long values in a string column such as a `VARCHAR`
+    are truncated by removing some characters, which could produce nonsensical numeric
+    values.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在定义被视为数字的列的长度时，始终要允许足够的大小来容纳必要的数字、小数点、符号字符、前导零等。对于像`VARCHAR`这样的字符串列中的值过长，通过删除一些字符来截断，可能会产生荒谬的数值。
+- en: Optionally, run report-type queries on the `InnoDB` table that stores the **memcached**
+    data.
+  id: totrans-53
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 可选地，在存储**memcached**数据的`InnoDB`表上运行报告类型的查询。
+- en: 'You can produce reports through SQL queries, performing calculations and tests
+    across any columns, not just the `country` key column. (Because the following
+    examples use data from only a few countries, the numbers are for illustration
+    purposes only.) The following queries return the average population of countries
+    where people drive on the right, and the average size of countries whose names
+    start with “U”:'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以通过SQL查询生成报告，对任何列执行计算和测试，而不仅仅是`country`键列。 （因为以下示例仅使用了少数国家的数据，所以数字仅供说明目的。）以下查询返回驾驶方向为右侧的国家的平均人口和以“U”开头的国家的平均大小：
+- en: '[PRE8]'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Because the `population` and `area_sq_km` columns store character data rather
+    than strongly typed numeric data, functions such as `AVG()` and `SUM()` work by
+    converting each value to a number first. This approach *does not work* for operators
+    such as `<` or `>`, for example, when comparing character-based values, `9 > 1000`,
+    which is not expected from a clause such as `ORDER BY population DESC`. For the
+    most accurate type treatment, perform queries against views that cast numeric
+    columns to the appropriate types. This technique lets you issue simple `SELECT
+    *` queries from database applications, while ensuring that casting, filtering,
+    and ordering is correct. The following example shows a view that can be queried
+    to find the top three countries in descending order of population, with the results
+    reflecting the latest data in the `multicol` table, and with population and area
+    figures treated as numbers:'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为`population`和`area_sq_km`列存储的是字符数据而不是强类型的数值数据，所以诸如`AVG()`和`SUM()`之类的函数会先将每个值转换为数字。这种方法*不适用*于诸如`<`或`>`之类的运算符，例如，当比较基于字符的值时，`9
+    > 1000`，这与`ORDER BY population DESC`这样的子句所期望的不符。为了获得最准确的类型处理，请对将数值列转换为适当类型的视图执行查询。这种技术使您可以从数据库应用程序发出简单的`SELECT
+    *`查询，同时确保转换、过滤和排序是正确的。以下示例显示了一个视图，可以查询以按人口降序排列的前三个国家，结果反映了`multicol`表中的最新数据，并将人口和面积数字视为数字：
+- en: '[PRE9]'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'

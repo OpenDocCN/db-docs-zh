@@ -1,0 +1,226 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-multi-primary-mode.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-multi-primary-mode.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-multi-primary-mode.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-multi-primary-mode.html)
+- en: 20.1.3.2 Multi-Primary Mode
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.1.3.2 多主模式
+- en: In multi-primary mode ([`group_replication_single_primary_mode=OFF`](group-replication-system-variables.html#sysvar_group_replication_single_primary_mode))
+    no member has a special role. Any member that is compatible with the other group
+    members is set to read-write mode when joining the group, and can process write
+    transactions, even if they are issued concurrently.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在多主模式（[`group_replication_single_primary_mode=OFF`](group-replication-system-variables.html#sysvar_group_replication_single_primary_mode)）中，没有任何成员担任特殊角色。任何与其他组成员兼容的成员在加入组时被设置为读写模式，并且可以处理写事务，即使这些事务是并发发出的。
+- en: If a member stops accepting write transactions, for example, in the event of
+    an unexpected server exit, clients connected to it can be redirected, or failed
+    over, to any other member that is in read-write mode. Group Replication does not
+    handle client-side failover itself, so you need to arrange this using a middleware
+    framework such as [MySQL Router 8.0](/doc/mysql-router/8.0/en/), a proxy, a connector,
+    or the application itself. [Figure 20.5, “Client Failover”](group-replication-multi-primary-mode.html#group-replication-multi-primary-diagram
+    "Figure 20.5 Client Failover") shows how clients can reconnect to an alternative
+    group member if a member leaves the group.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果某个成员停止接受写事务，例如，出现意外服务器退出的情况，连接到该成员的客户端可以被重定向或故障转移至任何处于读写模式的其他成员。Group Replication本身不处理客户端故障转移，因此您需要使用中间件框架（如[MySQL
+    Router 8.0](/doc/mysql-router/8.0/en/)）、代理、连接器或应用程序本身来安排这一点。[图 20.5，“客户端故障转移”](group-replication-multi-primary-mode.html#group-replication-multi-primary-diagram
+    "图 20.5 客户端故障转移") 显示了客户端如何在成员离开组时重新连接到另一个组成员。
+- en: '**Figure 20.5 Client Failover**'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 20.5 客户端故障转移**'
+- en: '![Five server instances, S1, S2, S3, S4, and S5, are deployed as an interconnected
+    group. All of the servers are primaries. Write clients are communicating with
+    servers S1 and S2, and a read client is communicating with server S4\. Server
+    S1 then fails, breaking communication with its write client. This client reconnects
+    to server S3.](../Images/033bcbbfaeedfc6403b9e1325c3acd9c.png)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_IMG
+  zh: '![部署了五个服务器实例，S1、S2、S3、S4和S5，作为一个互连的组。所有服务器都是主服务器。写客户端正在与服务器S1和S2通信，读客户端正在与服务器S4通信。然后，服务器S1发生故障，导致与其写客户端的通信中断。该客户端重新连接到服务器S3。](../Images/033bcbbfaeedfc6403b9e1325c3acd9c.png)'
+- en: Group Replication is an eventual consistency system. This means that as soon
+    as the incoming traffic slows down or stops, all group members have the same data
+    content. While traffic is flowing, transactions can be externalized on some members
+    before the others, especially if some members have less write throughput than
+    others, creating the possibility of stale reads. In multi-primary mode, slower
+    members can also build up an excessive backlog of transactions to certify and
+    apply, leading to a greater risk of conflicts and certification failure. To limit
+    these issues, you can activate and tune Group Replication's flow control mechanism
+    to minimize the difference between fast and slow members. For more information
+    on flow control, see [Section 20.7.2, “Flow Control”](group-replication-flow-control.html
+    "20.7.2 Flow Control").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication是一个最终一致性系统。这意味着一旦传入流量减少或停止，所有组成员都具有相同的数据内容。在流量流动时，事务可以在某些成员上外部化，然后在其他成员上，特别是如果某些成员的写吞吐量较低，则可能导致过时读取的可能性。在多主模式下，较慢的成员也可能积累过多的待认证和应用的事务，导致冲突和认证失败的风险增加。为了限制这些问题，您可以激活和调整Group
+    Replication的流量控制机制，以最小化快速和慢速成员之间的差异。有关流量控制的更多信息，请参见[第 20.7.2 节，“流量控制”](group-replication-flow-control.html
+    "20.7.2 流量控制")。
+- en: From MySQL 8.0.14, if you want to have a transaction consistency guarantee for
+    every transaction in the group, you can do this using the [`group_replication_consistency`](group-replication-system-variables.html#sysvar_group_replication_consistency)
+    system variable. You can choose a setting that suits the workload of your group
+    and your priorities for data reads and writes, taking into account the performance
+    impact of the synchronization required to increase consistency. You can also set
+    the system variable for individual sessions to protect particularly concurrency-sensitive
+    transactions. For more information on transaction consistency, see [Section 20.5.3,
+    “Transaction Consistency Guarantees”](group-replication-consistency-guarantees.html
+    "20.5.3 Transaction Consistency Guarantees").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.14开始，如果您希望对组中的每个事务都有事务一致性保证，可以使用[`group_replication_consistency`](group-replication-system-variables.html#sysvar_group_replication_consistency)系统变量来实现。您可以选择适合组工作负载和数据读写优先级的设置，考虑到增加一致性所需的同步对性能的影响。您还可以为单个会话设置系统变量，以保护特别关注并发性的事务。有关事务一致性的更多信息，请参见[Section 20.5.3,
+    “Transaction Consistency Guarantees”](group-replication-consistency-guarantees.html
+    "20.5.3 Transaction Consistency Guarantees")。
+- en: 20.1.3.2.1 Transaction Checks
+  id: totrans-8
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.1.3.2.1 事务检查
+- en: 'When a group is deployed in multi-primary mode, transactions are checked to
+    ensure they are compatible with the mode. The following strict consistency checks
+    are made when Group Replication is deployed in multi-primary mode:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在多主模式下部署组时，会对事务进行检查以确保其与模式兼容。当在多主模式下部署Group Replication时，将进行以下严格的一致性检查：
+- en: If a transaction is executed under the SERIALIZABLE isolation level, then its
+    commit fails when synchronizing itself with the group.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在SERIALIZABLE隔离级别下执行事务，则在与组同步时，其提交将失败。
+- en: If a transaction executes against a table that has foreign keys with cascading
+    constraints, then its commit fails when synchronizing itself with the group.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个事务针对具有级联约束的外键的表执行，那么当与组进行同步时，其提交将失败。
+- en: The checks are controlled by the [`group_replication_enforce_update_everywhere_checks`](group-replication-system-variables.html#sysvar_group_replication_enforce_update_everywhere_checks)
+    system variable. In multi-primary mode, the system variable should normally be
+    set to `ON`, but the checks can optionally be deactivated by setting the system
+    variable to `OFF`. When deploying in single-primary mode, the system variable
+    must be set to `OFF`.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些检查由[`group_replication_enforce_update_everywhere_checks`](group-replication-system-variables.html#sysvar_group_replication_enforce_update_everywhere_checks)系统变量控制。在多主模式下，该系统变量通常应设置为`ON`，但可以通过将系统变量设置为`OFF`来选择性地停用检查。在部署单主模式时，该系统变量必须设置为`OFF`。
+- en: 20.1.3.2.2 Data Definition Statements
+  id: totrans-13
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.1.3.2.2 数据定义语句
+- en: In a Group Replication topology in multi-primary mode, care needs to be taken
+    when executing data definition statements, also commonly known as data definition
+    language (DDL).
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在多主模式下部署Group Replication拓扑时，在执行数据定义语句时，也通常称为数据定义语言（DDL），需要注意。
+- en: MySQL 8.0 introduces support for atomic Data Definition Language (DDL) statements,
+    where the complete DDL statement is either committed or rolled back as a single
+    atomic transaction. However, DDL statements, atomic or otherwise, implicitly end
+    any transaction that is active in the current session, as if you had done a [`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") before executing
+    the statement. This means that DDL statements cannot be performed within another
+    transaction, within transaction control statements such as [`START TRANSACTION
+    ... COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements"),
+    or combined with other statements within the same transaction.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0引入了对原子数据定义语言（DDL）语句的支持，其中完整的DDL语句要么作为单个原子事务提交，要么回滚。然而，DDL语句，无论是否原子，都会隐式结束当前会话中的任何活动事务，就好像在执行该语句之前执行了[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")一样。这意味着DDL语句不能在另一个事务内执行，在事务控制语句（如[`START
+    TRANSACTION ... COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements")）内执行，或者与同一事务内的其他语句组合。
+- en: Group Replication is based on an optimistic replication paradigm, where statements
+    are optimistically executed and rolled back later if necessary. Each server executes
+    without securing group agreement first. Therefore, more care needs to be taken
+    when replicating DDL statements in multi-primary mode. If you make schema changes
+    (using DDL) and changes to the data that an object contains (using DML) for the
+    same object, the changes need to be handled through the same server while the
+    schema operation has not yet completed and replicated everywhere. Failure to do
+    so can result in data inconsistency when operations are interrupted or only partially
+    completed. If the group is deployed in single-primary mode this issue does not
+    occur, because all changes are performed through the same server, the primary.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication 基于一种乐观的复制范式，其中语句会乐观地执行，如果需要则会回滚。每个服务器在未先获得组协议的情况下执行。因此，在多主模式下复制
+    DDL 语句时需要更加小心。如果对同一对象进行模式更改（使用 DDL）和对对象包含的数据进行更改（使用 DML），则这些更改需要在模式操作尚未完成并在所有地方复制之前通过同一服务器处理。如果未能这样做，当操作被中断或仅部分完成时可能导致数据不一致。如果组部署在单主模式下，则不会出现此问题，因为所有更改都通过同一服务器执行，即主服务器。
+- en: For details on atomic DDL support in MySQL 8.0, and the resulting changes in
+    behavior for the replication of certain statements, see [Section 15.1.1, “Atomic
+    Data Definition Statement Support”](atomic-ddl.html "15.1.1 Atomic Data Definition
+    Statement Support").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 MySQL 8.0 中原子 DDL 支持的详细信息，以及某些语句复制行为的变化，请参阅 [第 15.1.1 节，“原子数据定义语句支持”](atomic-ddl.html
+    "15.1.1 原子数据定义语句支持")。
+- en: 20.1.3.2.3 Version Compatibility
+  id: totrans-18
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.1.3.2.3 版本兼容性
+- en: For optimal compatibility and performance, all members of a group should run
+    the same version of MySQL Server and therefore of Group Replication. In multi-primary
+    mode, this is more significant because all members would normally join the group
+    in read-write mode. If a group includes members running more than one MySQL Server
+    version, there is a potential for some members to be incompatible with others,
+    because they support functions others do not, or lack functions others have. To
+    guard against this, when a new member joins (including a former member that has
+    been upgraded and restarted), the member carries out compatibility checks against
+    the rest of the group.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了获得最佳兼容性和性能，组中的所有成员应该运行相同版本的 MySQL Server，因此也应该运行相同版本的 Group Replication。在多主模式下，这更为重要，因为所有成员通常会以读写模式加入组。如果一个组包含运行不止一个
+    MySQL Server 版本的成员，那么一些成员可能与其他成员不兼容，因为它们支持其他成员不支持的功能，或者缺少其他成员拥有的功能。为了防范这种情况，在新成员加入时（包括已升级并重新启动的前成员），该成员会对其与组中其他成员的兼容性进行检查。
+- en: One result of these compatibility checks is particularly important in multi-primary
+    mode. If a joining member is running a higher MySQL Server version than the lowest
+    version that the existing group members are running, it joins the group but remains
+    in read-only mode. (In a group that is running in single-primary mode, newly added
+    members default to being read-only in any case.) Members running MySQL 8.0.17
+    or higher take into account the patch version of the release when checking their
+    compatibility. Members running MySQL 8.0.16 or lower, or MySQL 5.7, only take
+    into account the major version.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些兼容性检查的一个重要结果在多主模式下尤为重要。如果加入的成员运行的 MySQL Server 版本高于现有组成员运行的最低版本，它会加入组但保持为只读模式。（在单主模式下运行的组中，新添加的成员默认为只读模式。）运行
+    MySQL 8.0.17 或更高版本的成员在检查兼容性时会考虑发布的补丁版本。运行 MySQL 8.0.16 或更低版本，或 MySQL 5.7 的成员只考虑主要版本。
+- en: In a group running in multi-primary mode with members that use different MySQL
+    Server versions, Group Replication automatically manages the read-write and read-only
+    status of members running MySQL 8.0.17 or higher. If a member leaves the group,
+    the members running the version that is now the lowest are automatically set to
+    read-write mode. When you change a group that was running in single-primary mode
+    to run in multi-primary mode, using the [`group_replication_switch_to_multi_primary_mode()`](group-replication-functions-for-mode.html#function_group-replication-switch-to-multi-primary-mode)
+    function, Group Replication automatically sets members to the correct mode. Members
+    are automatically placed in read-only mode if they are running a higher MySQL
+    server version than the lowest version present in the group, and members running
+    the lowest version are placed in read-write mode.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以多主模式运行的组中，成员使用不同的MySQL Server版本，Group Replication会自动管理运行MySQL 8.0.17或更高版本的成员的读写和只读状态。如果一个成员离开组，那些运行当前最低版本的成员会自动设置为读写模式。当您将以单主模式运行的组更改为以多主模式运行时，使用[`group_replication_switch_to_multi_primary_mode()`](group-replication-functions-for-mode.html#function_group-replication-switch-to-multi-primary-mode)函数，Group
+    Replication会自动将成员设置为正确的模式。如果成员运行的MySQL服务器版本高于组中最低版本，则会自动将其置于只读模式，而运行最低版本的成员会置于读写模式。
+- en: For full information on version compatibility in a group and how this influences
+    the behavior of a group during an upgrade process, see [Section 20.8.1, “Combining
+    Different Member Versions in a Group”](group-replication-online-upgrade-combining-versions.html
+    "20.8.1 Combining Different Member Versions in a Group") .
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关组中版本兼容性的完整信息以及在升级过程中如何影响组行为，请参阅[第20.8.1节，“在组中组合不同的成员版本”](group-replication-online-upgrade-combining-versions.html
+    "20.8.1 Combining Different Member Versions in a Group")。

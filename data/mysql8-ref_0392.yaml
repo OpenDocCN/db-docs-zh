@@ -1,0 +1,360 @@
+- en: 8.3.5 Reusing SSL Sessions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.3.5 重用SSL会话
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/reusing-ssl-sessions.html](https://dev.mysql.com/doc/refman/8.0/en/reusing-ssl-sessions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/reusing-ssl-sessions.html](https://dev.mysql.com/doc/refman/8.0/en/reusing-ssl-sessions.html)
+- en: As of MySQL 8.0.29, MySQL client programs may elect to resume a prior SSL session,
+    provided that the server has the session in its runtime cache. This section describes
+    the conditions that are favorable for SSL session reuse, the server variables
+    used for managing and monitoring the session cache, and the client command-line
+    options for storing and reusing session data.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.29，MySQL客户端程序可以选择恢复先前的SSL会话，前提是服务器在其运行时缓存中具有该会话。本节描述了有利于SSL会话重用的条件，用于管理和监控会话缓存的服务器变量，以及用于存储和重用会话数据的客户端命令行选项。
+- en: '[Server-Side Runtime Configuration and Monitoring for SSL Session Reuse](reusing-ssl-sessions.html#ssl-session-cache-server-configuration
+    "Server-Side Runtime Configuration and Monitoring for SSL Session Reuse")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[用于SSL会话重用的服务器端运行时配置和监控](reusing-ssl-sessions.html#ssl-session-cache-server-configuration
+    "用于SSL会话重用的服务器端运行时配置和监控")'
+- en: '[Client-Side Configuration for SSL Session Reuse](reusing-ssl-sessions.html#ssl-session-data-client-configuration
+    "Client-Side Configuration for SSL Session Reuse")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[用于SSL会话重用的客户端端配置](reusing-ssl-sessions.html#ssl-session-data-client-configuration
+    "用于SSL会话重用的客户端端配置")'
+- en: Each full TLS exchange can be costly both in terms of computation and network
+    overhead, less costly if TLSv1.3 is used. By extracting a session ticket from
+    an established session and then submitting that ticket while establishing the
+    next connection, the overall cost is reduced if the session can be reused. For
+    example, consider the benefit of having web pages that can open multiple connections
+    and generate faster.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每次完整的TLS交换在计算和网络开销方面都可能很昂贵，如果使用TLSv1.3则开销较小。通过从已建立的会话中提取会话票证，然后在建立下一个连接时提交该票证，如果会话可以被重用，则总体成本会降低。例如，考虑具有可以打开多个连接并生成更快速度的网页的好处。
+- en: 'In general, the following conditions must be satisfied before SSL sessions
+    can be reused:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常，在SSL会话可以被重用之前，必须满足以下条件：
+- en: The server must keep its session cache in memory.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器必须将其会话缓存保留在内存中。
+- en: The server-side session cache timeout must not have expired.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器端会话缓存超时时间不能已过期。
+- en: Each client has to maintain a cache of active sessions and keep it secure.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个客户端都必须维护一个活动会话的缓存并保持其安全。
+- en: C applications can use the C API capabilities to enable session reuse for encrypted
+    connections (see [SSL Session Reuse](/doc/c-api/8.0/en/c-api-ssl-session-reuse.html)).
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: C应用程序可以利用C API功能来启用加密连接的会话重用（参见[SSL会话重用](/doc/c-api/8.0/en/c-api-ssl-session-reuse.html)）。
+- en: Server-Side Runtime Configuration and Monitoring for SSL Session Reuse
+  id: totrans-11
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 用于SSL会话重用的服务器端运行时配置和监控
+- en: To create the initial TLS context, the server uses the values that the context-related
+    system variables have at startup. To expose the context values, the server also
+    initializes a set of corresponding status variables. The following table shows
+    the system variables that define the server's runtime session cache and the corresponding
+    status variables that expose the currently active session-cache values.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了创建初始的TLS上下文，服务器使用启动时上下文相关系统变量的值。为了暴露上下文值，服务器还初始化了一组相应的状态变量。以下表格显示了定义服务器运行时会话缓存的系统变量以及暴露当前活动会话缓存值的相应状态变量。
+- en: '**Table 8.15 System and Status Variables for Session Reuse**'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.15 用于会话重用的系统和状态变量**'
+- en: '| System Variable Name | Corresponding Status Variable Name |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| 系统变量名 | 对应的状态变量名 |'
+- en: '| [`ssl_session_cache_mode`](server-system-variables.html#sysvar_ssl_session_cache_mode)
+    | [`Ssl_session_cache_mode`](server-status-variables.html#statvar_Ssl_session_cache_mode)
+    |'
+  id: totrans-15
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`ssl_session_cache_mode`](server-system-variables.html#sysvar_ssl_session_cache_mode)
+    | [`Ssl_session_cache_mode`](server-status-variables.html#statvar_Ssl_session_cache_mode)
+    |'
+- en: '| [`ssl_session_cache_timeout`](server-system-variables.html#sysvar_ssl_session_cache_timeout)
+    | [`Ssl_session_cache_timeout`](server-status-variables.html#statvar_Ssl_session_cache_timeout)
+    |'
+  id: totrans-16
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`ssl_session_cache_timeout`](server-system-variables.html#sysvar_ssl_session_cache_timeout)
+    | [`Ssl_session_cache_timeout`](server-status-variables.html#statvar_Ssl_session_cache_timeout)
+    |'
+- en: Note
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When the value of the [`ssl_session_cache_mode`](server-system-variables.html#sysvar_ssl_session_cache_mode)
+    server variable is `ON`, which is the default mode, the value of the [`Ssl_session_cache_mode`](server-status-variables.html#statvar_Ssl_session_cache_mode)
+    status variable is `SERVER`.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当[`ssl_session_cache_mode`](server-system-variables.html#sysvar_ssl_session_cache_mode)服务器变量的值为`ON`时，这是默认模式，[`Ssl_session_cache_mode`](server-status-variables.html#statvar_Ssl_session_cache_mode)状态变量的值为`SERVER`。
+- en: SSL session cache variables apply to both the `mysql_main` and `mysql_admin`
+    TLS channels. Their values are also exposed as properties in the Performance Schema
+    [`tls_channel_status`](performance-schema-tls-channel-status-table.html "29.12.21.9 The
+    tls_channel_status Table") table, along with the properties for any other active
+    TLS contexts.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SSL 会话缓存变量适用于`mysql_main`和`mysql_admin` TLS 通道。它们的值也作为性能模式[`tls_channel_status`](performance-schema-tls-channel-status-table.html
+    "29.12.21.9 The tls_channel_status Table")表中的属性公开，以及任何其他活动 TLS 上下文的属性。
+- en: 'To reconfigure the SSL session cache at runtime, use this procedure:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在运行时重新配置 SSL 会话缓存，请使用以下步骤：
+- en: 'Set each cache-related system variable that should be changed to its new value.
+    For example, change the cache timeout value from the default (300 seconds) to
+    600 seconds:'
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将应更改为其新值的每个与缓存相关的系统变量设置为其新值。例如，将缓存超时值从默认值（300秒）更改为600秒：
+- en: '[PRE0]'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The members of each pair of system and status variables may have different values
+    temporarily due to the way the reconfiguration procedure works.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每对系统和状态变量的成员可能由于重新配置过程的方式而暂时具有不同的值。
+- en: '[PRE1]'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: For additional information about setting variable values, see [System Variable
+    Assignment](set-variable.html#set-variable-system-variables "System Variable Assignment").
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关设置变量值的其他信息，请参阅[系统变量赋值](set-variable.html#set-variable-system-variables "System
+    Variable Assignment")。
+- en: Execute [`ALTER INSTANCE RELOAD TLS`](alter-instance.html#alter-instance-reload-tls).
+    This statement reconfigures the active TLS context from the current values of
+    the cache-related system variables. It also sets the cache-related status variables
+    to reflect the new active cache values. The statement requires the [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)
+    privilege.
+  id: totrans-26
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行[`ALTER INSTANCE RELOAD TLS`](alter-instance.html#alter-instance-reload-tls)。此语句会根据缓存相关系统变量的当前值重新配置活动的
+    TLS 上下文。它还会将缓存相关状态变量设置为反映新活动缓存值。该语句需要[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)权限。
+- en: '[PRE2]'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: New connections established after execution of [`ALTER INSTANCE RELOAD TLS`](alter-instance.html#alter-instance-reload-tls)
+    use the new TLS context. Existing connections remain unaffected.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在执行[`ALTER INSTANCE RELOAD TLS`](alter-instance.html#alter-instance-reload-tls)后建立的新连接使用新的
+    TLS 上下文。现有连接不受影响。
+- en: Client-Side Configuration for SSL Session Reuse
+  id: totrans-29
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: SSL 会话重用的客户端端配置
+- en: All MySQL client programs are capable of reusing a prior session for new encrypted
+    connections made to the same server, provided that you stored the session data
+    while the original connection was still active. Session data are stored to a file
+    and you specify this file when you invoke the client again.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有 MySQL 客户端程序都能够重用先前会话，用于与同一服务器建立的新加密连接，前提是您在原始连接仍处于活动状态时存储了会话数据。会话数据存储到文件中，当您再次调用客户端时，���会指定此文件。
+- en: 'To store and reuse SSL session data, use this procedure:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要存储和重用 SSL 会话数据，请使用以下步骤：
+- en: Invoke [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    to establish an encrypted connection to a server running MySQL 8.0.29 or higher.
+  id: totrans-32
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 调用[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")以建立到运行
+    MySQL 8.0.29 或更高版本的服务器的加密连接。
+- en: 'Use the **ssl_session_data_print** command to specify the path to a file where
+    you can store the currently active session data securely. For example:'
+  id: totrans-33
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用**ssl_session_data_print**命令指定一个文件路径，您可以在其中安全地存储当前活动会话数据。例如：
+- en: '[PRE3]'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Session data are obtained in the form of a null-terminated, PEM encoded ANSI
+    string. If you omit the path and file name, the string prints to standard output.
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 会话数据以以空终止的、PEM 编码的 ANSI 字符串形式获取。如果省略路径和文件名，则该字符串将打印到标准输出。
+- en: From the prompt of your command interpreter, invoke any MySQL client program
+    to establish a new encrypted connection to the same server. To reuse the session
+    data, specify the [`--ssl-session-data`](connection-options.html#option_general_ssl-session-data)
+    command-line option and the file argument.
+  id: totrans-36
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从命令解释器的提示符中，调用任何 MySQL 客户端程序以建立到同一服务器的新加密连接。要重用会话数据，请指定[`--ssl-session-data`](connection-options.html#option_general_ssl-session-data)命令行选项和文件参数。
+- en: 'For example, establish a new connection using [**mysql**](mysql.html "6.5.1 mysql
+    — The MySQL Command-Line Client"):'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，使用[**mysql**](mysql.html "6.5.1 mysql — MySQL 命令行客户端")建立一个新连接：
+- en: '[PRE4]'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'and then [**mysqlshow**](mysqlshow.html "6.5.7 mysqlshow — Display Database,
+    Table, and Column Information") client:'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 然后使用[**mysqlshow**](mysqlshow.html "6.5.7 mysqlshow — 显示数据库、表和列信息")客户端：
+- en: '[PRE5]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: In each example, the client attempts to resume the original session while it
+    establishes a new connection to the same server.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在每个示例中，客户端尝试恢复原始会话，同时与同一服务器建立新连接。
+- en: 'To confirm whether [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") reused a session, see the output from the `status` command. If the currently
+    active [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") connection
+    did resume the session, the status information includes `SSL session reused: true`.'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '要确认[**mysql**](mysql.html "6.5.1 mysql — MySQL 命令行客户端")是否重用了会话，请查看`status`命令的输出。如果当前活动的[**mysql**](mysql.html
+    "6.5.1 mysql — MySQL 命令行客户端")连接确实恢复了会话，则状态信息包括`SSL 会话重用: true`。'
+- en: In addition to [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") and [**mysqlshow**](mysqlshow.html "6.5.7 mysqlshow — Display Database,
+    Table, and Column Information"), SSL session reuse applies to [**mysqladmin**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program"), [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files"), [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program"), [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program"), [**mysqlimport**](mysqlimport.html
+    "6.5.5 mysqlimport — A Data Import Program"), [**mysqlpump**](mysqlpump.html "6.5.6 mysqlpump
+    — A Database Backup Program"), [**mysqlslap**](mysqlslap.html "6.5.8 mysqlslap
+    — A Load Emulation Client"), **mysqltest**, [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility"), [**mysql_secure_installation**](mysql-secure-installation.html
+    "6.4.2 mysql_secure_installation — Improve MySQL Installation Security"), and
+    [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade — Check and Upgrade
+    MySQL Tables").
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了[**mysql**](mysql.html "6.5.1 mysql — MySQL 命令行客户端")和[**mysqlshow**](mysqlshow.html
+    "6.5.7 mysqlshow — 显示数据库、表和列信息")外，SSL 会话重用也适用于[**mysqladmin**](mysqladmin.html
+    "6.5.2 mysqladmin — MySQL 服务器管理程序")、[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — 用于处理二进制日志文件的实用程序")、[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — 表维护程序")、[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — 数据库备份程序")、[**mysqlimport**](mysqlimport.html "6.5.5 mysqlimport
+    — 数据导入程序")、[**mysqlpump**](mysqlpump.html "6.5.6 mysqlpump — 数据库备份程序")、[**mysqlslap**](mysqlslap.html
+    "6.5.8 mysqlslap — 负载仿真客户端")、**mysqltest**、[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — 密钥迁移实用程序")、[**mysql_secure_installation**](mysql-secure-installation.html
+    "6.4.2 mysql_secure_installation — 改善 MySQL 安装安全性")和[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — 检查和升级 MySQL 表")。
+- en: 'Several conditions may prevent the successful retrieval of session data. For
+    instance, if the session is not fully connected, it is not an SSL session, the
+    server has not yet sent the session data, or the SSL session is simply not reusable.
+    Even with properly stored session data, the server''s session cache can time out.
+    Regardless of the cause, an error is returned by default if you specify [`--ssl-session-data`](connection-options.html#option_general_ssl-session-data)
+    but the session cannot be reused. For example:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 几种情况可能会阻止成功检索会话数据。例如，如果会话未完全连接、不是 SSL 会话、服务器尚未发送会话数据或 SSL 会话无法重用。即使有正确存储的会话数据，服务器的会话缓存也可能超时。无论原因是什么，如果指定了[`--ssl-session-data`](connection-options.html#option_general_ssl-session-data)，但会话无法重用，则默认情况下会返回错误。例如：
+- en: '[PRE6]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: To suppress the error message, and to establish the connection by silently creating
+    a new session instead, specify [`--ssl-session-data-continue-on-failed-reuse`](connection-options.html#option_general_ssl-session-data-continue-on-failed-reuse)
+    on the command line, along with [`--ssl-session-data`](connection-options.html#option_general_ssl-session-data)
+    . If the server's cache timeout has expired, you can store the session data again
+    to the same file. The default server cache timeout can be extended (see [Server-Side
+    Runtime Configuration and Monitoring for SSL Session Reuse](reusing-ssl-sessions.html#ssl-session-cache-server-configuration
+    "Server-Side Runtime Configuration and Monitoring for SSL Session Reuse")).
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了抑制错误消息，并通过在命令行上静默创建一个新会话来建立连接，需要指定[`--ssl-session-data-continue-on-failed-reuse`](connection-options.html#option_general_ssl-session-data-continue-on-failed-reuse)，以及[`--ssl-session-data`](connection-options.html#option_general_ssl-session-data)。如果服务器的缓存超时已过期，可以将会话数据再次存储到同一文件中。默认服务器缓存超时可以延长（参见[SSL会话重用的服务器端运行时配置和监控](reusing-ssl-sessions.html#ssl-session-cache-server-configuration
+    "SSL会话重用的服务器端运行时配置和监控")）。

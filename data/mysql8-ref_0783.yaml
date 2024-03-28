@@ -1,0 +1,1852 @@
+- en: 13.5 The JSON Data Type
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 13.5 JSON 数据类型
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/json.html](https://dev.mysql.com/doc/refman/8.0/en/json.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/json.html](https://dev.mysql.com/doc/refman/8.0/en/json.html)
+- en: '[Creating JSON Values](json.html#json-values "Creating JSON Values")'
+  id: totrans-2
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建 JSON 值](json.html#json-values "创建 JSON 值")'
+- en: '[Normalization, Merging, and Autowrapping of JSON Values](json.html#json-normalization
+    "Normalization, Merging, and Autowrapping of JSON Values")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[JSON 值的规范化、合并和自动包装](json.html#json-normalization "JSON 值的规范化、合并和自动包装")'
+- en: '[Searching and Modifying JSON Values](json.html#json-paths "Searching and Modifying
+    JSON Values")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[搜索和修改 JSON 值](json.html#json-paths "搜索和修改 JSON 值")'
+- en: '[JSON Path Syntax](json.html#json-path-syntax "JSON Path Syntax")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[JSON 路径语法](json.html#json-path-syntax "JSON 路径语法")'
+- en: '[Comparison and Ordering of JSON Values](json.html#json-comparison "Comparison
+    and Ordering of JSON Values")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[JSON 值的比较和排序](json.html#json-comparison "JSON 值的比较和排序")'
+- en: '[Converting between JSON and non-JSON values](json.html#json-converting-between-types
+    "Converting between JSON and non-JSON values")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[JSON 和非 JSON 值之间的转换](json.html#json-converting-between-types "JSON 和非 JSON
+    值之间的转换")'
+- en: '[Aggregation of JSON Values](json.html#json-aggregation "Aggregation of JSON
+    Values")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[JSON 值的聚合](json.html#json-aggregation "JSON 值的聚合")'
+- en: 'MySQL supports a native `JSON` data type defined by [RFC 7159](https://tools.ietf.org/html/rfc7159)
+    that enables efficient access to data in JSON (JavaScript Object Notation) documents.
+    The `JSON` data type provides these advantages over storing JSON-format strings
+    in a string column:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 支持由[RFC 7159](https://tools.ietf.org/html/rfc7159)定义的本机`JSON`数据类型，可实现对
+    JSON（JavaScript 对象表示）文档中数据的高效访问。`JSON`数据类型相对于在字符串列中存储 JSON 格式字符串具有以下优势：
+- en: Automatic validation of JSON documents stored in `JSON` columns. Invalid documents
+    produce an error.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储在`JSON`列中的 JSON 文档的自动验证。无效文档会产生错误。
+- en: Optimized storage format. JSON documents stored in `JSON` columns are converted
+    to an internal format that permits quick read access to document elements. When
+    the server later must read a JSON value stored in this binary format, the value
+    need not be parsed from a text representation. The binary format is structured
+    to enable the server to look up subobjects or nested values directly by key or
+    array index without reading all values before or after them in the document.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化的存储格式。存储在`JSON`列中的 JSON 文档会转换为内部格式，以便快速读取文档元素。当服务器后续必须从此二进制格式中读取存储的 JSON 值时，无需从文本表示中解析值。二进制格式被设计为使服务器能够直接通过键或数组索引查找子对象或嵌套值，而无需在文档中读取它们之前或之后的所有值。
+- en: MySQL 8.0 also supports the *JSON Merge Patch* format defined in [RFC 7396](https://tools.ietf.org/html/rfc7396),
+    using the [`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch)
+    function. See the description of this function, as well as [Normalization, Merging,
+    and Autowrapping of JSON Values](json.html#json-normalization "Normalization,
+    Merging, and Autowrapping of JSON Values"), for examples and further information.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0 还支持[RFC 7396](https://tools.ietf.org/html/rfc7396)中定义的*JSON 合并补丁*格式，使用[`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch)函数。请参阅此函数的描述，以及[JSON
+    值的规范化、合并和自动包装](json.html#json-normalization "JSON 值的规范化、合并和自动包装")，获取示例和更多信息。
+- en: Note
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: This discussion uses `JSON` in monotype to indicate specifically the JSON data
+    type and “JSON” in regular font to indicate JSON data in general.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本讨论中使用单调字体的`JSON`表示特定的 JSON 数据类型，“JSON”使用常规字体表示一般的 JSON 数据。
+- en: The space required to store a `JSON` document is roughly the same as for [`LONGBLOB`](blob.html
+    "13.3.4 The BLOB and TEXT Types") or [`LONGTEXT`](blob.html "13.3.4 The BLOB and
+    TEXT Types"); see [Section 13.7, “Data Type Storage Requirements”](storage-requirements.html
+    "13.7 Data Type Storage Requirements"), for more information. It is important
+    to keep in mind that the size of any JSON document stored in a `JSON` column is
+    limited to the value of the [`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)
+    system variable. (When the server is manipulating a JSON value internally in memory,
+    it can be larger than this; the limit applies when the server stores it.) You
+    can obtain the amount of space required to store a JSON document using the [`JSON_STORAGE_SIZE()`](json-utility-functions.html#function_json-storage-size)
+    function; note that for a [`JSON`](json.html "13.5 The JSON Data Type") column,
+    the storage size—and thus the value returned by this function—is that used by
+    the column prior to any partial updates that may have been performed on it (see
+    the discussion of the JSON partial update optimization later in this section).
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存储 `JSON` 文档所需的空间大致与 [`LONGBLOB`](blob.html "13.3.4 BLOB 和 TEXT 类型") 或 [`LONGTEXT`](blob.html
+    "13.3.4 BLOB 和 TEXT 类型") 相同；有关更多信息，请参见 [第 13.7 节，“数据类型存储要求”](storage-requirements.html
+    "13.7 数据类型存储要求")。重要的是要记住，存储在 `JSON` 列中的任何 JSON 文档的大小受限于 [`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)
+    系统变量的值。（当服务器在内存中内部操作 JSON 值时，它可以比这个值更大；限制适用于服务器存储它时。）您可以使用 [`JSON_STORAGE_SIZE()`](json-utility-functions.html#function_json-storage-size)
+    函数获取存储 JSON 文档所需空间的量；请注意，对于 [`JSON`](json.html "13.5 JSON 数据类型") 列，存储大小——因此此函数返回的值——是在对其执行的任何部分更新之前使用的列的大小（请参见本节后面关于
+    JSON 部分更新优化的讨论）。
+- en: Prior to MySQL 8.0.13, a `JSON` column cannot have a non-`NULL` default value.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.13 之前，`JSON` 列不能有非`NULL`默认值。
+- en: Along with the `JSON` data type, a set of SQL functions is available to enable
+    operations on JSON values, such as creation, manipulation, and searching. The
+    following discussion shows examples of these operations. For details about individual
+    functions, see [Section 14.17, “JSON Functions”](json-functions.html "14.17 JSON
+    Functions").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了 `JSON` 数据类型外，还提供了一组 SQL 函数，用于对 JSON 值进行操作，如创建、操作和搜索。以下讨论展示了这些操作的示例。有关各个函数的详细信息，请参见
+    [第 14.17 节，“JSON 函数”](json-functions.html "14.17 JSON Functions")。
+- en: A set of spatial functions for operating on GeoJSON values is also available.
+    See [Section 14.16.11, “Spatial GeoJSON Functions”](spatial-geojson-functions.html
+    "14.16.11 Spatial GeoJSON Functions").
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还提供了一组用于操作 GeoJSON 值的空间函数。请参见 [第 14.16.11 节，“空间 GeoJSON 函数”](spatial-geojson-functions.html
+    "14.16.11 空间 GeoJSON 函数")。
+- en: '`JSON` columns, like columns of other binary types, are not indexed directly;
+    instead, you can create an index on a generated column that extracts a scalar
+    value from the `JSON` column. See [Indexing a Generated Column to Provide a JSON
+    Column Index](create-table-secondary-indexes.html#json-column-indirect-index "Indexing
+    a Generated Column to Provide a JSON Column Index"), for a detailed example.'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`JSON` 列，就像其他二进制类型的列一样，不能直接索引；相反，您可以在生成的列上创建索引，从 `JSON` 列中提取标量值。有关详细示例，请参见
+    [在生成的列上创建索引以提供 JSON 列索引](create-table-secondary-indexes.html#json-column-indirect-index
+    "在生成的列上创建索引以提供 JSON 列索引")。'
+- en: The MySQL optimizer also looks for compatible indexes on virtual columns that
+    match JSON expressions.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 优化器还会查找与匹配 JSON 表达式的虚拟列上的兼容索引。
+- en: In MySQL 8.0.17 and later, the [`InnoDB`](innodb-storage-engine.html "Chapter 17 The
+    InnoDB Storage Engine") storage engine supports multi-valued indexes on JSON arrays.
+    See [Multi-Valued Indexes](create-index.html#create-index-multi-valued "Multi-Valued
+    Indexes").
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.17 及更高版本中，[`InnoDB`](innodb-storage-engine.html "第 17 章 InnoDB 存储引擎")
+    存储引擎支持对 JSON 数组进行多值索引。请参见 [多值索引](create-index.html#create-index-multi-valued "多值索引")。
+- en: MySQL NDB Cluster 8.0 supports `JSON` columns and MySQL JSON functions, including
+    creation of an index on a column generated from a `JSON` column as a workaround
+    for being unable to index a `JSON` column. A maximum of 3 `JSON` columns per [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") table is supported.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL NDB Cluster 8.0 支持 `JSON` 列和 MySQL JSON 函数，包括在从 `JSON` 列生成的列上创建索引，作为无法对
+    `JSON` 列进行索引的解决方法。每个 [`NDB`](mysql-cluster.html "第 25 章 MySQL NDB Cluster 8.0")
+    表支持最多 3 个 `JSON` 列。
+- en: Partial Updates of JSON Values
+  id: totrans-23
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: JSON 值的部分更新
+- en: 'In MySQL 8.0, the optimizer can perform a partial, in-place update of a `JSON`
+    column instead of removing the old document and writing the new document in its
+    entirety to the column. This optimization can be performed for an update that
+    meets the following conditions:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0 中，优化器可以对`JSON`列执行部分、原地更新，而不是删除旧文档并将新文档完全写入列。此优化可用于满足以下条件的更新：
+- en: The column being updated was declared as `JSON`.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 正在更新的列被声明为`JSON`。
+- en: 'The [`UPDATE`](update.html "15.2.17 UPDATE Statement") statement uses any of
+    the three functions [`JSON_SET()`](json-modification-functions.html#function_json-set),
+    [`JSON_REPLACE()`](json-modification-functions.html#function_json-replace), or
+    [`JSON_REMOVE()`](json-modification-functions.html#function_json-remove) to update
+    the column. A direct assignment of the column value (for example, `UPDATE mytable
+    SET jcol = ''{"a": 10, "b": 25}''`) cannot be performed as a partial update.'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句使用三个函数中的任何一个[`JSON_SET()`](json-modification-functions.html#function_json-set),
+    [`JSON_REPLACE()`](json-modification-functions.html#function_json-replace), 或
+    [`JSON_REMOVE()`](json-modification-functions.html#function_json-remove)来更新列。不能像直接赋值列值（例如，`UPDATE
+    mytable SET jcol = ''{"a": 10, "b": 25}''`）这样进行部分更新。'
+- en: Updates of multiple `JSON` columns in a single `UPDATE` statement can be optimized
+    in this fashion; MySQL can perform partial updates of only those columns whose
+    values are updated using the three functions just listed.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在单个`UPDATE`语句中更新多个`JSON`列可以通过这种方式进行优化；MySQL 可以仅对使用刚才列出的三个函数更新值的列进行部分更新。
+- en: The input column and the target column must be the same column; a statement
+    such as `UPDATE mytable SET jcol1 = JSON_SET(jcol2, '$.a', 100)` cannot be performed
+    as a partial update.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 输入列和目标列必须是同一列；不能像`UPDATE mytable SET jcol1 = JSON_SET(jcol2, '$.a', 100)`这样进行部分更新。
+- en: The update can use nested calls to any of the functions listed in the previous
+    item, in any combination, as long as the input and target columns are the same.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更新可以使用前一项中列出的任何函数的嵌套调用，以任何组合，只要输入和目标列是相同的。
+- en: All changes replace existing array or object values with new ones, and do not
+    add any new elements to the parent object or array.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有更改都用新值替换现有数组或对象值，并且不向父对象或数组添加任何新元素。
+- en: The value being replaced must be at least as large as the replacement value.
+    In other words, the new value cannot be any larger than the old one.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 被替换的值必须至少和替换值一样大。换句话说，新值不能比旧值更大。
+- en: A possible exception to this requirement occurs when a previous partial update
+    has left sufficient space for the larger value. You can use the function [`JSON_STORAGE_FREE()`](json-utility-functions.html#function_json-storage-free)
+    see how much space has been freed by any partial updates of a `JSON` column.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当之前的部分更新留下足够空间容纳更大值时，可能会有一个例外。您可以使用函数[`JSON_STORAGE_FREE()`](json-utility-functions.html#function_json-storage-free)查看通过对`JSON`列进行任何部分更新而释放了多少空间。
+- en: Such partial updates can be written to the binary log using a compact format
+    that saves space; this can be enabled by setting the [`binlog_row_value_options`](replication-options-binary-log.html#sysvar_binlog_row_value_options)
+    system variable to `PARTIAL_JSON`.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用紧凑格式将这种部分更新写入二进制日志，以节省空间；可以通过将[`binlog_row_value_options`](replication-options-binary-log.html#sysvar_binlog_row_value_options)系统变量设置为`PARTIAL_JSON`来启用此功能。
+- en: It is important to distinguish the partial update of a `JSON` column value stored
+    in a table from writing the partial update of a row to the binary log. It is possible
+    for the complete update of a `JSON` column to be recorded in the binary log as
+    a partial update. This can happen when either (or both) of the last two conditions
+    from the previous list is not met but the other conditions are satisfied.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要的是要区分表中存储的`JSON`列值的部分更新与将行的部分更新写入二进制日志。当前面列表中的最后两个条件中的任一条件（或两者）不满足但其他条件满足时，可以将`JSON`列的完整更新记录为部分更新。
+- en: See also the description of [`binlog_row_value_options`](replication-options-binary-log.html#sysvar_binlog_row_value_options).
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 参见[`binlog_row_value_options`](replication-options-binary-log.html#sysvar_binlog_row_value_options)的描述。
+- en: The next few sections provide basic information regarding the creation and manipulation
+    of JSON values.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来的几节提供有关创建和操作 JSON 值的基本信息。
+- en: Creating JSON Values
+  id: totrans-37
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 创建 JSON 值
+- en: 'A JSON array contains a list of values separated by commas and enclosed within
+    `[` and `]` characters:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON 数组包含由逗号分隔并在`[`和`]`字符内包围的值列表：
+- en: '[PRE0]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'A JSON object contains a set of key-value pairs separated by commas and enclosed
+    within `{` and `}` characters:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON对象包含一组由逗号分隔并在`{`和`}`字符内封装的键值对：
+- en: '[PRE1]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'As the examples illustrate, JSON arrays and objects can contain scalar values
+    that are strings or numbers, the JSON null literal, or the JSON boolean true or
+    false literals. Keys in JSON objects must be strings. Temporal (date, time, or
+    datetime) scalar values are also permitted:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如示例所示，JSON数组和对象可以包含作为字符串或数字的标量值，JSON null字面值，或JSON布尔true或false字面值。JSON对象中的键必须是字符串。也允许使用时间（日期、时间或日期时间）标量值：
+- en: '[PRE2]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Nesting is permitted within JSON array elements and JSON object key values:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON数组元素和JSON对象键值内允许嵌套：
+- en: '[PRE3]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: You can also obtain JSON values from a number of functions supplied by MySQL
+    for this purpose (see [Section 14.17.2, “Functions That Create JSON Values”](json-creation-functions.html
+    "14.17.2 Functions That Create JSON Values")) as well as by casting values of
+    other types to the `JSON` type using [`CAST(*`value`* AS JSON)`](cast-functions.html#function_cast)
+    (see [Converting between JSON and non-JSON values](json.html#json-converting-between-types
+    "Converting between JSON and non-JSON values")). The next several paragraphs describe
+    how MySQL handles JSON values provided as input.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以通过MySQL提供的许多用于此目的的函数（请参阅[第14.17.2节，“创建JSON值的函数”](json-creation-functions.html
+    "14.17.2 创建JSON值的函数")）以及通过将其他类型的值转换为`JSON`类型使用[`CAST(*`value`* AS JSON)`](cast-functions.html#function_cast)（请参阅[在JSON和非JSON值之间转换](json.html#json-converting-between-types
+    "在JSON和非JSON值之间转换")）来获取JSON值。接下来的几段描述了MySQL如何处理提供的JSON值作为输入。
+- en: 'In MySQL, JSON values are written as strings. MySQL parses any string used
+    in a context that requires a JSON value, and produces an error if it is not valid
+    as JSON. These contexts include inserting a value into a column that has the `JSON`
+    data type and passing an argument to a function that expects a JSON value (usually
+    shown as *`json_doc`* or *`json_val`* in the documentation for MySQL JSON functions),
+    as the following examples demonstrate:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL中，JSON值被写为字符串。MySQL解析任何在需要JSON值的上下文中使用的字符串，并在其无效为JSON时产生错误。这些上下文包括将值插入具有`JSON`数据类型的列中以及将参数传递给期望JSON值的函数（通常在MySQL
+    JSON函数文档中显示为*`json_doc`*或*`json_val`*），如以下示例所示：
+- en: 'Attempting to insert a value into a `JSON` column succeeds if the value is
+    a valid JSON value, but fails if it is not:'
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 尝试将值插入`JSON`列成功，如果该值是有效的JSON值，则失败，如果不是则失败：
+- en: '[PRE4]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Positions for “at position *`N`*” in such error messages are 0-based, but should
+    be considered rough indications of where the problem in a value actually occurs.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种错误消息中，“在位置*`N`*处”表示基于0的位置，但应该被视为值中实际问题发生位置的粗略指示。
+- en: 'The [`JSON_TYPE()`](json-attribute-functions.html#function_json-type) function
+    expects a JSON argument and attempts to parse it into a JSON value. It returns
+    the value''s JSON type if it is valid and produces an error otherwise:'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`JSON_TYPE()`](json-attribute-functions.html#function_json-type)函数期望一个JSON参数并尝试将其解析为JSON值。如果有效则返回该值的JSON类型，否则产生错误：'
+- en: '[PRE5]'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: MySQL handles strings used in JSON context using the `utf8mb4` character set
+    and `utf8mb4_bin` collation. Strings in other character sets are converted to
+    `utf8mb4` as necessary. (For strings in the `ascii` or `utf8mb3` character sets,
+    no conversion is needed because `ascii` and `utf8mb3` are subsets of `utf8mb4`.)
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL处理在JSON上下文中使用的字符串时，使用`utf8mb4`字符集和`utf8mb4_bin`排序规则。其他字符集中的字符串会根据需要转换为`utf8mb4`。（对于`ascii`或`utf8mb3`字符集中的字符串，不需要转换，因为`ascii`和`utf8mb3`是`utf8mb4`的子集。）
+- en: 'As an alternative to writing JSON values using literal strings, functions exist
+    for composing JSON values from component elements. [`JSON_ARRAY()`](json-creation-functions.html#function_json-array)
+    takes a (possibly empty) list of values and returns a JSON array containing those
+    values:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 作为使用文字字符串编写JSON值的替代方法，存在用于从组件元素组合JSON值的函数。[`JSON_ARRAY()`](json-creation-functions.html#function_json-array)接受一个（可能为空）值列表，并返回包含这些值的JSON数组：
+- en: '[PRE6]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '[`JSON_OBJECT()`](json-creation-functions.html#function_json-object) takes
+    a (possibly empty) list of key-value pairs and returns a JSON object containing
+    those pairs:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`JSON_OBJECT()`](json-creation-functions.html#function_json-object)接受一个（可能为空）键值对列表，并返回包含这些对的JSON对象：'
+- en: '[PRE7]'
+  id: totrans-57
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '[`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)
+    takes two or more JSON documents and returns the combined result:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)接受两个或多个JSON文档并返回合并的结果：'
+- en: '[PRE8]'
+  id: totrans-59
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: For information about the merging rules, see [Normalization, Merging, and Autowrapping
+    of JSON Values](json.html#json-normalization "Normalization, Merging, and Autowrapping
+    of JSON Values").
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于合并规则的信息，请参见[JSON值的规范化、合并和自动包装](json.html#json-normalization "Normalization,
+    Merging, and Autowrapping of JSON Values")。
+- en: (MySQL 8.0.3 and later also support [`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch),
+    which has somewhat different behavior. See [JSON_MERGE_PATCH() compared with JSON_MERGE_PRESERVE()](json-modification-functions.html#json-merge-patch-json-merge-preserve-compared
+    "JSON_MERGE_PATCH() compared with JSON_MERGE_PRESERVE()"), for information about
+    the differences between these two functions.)
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: （MySQL 8.0.3及更高版本还支持[`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch)，其行为略有不同。有关这两个函数之间差异的信息，请参见[JSON_MERGE_PATCH()与JSON_MERGE_PRESERVE()的比较](json-modification-functions.html#json-merge-patch-json-merge-preserve-compared
+    "JSON_MERGE_PATCH() compared with JSON_MERGE_PRESERVE()")。）
+- en: 'JSON values can be assigned to user-defined variables:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON值可以分配给用户定义的变量：
+- en: '[PRE9]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: However, user-defined variables cannot be of `JSON` data type, so although `@j`
+    in the preceding example looks like a JSON value and has the same character set
+    and collation as a JSON value, it does *not* have the `JSON` data type. Instead,
+    the result from [`JSON_OBJECT()`](json-creation-functions.html#function_json-object)
+    is converted to a string when assigned to the variable.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，用户定义的变量不能是`JSON`数据类型，因此，尽管前面示例中的`@j`看起来像一个JSON值，并且具有与JSON值相同的字符集和校对规则，但它*不*具有`JSON`数据类型。相反，当分配给变量时，[`JSON_OBJECT()`](json-creation-functions.html#function_json-object)的结果会被转换为字符串。
+- en: 'Strings produced by converting JSON values have a character set of `utf8mb4`
+    and a collation of `utf8mb4_bin`:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过转换JSON值生成的字符串具有`utf8mb4`字符集和`utf8mb4_bin`校对规则：
+- en: '[PRE10]'
+  id: totrans-66
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: Because `utf8mb4_bin` is a binary collation, comparison of JSON values is case-sensitive.
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为`utf8mb4_bin`是一个二进制校对规则，所以JSON值的比较是区分大小写的。
+- en: '[PRE11]'
+  id: totrans-68
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'Case sensitivity also applies to the JSON `null`, `true`, and `false` literals,
+    which always must be written in lowercase:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 区分大小写也适用于JSON的`null`、`true`和`false`字面量，它们必须始终以小写形式编写：
+- en: '[PRE12]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'Case sensitivity of the JSON literals differs from that of the SQL `NULL`,
+    `TRUE`, and `FALSE` literals, which can be written in any lettercase:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON字面量的大小写敏感性与SQL的`NULL`、`TRUE`和`FALSE`字面量的大小写敏感性不同，后者可以以任何大小写形式编写：
+- en: '[PRE13]'
+  id: totrans-72
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'Sometimes it may be necessary or desirable to insert quote characters (`"`
+    or `''`) into a JSON document. Assume for this example that you want to insert
+    some JSON objects containing strings representing sentences that state some facts
+    about MySQL, each paired with an appropriate keyword, into a table created using
+    the SQL statement shown here:'
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有时可能需要或希望将引号字符（`"`或`'`）插入JSON文档中。假设为此示例，您想要插入一些包含表示关于MySQL的一些事实的句子的JSON对象，每个句子都与适当的关键字配对，插入到使用下面显示的SQL语句创建的表中：
+- en: '[PRE14]'
+  id: totrans-74
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'Among these keyword-sentence pairs is this one:'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这些关键字-句子对中，有这样一个：
+- en: '[PRE15]'
+  id: totrans-76
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'One way to insert this as a JSON object into the `facts` table is to use the
+    MySQL [`JSON_OBJECT()`](json-creation-functions.html#function_json-object) function.
+    In this case, you must escape each quote character using a backslash, as shown
+    here:'
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将此作为JSON对象插入`facts`表中的一种方法是使用MySQL的[`JSON_OBJECT()`](json-creation-functions.html#function_json-object)函数。在这种情况下，必须使用反斜杠转义每个引号字符，如下所示：
+- en: '[PRE16]'
+  id: totrans-78
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'This does not work in the same way if you insert the value as a JSON object
+    literal, in which case, you must use the double backslash escape sequence, like
+    this:'
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果将值作为JSON对象字面量插入，则不能以相同方式工作，在这种情况下，必须使用双反斜杠转义序列，就像这样：
+- en: '[PRE17]'
+  id: totrans-80
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: 'Using the double backslash keeps MySQL from performing escape sequence processing,
+    and instead causes it to pass the string literal to the storage engine for processing.
+    After inserting the JSON object in either of the ways just shown, you can see
+    that the backslashes are present in the JSON column value by doing a simple [`SELECT`](select.html
+    "15.2.13 SELECT Statement"), like this:'
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用双反斜杠可以阻止MySQL执行转义序列处理，而是导致将字符串字面量传递给存储引擎进行处理。在刚刚展示的任一方式中插入JSON对象后，可以通过简单的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")查看JSON列值中存在反斜杠，就像这样：
+- en: '[PRE18]'
+  id: totrans-82
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: 'To look up this particular sentence employing `mascot` as the key, you can
+    use the column-path operator [`->`](json-search-functions.html#operator_json-column-path),
+    as shown here:'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查找使用`mascot`作为关键字的特定句子，可以使用列路径运算符[`->`](json-search-functions.html#operator_json-column-path)，如下所示：
+- en: '[PRE19]'
+  id: totrans-84
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: 'This leaves the backslashes intact, along with the surrounding quote marks.
+    To display the desired value using `mascot` as the key, but without including
+    the surrounding quote marks or any escapes, use the inline path operator [`->>`](json-search-functions.html#operator_json-inline-path),
+    like this:'
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这会保留反斜杠，以及周围的引号。要使用`mascot`作为键显示所需的值，但不包括周围的引号或任何转义字符，请使用内联路径运算符[`->>`](json-search-functions.html#operator_json-inline-path)，如下所示：
+- en: '[PRE20]'
+  id: totrans-86
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: Note
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The previous example does not work as shown if the [`NO_BACKSLASH_ESCAPES`](sql-mode.html#sqlmode_no_backslash_escapes)
+    server SQL mode is enabled. If this mode is set, a single backslash instead of
+    double backslashes can be used to insert the JSON object literal, and the backslashes
+    are preserved. If you use the `JSON_OBJECT()` function when performing the insert
+    and this mode is set, you must alternate single and double quotes, like this:'
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果启用了[`NO_BACKSLASH_ESCAPES`](sql-mode.html#sqlmode_no_backslash_escapes)服务器SQL模式，则前面的示例不会按照所示方式工作。如果设置了此模式，则可以使用单个反斜杠而不是双反斜杠来插入JSON对象文字，并且反斜杠会被保留。如果在执行插入时使用`JSON_OBJECT()`函数并设置了此模式，则必须交替使用单引号和双引号，如下所示：
+- en: '[PRE21]'
+  id: totrans-89
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: See the description of the [`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)
+    function for more information about the effects of this mode on escaped characters
+    in JSON values.
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关此模式对JSON值中转义字符的影响的更多信息，请参阅[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)函数的描述。
+- en: Normalization, Merging, and Autowrapping of JSON Values
+  id: totrans-91
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: JSON值的规范化、合并和自动包装
+- en: 'When a string is parsed and found to be a valid JSON document, it is also normalized.
+    This means that members with keys that duplicate a key found later in the document,
+    reading from left to right, are discarded. The object value produced by the following
+    [`JSON_OBJECT()`](json-creation-functions.html#function_json-object) call includes
+    only the second `key1` element because that key name occurs earlier in the value,
+    as shown here:'
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当解析字符串并发现其为有效的JSON文档时，也会进行规范化。这意味着具有与后面在文档中找到的重复键的成员，从左到右阅读，将被丢弃。以下[`JSON_OBJECT()`](json-creation-functions.html#function_json-object)调用生成的对象值仅包含第二个`key1`元素，因为该键名在值中较早出现，如下所示：
+- en: '[PRE22]'
+  id: totrans-93
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: 'Normalization is also performed when values are inserted into JSON columns,
+    as shown here:'
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当值插入JSON列时也会执行规范化，如下所示：
+- en: '[PRE23]'
+  id: totrans-95
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: 'This “last duplicate key wins” behavior is suggested by [RFC 7159](https://tools.ietf.org/html/rfc7159)
+    and is implemented by most JavaScript parsers. (Bug #86866, Bug #26369555)'
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '这种“最后一个重复键胜出”的行为是由[RFC 7159](https://tools.ietf.org/html/rfc7159)建议的，并且大多数JavaScript解析器都实现了这种行为。（Bug
+    #86866，Bug #26369555）'
+- en: 'In versions of MySQL prior to 8.0.3, members with keys that duplicated a key
+    found earlier in the document were discarded. The object value produced by the
+    following [`JSON_OBJECT()`](json-creation-functions.html#function_json-object)
+    call does not include the second `key1` element because that key name occurs earlier
+    in the value:'
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.3之前的版本中，具有与文档中较早找到的键重复的成员将被丢弃。以下[`JSON_OBJECT()`](json-creation-functions.html#function_json-object)调用生成的对象值不包含第二个`key1`元素，因为该键名在值中较早出现：
+- en: '[PRE24]'
+  id: totrans-98
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: Prior to MySQL 8.0.3, this “first duplicate key wins” normalization was also
+    performed when inserting values into JSON columns.
+  id: totrans-99
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.3之前，插入JSON列时也执行了这种“第一个重复键胜出”的规范化。
+- en: '[PRE25]'
+  id: totrans-100
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: MySQL also discards extra whitespace between keys, values, or elements in the
+    original JSON document, and leaves (or inserts, when necessary) a single space
+    following each comma (`,`) or colon (`:`) when displaying it. This is done to
+    enhance readability.
+  id: totrans-101
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL还会丢弃原始JSON文档中键、值或元素之间的额外空格，并在显示时在每个逗号（`,`）或冒号（`:`）后留下（或在必要时插入）一个空格。这样做是为了增强可读性。
+- en: MySQL functions that produce JSON values (see [Section 14.17.2, “Functions That
+    Create JSON Values”](json-creation-functions.html "14.17.2 Functions That Create
+    JSON Values")) always return normalized values.
+  id: totrans-102
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成JSON值的MySQL函数（请参阅[第14.17.2节，“创建JSON值的函数”](json-creation-functions.html "14.17.2
+    创建JSON值的函数")）始终返回规范化值。
+- en: To make lookups more efficient, MySQL also sorts the keys of a JSON object.
+    *You should be aware that the result of this ordering is subject to change and
+    not guaranteed to be consistent across releases*.
+  id: totrans-103
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了使查找更有效率，MySQL还对JSON对象的键进行排序。*您应该注意，此排序的结果可能会发生变化，并且不能保证在不同版本之间保持一致*。
+- en: Merging JSON Values
+  id: totrans-104
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 合并JSON值
+- en: 'Two merging algorithms are supported in MySQL 8.0.3 (and later), implemented
+    by the functions [`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)
+    and [`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch).
+    These differ in how they handle duplicate keys: [`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)
+    retains values for duplicate keys, while [`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch)
+    discards all but the last value. The next few paragraphs explain how each of these
+    two functions handles the merging of different combinations of JSON documents
+    (that is, of objects and arrays).'
+  id: totrans-105
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.3（以及更高版本）支持两种合并算法，由函数[`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)和[`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch)实现。它们在处理重复键时有所不同：[`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)保留重复键的值，而[`JSON_MERGE_PATCH()`](json-modification-functions.html#function_json-merge-patch)丢弃除最后一个值之外的所有值。接下来的几段将解释这两个函数如何处理不同组合的JSON文档（即对象和数组）的合并。
+- en: Note
+  id: totrans-106
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '[`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)
+    is the same as the `JSON_MERGE()` function found in previous versions of MySQL
+    (renamed in MySQL 8.0.3). `JSON_MERGE()` is still supported as an alias for `JSON_MERGE_PRESERVE()`
+    in MySQL 8.0, but is deprecated and subject to removal in a future release.'
+  id: totrans-107
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`JSON_MERGE_PRESERVE()`](json-modification-functions.html#function_json-merge-preserve)与MySQL先前版本中的`JSON_MERGE()`函数相同（在MySQL
+    8.0.3中更名）。`JSON_MERGE()`在MySQL 8.0中仍作为`JSON_MERGE_PRESERVE()`的别名受支持，但已被弃用，并可能在将来的版本中被移除。'
+- en: '**Merging arrays. ** In contexts that combine multiple arrays, the arrays are
+    merged into a single array. `JSON_MERGE_PRESERVE()` does this by concatenating
+    arrays named later to the end of the first array. `JSON_MERGE_PATCH()` considers
+    each argument as an array consisting of a single element (thus having 0 as its
+    index) and then applies “last duplicate key wins” logic to select only the last
+    argument. You can compare the results shown by this query:'
+  id: totrans-108
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**合并数组。** 在合并多个数组的上下文中，这些数组会合并为一个单一的数组。`JSON_MERGE_PRESERVE()`通过将后面命名的数组连接到第一个数组的末尾来实现这一点。`JSON_MERGE_PATCH()`将每个参数视为由单个元素组成的数组（因此其索引为0），然后应用“最后重复键获胜”的逻辑，仅选择最后一个参数。您可以通过此查询比较所示的结果：'
+- en: '[PRE26]'
+  id: totrans-109
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: 'Multiple objects when merged produce a single object. `JSON_MERGE_PRESERVE()`
+    handles multiple objects having the same key by combining all unique values for
+    that key in an array; this array is then used as the value for that key in the
+    result. `JSON_MERGE_PATCH()` discards values for which duplicate keys are found,
+    working from left to right, so that the result contains only the last value for
+    that key. The following query illustrates the difference in the results for the
+    duplicate key `a`:'
+  id: totrans-110
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多个对象合并后产生一个单一对象。`JSON_MERGE_PRESERVE()`通过将具有相同键的多个对象的所有唯一值组合为一个数组来处理这些对象；然后该数组被用作结果中该键的值。`JSON_MERGE_PATCH()`丢弃发现重复键的值，从左到右工作，因此结果仅包含该键的最后一个值。以下查询说明了对重复键`a`的结果差异：
+- en: '[PRE27]'
+  id: totrans-111
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: 'Nonarray values used in a context that requires an array value are autowrapped:
+    The value is surrounded by `[` and `]` characters to convert it to an array. In
+    the following statement, each argument is autowrapped as an array (`[1]`, `[2]`).
+    These are then merged to produce a single result array; as in the previous two
+    cases, `JSON_MERGE_PRESERVE()` combines values having the same key while `JSON_MERGE_PATCH()`
+    discards values for all duplicate keys except the last, as shown here:'
+  id: totrans-112
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在需要数组值的上下文中使用非数组值时，会自动包装：该值会被`[`和`]`字符包围以转换为数组。在下面的语句中，每个参数都被自动包装为一个数组（`[1]`，`[2]`）。然后这些数组被合并为一个单一的结果数组；与前两种情况一样，`JSON_MERGE_PRESERVE()`会合并具有相同键的值，而`JSON_MERGE_PATCH()`会丢弃所有重复键的值，除了最后一个，如下所示：
+- en: '[PRE28]'
+  id: totrans-113
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE28]'
+- en: 'Array and object values are merged by autowrapping the object as an array and
+    merging the arrays by combining values or by “last duplicate key wins” according
+    to the choice of merging function (`JSON_MERGE_PRESERVE()` or `JSON_MERGE_PATCH()`,
+    respectively), as can be seen in this example:'
+  id: totrans-114
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数组和对象值通过将对象自动包装为数组并根据合并函数的选择（`JSON_MERGE_PRESERVE()`或`JSON_MERGE_PATCH()`）合并数组中的值或“最后重复键获胜”来进行合并，如本例所示：
+- en: '[PRE29]'
+  id: totrans-115
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE29]'
+- en: Searching and Modifying JSON Values
+  id: totrans-116
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 搜索和修改JSON值
+- en: A JSON path expression selects a value within a JSON document.
+  id: totrans-117
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON路径表达式选择JSON文档中的值。
+- en: 'Path expressions are useful with functions that extract parts of or modify
+    a JSON document, to specify where within that document to operate. For example,
+    the following query extracts from a JSON document the value of the member with
+    the `name` key:'
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 路径表达式在提取或修改JSON文档的部分的函数中非常有用，用于指定在文档中的哪个位置操作。例如，以下查询从JSON文档中提取具有`name`键的成员的值：
+- en: '[PRE30]'
+  id: totrans-119
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE30]'
+- en: 'Path syntax uses a leading `$` character to represent the JSON document under
+    consideration, optionally followed by selectors that indicate successively more
+    specific parts of the document:'
+  id: totrans-120
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 路径语法使用一个前导`$`字符来表示正在考虑的JSON文档，可选地跟随指示逐渐更具体部分的选择器：
+- en: A period followed by a key name names the member in an object with the given
+    key. The key name must be specified within double quotation marks if the name
+    without quotes is not legal within path expressions (for example, if it contains
+    a space).
+  id: totrans-121
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个点后跟一个键名命名对象中具有给定键的成员。如果不带引号的键名在路径表达式中不合法（例如，包含空格），则必须在双引号内指定键名。
+- en: '`[*`N`*]` appended to a *`path`* that selects an array names the value at position
+    *`N`* within the array. Array positions are integers beginning with zero. If *`path`*
+    does not select an array value, *`path`*[0] evaluates to the same value as *`path`*:'
+  id: totrans-122
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`[*`N`*]`附加到选择数组的*`path`*上，命名数组中位置为*`N`*的值。数组位置是从零开始的整数。如果*`path`*没有选择一个数组值，*`path`*[0]会评估为与*`path`*相同的值：'
+- en: '[PRE31]'
+  id: totrans-123
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE31]'
+- en: '`[*`M`* to *`N`*]` specifies a subset or range of array values starting with
+    the value at position *`M`*, and ending with the value at position *`N`*.'
+  id: totrans-124
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`[*`M`* to *`N`*]`指定从位置*`M`*开始，到位置*`N`*结束的数组值的子集或范围。'
+- en: '`last` is supported as a synonym for the index of the rightmost array element.
+    Relative addressing of array elements is also supported. If *`path`* does not
+    select an array value, *`path`*[last] evaluates to the same value as *`path`*,
+    as shown later in this section (see [Rightmost array element](json.html#json-paths-last
+    "Rightmost array element")).'
+  id: totrans-125
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`last`被支持作为最右边数组元素的索引的同义词。也支持数组元素的相对寻址。如果*`path`*没有选择一个数组值，*`path`*[last]会评估为与*`path`*相同的值，如本节后面所示（参见[最右边数组元素](json.html#json-paths-last
+    "最右边数组元素")）。'
+- en: 'Paths can contain `*` or `**` wildcards:'
+  id: totrans-126
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 路径可以包含`*`或`**`通配符：
+- en: '`.[*]` evaluates to the values of all members in a JSON object.'
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`.[*]`评估为JSON对象中所有成员的值。'
+- en: '`[*]` evaluates to the values of all elements in a JSON array.'
+  id: totrans-128
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`[*]`评估为JSON数组中所有元素的值。'
+- en: '`*`prefix`****`suffix`*` evaluates to all paths that begin with the named prefix
+    and end with the named suffix.'
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`*`prefix`****`suffix`*`评估为所有以指定前缀开头并以指定后缀结尾的路径。'
+- en: A path that does not exist in the document (evaluates to nonexistent data) evaluates
+    to `NULL`.
+  id: totrans-130
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个在文档中不存在的路径（评估为不存在的数据）会评估为`NULL`。
+- en: 'Let `$` refer to this JSON array with three elements:'
+  id: totrans-131
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 让`$`指代这个具有三个元素的JSON数组：
+- en: '[PRE32]'
+  id: totrans-132
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE32]'
+- en: 'Then:'
+  id: totrans-133
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后：
+- en: '`$[0]` evaluates to `3`.'
+  id: totrans-134
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[0]`评估为`3`。'
+- en: '`$[1]` evaluates to `{"a": [5, 6], "b": 10}`.'
+  id: totrans-135
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[1]`评估为`{"a": [5, 6], "b": 10}`。'
+- en: '`$[2]` evaluates to `[99, 100]`.'
+  id: totrans-136
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[2]`评估为`[99, 100]`。'
+- en: '`$[3]` evaluates to `NULL` (it refers to the fourth array element, which does
+    not exist).'
+  id: totrans-137
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[3]`评估为`NULL`（它指代第四个数组元素，但不存在）。'
+- en: 'Because `$[1]` and `$[2]` evaluate to nonscalar values, they can be used as
+    the basis for more-specific path expressions that select nested values. Examples:'
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为`$[1]`和`$[2]`评估为非标量值，它们可以作为更具体路径表达式的基础，选择嵌套值。例如：
+- en: '`$[1].a` evaluates to `[5, 6]`.'
+  id: totrans-139
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[1].a`评估为`[5, 6]`。'
+- en: '`$[1].a[1]` evaluates to `6`.'
+  id: totrans-140
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[1].a[1]`评估为`6`。'
+- en: '`$[1].b` evaluates to `10`.'
+  id: totrans-141
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[1].b`评估为`10`。'
+- en: '`$[2][0]` evaluates to `99`.'
+  id: totrans-142
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[2][0]`评估为`99`。'
+- en: 'As mentioned previously, path components that name keys must be quoted if the
+    unquoted key name is not legal in path expressions. Let `$` refer to this value:'
+  id: totrans-143
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，命名键的路径组件在路径表达式中不合法时必须加引号。让`$`指代这个值：
+- en: '[PRE33]'
+  id: totrans-144
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE33]'
+- en: 'The keys both contain a space and must be quoted:'
+  id: totrans-145
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个键都包含空格，必须加引号：
+- en: '`$."a fish"` evaluates to `shark`.'
+  id: totrans-146
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$."a fish"`评估为`shark`。'
+- en: '`$."a bird"` evaluates to `sparrow`.'
+  id: totrans-147
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$."a bird"`评估为`sparrow`。'
+- en: 'Paths that use wildcards evaluate to an array that can contain multiple values:'
+  id: totrans-148
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用通配符的路径会评估为一个可以包含多个值的数组：
+- en: '[PRE34]'
+  id: totrans-149
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE34]'
+- en: 'In the following example, the path `$**.b` evaluates to multiple paths (`$.a.b`
+    and `$.c.b`) and produces an array of the matching path values:'
+  id: totrans-150
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在下面的例子中，路径`$**.b`评估为多个路径（`$.a.b`和`$.c.b`）并产生匹配路径值的数组：
+- en: '[PRE35]'
+  id: totrans-151
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE35]'
+- en: '**Ranges from JSON arrays. ** You can use ranges with the `to` keyword to specify
+    subsets of JSON arrays. For example, `$[1 to 3]` includes the second, third, and
+    fourth elements of an array, as shown here:'
+  id: totrans-152
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**来自JSON数组的范围。** 您可以使用`to`关键字与范围一起指定JSON数组的子集。例如，`$[1 to 3]`包括数组的第二、第三和第四个元素，如下所示：'
+- en: '[PRE36]'
+  id: totrans-153
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE36]'
+- en: The syntax is `*`M`* to *`N`*`, where *`M`* and *`N`* are, respectively, the
+    first and last indexes of a range of elements from a JSON array. *`N`* must be
+    greater than *`M`*; *`M`* must be greater than or equal to 0. Array elements are
+    indexed beginning with 0.
+  id: totrans-154
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 语法是`*`M`* to *`N`*`，其中*`M`*和*`N`*分别是JSON数组中一系列元素的第一个和最后一个索引。*`N`*必须大于*`M`*；*`M`*必须大于或等于0。数组元素从0开始索引。
+- en: You can use ranges in contexts where wildcards are supported.
+  id: totrans-155
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在支持通配符的上下文中使用范围。
+- en: '**Rightmost array element. ** The `last` keyword is supported as a synonym
+    for the index of the last element in an array. Expressions of the form `last -
+    *`N`*` can be used for relative addressing, and within range definitions, like
+    this:'
+  id: totrans-156
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**最右侧的数组元素。** `last`关键字可用作数组中最后一个元素的索引的同义词。形式为`last - *`N`*`的表达式可用于相对寻址，以及在范围定义中，如下所示：'
+- en: '[PRE37]'
+  id: totrans-157
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE37]'
+- en: 'If the path is evaluated against a value that is not an array, the result of
+    the evaluation is the same as if the value had been wrapped in a single-element
+    array:'
+  id: totrans-158
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果路径针对的值不是数组，则评估的结果与将该值包装在单元素数组中的结果相同：
+- en: '[PRE38]'
+  id: totrans-159
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE38]'
+- en: You can use [`*`column`*->*`path`*`](json-search-functions.html#operator_json-column-path)
+    with a JSON column identifier and JSON path expression as a synonym for [`JSON_EXTRACT(*`column`*,
+    *`path`*)`](json-search-functions.html#function_json-extract). See [Section 14.17.3,
+    “Functions That Search JSON Values”](json-search-functions.html "14.17.3 Functions
+    That Search JSON Values"), for more information. See also [Indexing a Generated
+    Column to Provide a JSON Column Index](create-table-secondary-indexes.html#json-column-indirect-index
+    "Indexing a Generated Column to Provide a JSON Column Index").
+  id: totrans-160
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[`*`column`*->*`path`*`](json-search-functions.html#operator_json-column-path)作为JSON列标识符和JSON路径表达式的同义词，用于[`JSON_EXTRACT(*`column`*,
+    *`path`*)`](json-search-functions.html#function_json-extract)。有关更多信息，请参见[第14.17.3节，“搜索JSON值的函数”](json-search-functions.html
+    "14.17.3 搜索JSON值的函数")。另请参见[为提供JSON列索引而对生成列进行索引](create-table-secondary-indexes.html#json-column-indirect-index
+    "为提供JSON列索引而对生成列进行索引")。
+- en: Some functions take an existing JSON document, modify it in some way, and return
+    the resulting modified document. Path expressions indicate where in the document
+    to make changes. For example, the [`JSON_SET()`](json-modification-functions.html#function_json-set),
+    [`JSON_INSERT()`](json-modification-functions.html#function_json-insert), and
+    [`JSON_REPLACE()`](json-modification-functions.html#function_json-replace) functions
+    each take a JSON document, plus one or more path-value pairs that describe where
+    to modify the document and the values to use. The functions differ in how they
+    handle existing and nonexisting values within the document.
+  id: totrans-161
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些函数接受现有的JSON文档，在某种方式上对其进行修改，并返回结果修改后的文档。路径表达式指示在文档中何处进行更改。例如，[`JSON_SET()`](json-modification-functions.html#function_json-set)、[`JSON_INSERT()`](json-modification-functions.html#function_json-insert)和[`JSON_REPLACE()`](json-modification-functions.html#function_json-replace)函数分别接受一个JSON文档，以及一个或多个描述在何处修改文档以及要使用的值的路径-值对。这些函数在处理文档中的现有值和不存在的值方面有所不同。
+- en: 'Consider this document:'
+  id: totrans-162
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑这个文档：
+- en: '[PRE39]'
+  id: totrans-163
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE39]'
+- en: '[`JSON_SET()`](json-modification-functions.html#function_json-set) replaces
+    values for paths that exist and adds values for paths that do not exist:.'
+  id: totrans-164
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`JSON_SET()`](json-modification-functions.html#function_json-set)替换存在的路径的值，并为不存在的路径添加值：'
+- en: '[PRE40]'
+  id: totrans-165
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE40]'
+- en: In this case, the path `$[1].b[0]` selects an existing value (`true`), which
+    is replaced with the value following the path argument (`1`). The path `$[2][2]`
+    does not exist, so the corresponding value (`2`) is added to the value selected
+    by `$[2]`.
+  id: totrans-166
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，路径`$[1].b[0]`选择了一个现有值（`true`），该值将被路径参数后面的值（`1`）替换。路径`$[2][2]`不存在，因此将值（`2`）添加到由`$[2]`选择的值中。
+- en: '[`JSON_INSERT()`](json-modification-functions.html#function_json-insert) adds
+    new values but does not replace existing values:'
+  id: totrans-167
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`JSON_INSERT()`](json-modification-functions.html#function_json-insert)添加新值，但不替换现有值：'
+- en: '[PRE41]'
+  id: totrans-168
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE41]'
+- en: '[`JSON_REPLACE()`](json-modification-functions.html#function_json-replace)
+    replaces existing values and ignores new values:'
+  id: totrans-169
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`JSON_REPLACE()`](json-modification-functions.html#function_json-replace)替换现有值并忽略新值：'
+- en: '[PRE42]'
+  id: totrans-170
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE42]'
+- en: The path-value pairs are evaluated left to right. The document produced by evaluating
+    one pair becomes the new value against which the next pair is evaluated.
+  id: totrans-171
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 路径-值对从左到右进行评估。通过评估一个对产生的文档成为下一个对要评估的新值。
+- en: '`JSON_REMOVE()` takes a JSON document and one or more paths that specify values
+    to be removed from the document. The return value is the original document minus
+    the values selected by paths that exist within the document:'
+  id: totrans-172
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`JSON_REMOVE()`接受一个JSON文档和一个或多个指定要从文档中移除的值的路径。返回值是原始文档减去由文档内存在的路径选择的值：'
+- en: '[PRE43]'
+  id: totrans-173
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE43]'
+- en: 'The paths have these effects:'
+  id: totrans-174
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些路径具有以下效果：
+- en: '`$[2]` matches `[10, 20]` and removes it.'
+  id: totrans-175
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`$[2]`匹配`[10, 20]`并将其移除。'
+- en: The first instance of `$[1].b[1]` matches `false` in the `b` element and removes
+    it.
+  id: totrans-176
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第一个实例`$[1].b[1]`匹配`b`元素中的`false`并将其移除。
+- en: 'The second instance of `$[1].b[1]` matches nothing: That element has already
+    been removed, the path no longer exists, and has no effect.'
+  id: totrans-177
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第二个实例`$[1].b[1]`匹配不到任何内容：该元素已被移除，路径不再存在，也不产生任何效果。
+- en: JSON Path Syntax
+  id: totrans-178
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: JSON路径语法
+- en: 'Many of the JSON functions supported by MySQL and described elsewhere in this
+    Manual (see [Section 14.17, “JSON Functions”](json-functions.html "14.17 JSON
+    Functions")) require a path expression in order to identify a specific element
+    in a JSON document. A path consists of the path''s scope followed by one or more
+    path legs. For paths used in MySQL JSON functions, the scope is always the document
+    being searched or otherwise operated on, represented by a leading `$` character.
+    Path legs are separated by period characters (`.`). Cells in arrays are represented
+    by `[*`N`*]`, where *`N`* is a non-negative integer. Names of keys must be double-quoted
+    strings or valid ECMAScript identifiers (see [*Identifier Names and Identifiers*](http://www.ecma-international.org/ecma-262/5.1/#sec-7.6),
+    in the *ECMAScript Language Specification*). Path expressions, like JSON text,
+    should be encoded using the `ascii`, `utf8mb3`, or `utf8mb4` character set. Other
+    character encodings are implicitly coerced to `utf8mb4`. The complete syntax is
+    shown here:'
+  id: totrans-179
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL支持的许多JSON函数在本手册的其他地方有描述（请参见[第14.17节，“JSON函数”](json-functions.html "14.17
+    JSON Functions"）），这些函数需要路径表达式以识别JSON文档中的特定元素。路径由路径的范围后跟一个或多个路径段组成。对于在MySQL JSON函数中使用的路径，范围始终是正在搜索或以其他方式操作的文档，由前导`$`字符表示。路径段由句点字符（`.`）分隔。数组中的单元格由`[*`N`*]`表示，其中*`N`*是非负整数。键的名称必须是双引号字符串或有效的ECMAScript标识符（请参阅[*标识符名称和标识符*](http://www.ecma-international.org/ecma-262/5.1/#sec-7.6)，在*ECMAScript语言规范*中）。路径表达式和JSON文本应使用`ascii`，`utf8mb3`或`utf8mb4`字符集进行编码。其他字符编码将被隐式强制转换为`utf8mb4`。完整的语法如下所示：
+- en: '[PRE44]'
+  id: totrans-180
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE44]'
+- en: As noted previously, in MySQL, the scope of the path is always the document
+    being operated on, represented as `$`. You can use `'$'` as a synonym for the
+    document in JSON path expressions.
+  id: totrans-181
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如前面所述，在MySQL中，路径的范围始终是操作的文档，表示为`$`。您可以在JSON路径表达式中使用`'$'`作为文档的同义词。
+- en: Note
+  id: totrans-182
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Some implementations support column references for scopes of JSON paths; MySQL
+    8.0 does not support these.
+  id: totrans-183
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些实现支持JSON路径范围的列引用；MySQL 8.0不支持这些功能。
+- en: 'The wildcard `*` and `**` tokens are used as follows:'
+  id: totrans-184
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通配符`*`和`**`标记的使用如下：
+- en: '`.*` represents the values of all members in the object.'
+  id: totrans-185
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`.*`代表对象中所有成员的值。'
+- en: '`[*]` represents the values of all cells in the array.'
+  id: totrans-186
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`[*]`代表数组中所有单元格的值。'
+- en: '`[*`prefix`*]***`suffix`*` represents all paths beginning with *`prefix`* and
+    ending with *`suffix`*. *`prefix`* is optional, while *`suffix`* is required;
+    in other words, a path may not end in `**`.'
+  id: totrans-187
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`[*`前缀`*]***`后缀`*`代表以*`前缀`*开头并以*`后缀`*结尾的所有路径。*`前缀`*是可选的，而*`后缀`*是必需的；换句话说，路径不能以`**`结尾。'
+- en: In addition, a path may not contain the sequence `***`.
+  id: totrans-188
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另外，路径中不能包含序列`***`。
+- en: For path syntax examples, see the descriptions of the various JSON functions
+    that take paths as arguments, such as [`JSON_CONTAINS_PATH()`](json-search-functions.html#function_json-contains-path),
+    [`JSON_SET()`](json-modification-functions.html#function_json-set), and [`JSON_REPLACE()`](json-modification-functions.html#function_json-replace).
+    For examples which include the use of the `*` and `**` wildcards, see the description
+    of the [`JSON_SEARCH()`](json-search-functions.html#function_json-search) function.
+  id: totrans-189
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关路径语法示例，请参阅各种接受路径作为参数的JSON函数的描述，例如[`JSON_CONTAINS_PATH()`](json-search-functions.html#function_json-contains-path)，[`JSON_SET()`](json-modification-functions.html#function_json-set)和[`JSON_REPLACE()`](json-modification-functions.html#function_json-replace)。有关包含`*`和`**`通配符的示例，请参阅[`JSON_SEARCH()`](json-search-functions.html#function_json-search)函数的描述。
+- en: MySQL 8.0 also supports range notation for subsets of JSON arrays using the
+    `to` keyword (such as `$[2 to 10]`), as well as the `last` keyword as a synonym
+    for the rightmost element of an array. See [Searching and Modifying JSON Values](json.html#json-paths
+    "Searching and Modifying JSON Values"), for more information and examples.
+  id: totrans-190
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0还支持使用`to`关键字对JSON数组的子集进行范围表示（例如`$[2 to 10]`），以及使用`last`关键字作为数组最右侧元素的同义词。有关更多信息和示例，请参见[搜索和修改JSON值](json.html#json-paths
+    "搜索和修改JSON值")。
+- en: Comparison and Ordering of JSON Values
+  id: totrans-191
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: JSON值的比较和排序
+- en: JSON values can be compared using the [`=`](comparison-operators.html#operator_equal),
+    [`<`](comparison-operators.html#operator_less-than), [`<=`](comparison-operators.html#operator_less-than-or-equal),
+    [`>`](comparison-operators.html#operator_greater-than), [`>=`](comparison-operators.html#operator_greater-than-or-equal),
+    [`<>`](comparison-operators.html#operator_not-equal), [`!=`](comparison-operators.html#operator_not-equal),
+    and [`<=>`](comparison-operators.html#operator_equal-to) operators.
+  id: totrans-192
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用[`=`](comparison-operators.html#operator_equal)、[`<`](comparison-operators.html#operator_less-than)、[`<=`](comparison-operators.html#operator_less-than-or-equal)、[`>`](comparison-operators.html#operator_greater-than)、[`>=`](comparison-operators.html#operator_greater-than-or-equal)、[`<>`](comparison-operators.html#operator_not-equal)、[`!=`](comparison-operators.html#operator_not-equal)和[`<=>`](comparison-operators.html#operator_equal-to)运算符来比较JSON值。
+- en: 'The following comparison operators and functions are not yet supported with
+    JSON values:'
+  id: totrans-193
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尚不支持以下比较运算符和函数与JSON值一起使用：
+- en: '[`BETWEEN`](comparison-operators.html#operator_between)'
+  id: totrans-194
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`BETWEEN`](comparison-operators.html#operator_between)'
+- en: '[`IN()`](comparison-operators.html#operator_in)'
+  id: totrans-195
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`IN()`](comparison-operators.html#operator_in)'
+- en: '[`GREATEST()`](comparison-operators.html#function_greatest)'
+  id: totrans-196
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`GREATEST()`](comparison-operators.html#function_greatest)'
+- en: '[`LEAST()`](comparison-operators.html#function_least)'
+  id: totrans-197
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`LEAST()`](comparison-operators.html#function_least)'
+- en: A workaround for the comparison operators and functions just listed is to cast
+    JSON values to a native MySQL numeric or string data type so they have a consistent
+    non-JSON scalar type.
+  id: totrans-198
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于刚刚列出的比较运算符和函数的解决方法是将JSON值转换为本机MySQL数值或字符串数据类型，以便它们具有一致的非JSON标量类型。
+- en: Comparison of JSON values takes place at two levels. The first level of comparison
+    is based on the JSON types of the compared values. If the types differ, the comparison
+    result is determined solely by which type has higher precedence. If the two values
+    have the same JSON type, a second level of comparison occurs using type-specific
+    rules.
+  id: totrans-199
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON值的比较分为两个级别。第一级别的比较基于所比较值的JSON类型。如果类型不同，则比较结果仅由具有更高优先级的类型确定。如果两个值具有相同的JSON类型，则使用特定于类型的规则进行第二级别的比较。
+- en: The following list shows the precedences of JSON types, from highest precedence
+    to the lowest. (The type names are those returned by the [`JSON_TYPE()`](json-attribute-functions.html#function_json-type)
+    function.) Types shown together on a line have the same precedence. Any value
+    having a JSON type listed earlier in the list compares greater than any value
+    having a JSON type listed later in the list.
+  id: totrans-200
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下面的列表显示了JSON类型的优先级，从最高优先级到最低优先级。（类型名称是由[`JSON_TYPE()`](json-attribute-functions.html#function_json-type)函数返回的。）在同一行上显示的类型具有相同的优先级。任何具有列表中较早JSON类型的值都比具有列表中较晚JSON类型的值大。
+- en: '[PRE45]'
+  id: totrans-201
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE45]'
+- en: 'For JSON values of the same precedence, the comparison rules are type specific:'
+  id: totrans-202
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于具有相同优先级的JSON值，比较规则是特定于类型的：
+- en: '`BLOB`'
+  id: totrans-203
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`BLOB`'
+- en: The first *`N`* bytes of the two values are compared, where *`N`* is the number
+    of bytes in the shorter value. If the first *`N`* bytes of the two values are
+    identical, the shorter value is ordered before the longer value.
+  id: totrans-204
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 比较两个值的前*`N`*字节，其中*`N`*是较短值中的字节数。如果两个值的前*`N`*字节相同，则较短值在较长值之前排序。
+- en: '`BIT`'
+  id: totrans-205
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`BIT`'
+- en: Same rules as for `BLOB`.
+  id: totrans-206
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与`BLOB`相同的规则。
+- en: '`OPAQUE`'
+  id: totrans-207
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OPAQUE`'
+- en: Same rules as for `BLOB`. `OPAQUE` values are values that are not classified
+    as one of the other types.
+  id: totrans-208
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与`BLOB`相同的规则。`OPAQUE`值是未分类为其他类型的值。
+- en: '`DATETIME`'
+  id: totrans-209
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DATETIME`'
+- en: A value that represents an earlier point in time is ordered before a value that
+    represents a later point in time. If two values originally come from the MySQL
+    `DATETIME` and `TIMESTAMP` types, respectively, they are equal if they represent
+    the same point in time.
+  id: totrans-210
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表较早时间点的值在代表较晚时间点的值之前。如果两个值最初分别来自MySQL的`DATETIME`和`TIMESTAMP`类型，则如果它们表示相同的时间点，则它们相等。
+- en: '`TIME`'
+  id: totrans-211
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`TIME`'
+- en: The smaller of two time values is ordered before the larger one.
+  id: totrans-212
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 两个时间值中较小的一个在较大的一个之前排序。
+- en: '`DATE`'
+  id: totrans-213
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DATE`'
+- en: The earlier date is ordered before the more recent date.
+  id: totrans-214
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 较早日期在较近日期之前。
+- en: '`ARRAY`'
+  id: totrans-215
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ARRAY`'
+- en: Two JSON arrays are equal if they have the same length and values in corresponding
+    positions in the arrays are equal.
+  id: totrans-216
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果两个 JSON 数组具有相同的长度，并且数组中对应位置的值相等，则它们是相等的。
+- en: If the arrays are not equal, their order is determined by the elements in the
+    first position where there is a difference. The array with the smaller value in
+    that position is ordered first. If all values of the shorter array are equal to
+    the corresponding values in the longer array, the shorter array is ordered first.
+  id: totrans-217
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果数组不相等，则它们的顺序由第一个出现差异的位置的元素确定。在该位置上值较小的数组被排在前面。如果较短数组的所有值都等于较长数组中对应的值，则较短数组被排在前面。
+- en: 'Example:'
+  id: totrans-218
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE46]'
+  id: totrans-219
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE46]'
+- en: '`BOOLEAN`'
+  id: totrans-220
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`BOOLEAN`'
+- en: The JSON false literal is less than the JSON true literal.
+  id: totrans-221
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: JSON 中的 false 文字小于 JSON 中的 true 文字。
+- en: '`OBJECT`'
+  id: totrans-222
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OBJECT`'
+- en: Two JSON objects are equal if they have the same set of keys, and each key has
+    the same value in both objects.
+  id: totrans-223
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果两个 JSON 对象具有相同的键集，并且每个键在两个对象中具有相同的值，则它们是相等的。
+- en: 'Example:'
+  id: totrans-224
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE47]'
+  id: totrans-225
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE47]'
+- en: The order of two objects that are not equal is unspecified but deterministic.
+  id: totrans-226
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 两个不相等的对象的顺序是未指定的，但是确定的。
+- en: '`STRING`'
+  id: totrans-227
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STRING`'
+- en: Strings are ordered lexically on the first *`N`* bytes of the `utf8mb4` representation
+    of the two strings being compared, where *`N`* is the length of the shorter string.
+    If the first *`N`* bytes of the two strings are identical, the shorter string
+    is considered smaller than the longer string.
+  id: totrans-228
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 字符串在比较时按照两个字符串的`utf8mb4`表示的前*`N`*个字节的词法顺序排序，其中*`N`*是较短字符串的长度。如果两个字符串的前*`N`*个字节相同，则较短的字符串被认为比较长的字符串小。
+- en: 'Example:'
+  id: totrans-229
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE48]'
+  id: totrans-230
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE48]'
+- en: 'This ordering is equivalent to the ordering of SQL strings with collation `utf8mb4_bin`.
+    Because `utf8mb4_bin` is a binary collation, comparison of JSON values is case-sensitive:'
+  id: totrans-231
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这种排序等同于具有`utf8mb4_bin`排序规则的 SQL 字符串的排序。因为`utf8mb4_bin`���一个二进制排序规则，所以 JSON 值的比较是区分大小写的：
+- en: '[PRE49]'
+  id: totrans-232
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE49]'
+- en: '`INTEGER`, `DOUBLE`'
+  id: totrans-233
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`INTEGER`，`DOUBLE`'
+- en: JSON values can contain exact-value numbers and approximate-value numbers. For
+    a general discussion of these types of numbers, see [Section 11.1.2, “Numeric
+    Literals”](number-literals.html "11.1.2 Numeric Literals").
+  id: totrans-234
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: JSON 值可以包含精确值和近似值数字。有关这些类型数字的一般讨论，请参见[第 11.1.2 节，“数字文字”](number-literals.html
+    "11.1.2 Numeric Literals")。
+- en: 'The rules for comparing native MySQL numeric types are discussed in [Section 14.3,
+    “Type Conversion in Expression Evaluation”](type-conversion.html "14.3 Type Conversion
+    in Expression Evaluation"), but the rules for comparing numbers within JSON values
+    differ somewhat:'
+  id: totrans-235
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 讨论了比较本机 MySQL 数值类型的规则在[第 14.3 节，“表达式求值中的类型转换”](type-conversion.html "14.3 Type
+    Conversion in Expression Evaluation")中，但是比较 JSON 值中的数字的规则略有不同：
+- en: In a comparison between two columns that use the native MySQL [`INT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT") and [`DOUBLE`](floating-point-types.html "13.1.4 Floating-Point Types
+    (Approximate Value) - FLOAT, DOUBLE") numeric types, respectively, it is known
+    that all comparisons involve an integer and a double, so the integer is converted
+    to double for all rows. That is, exact-value numbers are converted to approximate-value
+    numbers.
+  id: totrans-236
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在比较使用本机 MySQL [`INT`](integer-types.html "13.1.2 Integer Types (Exact Value)
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT") 和 [`DOUBLE`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE") 数值类型的两列时，已知所有比较涉及整数和双精度数，因此整数被转换为双精度以用于所有行。也就是说，精确值数字被转换为近似值数字。
+- en: 'On the other hand, if the query compares two JSON columns containing numbers,
+    it cannot be known in advance whether numbers are integer or double. To provide
+    the most consistent behavior across all rows, MySQL converts approximate-value
+    numbers to exact-value numbers. The resulting ordering is consistent and does
+    not lose precision for the exact-value numbers. For example, given the scalars
+    9223372036854775805, 9223372036854775806, 9223372036854775807 and 9.223372036854776e18,
+    the order is such as this:'
+  id: totrans-237
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 另一方面，如果查询比较包含数字的两个 JSON 列，无法事先知道数字是整数还是双精度。为了在所有行中提供最一致的行为，MySQL 将近似值数字转换为精确值数字。结果的排序是一致的，并且对于精确值数字不会丢失精度。例如，给定标量
+    9223372036854775805、9223372036854775806、9223372036854775807 和 9.223372036854776e18，顺序如下：
+- en: '[PRE50]'
+  id: totrans-238
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE50]'
+- en: 'Were JSON comparisons to use the non-JSON numeric comparison rules, inconsistent
+    ordering could occur. The usual MySQL comparison rules for numbers yield these
+    orderings:'
+  id: totrans-239
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果 JSON 比较使用非 JSON 数值比较规则，可能会导致不一致的排序。通常的 MySQL 数值比较规则产生以下排序：
+- en: 'Integer comparison:'
+  id: totrans-240
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 整数比较：
+- en: '[PRE51]'
+  id: totrans-241
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE51]'
+- en: (not defined for 9.223372036854776e18)
+  id: totrans-242
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: (未定义为 9.223372036854776e18)
+- en: 'Double comparison:'
+  id: totrans-243
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 双精度比较：
+- en: '[PRE52]'
+  id: totrans-244
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE52]'
+- en: For comparison of any JSON value to SQL `NULL`, the result is `UNKNOWN`.
+  id: totrans-245
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 任何 JSON 值与 SQL `NULL` 的比较结果为`UNKNOWN`。
+- en: For comparison of JSON and non-JSON values, the non-JSON value is converted
+    to JSON according to the rules in the following table, then the values compared
+    as described previously.
+  id: totrans-246
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 JSON 和非 JSON 值的比较，根据以下表中的规则将非 JSON 值转换为 JSON，然后按照先前描述的方式进行比较。
+- en: Converting between JSON and non-JSON values
+  id: totrans-247
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 在 JSON 值和非 JSON 值之间转换
+- en: 'The following table provides a summary of the rules that MySQL follows when
+    casting between JSON values and values of other types:'
+  id: totrans-248
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格总结了 MySQL 在 JSON 值和其他类型值之间转换时遵循的规则：
+- en: '**Table 13.3 JSON Conversion Rules**'
+  id: totrans-249
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 13.3 JSON 转换规则**'
+- en: '| other type | CAST(other type AS JSON) | CAST(JSON AS other type) |'
+  id: totrans-250
+  prefs: []
+  type: TYPE_TB
+  zh: '| 其他类型 | CAST(other type AS JSON) | CAST(JSON AS other type) |'
+- en: '| JSON | No change | No change |'
+  id: totrans-251
+  prefs: []
+  type: TYPE_TB
+  zh: '| JSON | 无变化 | 无变化 |'
+- en: '| utf8 character type (`utf8mb4`, `utf8mb3`, `ascii`) | The string is parsed
+    into a JSON value. | The JSON value is serialized into a `utf8mb4` string. |'
+  id: totrans-252
+  prefs: []
+  type: TYPE_TB
+  zh: '| utf8 字符类型（`utf8mb4`，`utf8mb3`，`ascii`） | 字符串被解析为 JSON 值。 | JSON 值被序列化为`utf8mb4`字符串。
+    |'
+- en: '| Other character types | Other character encodings are implicitly converted
+    to `utf8mb4` and treated as described for this character type. | The JSON value
+    is serialized into a `utf8mb4` string, then cast to the other character encoding.
+    The result may not be meaningful. |'
+  id: totrans-253
+  prefs: []
+  type: TYPE_TB
+  zh: '| 其他字符类型 | 其他字符编码会隐式转换为`utf8mb4`，并按照该字符类型描述的方式处理。 | JSON 值被序列化为`utf8mb4`字符串，然后转换为其他字符编码。结果可能无意义。
+    |'
+- en: '| `NULL` | Results in a `NULL` value of type JSON. | Not applicable. |'
+  id: totrans-254
+  prefs: []
+  type: TYPE_TB
+  zh: '| `NULL` | 结果为 JSON 类型的`NULL`值。 | 不适用。 |'
+- en: '| Geometry types | The geometry value is converted into a JSON document by
+    calling [`ST_AsGeoJSON()`](spatial-geojson-functions.html#function_st-asgeojson).
+    | Illegal operation. Workaround: Pass the result of [`CAST(*`json_val`* AS CHAR)`](cast-functions.html#function_cast)
+    to [`ST_GeomFromGeoJSON()`](spatial-geojson-functions.html#function_st-geomfromgeojson).
+    |'
+  id: totrans-255
+  prefs: []
+  type: TYPE_TB
+  zh: '| 几何类型 | 几何值通过调用 [`ST_AsGeoJSON()`](spatial-geojson-functions.html#function_st-asgeojson)
+    转换为 JSON 文档。 | 非法操作。解决方法：将 [`CAST(*`json_val`* AS CHAR)`](cast-functions.html#function_cast)
+    的结果传递给 [`ST_GeomFromGeoJSON()`](spatial-geojson-functions.html#function_st-geomfromgeojson)。
+    |'
+- en: '| All other types | Results in a JSON document consisting of a single scalar
+    value. | Succeeds if the JSON document consists of a single scalar value of the
+    target type and that scalar value can be cast to the target type. Otherwise, returns
+    `NULL` and produces a warning. |'
+  id: totrans-256
+  prefs: []
+  type: TYPE_TB
+  zh: '| 所有其他类型 | 结果为由单个标量值组成的 JSON 文档。 | 如果 JSON 文档由目标类型的单个标量值组成且该标量值可以转换为目标类型，则成功。否则，返回`NULL`并产生警告。
+    |'
+- en: '`ORDER BY` and `GROUP BY` for JSON values works according to these principles:'
+  id: totrans-257
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 JSON 值，`ORDER BY` 和 `GROUP BY` 遵循以下原则：
+- en: Ordering of scalar JSON values uses the same rules as in the preceding discussion.
+  id: totrans-258
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 标量 JSON 值的排序使用与前述讨论相同的规则。
+- en: For ascending sorts, SQL `NULL` orders before all JSON values, including the
+    JSON null literal; for descending sorts, SQL `NULL` orders after all JSON values,
+    including the JSON null literal.
+  id: totrans-259
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于升序排序，SQL `NULL` 排在所有 JSON 值之前，包括 JSON 的 null 字面量；对于降序排序，SQL `NULL` 排在所有 JSON
+    值之后，包括 JSON 的 null 字面量。
+- en: Sort keys for JSON values are bound by the value of the [`max_sort_length`](server-system-variables.html#sysvar_max_sort_length)
+    system variable, so keys that differ only after the first [`max_sort_length`](server-system-variables.html#sysvar_max_sort_length)
+    bytes compare as equal.
+  id: totrans-260
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: JSON 值的排序键受 [`max_sort_length`](server-system-variables.html#sysvar_max_sort_length)
+    系统变量的值限制，因此仅在首个 [`max_sort_length`](server-system-variables.html#sysvar_max_sort_length)
+    字节之后有差异的键将被视为相等。
+- en: Sorting of nonscalar values is not currently supported and a warning occurs.
+  id: totrans-261
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 非标量值的排序目前不受支持，会出现警告。
+- en: 'For sorting, it can be beneficial to cast a JSON scalar to some other native
+    MySQL type. For example, if a column named `jdoc` contains JSON objects having
+    a member consisting of an `id` key and a nonnegative value, use this expression
+    to sort by `id` values:'
+  id: totrans-262
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于排序，将 JSON 标量转换为其他本机 MySQL 类型可能是有益的。例如，如果名为`jdoc`的列包含具有由`id`键和非负值组成的成员的 JSON
+    对象，则使用此表达式按`id`值排序：
+- en: '[PRE53]'
+  id: totrans-263
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE53]'
+- en: If there happens to be a generated column defined to use the same expression
+    as in the `ORDER BY`, the MySQL optimizer recognizes that and considers using
+    the index for the query execution plan. See [Section 10.3.11, “Optimizer Use of
+    Generated Column Indexes”](generated-column-index-optimizations.html "10.3.11 Optimizer
+    Use of Generated Column Indexes").
+  id: totrans-264
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果存在一个生成的列被定义为使用与`ORDER BY`相同的表达式，MySQL 优化器会识别并考虑在查询执行计划中使用该索引。参见 [Section 10.3.11,
+    “生成列索引的优化器使用”](generated-column-index-optimizations.html "10.3.11 生成列索引的优化器使用")。
+- en: Aggregation of JSON Values
+  id: totrans-265
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: JSON 值的聚合
+- en: For aggregation of JSON values, SQL `NULL` values are ignored as for other data
+    types. Non-`NULL` values are converted to a numeric type and aggregated, except
+    for [`MIN()`](aggregate-functions.html#function_min), [`MAX()`](aggregate-functions.html#function_max),
+    and [`GROUP_CONCAT()`](aggregate-functions.html#function_group-concat). The conversion
+    to number should produce a meaningful result for JSON values that are numeric
+    scalars, although (depending on the values) truncation and loss of precision may
+    occur. Conversion to number of other JSON values may not produce a meaningful
+    result.
+  id: totrans-266
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 JSON 值的聚合，SQL `NULL` 值会被忽略，就像其他数据类型一样。非`NULL` 值会被转换为数值类型并进行聚合，除了 [`MIN()`](aggregate-functions.html#function_min),
+    [`MAX()`](aggregate-functions.html#function_max), 和 [`GROUP_CONCAT()`](aggregate-functions.html#function_group-concat)。对于
+    JSON 值转换为数字应该会产生有意义的结果，尽管（取决于值）可能会发生截断和精度丢失。其他 JSON 值的转换为数字可能不会产生有意义的结果。

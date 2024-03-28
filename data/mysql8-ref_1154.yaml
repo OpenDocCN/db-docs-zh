@@ -1,0 +1,435 @@
+- en: 17.5.2 Change Buffer
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.5.2 更改缓冲区
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-change-buffer.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-change-buffer.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-change-buffer.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-change-buffer.html)
+- en: The change buffer is a special data structure that caches changes to [secondary
+    index](glossary.html#glos_secondary_index "secondary index") pages when those
+    pages are not in the [buffer pool](glossary.html#glos_buffer_pool "buffer pool").
+    The buffered changes, which may result from [`INSERT`](insert.html "15.2.7 INSERT
+    Statement"), [`UPDATE`](update.html "15.2.17 UPDATE Statement"), or [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") operations (DML), are merged later when the pages are
+    loaded into the buffer pool by other read operations.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更改缓冲区是一种特殊的数据结构，用于缓存对[次要索引](glossary.html#glos_secondary_index "secondary index")页面的更改，当这些页面不在[缓冲池](glossary.html#glos_buffer_pool
+    "buffer pool")中时。缓冲的更改可能来自[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")或[`DELETE`](delete.html "15.2.2 DELETE Statement")操作（DML），稍后在其他读取操作将这些页面加载到缓冲池时进行合并。
+- en: '**Figure 17.3 Change Buffer**'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图17.3 更改缓冲区**'
+- en: '![Content is described in the surrounding text.](../Images/3bf0c7c861f168eeccba673e96f5802f.png)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_IMG
+  zh: '![内容在周围的文本中描述。](../Images/3bf0c7c861f168eeccba673e96f5802f.png)'
+- en: Unlike [clustered indexes](glossary.html#glos_clustered_index "clustered index"),
+    secondary indexes are usually nonunique, and inserts into secondary indexes happen
+    in a relatively random order. Similarly, deletes and updates may affect secondary
+    index pages that are not adjacently located in an index tree. Merging cached changes
+    at a later time, when affected pages are read into the buffer pool by other operations,
+    avoids substantial random access I/O that would be required to read secondary
+    index pages into the buffer pool from disk.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与[聚簇索引](glossary.html#glos_clustered_index "clustered index")不同，次要索引通常是非唯一的，并且对次要索引的插入以相对随机的顺序发生。同样，删除和更新可能会影响不相邻的索引树中的次要索引页面。在其他操作将受影响页面从磁盘读入缓冲池时，稍后合并缓存的更改，避免了需要从磁盘将次要索引页面读入缓冲池的大量随机访问I/O。
+- en: Periodically, the purge operation that runs when the system is mostly idle,
+    or during a slow shutdown, writes the updated index pages to disk. The purge operation
+    can write disk blocks for a series of index values more efficiently than if each
+    value were written to disk immediately.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 定期地，在系统大部分空闲时运行的清理操作，或在慢速关闭期间，将更新的索引页面写入磁盘。清理操作可以更有效地为一系列索引值写入磁盘块，而不是立即将每个值写���磁盘。
+- en: Change buffer merging may take several hours when there are many affected rows
+    and numerous secondary indexes to update. During this time, disk I/O is increased,
+    which can cause a significant slowdown for disk-bound queries. Change buffer merging
+    may also continue to occur after a transaction is committed, and even after a
+    server shutdown and restart (see [Section 17.21.3, “Forcing InnoDB Recovery”](forcing-innodb-recovery.html
+    "17.21.3 Forcing InnoDB Recovery") for more information).
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当受影响的行数和需要更新的次要索引很多时，更改缓冲区合并可能需要几个小时。在此期间，磁盘I/O增加，这可能导致磁盘密集型查询显着减慢。更改缓冲区合并可能在事务提交后继续发生，甚至在服务器关闭和重新启动后也会发生（有关更多信息，请参见[第17.21.3节，“强制InnoDB恢复”](forcing-innodb-recovery.html
+    "17.21.3 Forcing InnoDB Recovery")）。
+- en: In memory, the change buffer occupies part of the buffer pool. On disk, the
+    change buffer is part of the system tablespace, where index changes are buffered
+    when the database server is shut down.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在内存中，更改缓冲区占据了缓冲池的一部分。在磁盘上，更改缓冲区是系统表空间的一部分，在数据库服务器关闭时，索引更改被缓冲。
+- en: The type of data cached in the change buffer is governed by the [`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)
+    variable. For more information, see [Configuring Change Buffering](innodb-change-buffer.html#innodb-change-buffer-configuration
+    "Configuring Change Buffering"). You can also configure the maximum change buffer
+    size. For more information, see [Configuring the Change Buffer Maximum Size](innodb-change-buffer.html#innodb-change-buffer-maximum-size
+    "Configuring the Change Buffer Maximum Size").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更改缓冲区中缓存的数据类型由[`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)变量控制。有关更多信息，请参见[配置更改缓冲](innodb-change-buffer.html#innodb-change-buffer-configuration
+    "Configuring Change Buffering")。您还可以配置最大更改缓冲区大小。有关更多信息，请参见[配置更改缓冲区最大大小](innodb-change-buffer.html#innodb-change-buffer-maximum-size
+    "Configuring the Change Buffer Maximum Size")。
+- en: Change buffering is not supported for a secondary index if the index contains
+    a descending index column or if the primary key includes a descending index column.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果索引包含降序索引列或主键包含降序索引列，则不支持对辅助索引进行改变缓冲。
+- en: 'For answers to frequently asked questions about the change buffer, see [Section A.16,
+    “MySQL 8.0 FAQ: InnoDB Change Buffer”](faqs-innodb-change-buffer.html "A.16 MySQL
+    8.0 FAQ: InnoDB Change Buffer").'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '有关改变缓冲的常见问题的答案，请参阅[Section A.16, “MySQL 8.0 FAQ: InnoDB Change Buffer”](faqs-innodb-change-buffer.html
+    "A.16 MySQL 8.0 FAQ: InnoDB Change Buffer")。'
+- en: Configuring Change Buffering
+  id: totrans-12
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置改变缓冲
+- en: When [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement"), and [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    operations are performed on a table, the values of indexed columns (particularly
+    the values of secondary keys) are often in an unsorted order, requiring substantial
+    I/O to bring secondary indexes up to date. The [change buffer](glossary.html#glos_change_buffer
+    "change buffer") caches changes to secondary index entries when the relevant [page](glossary.html#glos_page
+    "page") is not in the [buffer pool](glossary.html#glos_buffer_pool "buffer pool"),
+    thus avoiding expensive I/O operations by not immediately reading in the page
+    from disk. The buffered changes are merged when the page is loaded into the buffer
+    pool, and the updated page is later flushed to disk. The `InnoDB` main thread
+    merges buffered changes when the server is nearly idle, and during a [slow shutdown](glossary.html#glos_slow_shutdown
+    "slow shutdown").
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在表上执行[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")操作时，索引列的值（特别是辅助键的值）通常是无序的，需要大量I/O才能更新辅助索引。当相关页面不在缓冲池中时，[改变缓冲](glossary.html#glos_change_buffer
+    "change buffer")缓存对辅助索引条目的更改，从而避免通过立即从磁盘读取页面来执行昂贵的I/O操作。当页面加载到缓冲池中时，缓冲的更改会合并，更新后的页面稍后会刷新到磁盘。当服务器几乎空闲时，`InnoDB`主线程会合并缓冲的更改，并在[慢关闭](glossary.html#glos_slow_shutdown
+    "slow shutdown")期间执行。
+- en: Because it can result in fewer disk reads and writes, change buffering is most
+    valuable for workloads that are I/O-bound; for example, applications with a high
+    volume of DML operations such as bulk inserts benefit from change buffering.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于可以减少磁盘读写次数，改变缓冲对于I/O受限的工作负载最有价值；例如，具有大量DML操作（如批量插入）的应用程序受益于改变缓冲。
+- en: However, the change buffer occupies a part of the buffer pool, reducing the
+    memory available to cache data pages. If the working set almost fits in the buffer
+    pool, or if your tables have relatively few secondary indexes, it may be useful
+    to disable change buffering. If the working data set fits entirely within the
+    buffer pool, change buffering does not impose extra overhead, because it only
+    applies to pages that are not in the buffer pool.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，改变缓冲占用缓冲池的一部分，减少了用于缓存数据页的可用内存。如果工作集几乎适合缓冲池，或者如果您的表具有相对较少的辅助索引，禁用改变缓冲可能是有用的。如果工作数据集完全适合缓冲池，改变缓冲不会带来额外的开销，因为它仅适用于不在缓冲池中的页面。
+- en: The [`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)
+    variable controls the extent to which `InnoDB` performs change buffering. You
+    can enable or disable buffering for inserts, delete operations (when index records
+    are initially marked for deletion) and purge operations (when index records are
+    physically deleted). An update operation is a combination of an insert and a delete.
+    The default [`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)
+    value is `all`.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)变量控制`InnoDB`执行改变缓冲的程度。您可以为插入、删除操作（当索引记录最初标记为删除时）和清除操作（当索引记录物理删除时）启用或禁用缓冲。更新操作是插入和删除的组合。默认的[`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)值为`all`。'
+- en: 'Permitted [`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)
+    values include:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 允许的[`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)值包括：
+- en: '**`all`**'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`all`**'
+- en: 'The default value: buffer inserts, delete-marking operations, and purges.'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认值：缓冲插入、删除标记操作和清除操作。
+- en: '**`none`**'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`none`**'
+- en: Do not buffer any operations.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不要缓冲任何操作。
+- en: '**`inserts`**'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`inserts`**'
+- en: Buffer insert operations.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 缓冲插入操作。
+- en: '**`deletes`**'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`deletes`**'
+- en: Buffer delete-marking operations.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 缓冲删除标记操作。
+- en: '**`changes`**'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`changes`**'
+- en: Buffer both inserts and delete-marking operations.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 缓冲插入和删除标记操作。
+- en: '**`purges`**'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`purges`**'
+- en: Buffer the physical deletion operations that happen in the background.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 缓冲后台中发生的物理删除操作。
+- en: You can set the [`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)
+    variable in the MySQL option file (`my.cnf` or `my.ini`) or change it dynamically
+    with the [`SET GLOBAL`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    statement, which requires privileges sufficient to set global system variables.
+    See [Section 7.1.9.1, “System Variable Privileges”](system-variable-privileges.html
+    "7.1.9.1 System Variable Privileges"). Changing the setting affects the buffering
+    of new operations; the merging of existing buffered entries is not affected.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在 MySQL 选项文件（`my.cnf`或`my.ini`）中设置[`innodb_change_buffering`](innodb-parameters.html#sysvar_innodb_change_buffering)变量，或使用[`SET
+    GLOBAL`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")语句动态更改它，这需要足够的权限来设置全局系统变量。请参见
+    [第7.1.9.1节，“系统变量权限”](system-variable-privileges.html "7.1.9.1 System Variable
+    Privileges")。更改设置会影响新操作的缓冲；现有缓冲条目的合并不受影响。
+- en: Configuring the Change Buffer Maximum Size
+  id: totrans-31
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置变更缓冲区最大大小。
+- en: The [`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)
+    variable permits configuring the maximum size of the change buffer as a percentage
+    of the total size of the buffer pool. By default, [`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)
+    is set to 25\. The maximum setting is 50.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)变量允许将变更缓冲区的最大大小配置为缓冲池总大小的百分比。默认情况下，[`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)设置为25。最大设置为50。'
+- en: Consider increasing [`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)
+    on a MySQL server with heavy insert, update, and delete activity, where change
+    buffer merging does not keep pace with new change buffer entries, causing the
+    change buffer to reach its maximum size limit.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑在具有大量插入、更新和删除活动的 MySQL 服务器上增加[`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)，其中变更缓冲区合并无法跟上新的变更缓冲区条目，导致变更缓冲区达到其最大大小限制。
+- en: Consider decreasing [`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)
+    on a MySQL server with static data used for reporting, or if the change buffer
+    consumes too much of the memory space shared with the buffer pool, causing pages
+    to age out of the buffer pool sooner than desired.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑在用于报告的静态数据的 MySQL 服务器上减少[`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)，或者如果变更缓冲区消耗了与缓冲池共享的内存空间过多，导致页面比预期更早地从缓冲池中过期。
+- en: Test different settings with a representative workload to determine an optimal
+    configuration. The [`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)
+    variable is dynamic, which permits modifying the setting without restarting the
+    server.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用代表性工作负载测试不同设置，以确定最佳配置。[`innodb_change_buffer_max_size`](innodb-parameters.html#sysvar_innodb_change_buffer_max_size)
+    变量是动态的，允许在不重新启动服务器的情况下修改设置。
+- en: Monitoring the Change Buffer
+  id: totrans-36
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 监控变更缓冲区。
+- en: 'The following options are available for change buffer monitoring:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可用于变更缓冲区监视的选项如下：
+- en: '`InnoDB` Standard Monitor output includes change buffer status information.
+    To view monitor data, issue the `SHOW ENGINE INNODB STATUS` statement.'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`InnoDB`标准监视器输出包括变更缓冲区状态信息。要查看监视器数据，请发出`SHOW ENGINE INNODB STATUS`语句。'
+- en: '[PRE0]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Change buffer status information is located under the `INSERT BUFFER AND ADAPTIVE
+    HASH INDEX` heading and appears similar to the following:'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 变更缓冲区状态信息位于`INSERT BUFFER AND ADAPTIVE HASH INDEX`标题下，并且类似于以下内容：
+- en: '[PRE1]'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: For more information, see [Section 17.17.3, “InnoDB Standard Monitor and Lock
+    Monitor Output”](innodb-standard-monitor.html "17.17.3 InnoDB Standard Monitor
+    and Lock Monitor Output").
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关更多信息，请参见 [第17.17.3节，“InnoDB标准监视器和锁监视器输出”](innodb-standard-monitor.html "17.17.3 InnoDB
+    Standard Monitor and Lock Monitor Output")。
+- en: 'The Information Schema [`INNODB_METRICS`](information-schema-innodb-metrics-table.html
+    "28.4.21 The INFORMATION_SCHEMA INNODB_METRICS Table") table provides most of
+    the data points found in `InnoDB` Standard Monitor output plus other data points.
+    To view change buffer metrics and a description of each, issue the following query:'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 信息模式[`INNODB_METRICS`](information-schema-innodb-metrics-table.html "28.4.21 The
+    INFORMATION_SCHEMA INNODB_METRICS Table")表提供了`InnoDB`标准监视器输出中找到的大部分数据点以及其他数据点。要查看变更缓冲区指标和每个指标的描述，请发出以下查询：
+- en: '[PRE2]'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: See [Section 17.15.6, “InnoDB INFORMATION_SCHEMA Metrics Table”](innodb-information-schema-metrics-table.html
+    "17.15.6 InnoDB INFORMATION_SCHEMA Metrics Table").
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参见[第17.15.6节，“InnoDB INFORMATION_SCHEMA指标表”](innodb-information-schema-metrics-table.html
+    "17.15.6 InnoDB INFORMATION_SCHEMA指标表")。
+- en: The Information Schema [`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html
+    "28.4.2 The INFORMATION_SCHEMA INNODB_BUFFER_PAGE Table") table provides metadata
+    about each page in the buffer pool, including change buffer index and change buffer
+    bitmap pages. Change buffer pages are identified by `PAGE_TYPE`. `IBUF_INDEX`
+    is the page type for change buffer index pages, and `IBUF_BITMAP` is the page
+    type for change buffer bitmap pages.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 信息模式[`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html
+    "28.4.2 INFORMATION_SCHEMA INNODB_BUFFER_PAGE表")表提供关于缓冲池中每个页面的元数据，包括变更缓冲区索引和变更缓冲区位图页面。
+    变更缓冲区页面由`PAGE_TYPE`标识。 `IBUF_INDEX`是变更缓冲区索引页面的页面类型，`IBUF_BITMAP`是变更缓冲区位图页面的页面类型。
+- en: Warning
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Querying the [`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html
+    "28.4.2 The INFORMATION_SCHEMA INNODB_BUFFER_PAGE Table") table can introduce
+    significant performance overhead. To avoid impacting performance, reproduce the
+    issue you want to investigate on a test instance and run your queries on the test
+    instance.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查询[`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html "28.4.2 INFORMATION_SCHEMA
+    INNODB_BUFFER_PAGE表")表可能会引入显着的性能开销。 为避免影响性能，请在测试实例上重现要调查的问题，并在测试实例上运行您的查询。
+- en: For example, you can query the [`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html
+    "28.4.2 The INFORMATION_SCHEMA INNODB_BUFFER_PAGE Table") table to determine the
+    approximate number of `IBUF_INDEX` and `IBUF_BITMAP` pages as a percentage of
+    total buffer pool pages.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，您可以查询[`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html
+    "28.4.2 INFORMATION_SCHEMA INNODB_BUFFER_PAGE表")表，以确定`IBUF_INDEX`和`IBUF_BITMAP`页面的大致数量占总缓冲池页面的百分比。
+- en: '[PRE3]'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: For information about other data provided by the [`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html
+    "28.4.2 The INFORMATION_SCHEMA INNODB_BUFFER_PAGE Table") table, see [Section 28.4.2,
+    “The INFORMATION_SCHEMA INNODB_BUFFER_PAGE Table”](information-schema-innodb-buffer-page-table.html
+    "28.4.2 The INFORMATION_SCHEMA INNODB_BUFFER_PAGE Table"). For related usage information,
+    see [Section 17.15.5, “InnoDB INFORMATION_SCHEMA Buffer Pool Tables”](innodb-information-schema-buffer-pool-tables.html
+    "17.15.5 InnoDB INFORMATION_SCHEMA Buffer Pool Tables").
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关[`INNODB_BUFFER_PAGE`](information-schema-innodb-buffer-page-table.html "28.4.2 INFORMATION_SCHEMA
+    INNODB_BUFFER_PAGE表")表提供的其他数据信息，请参阅[第28.4.2节，“INFORMATION_SCHEMA INNODB_BUFFER_PAGE表”](information-schema-innodb-buffer-page-table.html
+    "28.4.2 INFORMATION_SCHEMA INNODB_BUFFER_PAGE表")。 有关相关用法信息，请参阅[第17.15.5节，“InnoDB
+    INFORMATION_SCHEMA缓冲池表”](innodb-information-schema-buffer-pool-tables.html "17.15.5 InnoDB
+    INFORMATION_SCHEMA缓冲池表")。
+- en: '[Performance Schema](performance-schema.html "Chapter 29 MySQL Performance
+    Schema") provides change buffer mutex wait instrumentation for advanced performance
+    monitoring. To view change buffer instrumentation, issue the following query:'
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[性能模式](performance-schema.html "第29章 MySQL性能模式")为高级性能监控提供了变更缓冲区互斥等待仪器。 要查看变更缓冲区仪器，执行以下查询：'
+- en: '[PRE4]'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: For information about monitoring `InnoDB` mutex waits, see [Section 17.16.2,
+    “Monitoring InnoDB Mutex Waits Using Performance Schema”](monitor-innodb-mutex-waits-performance-schema.html
+    "17.16.2 Monitoring InnoDB Mutex Waits Using Performance Schema").
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 关于监控`InnoDB`互斥等待的信息，请参阅[第17.16.2节，“使用性能模式监控InnoDB互斥等待”](monitor-innodb-mutex-waits-performance-schema.html
+    "17.16.2 使用性能模式监控InnoDB互斥等待")。

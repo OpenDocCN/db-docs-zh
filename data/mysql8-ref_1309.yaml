@@ -1,0 +1,133 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-table-close.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-table-close.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-table-close.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-table-close.html)
+- en: 18.2.4.2 Problems from Tables Not Being Closed Properly
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 18.2.4.2 未正确关闭表导致的问题
+- en: 'Each `MyISAM` index file (`.MYI` file) has a counter in the header that can
+    be used to check whether a table has been closed properly. If you get the following
+    warning from [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement")
+    or [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility"), it means that this counter has gone out of sync:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个`MyISAM`索引文件（`.MYI`文件）的头部都有一个计数器，可用于检查表是否已正确关闭。如果您从[`CHECK TABLE`](check-table.html
+    "15.7.3.2 CHECK TABLE Statement")或[**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")收到以下警告，则表示该计数器已经不同步：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: This warning doesn't necessarily mean that the table is corrupted, but you should
+    at least check the table.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此警告并不一定意味着表已损坏，但您至少应该检查表。
+- en: 'The counter works as follows:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该计数器的工作方式如下：
+- en: The first time a table is updated in MySQL, a counter in the header of the index
+    files is incremented.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL中第一次更新表时，索引文件头部的计数器会递增。
+- en: The counter is not changed during further updates.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在进一步更新期间，计数器不会更改。
+- en: When the last instance of a table is closed (because a [`FLUSH TABLES`](flush.html#flush-tables)
+    operation was performed or because there is no room in the table cache), the counter
+    is decremented if the table has been updated at any point.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当表的最后一个实例关闭时（因为执行了[`FLUSH TABLES`](flush.html#flush-tables)操作或因为表缓存中没有空间），如果表在任何时候已更新，则计数器会递减。
+- en: When you repair the table or check the table and it is found to be okay, the
+    counter is reset to zero.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当修复表或检查表并发现表正常时，计数器将被重置为零。
+- en: To avoid problems with interaction with other processes that might check the
+    table, the counter is not decremented on close if it was zero.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为避免与可能检查表的其他进程交互的问题，如果计数器为零，则在关闭时不会减少。
+- en: 'In other words, the counter can become incorrect only under these conditions:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 换句话说，只有在以下情况下计数器才会变得不正确：
+- en: A `MyISAM` table is copied without first issuing [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") and [`FLUSH TABLES`](flush.html#flush-tables).
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个`MyISAM`表在未首先执行[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements")和[`FLUSH TABLES`](flush.html#flush-tables)的情况下被复制。
+- en: MySQL has crashed between an update and the final close. (The table may still
+    be okay because MySQL always issues writes for everything between each statement.)
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL在更新和最终关闭之间崩溃。（表可能仍然正常，因为MySQL总是在每个语句之间为所有内容发出写入。）
+- en: A table was modified by [**myisamchk --recover**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") or [**myisamchk --update-state**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") at the same time that it
+    was in use by [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server").
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个表在被[**myisamchk --recover**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")或[**myisamchk --update-state**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility")修改时，同时被[**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server")使用。
+- en: Multiple [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") servers
+    are using the table and one server performed a [`REPAIR TABLE`](repair-table.html
+    "15.7.3.5 REPAIR TABLE Statement") or [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK
+    TABLE Statement") on the table while it was in use by another server. In this
+    setup, it is safe to use [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE
+    Statement"), although you might get the warning from other servers. However, [`REPAIR
+    TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement") should be avoided
+    because when one server replaces the data file with a new one, this is not known
+    to the other servers.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 多个[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")服务器正在使用该表，其中一个服务器在另一个服务器使用该表时执行了[`REPAIR
+    TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")或[`CHECK TABLE`](check-table.html
+    "15.7.3.2 CHECK TABLE Statement")。在这种设置中，使用[`CHECK TABLE`](check-table.html "15.7.3.2 CHECK
+    TABLE Statement")是安全的，尽管您可能会收到其他服务器的警告。但是，应避免使用[`REPAIR TABLE`](repair-table.html
+    "15.7.3.5 REPAIR TABLE Statement")，因为当一个服务器用新文件替换数据文件时，其他服务器不知道这一点。
+- en: In general, it is a bad idea to share a data directory among multiple servers.
+    See [Section 7.8, “Running Multiple MySQL Instances on One Machine”](multiple-servers.html
+    "7.8 Running Multiple MySQL Instances on One Machine"), for additional discussion.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一般来说，将数据目录共享给多台服务器是一个不好的主意。参见[第7.8节，“在一台机器上运行多个MySQL实例”](multiple-servers.html
+    "7.8 Running Multiple MySQL Instances on One Machine")，进行进一步讨论。

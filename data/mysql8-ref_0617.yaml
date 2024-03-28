@@ -1,0 +1,171 @@
+- en: 10.10.3 Caching of Prepared Statements and Stored Programs
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.10.3 预处理语句和存储程序的缓存
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/statement-caching.html](https://dev.mysql.com/doc/refman/8.0/en/statement-caching.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/statement-caching.html](https://dev.mysql.com/doc/refman/8.0/en/statement-caching.html)
+- en: 'For certain statements that a client might execute multiple times during a
+    session, the server converts the statement to an internal structure and caches
+    that structure to be used during execution. Caching enables the server to perform
+    more efficiently because it avoids the overhead of reconverting the statement
+    should it be needed again during the session. Conversion and caching occurs for
+    these statements:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于客户端可能在会话期间多次执行的某些语句，服务器会将语句转换为内部结构并缓存该结构以在执行期间使用。缓存使服务器能够更高效地执行，因为它避免了在会话期间再次需要语句时重新转换语句的开销。对这些语句进行转换和缓存：
+- en: Prepared statements, both those processed at the SQL level (using the [`PREPARE`](prepare.html
+    "15.5.1 PREPARE Statement") statement) and those processed using the binary client/server
+    protocol (using the [`mysql_stmt_prepare()`](/doc/c-api/8.0/en/mysql-stmt-prepare.html)
+    C API function). The [`max_prepared_stmt_count`](server-system-variables.html#sysvar_max_prepared_stmt_count)
+    system variable controls the total number of statements the server caches. (The
+    sum of the number of prepared statements across all sessions.)
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 预处理语句，无论是在SQL级别（使用[`PREPARE`](prepare.html "15.5.1 PREPARE Statement")语句）处理的还是使用二进制客户端/服务器协议（使用[`mysql_stmt_prepare()`](/doc/c-api/8.0/en/mysql-stmt-prepare.html)
+    C API函数）处理的。[`max_prepared_stmt_count`](server-system-variables.html#sysvar_max_prepared_stmt_count)系统变量控制服务器缓存的语句总数。（所有会话中预处理语句数量的总和。）
+- en: Stored programs (stored procedures and functions, triggers, and events). In
+    this case, the server converts and caches the entire program body. The [`stored_program_cache`](server-system-variables.html#sysvar_stored_program_cache)
+    system variable indicates the approximate number of stored programs the server
+    caches per session.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储程序（存储过程和函数、触发器和事件）。在这种情况下，服务器会转换并缓存整个程序体。[`stored_program_cache`](server-system-variables.html#sysvar_stored_program_cache)系统变量指示服务器每个会话缓存的存储程序的大致数量。
+- en: The server maintains caches for prepared statements and stored programs on a
+    per-session basis. Statements cached for one session are not accessible to other
+    sessions. When a session ends, the server discards any statements cached for it.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器在每个会话基础上维护预处理语句和存储程序的缓存。为一个会话缓存的语句对其他会话不可访问。当会话结束时，服务器会丢弃为其缓存的任何语句。
+- en: When the server uses a cached internal statement structure, it must take care
+    that the structure does not go out of date. Metadata changes can occur for an
+    object used by the statement, causing a mismatch between the current object definition
+    and the definition as represented in the internal statement structure. Metadata
+    changes occur for DDL statements such as those that create, drop, alter, rename,
+    or truncate tables, or that analyze, optimize, or repair tables. Table content
+    changes (for example, with [`INSERT`](insert.html "15.2.7 INSERT Statement") or
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement")) do not change metadata, nor
+    do [`SELECT`](select.html "15.2.13 SELECT Statement") statements.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当服务器使用缓存的内部语句结构时，必须注意结构不会过时。对象的元数据更改可能会导致语句使用的对象的当前定义与内部语句结构中表示的定义不匹配。元数据更改会发生在DDL语句中，比如创建、删除、修改、重命名或截断表，或者分析、优化或修复表。表内容的更改（例如，使用[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")或[`UPDATE`](update.html "15.2.17 UPDATE Statement")）不会更改元数据，也不会更改[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句。
+- en: 'Here is an illustration of the problem. Suppose that a client prepares this
+    statement:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里是问题的示例。假设客户端准备了这个语句：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The `SELECT *` expands in the internal structure to the list of columns in the
+    table. If the set of columns in the table is modified with `ALTER TABLE`, the
+    prepared statement goes out of date. If the server does not detect this change
+    the next time the client executes `s1`, the prepared statement returns incorrect
+    results.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`SELECT *`在内部结构中扩展为表中的列列表。如果使用`ALTER TABLE`修改表中的列集，那么预处理语句就会过时。如果服务器在客户端下次执行`s1`时没有检测到这个更改，预处理语句将返回不正确的结果。'
+- en: To avoid problems caused by metadata changes to tables or views referred to
+    by the prepared statement, the server detects these changes and automatically
+    reprepares the statement when it is next executed. That is, the server reparses
+    the statement and rebuilds the internal structure. Reparsing also occurs after
+    referenced tables or views are flushed from the table definition cache, either
+    implicitly to make room for new entries in the cache, or explicitly due to [`FLUSH
+    TABLES`](flush.html#flush-tables).
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免由于预处理语句引用的表或视图的元数据更改而引起的问题，服务器会检测这些更改，并在下次执行时自动重新准备该语句。也就是说，服务器会重新解析该语句并重建内部结构。在引用的表或视图从表定义缓存中刷新时，也会重新解析，无论是隐式地为新条目腾出缓存空间，还是显式地由于[`FLUSH
+    TABLES`](flush.html#flush-tables)。
+- en: Similarly, if changes occur to objects used by a stored program, the server
+    reparses affected statements within the program.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 类似地，如果存储程序使用的对象发生更改，服务器会重新解析程序中受影响的语句。
+- en: The server also detects metadata changes for objects in expressions. These might
+    be used in statements specific to stored programs, such as `DECLARE CURSOR` or
+    flow-control statements such as [`IF`](if.html "15.6.5.2 IF Statement"), [`CASE`](case.html
+    "15.6.5.1 CASE Statement"), and [`RETURN`](return.html "15.6.5.7 RETURN Statement").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器还会检测表达式中对象的元数据更改。这些对象可能被存储程序特定语句使用，例如`DECLARE CURSOR`或流程控制语句，如[`IF`](if.html
+    "15.6.5.2 IF Statement")，[`CASE`](case.html "15.6.5.1 CASE Statement")和[`RETURN`](return.html
+    "15.6.5.7 RETURN Statement")。
+- en: 'To avoid reparsing entire stored programs, the server reparses affected statements
+    or expressions within a program only as needed. Examples:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免重新解析整个存储程序，服务器仅在需要时重新解析程序中受影响的语句或表达式。例如：
+- en: Suppose that metadata for a table or view is changed. Reparsing occurs for a
+    `SELECT *` within the program that accesses the table or view, but not for a `SELECT
+    *` that does not access the table or view.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 假设表或视图的元数据发生更改。程序中访问该表或视图的`SELECT *`将重新解析，但不会重新解析不访问该表或视图的`SELECT *`。
+- en: 'When a statement is affected, the server reparses it only partially if possible.
+    Consider this [`CASE`](case.html "15.6.5.1 CASE Statement") statement:'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当语句受到影响时，服务器会尽可能部分重新解析它。考虑这个[`CASE`](case.html "15.6.5.1 CASE Statement")语句：
+- en: '[PRE1]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If a metadata change affects only `WHEN *`when_expr3`*`, that expression is
+    reparsed. *`case_expr`* and the other `WHEN` expressions are not reparsed.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果元数据更改仅影响`WHEN *`when_expr3`*`，那么该表达式将被重新解析。*`case_expr`*和其他`WHEN`表达式不会被重新解析。
+- en: Reparsing uses the default database and SQL mode that were in effect for the
+    original conversion to internal form.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重新解析使用了最初转换为内部形式时生效的默认数据库和SQL模式。
+- en: The server attempts reparsing up to three times. An error occurs if all attempts
+    fail.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器尝试重新解析最多三次。如果所有尝试都失败，则会发生错误。
+- en: Reparsing is automatic, but to the extent that it occurs, diminishes prepared
+    statement and stored program performance.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重新解析是自动的，但在发生时，会降低预处理语句和存储程序的性能。
+- en: For prepared statements, the [`Com_stmt_reprepare`](server-status-variables.html#statvar_Com_xxx)
+    status variable tracks the number of repreparations.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于预处理语句，[`Com_stmt_reprepare`](server-status-variables.html#statvar_Com_xxx)状态变量跟踪重新准备的次数。

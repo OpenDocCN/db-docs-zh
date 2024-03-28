@@ -1,0 +1,199 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/subquery-materialization.html](https://dev.mysql.com/doc/refman/8.0/en/subquery-materialization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/subquery-materialization.html](https://dev.mysql.com/doc/refman/8.0/en/subquery-materialization.html)
+- en: 10.2.2.2 Optimizing Subqueries with Materialization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.2.2 使用物化优化子查询
+- en: The optimizer uses materialization to enable more efficient subquery processing.
+    Materialization speeds up query execution by generating a subquery result as a
+    temporary table, normally in memory. The first time MySQL needs the subquery result,
+    it materializes that result into a temporary table. Any subsequent time the result
+    is needed, MySQL refers again to the temporary table. The optimizer may index
+    the table with a hash index to make lookups fast and inexpensive. The index contains
+    unique values to eliminate duplicates and make the table smaller.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器使用物化来实现更高效的子查询处理。物化通过生成一个子查询结果作为临时表来加快查询执行，通常在内存中。当MySQL首次需要子查询结果时，它将该结果物化为临时表。任何后续需要结果的时候，MySQL再次引用临时表。优化器可以使用哈希索引对表进行索引，以使查找快速且廉价。索引包含唯一值以消除重复项并使表变得更小。
+- en: Subquery materialization uses an in-memory temporary table when possible, falling
+    back to on-disk storage if the table becomes too large. See [Section 10.4.4, “Internal
+    Temporary Table Use in MySQL”](internal-temporary-tables.html "10.4.4 Internal
+    Temporary Table Use in MySQL").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当可能时，子查询物化使用内存临时表，如果表变得太大，则回退到磁盘存储。参见[第10.4.4节，“MySQL中的内部临时表使用”](internal-temporary-tables.html
+    "10.4.4 MySQL中的内部临时表使用")。
+- en: 'If materialization is not used, the optimizer sometimes rewrites a noncorrelated
+    subquery as a correlated subquery. For example, the following `IN` subquery is
+    noncorrelated (*`where_condition`* involves only columns from `t2` and not `t1`):'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果不使用物化，优化器有时会将非相关子查询重写为相关子查询。例如，以下`IN`子查询是非相关的（*`where_condition`*仅涉及`t2`列而不涉及`t1`列）：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The optimizer might rewrite this as an `EXISTS` correlated subquery:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器可能会将此重写为`EXISTS`相关子查询：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Subquery materialization using a temporary table avoids such rewrites and makes
+    it possible to execute the subquery only once rather than once per row of the
+    outer query.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用临时表进行子查询物化可以避免这种重写，并使得可以仅执行一次子查询，而不是对外部查询的每一行执行一次。
+- en: 'For subquery materialization to be used in MySQL, the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable [`materialization`](switchable-optimizations.html#optflag_materialization)
+    flag must be enabled. (See [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations").) With the [`materialization`](switchable-optimizations.html#optflag_materialization)
+    flag enabled, materialization applies to subquery predicates that appear anywhere
+    (in the select list, `WHERE`, `ON`, `GROUP BY`, `HAVING`, or `ORDER BY`), for
+    predicates that fall into any of these use cases:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在MySQL中使用子查询物化，必须启用[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量[`materialization`](switchable-optimizations.html#optflag_materialization)标志。（参见[第10.9.2节，“可切换的优化”](switchable-optimizations.html
+    "10.9.2 可切换的优化")。）启用[`materialization`](switchable-optimizations.html#optflag_materialization)标志后，物化适用于出现在任何地方的子查询谓词（在选择列表中，`WHERE`，`ON`，`GROUP
+    BY`，`HAVING`或`ORDER BY`），适用于以下任何用例的谓词：
+- en: The predicate has this form, when no outer expression *`oe_i`* or inner expression
+    *`ie_i`* is nullable. *`N`* is 1 or larger.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当外部表达式*`oe_i`*或内部表达式*`ie_i`*不可为空时，谓词具有此形式。*`N`*为1或更大。
+- en: '[PRE2]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The predicate has this form, when there is a single outer expression *`oe`*
+    and inner expression *`ie`*. The expressions can be nullable.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当存在单个外部表达式*`oe`*和内部表达式*`ie`*时，谓词具有此形式。这些表达式可以为空。
+- en: '[PRE3]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The predicate is `IN` or `NOT IN` and a result of `UNKNOWN` (`NULL`) has the
+    same meaning as a result of `FALSE`.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 谓词为`IN`或`NOT IN`，并且`UNKNOWN`（`NULL`）的结果与`FALSE`的结果具有相同的含义。
+- en: The following examples illustrate how the requirement for equivalence of `UNKNOWN`
+    and `FALSE` predicate evaluation affects whether subquery materialization can
+    be used. Assume that *`where_condition`* involves columns only from `t2` and not
+    `t1` so that the subquery is noncorrelated.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例说明了`UNKNOWN`和`FALSE`谓词评估等价性要求如何影响是否可以使用子查询物化。假设*`where_condition`*仅涉及`t2`列而不涉及`t1`列，因此子查询是非相关的。
+- en: 'This query is subject to materialization:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此查询需要进行物化：
+- en: '[PRE4]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Here, it does not matter whether the `IN` predicate returns `UNKNOWN` or `FALSE`.
+    Either way, the row from `t1` is not included in the query result.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这里，`IN` 谓词返回 `UNKNOWN` 或 `FALSE` 都无关紧要。无论如何，来自 `t1` 的行都不会包含在查询结果中。
+- en: 'An example where subquery materialization is not used is the following query,
+    where `t2.b` is a nullable column:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个不使用子查询物化的示例是下面的查询，其中 `t2.b` 是一个可空列：
+- en: '[PRE5]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'The following restrictions apply to the use of subquery materialization:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用子查询物化有以下限制：
+- en: The types of the inner and outer expressions must match. For example, the optimizer
+    might be able to use materialization if both expressions are integer or both are
+    decimal, but cannot if one expression is integer and the other is decimal.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 内部和外部表达式的类型必须匹配。例如，如果两个表达式都是整数或都是十进制数，优化器可能可以使用物化，但如果一个表达式是整数，另一个是十进制数，则不能使用物化。
+- en: The inner expression cannot be a [`BLOB`](blob.html "13.3.4 The BLOB and TEXT
+    Types").
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 内部表达式不能是一个 [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types")。
+- en: 'Use of [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") with a query provides
+    some indication of whether the optimizer uses subquery materialization:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用带有查询的 [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") 提供了一些指示，表明优化器是否使用了子查询物化：
+- en: Compared to query execution that does not use materialization, `select_type`
+    may change from `DEPENDENT SUBQUERY` to `SUBQUERY`. This indicates that, for a
+    subquery that would be executed once per outer row, materialization enables the
+    subquery to be executed just once.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与不使用物化的查询执行相比，`select_type` 可能会从 `DEPENDENT SUBQUERY` 变为 `SUBQUERY`。这表明，对于每个外部行执行一次的子查询，物化使得子查询只需执行一次。
+- en: For extended [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output, the
+    text displayed by a following [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement") includes `materialize` and `materialized-subquery`.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于扩展的 [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") 输出，后续 [`SHOW WARNINGS`](show-warnings.html
+    "15.7.7.42 SHOW WARNINGS Statement") 显示的文本包括 `materialize` 和 `materialized-subquery`。
+- en: In MySQL 8.0.21 and later, MySQL can also apply subquery materialization to
+    a single-table [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") statement that uses a `[NOT] IN` or `[NOT] EXISTS`
+    subquery predicate, provided that the statement does not use `ORDER BY` or `LIMIT`,
+    and that subquery materialization is allowed by an optimizer hint or by the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    setting.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.21 及更高版本中，MySQL 还可以对使用 `[NOT] IN` 或 `[NOT] EXISTS` 子查询谓词的单表 [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") 或 [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    语句应用子查询物化，前提是该语句不使用 `ORDER BY` 或 `LIMIT`，并且优化器提示或 [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    设置允许使用子查询物化。

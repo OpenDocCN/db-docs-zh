@@ -1,0 +1,134 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlock-example.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlock-example.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlock-example.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlock-example.html)
+- en: 17.7.5.1 An InnoDB Deadlock Example
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.7.5.1 InnoDB 死锁示例
+- en: The following example illustrates how an error can occur when a lock request
+    causes a deadlock. The example involves two clients, A and B.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例说明了当锁请求导致死锁时会发生错误的情况。该示例涉及两个客户端，A 和 B。
+- en: InnoDB status contains details of the last deadlock. For frequent deadlocks,
+    enable global variable [`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks).
+    This adds deadlock information to the error log.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: InnoDB 状态包含最后一个死锁的详细信息。对于频繁发生的死锁，请启用全局变量[`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks)。这会将死锁信息添加到错误日志中。
+- en: 'Client A enables [`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks),
+    creates two tables, ''Animals'' and ''Birds'', and inserts data into each. Client
+    A begins a transaction, and selects a row in Animals in share mode:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端 A 启用[`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks)，创建两个表，'Animals'
+    和 'Birds'，并向每个表插入数据。客户端 A 开始一个事务，并以共享模式选择 Animals 表中的一行：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Next, client B begins a transaction, and selects a row in Birds in share mode:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来，客户端 B 开始一个事务，并以共享模式选择 Birds 表中的一行：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The Performance Schema shows the locks after the two select statements:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 性能模式显示了两个 select 语句后的锁定情况：
+- en: '[PRE2]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Client B then updates a row in Animals:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后客户端 B 更新 Animals 表中的一行：
+- en: '[PRE3]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Client B has to wait. The Performance Schema shows the wait for a lock:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端 B 必须等待。性能模式显示了等待锁的情况：
+- en: '[PRE4]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: InnoDB only uses sequential transaction ids when a transaction attempts to modify
+    the database. Thererfore, the previous read-only transaction id changes from 421291106148352
+    to 43260.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当事务尝试修改数据库时，InnoDB 仅使用顺序事务 id。因此，之前的只读事务 id 从 421291106148352 变为 43260。
+- en: 'If client A attempts to update a row in Birds at the same time, this will lead
+    to a deadlock:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果客户端 A 同时尝试更新 Birds 表中的一行，这将导致死锁：
+- en: '[PRE5]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: InnoDB rolls back the transaction that caused the deadlock. The first update,
+    from Client B, can now proceed.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: InnoDB 回滚导致死锁的事务。现在，来自客户端 B 的第一个更新可以继续进行。
+- en: 'The Information Schema contains the number of deadlocks:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 信息模式包含死锁数量：
+- en: '[PRE6]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The InnoDB status contains the following information about the deadlock and
+    transactions. It also shows that the read-only transaction id 421291106147544
+    changes to sequential transaction id 43261.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: InnoDB 状态包含有关死锁和事务的以下信息。它还显示只读事务 id 421291106147544 变为顺序事务 id 43261。
+- en: '[PRE7]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The error log contains this information about transactions and locks:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 错误日志包含有关事务和锁的信息：
+- en: '[PRE8]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'

@@ -1,0 +1,398 @@
+- en: 25.6.12 Online Operations with ALTER TABLE in NDB Cluster
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.6.12 NDB 集群中的在线 ALTER TABLE 操作
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-operations.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-operations.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-operations.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-operations.html)
+- en: MySQL NDB Cluster 8.0 supports online table schema changes using [`ALTER TABLE
+    ... ALGORITHM=DEFAULT|INPLACE|COPY`](alter-table.html#alter-table-performance
+    "Performance and Space Requirements"). NDB Cluster handles `COPY` and `INPLACE`
+    as described in the next few paragraphs.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL NDB 集群 8.0 支持使用 [`ALTER TABLE ... ALGORITHM=DEFAULT|INPLACE|COPY`](alter-table.html#alter-table-performance
+    "性能和空间要求") 进行在线表模式更改。NDB 集群处理 `COPY` 和 `INPLACE` 如下几段描述的方式。
+- en: 'For `ALGORITHM=COPY`, the [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server") NDB Cluster handler performs the following actions:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 `ALGORITHM=COPY`，[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器") NDB
+    集群处理程序执行以下操作：
+- en: Tells the data nodes to create an empty copy of the table, and to make the required
+    schema changes to this copy.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 告诉数据节点创建表的空副本，并对此副本进行所需的模式更改。
+- en: Reads rows from the original table, and writes them to the copy.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从原始表中读取行，并将其写入副本。
+- en: Tells the data nodes to drop the original table and then to rename the copy.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 告诉数据节点删除原始表，然后重命名副本。
+- en: We sometimes refer to this as a “copying” or “offline” `ALTER TABLE`.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们有时将其称为“复制”或“离线” `ALTER TABLE`。
+- en: DML operations are not permitted concurrently with a copying `ALTER TABLE`.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: DML 操作不允许与复制的 `ALTER TABLE` 并发进行。
+- en: The [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") on which the
+    copying `ALTER TABLE` statement is issued takes a metadata lock, but this is in
+    effect only on that [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server").
+    Other `NDB` clients can modify row data during a copying `ALTER TABLE`, resulting
+    in inconsistency.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 发出复制 `ALTER TABLE` 语句的 [**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")
+    获取元数据锁，但这仅在该 [**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器") 上有效。其他 `NDB`
+    客户端可以在复制 `ALTER TABLE` 过程中修改行数据，导致不一致。
+- en: For `ALGORITHM=INPLACE`, the NDB Cluster handler tells the data nodes to make
+    the required changes, and does not perform any copying of data.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 `ALGORITHM=INPLACE`，NDB 集群处理程序告诉数据节点进行所需的更改，并且不执行任何数据复制。
+- en: We also refer to this as a “non-copying” or “online” `ALTER TABLE`.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们还将其称为“非复制”或“在线” `ALTER TABLE`。
+- en: A non-copying `ALTER TABLE` allows concurrent DML operations.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非复制 `ALTER TABLE` 允许并发的 DML 操作。
+- en: '`ALGORITHM=INSTANT` is not supported by NDB 8.0.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ALGORITHM=INSTANT` 不受 NDB 8.0 支持。'
+- en: Regardless of the algorithm used, the [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") takes a Global Schema Lock (GSL) while executing **ALTER
+    TABLE**; this prevents execution of any (other) DDL or backups concurrently on
+    this or any other SQL node in the cluster. This is normally not problematic, unless
+    the `ALTER TABLE` takes a very long time.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论使用的算法如何，[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器") 在执行 **ALTER TABLE**
+    时会获取全局模式锁（GSL）；这会阻止在集群中的此节点或任何其他 SQL 节点上同时执行任何（其他）DDL或备份。通常情况下，这不会有问题，除非 `ALTER
+    TABLE` 需要很长时间。
+- en: Note
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Some older releases of NDB Cluster used a syntax specific to [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") for online `ALTER TABLE` operations. That
+    syntax has since been removed.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些较旧的 NDB 集群版本使用特定于 [`NDB`](mysql-cluster.html "第 25 章 MySQL NDB 集群 8.0") 的语法进行在线
+    `ALTER TABLE` 操作。该语法已被移除。
+- en: Operations that add and drop indexes on variable-width columns of [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables occur online. Online operations are
+    noncopying; that is, they do not require that indexes be re-created. They do not
+    lock the table being altered from access by other API nodes in an NDB Cluster
+    (but see [Limitations of NDB online operations](mysql-cluster-online-operations.html#mysql-cluster-online-limitations
+    "Limitations of NDB online operations"), later in this section). Such operations
+    do not require single user mode for [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") table alterations made in an NDB cluster with multiple API nodes;
+    transactions can continue uninterrupted during online DDL operations.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") 表的可变宽度列上添加和删除索引的操作是在线的。在线操作是非复制的；也就是说，它们不需要重新创建索引。它们不会锁定正在被其他
+    API 节点访问的 NDB Cluster 中的表（但请参阅[限制 NDB 在线操作](mysql-cluster-online-operations.html#mysql-cluster-online-limitations
+    "Limitations of NDB online operations")，本节后面）。这些操作不需要单用户模式用于在具有多个 API 节点的 NDB
+    集群中进行的 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") 表更改；事务可以在在线
+    DDL 操作期间继续无间断。
+- en: '`ALGORITHM=INPLACE` can be used to perform online `ADD COLUMN`, `ADD INDEX`
+    (including `CREATE INDEX` statements), and `DROP INDEX` operations on [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables. Online renaming of [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables is also supported (prior to NDB 8.0,
+    such columns could not be renamed online).'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ALGORITHM=INPLACE` 可用于在 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster
+    8.0") 表上执行在线 `ADD COLUMN`、`ADD INDEX`（包括 `CREATE INDEX` 语句）和 `DROP INDEX` 操作。还支持对
+    [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") 表进行在线重命名（在 NDB
+    8.0 之前，此类列无法在线重命名）。'
+- en: 'Disk-based columns cannot be added to [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") tables online. This means that, if you wish to add an in-memory
+    column to an [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") table
+    that uses a table-level `STORAGE DISK` option, you must declare the new column
+    as using memory-based storage explicitly. For example—assuming that you have already
+    created tablespace `ts1`—suppose that you create table `t1` as follows:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无法在线向 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") 表中添加基于磁盘的列。这意味着，如果您希望向使用表级
+    `STORAGE DISK` 选项的 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    表添加内存列，必须明确声明新列使用基于内存的存储。例如——假设您已经创建了表空间 `ts1`——假设您创建表 `t1` 如下：
+- en: '[PRE0]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'You can add a new in-memory column to this table online as shown here:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在线向此表添加一个新的内存列，如下所示：
+- en: '[PRE1]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'This statement fails if the `STORAGE MEMORY` option is omitted:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果省略了 `STORAGE MEMORY` 选项，则此语句将失败：
+- en: '[PRE2]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'If you omit the `COLUMN_FORMAT DYNAMIC` option, the dynamic column format is
+    employed automatically, but a warning is issued, as shown here:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果省略 `COLUMN_FORMAT DYNAMIC` 选项，则会自动使用动态列格式，但会发出警告，如下所示：
+- en: '[PRE3]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Note
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `STORAGE` and `COLUMN_FORMAT` keywords are supported only in NDB Cluster;
+    in any other version of MySQL, attempting to use either of these keywords in a
+    [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") or [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statement results in
+    an error.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`STORAGE` 和 `COLUMN_FORMAT` 关键字仅在 NDB Cluster 中受支持；在 MySQL 的任何其他版本中，尝试在 [`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") 或 [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") 语句中使用这两个关键字会导致错误。'
+- en: It is also possible to use the statement `ALTER TABLE ... REORGANIZE PARTITION,
+    ALGORITHM=INPLACE` with no `*`partition_names`* INTO (*`partition_definitions`*)`
+    option on [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") tables.
+    This can be used to redistribute NDB Cluster data among new data nodes that have
+    been added to the cluster online. This does *not* perform any defragmentation,
+    which requires an [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE
+    Statement") or null [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    statement. For more information, see [Section 25.6.7, “Adding NDB Cluster Data
+    Nodes Online”](mysql-cluster-online-add-node.html "25.6.7 Adding NDB Cluster Data
+    Nodes Online").
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以在 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") 表上使用语句 `ALTER
+    TABLE ... REORGANIZE PARTITION, ALGORITHM=INPLACE`，在没有 `*`partition_names`* INTO
+    (*`partition_definitions`*)` 选项的情况下。这可以用于在线在新添加到集群中的数据节点之间重新分配 NDB Cluster 数据。这不会执行任何碎片整理，这需要一个
+    [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement") 或空
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 语句。更多信息，请参见 [Section 25.6.7,
+    “Adding NDB Cluster Data Nodes Online”](mysql-cluster-online-add-node.html "25.6.7 Adding
+    NDB Cluster Data Nodes Online")。
+- en: Limitations of NDB online operations
+  id: totrans-30
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: NDB在线操作的限制
+- en: Online `DROP COLUMN` operations are not supported.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不支持在线`DROP COLUMN`操作。
+- en: 'Online [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement"), [`CREATE
+    INDEX`](create-index.html "15.1.15 CREATE INDEX Statement"), or [`DROP INDEX`](drop-index.html
+    "15.1.27 DROP INDEX Statement") statements that add columns or add or drop indexes
+    are subject to the following limitations:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 添加列或添加或删除索引的在线[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")、[`CREATE
+    INDEX`](create-index.html "15.1.15 CREATE INDEX Statement")或[`DROP INDEX`](drop-index.html
+    "15.1.27 DROP INDEX Statement")语句受以下限制：
+- en: A given online [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    can use only one of `ADD COLUMN`, `ADD INDEX`, or `DROP INDEX`. One or more columns
+    can be added online in a single statement; only one index may be created or dropped
+    online in a single statement.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 给定的在线[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")只能使用`ADD
+    COLUMN`、`ADD INDEX`或`DROP INDEX`中的一个。可以在单个语句中在线添加一个或多个列；在单个语句中只能创建或删除一个索引。
+- en: The table being altered is not locked with respect to API nodes other than the
+    one on which an online [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    `ADD COLUMN`, `ADD INDEX`, or `DROP INDEX` operation (or [`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement") or [`DROP INDEX`](drop-index.html "15.1.27 DROP
+    INDEX Statement") statement) is run. However, the table is locked against any
+    other operations originating on the *same* API node while the online operation
+    is being executed.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在运行在线[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") `ADD COLUMN`、`ADD
+    INDEX`或`DROP INDEX`（或[`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX
+    Statement")或[`DROP INDEX`](drop-index.html "15.1.27 DROP INDEX Statement")语句）时，正在更改的表对于除运行在线操作的API节点之外的其他API节点不会被锁定。然而，在执行在线操作时，该表会针对*相同*API节点上发起的任何其他操作被锁定。
+- en: The table to be altered must have an explicit primary key; the hidden primary
+    key created by the [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    storage engine is not sufficient for this purpose.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要更改的表必须具有显式主键；由[`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")存储引擎创建的隐藏主键不足以满足此目的。
+- en: The storage engine used by the table cannot be changed online.
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表使用的存储引擎无法在线更改。
+- en: 'The tablespace used by the table cannot be changed online. Beginning with NDB
+    8.0.21, a statement such as [`ALTER TABLE *`ndb_table`* ... ALGORITHM=INPLACE,
+    TABLESPACE=*`new_tablespace`*`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    is specifically disallowed. (Bug #99269, Bug #31180526)'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '表使用的表空间无法在线更改。从NDB 8.0.21开始，类似[`ALTER TABLE *`ndb_table`* ... ALGORITHM=INPLACE,
+    TABLESPACE=*`new_tablespace`*`](alter-table.html "15.1.9 ALTER TABLE Statement")的语句被明确禁止。（Bug
+    #99269，Bug #31180526）'
+- en: When used with NDB Cluster Disk Data tables, it is not possible to change the
+    storage type (`DISK` or `MEMORY`) of a column online. This means, that when you
+    add or drop an index in such a way that the operation would be performed online,
+    and you want the storage type of the column or columns to be changed, you must
+    use `ALGORITHM=COPY` in the statement that adds or drops the index.
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在与NDB Cluster Disk Data表一起使用时，无法在线更改列的存储类型（`DISK`或`MEMORY`）。这意味着，当以在线方式添加或删除索引时，如果要更改列或列的存储类型，必须在添加或删除索引的语句中使用`ALGORITHM=COPY`。
+- en: 'Columns to be added online cannot use the [`BLOB`](blob.html "13.3.4 The BLOB
+    and TEXT Types") or [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") type,
+    and must meet the following criteria:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在线添加的列不能使用[`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types")或[`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types")类型，并且必须满足以下条件：
+- en: The columns must be dynamic; that is, it must be possible to create them using
+    `COLUMN_FORMAT DYNAMIC`. If you omit the `COLUMN_FORMAT DYNAMIC` option, the dynamic
+    column format is employed automatically.
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 列必须是动态的；也就是说，必须能够使用`COLUMN_FORMAT DYNAMIC`来创建它们。如果省略`COLUMN_FORMAT DYNAMIC`选项，则动态列格式会自动使用。
+- en: 'The columns must permit `NULL` values and not have any explicit default value
+    other than `NULL`. Columns added online are automatically created as `DEFAULT
+    NULL`, as can be seen here:'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 列必须允许`NULL`值，并且除`NULL`之外不能有任何显式默认值。在线添加的列会自动创建为`DEFAULT NULL`，如下所示：
+- en: '[PRE4]'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The columns must be added following any existing columns. If you attempt to
+    add a column online before any existing columns or using the `FIRST` keyword,
+    the statement fails with an error.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须在任何现有列之后添加列。如果尝试在线在任何现有列之前或使用`FIRST`关键字添加列，则语句将失败并显示错误。
+- en: Existing table columns cannot be reordered online.
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 无法在线重新排序现有表列。
+- en: 'For online [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    operations on [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") tables,
+    fixed-format columns are converted to dynamic when they are added online, or when
+    indexes are created or dropped online, as shown here (repeating the `CREATE TABLE`
+    and `ALTER TABLE` statements just shown for the sake of clarity):'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")表的在线[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")操作，在线添加列时，或者在线创建或删除索引时，固定格式列会被转换为动态格式，如下所示（为了清晰起见，重复显示刚刚显示的`CREATE
+    TABLE`和`ALTER TABLE`语句）：
+- en: '[PRE5]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Only the column or columns to be added online must be dynamic. Existing columns
+    need not be; this includes the table''s primary key, which may also be `FIXED`,
+    as shown here:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有在线添加的列或列必须是动态的。现有列不需要；这包括表的主键，也可以是`FIXED`，如下所示：
+- en: '[PRE6]'
+  id: totrans-48
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Columns are not converted from `FIXED` to `DYNAMIC` column format by renaming
+    operations. For more information about `COLUMN_FORMAT`, see [Section 15.1.20,
+    “CREATE TABLE Statement”](create-table.html "15.1.20 CREATE TABLE Statement").
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过重命名操作不会将列从`FIXED`转换为`DYNAMIC`列格式。有关`COLUMN_FORMAT`的更多信息，请参见[第15.1.20节，“CREATE
+    TABLE Statement”](create-table.html "15.1.20 CREATE TABLE Statement")。
+- en: The `KEY`, `CONSTRAINT`, and `IGNORE` keywords are supported in [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") statements using `ALGORITHM=INPLACE`.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用`ALGORITHM=INPLACE`的`ALTER TABLE`语句中支持`KEY`、`CONSTRAINT`和`IGNORE`关键字。
+- en: 'Setting `MAX_ROWS` to 0 using an online `ALTER TABLE` statement is disallowed.
+    You must use a copying `ALTER TABLE` to perform this operation. (Bug #21960004)'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '使用在线`ALTER TABLE`语句将`MAX_ROWS`设置为0是不允许的。您必须使用复制的`ALTER TABLE`来执行此操作。（Bug #21960004）'

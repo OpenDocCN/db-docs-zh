@@ -1,0 +1,358 @@
+- en: 10.11.1 Internal Locking Methods
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.11.1 内部锁定方法
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/internal-locking.html](https://dev.mysql.com/doc/refman/8.0/en/internal-locking.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/internal-locking.html](https://dev.mysql.com/doc/refman/8.0/en/internal-locking.html)
+- en: This section discusses internal locking; that is, locking performed within the
+    MySQL server itself to manage contention for table contents by multiple sessions.
+    This type of locking is internal because it is performed entirely by the server
+    and involves no other programs. For locking performed on MySQL files by other
+    programs, see [Section 10.11.5, “External Locking”](external-locking.html "10.11.5 External
+    Locking").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论内部锁定；即MySQL服务器内部执行的锁定，以管理多个会话对表内容的争用。这种类型的锁定是内部的，因为它完全由服务器执行，不涉及其他程序。有关其他程序在MySQL文件上执行的锁定，请参见[第10.11.5节，“外部锁定”](external-locking.html
+    "10.11.5 外部锁定")。
+- en: '[Row-Level Locking](internal-locking.html#internal-row-level-locking "Row-Level
+    Locking")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[行级锁定](internal-locking.html#internal-row-level-locking "行级锁定")'
+- en: '[Table-Level Locking](internal-locking.html#internal-table-level-locking "Table-Level
+    Locking")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[表级锁定](internal-locking.html#internal-table-level-locking "表级锁定")'
+- en: '[Choosing the Type of Locking](internal-locking.html#internal-locking-choices
+    "Choosing the Type of Locking")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[选择锁定类型](internal-locking.html#internal-locking-choices "选择锁定类型")'
+- en: Row-Level Locking
+  id: totrans-6
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 行级锁定
+- en: MySQL uses [row-level locking](glossary.html#glos_row_lock "row lock") for `InnoDB`
+    tables to support simultaneous write access by multiple sessions, making them
+    suitable for multi-user, highly concurrent, and OLTP applications.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL对`InnoDB`表使用[行级锁定](glossary.html#glos_row_lock "行锁")，以支持多个会话同时写入访问，使其适用于多用户、高并发和OLTP应用程序。
+- en: To avoid [deadlocks](glossary.html#glos_deadlock "deadlock") when performing
+    multiple concurrent write operations on a single `InnoDB` table, acquire necessary
+    locks at the start of the transaction by issuing a `SELECT ... FOR UPDATE` statement
+    for each group of rows expected to be modified, even if the data change statements
+    come later in the transaction. If transactions modify or lock more than one table,
+    issue the applicable statements in the same order within each transaction. Deadlocks
+    affect performance rather than representing a serious error, because `InnoDB`
+    automatically [detects](glossary.html#glos_deadlock_detection "deadlock detection")
+    deadlock conditions by default and rolls back one of the affected transactions.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免在单个`InnoDB`表上执行多个并发写操作时发生[死锁](glossary.html#glos_deadlock "死锁")，在事务开始时通过为预计修改的每组行发出`SELECT
+    ... FOR UPDATE`语句来获取必要的锁，即使数据更改语句在事务后面执行。如果事务修改或锁定多个表，请在每个事务内以相同顺序发出适用的语句。死锁会影响性能而不是表示严重错误，因为`InnoDB`默认会自动[检测](glossary.html#glos_deadlock_detection
+    "死锁检测")死锁条件并回滚受影响的事务之一。
+- en: On high concurrency systems, deadlock detection can cause a slowdown when numerous
+    threads wait for the same lock. At times, it may be more efficient to disable
+    deadlock detection and rely on the [`innodb_lock_wait_timeout`](innodb-parameters.html#sysvar_innodb_lock_wait_timeout)
+    setting for transaction rollback when a deadlock occurs. Deadlock detection can
+    be disabled using the [`innodb_deadlock_detect`](innodb-parameters.html#sysvar_innodb_deadlock_detect)
+    configuration option.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在高并发系统中，死锁检测可能导致许多线程等待相同锁时出现减速。有时，禁用死锁检测并依赖于[`innodb_lock_wait_timeout`](innodb-parameters.html#sysvar_innodb_lock_wait_timeout)设置在死锁发生时回滚事务可能更有效。可以使用[`innodb_deadlock_detect`](innodb-parameters.html#sysvar_innodb_deadlock_detect)配置选项禁用死锁检测。
+- en: 'Advantages of row-level locking:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 行级锁定的优势：
+- en: Fewer lock conflicts when different sessions access different rows.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当不同会话访问不同行时，减少锁冲突。
+- en: Fewer changes for rollbacks.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 回滚更少的更改。
+- en: Possible to lock a single row for a long time.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可以长时间锁定单个行。
+- en: Table-Level Locking
+  id: totrans-14
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 表级锁定
+- en: MySQL uses [table-level locking](glossary.html#glos_table_lock "table lock")
+    for `MyISAM`, `MEMORY`, and `MERGE` tables, permitting only one session to update
+    those tables at a time. This locking level makes these storage engines more suitable
+    for read-only, read-mostly, or single-user applications.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL对`MyISAM`、`MEMORY`和`MERGE`表使用[表级锁定](glossary.html#glos_table_lock "表锁")，每次只允许一个会话更新这些表。这种锁定级别使这些存储引擎更适合只读、读多或单用户应用程序。
+- en: These storage engines avoid [deadlocks](glossary.html#glos_deadlock "deadlock")
+    by always requesting all needed locks at once at the beginning of a query and
+    always locking the tables in the same order. The tradeoff is that this strategy
+    reduces concurrency; other sessions that want to modify the table must wait until
+    the current data change statement finishes.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些存储引擎通过在查询开始时一次性请求所有所需的锁并始终以相同顺序锁定表来避免[死锁](glossary.html#glos_deadlock "死锁")。这种权衡是这种策略降低了并发性；其他想要修改表的会话必须等到当前数据更改语句完成。
+- en: 'Advantages of table-level locking:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表级锁定的优点：
+- en: Relatively little memory required (row locking requires memory per row or group
+    of rows locked)
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 需要相对较少的内存（行锁定需要每行或每组行锁定的内存）
+- en: Fast when used on a large part of the table because only a single lock is involved.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在大部分表上使用时速度很快，因为只涉及一个锁。
+- en: Fast if you often do `GROUP BY` operations on a large part of the data or must
+    scan the entire table frequently.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果经常在大部分数据上执行`GROUP BY`操作或必须频繁扫描整个表，则速度很快。
+- en: 'MySQL grants table write locks as follows:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL授予表写锁如下：
+- en: If there are no locks on the table, put a write lock on it.
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果表上没有锁，请在其上放置写锁。
+- en: Otherwise, put the lock request in the write lock queue.
+  id: totrans-23
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 否则，将锁请求放入写锁队列。
+- en: 'MySQL grants table read locks as follows:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL授予表读锁如下：
+- en: If there are no write locks on the table, put a read lock on it.
+  id: totrans-25
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果表上没有写锁，请在其上放置读锁。
+- en: Otherwise, put the lock request in the read lock queue.
+  id: totrans-26
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 否则，将锁请求放入读锁队列。
+- en: Table updates are given higher priority than table retrievals. Therefore, when
+    a lock is released, the lock is made available to the requests in the write lock
+    queue and then to the requests in the read lock queue. This ensures that updates
+    to a table are not “starved” even when there is heavy [`SELECT`](select.html "15.2.13 SELECT
+    Statement") activity for the table. However, if there are many updates for a table,
+    [`SELECT`](select.html "15.2.13 SELECT Statement") statements wait until there
+    are no more updates.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表更新比表检索具有更高的优先级。因此，当释放锁时，锁将提供给写锁队列中的请求，然后提供给读锁队列中的请求。这确保了即使表上有大量[`SELECT`](select.html
+    "15.2.13 SELECT语句")活动，对表的更新也不会“饿死”。但是，如果对表进行了许多更新，[`SELECT`](select.html "15.2.13 SELECT语句")语句将等待直到没有更多更新。
+- en: For information on altering the priority of reads and writes, see [Section 10.11.2,
+    “Table Locking Issues”](table-locking.html "10.11.2 Table Locking Issues").
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关修改读写优先级的信息，请参见[第10.11.2节，“表锁问题”](table-locking.html "10.11.2 表锁问题")。
+- en: 'You can analyze the table lock contention on your system by checking the [`Table_locks_immediate`](server-status-variables.html#statvar_Table_locks_immediate)
+    and [`Table_locks_waited`](server-status-variables.html#statvar_Table_locks_waited)
+    status variables, which indicate the number of times that requests for table locks
+    could be granted immediately and the number that had to wait, respectively:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以通过检查[`Table_locks_immediate`](server-status-variables.html#statvar_Table_locks_immediate)和[`Table_locks_waited`](server-status-variables.html#statvar_Table_locks_waited)状态变量来分析系统上的表锁争用情况，这些变量分别表示请求表锁可以立即授予的次数以及必须等待的次数：
+- en: '[PRE0]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The Performance Schema lock tables also provide locking information. See [Section 29.12.13,
+    “Performance Schema Lock Tables”](performance-schema-lock-tables.html "29.12.13 Performance
+    Schema Lock Tables").
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema锁表还提供了锁定信息。请参见[第29.12.13节，“Performance Schema锁表”](performance-schema-lock-tables.html
+    "29.12.13 Performance Schema锁表")。
+- en: 'The `MyISAM` storage engine supports concurrent inserts to reduce contention
+    between readers and writers for a given table: If a `MyISAM` table has no free
+    blocks in the middle of the data file, rows are always inserted at the end of
+    the data file. In this case, you can freely mix concurrent [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") and [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statements for a `MyISAM` table without locks. That is, you can insert rows into
+    a `MyISAM` table at the same time other clients are reading from it. Holes can
+    result from rows having been deleted from or updated in the middle of the table.
+    If there are holes, concurrent inserts are disabled but are enabled again automatically
+    when all holes have been filled with new data. To control this behavior, use the
+    [`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert) system
+    variable. See [Section 10.11.3, “Concurrent Inserts”](concurrent-inserts.html
+    "10.11.3 Concurrent Inserts").'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`MyISAM` 存储引擎支持并发插入以减少对给定表的读取者和写入者之间的争用：如果 `MyISAM` 表在数据文件中间没有空闲块，则行始终插入到数据文件的末尾。在这种情况下，您可以在不锁定的情况下自由混合并发
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") 和 [`SELECT`](select.html "15.2.13 SELECT
+    Statement") 语句用于 `MyISAM` 表。也就是说，您可以在其他客户端从中读取时向 `MyISAM` 表插入行。空洞可能是由于从表中间删除或更新行而导致的。如果有空洞，则并发插入将被禁用，但在所有空洞填满新数据后会自动重新启用。要控制此行为，请使用
+    [`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert) 系统变量。参见
+    [Section 10.11.3, “Concurrent Inserts”](concurrent-inserts.html "10.11.3 Concurrent
+    Inserts")。'
+- en: If you acquire a table lock explicitly with [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"), you can request a `READ LOCAL`
+    lock rather than a `READ` lock to enable other sessions to perform concurrent
+    inserts while you have the table locked.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您使用 [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") 明确获取表锁，则可以请求 `READ LOCAL` 锁而不是 `READ` 锁，以便其他会话在您锁定表时执行并发插入。
+- en: 'To perform many [`INSERT`](insert.html "15.2.7 INSERT Statement") and [`SELECT`](select.html
+    "15.2.13 SELECT Statement") operations on a table `t1` when concurrent inserts
+    are not possible, you can insert rows into a temporary table `temp_t1` and update
+    the real table with the rows from the temporary table:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当无法进行并发插入时，要在表 `t1` 上执行许多 [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    和 [`SELECT`](select.html "15.2.13 SELECT Statement") 操作，您可以将行插入临时表 `temp_t1`，然后使用临时表中的行更新真实表：
+- en: '[PRE1]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Choosing the Type of Locking
+  id: totrans-36
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 选择锁定类型
+- en: 'Generally, table locks are superior to row-level locks in the following cases:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常，在以下情况下，表锁优于行级锁：
+- en: Most statements for the table are reads.
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表的大多数语句是读取操作。
+- en: 'Statements for the table are a mix of reads and writes, where writes are updates
+    or deletes for a single row that can be fetched with one key read:'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表的语句是读取和写入的混合，其中写入是更新或删除单行，可以通过一个键读取获取：
+- en: '[PRE2]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '[`SELECT`](select.html "15.2.13 SELECT Statement") combined with concurrent
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") statements, and very few [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") or [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    statements.'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SELECT`](select.html "15.2.13 SELECT Statement") 与并发 [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") 语句结合，以及很少的 [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    或 [`DELETE`](delete.html "15.2.2 DELETE Statement") 语句。'
+- en: Many scans or `GROUP BY` operations on the entire table without any writers.
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对整个表进行许多扫描或 `GROUP BY` 操作，没有任何写入者。
+- en: With higher-level locks, you can more easily tune applications by supporting
+    locks of different types, because the lock overhead is less than for row-level
+    locks.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用更高级别的锁，您可以更容易地通过支持不同类型的锁来调整应用程序，因为与行级锁相比，锁开销更小。
+- en: 'Options other than row-level locking:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了行级锁之外的选项：
+- en: Versioning (such as that used in MySQL for concurrent inserts) where it is possible
+    to have one writer at the same time as many readers. This means that the database
+    or table supports different views for the data depending on when access begins.
+    Other common terms for this are “time travel,” “copy on write,” or “copy on demand.”
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 版本控制（例如 MySQL 中用于并发插入的方式），在同一时间可能有一个写入者和多个读取者。这意味着数据库或表支持根据访问开始时间而为数据提供不同视图。其他常见术语包括“时间旅行”，“写时复制”或“按需复制”。
+- en: Copy on demand is in many cases superior to row-level locking. However, in the
+    worst case, it can use much more memory than using normal locks.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在许多情况下，按需复制比行级锁更优越。然而，在最坏的情况下，它可能比使用普通锁占用更多内存。
+- en: Instead of using row-level locks, you can employ application-level locks, such
+    as those provided by [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    and [`RELEASE_LOCK()`](locking-functions.html#function_release-lock) in MySQL.
+    These are advisory locks, so they work only with applications that cooperate with
+    each other. See [Section 14.14, “Locking Functions”](locking-functions.html "14.14 Locking
+    Functions").
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你可以使用应用程序级别的锁，而不是使用行级别的锁，比如MySQL中提供的[`GET_LOCK()`](locking-functions.html#function_get-lock)和[`RELEASE_LOCK()`](locking-functions.html#function_release-lock)。这些是咨询性锁，所以只能与相互合作的应用程序一起使用。参见[第14.14节，“锁定函数”](locking-functions.html
+    "14.14 锁定函数")。

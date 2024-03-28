@@ -1,0 +1,1002 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/keyring-key-migration.html](https://dev.mysql.com/doc/refman/8.0/en/keyring-key-migration.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/keyring-key-migration.html](https://dev.mysql.com/doc/refman/8.0/en/keyring-key-migration.html)
+- en: 8.4.4.14 Migrating Keys Between Keyring Keystores
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.4.14 在密钥环密钥库之间迁移密钥
+- en: 'A keyring migration copies keys from one keystore to another, enabling a DBA
+    to switch a MySQL installation to a different keystore. A successful migration
+    operation has this result:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 密钥环迁移将密钥从一个密钥库复制到另一个，使得 DBA 可以将 MySQL 安装切换到不同的密钥库。成功的迁移操作会产生以下结果：
+- en: The destination keystore contains the keys it had prior to the migration, plus
+    the keys from the source keystore.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 目标密钥库包含迁移前具有的密钥，以及源密钥库中的密钥。
+- en: The source keystore remains the same before and after the migration (because
+    keys are copied, not moved).
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在迁移前后，源密钥库保持不变（因为密钥是复制而不是移动）。
+- en: If a key to be copied already exists in the destination keystore, an error occurs
+    and the destination keystore is restored to its premigration state.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果要复制的密钥已经存在于目标密钥库中，则会发生错误，并且目标密钥库将恢复到迁移前的状态。
+- en: 'The keyring manages keystores using keyring components and keyring plugins.
+    This pertains to migration strategy because the way in which the source and destination
+    keystores are managed determines whether a particular type of key migration is
+    possible and the procedure for performing it:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 密钥环使用密钥环组件和密钥环插件管理密钥库。这与迁移策略有关，因为源密钥库和目标密钥库的管理方式决定了是否可能进行特定类型的密钥迁移以及执行该操作的程序：
+- en: 'Migration from one keyring plugin to another: The MySQL server has an operational
+    mode that provides this capability.'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从一个密钥环插件迁移到另一个：MySQL 服务器具有提供此功能的操作模式。
+- en: 'Migration from a keyring plugin to a keyring component: The MySQL server has
+    an operational mode that provides this capability as of MySQL 8.0.24.'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从密钥环插件迁移到密钥环组件：MySQL 服务器在 MySQL 8.0.24 版本中提供了此功能的操作模式。
+- en: 'Migration from one keyring component to another: The [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility") utility provides
+    this capability. [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") is available as of MySQL 8.0.24.'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从一个密钥环组件迁移到另一个：[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — 密钥环密钥迁移实用程序") 实用程序提供了这种能力。[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — 密钥环密钥迁移实用程序") 自 MySQL 8.0.24 版本起可用。
+- en: 'Migration from a keyring component to a keyring plugin: There is no provision
+    for this capability.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从密钥环组件迁移到密钥环插件：没有提供此功能。
+- en: The following sections discuss the characteristics of offline and online migrations
+    and describe how to perform migrations.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下部分讨论了离线和在线迁移的特点，并描述了如何执行迁移。
+- en: '[Offline and Online Key Migrations](keyring-key-migration.html#keyring-key-migration-offline-online
+    "Offline and Online Key Migrations")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[离线和在线密钥迁移](keyring-key-migration.html#keyring-key-migration-offline-online
+    "离线和在线密钥迁移")'
+- en: '[Key Migration Using a Migration Server](keyring-key-migration.html#keyring-key-migration-using-migration-server
+    "Key Migration Using a Migration Server")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用迁移服务器进行密钥迁移](keyring-key-migration.html#keyring-key-migration-using-migration-server
+    "使用迁移服务器进行密钥迁移")'
+- en: '[Key Migration Using the mysql_migrate_keyring Utility](keyring-key-migration.html#keyring-key-migration-using-mysql-migrate-keyring
+    "Key Migration Using the mysql_migrate_keyring Utility")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用 mysql_migrate_keyring 实用程序进行密钥迁移](keyring-key-migration.html#keyring-key-migration-using-mysql-migrate-keyring
+    "使用 mysql_migrate_keyring 实用程序进行密钥迁移")'
+- en: '[Key Migration Involving Multiple Running Servers](keyring-key-migration.html#keyring-key-migration-multiple-running-servers
+    "Key Migration Involving Multiple Running Servers")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[涉及多个运行服务器的密钥迁移](keyring-key-migration.html#keyring-key-migration-multiple-running-servers
+    "涉及多个运行服务器的密钥迁移")'
+- en: Offline and Online Key Migrations
+  id: totrans-16
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 离线和在线密钥迁移
+- en: 'A key migration is either offline or online:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 密钥迁移可以是离线或在线的：
+- en: 'Offline migration: For use when you are sure that no running server on the
+    local host is using the source or destination keystore. In this case, the migration
+    operation can copy keys from the source keystore to the destination without the
+    possibility of a running server modifying keystore content during the operation.'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 离线迁移：用于确保本地主机上没有运行中的服务器使用源或目标密钥库时使用。在这种情况下，迁移操作可以将密钥从源密钥库复制到目标密钥库，而在操作期间不会发生运行中服务器修改密钥库内容的可能性。
+- en: 'Online migration: For use when a running server on the local host is using
+    the source keystore. In this case, care must be taken to prevent that server from
+    updating keystores during the migration. This involves connecting to the running
+    server and instructing it to pause keyring operations so that keys can be copied
+    safely from the source keystore to the destination. When key copying is complete,
+    the running server is permitted to resume keyring operations.'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在线迁移：用于当本地主机上运行的服务器正在使用源密钥库时。在这种情况下，必须小心防止服务器在迁移过程中更新密钥库。这涉及连接到运行的服务器并指示其暂停密钥环操作，以便可以安全地从源密钥库复制密钥到目标位置。当密钥复制完成后，允许运行的服务器恢复密钥环操作。
+- en: 'When you plan a key migration, use these points to decide whether it should
+    be offline or online:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当计划进行密钥迁移时，请使用以下要点来决定是离线还是在线：
+- en: Do not perform offline migration involving a keystore that is in use by a running
+    server.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不要执行涉及正在运行的服务器使用的密钥库的离线迁移。
+- en: 'Pausing keyring operations during an online migration is accomplished by connecting
+    to the running server and setting its global [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    system variable to `OFF` before key copying and `ON` after key copying. This has
+    several implications:'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在线迁移过程中暂停密钥环操作是通过连接到运行的服务器并将其全局 [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    系统变量设置为 `OFF` 来实现的，然后在复制密钥之前设置为 `ON`。这有几个影响：
+- en: '[`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    was introduced in MySQL 5.7.21, so online migration is possible only if the running
+    server is from MySQL 5.7.21 or higher. If the running server is older, you must
+    stop it, perform an offline migration, and restart it. All migration instructions
+    elsewhere that refer to [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    are subject to this condition.'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    是在 MySQL 5.7.21 中引入的，因此只有运行的服务器是 MySQL 5.7.21 或更高版本时才能进行在线迁移。如果运行的服务器较旧，则必须停止它，执行离线迁移，然后重新启动。所有其他地方提到的与
+    [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    相关的迁移说明都受到此条件的约束。'
+- en: The account used to connect to the running server must have the privileges required
+    to modify [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations).
+    These privileges are [`ENCRYPTION_KEY_ADMIN`](privileges-provided.html#priv_encryption-key-admin)
+    in addition to either [`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)
+    or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于连接到运行的服务器的帐户必须具有修改 [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    所需的特权。这些特权是 [`ENCRYPTION_KEY_ADMIN`](privileges-provided.html#priv_encryption-key-admin)
+    以及 [`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)
+    或已弃用的 [`SUPER`](privileges-provided.html#priv_super) 特权。
+- en: 'If an online migration operation exits abnormally (for example, if it is forcibly
+    terminated), it is possible for [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    to remain disabled on the running server, leaving it unable to perform keyring
+    operations. In this case, it may be necessary to connect to the running server
+    and enable [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    manually using this statement:'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在线迁移操作异常退出（例如，被强制终止），则可能导致 [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    在运行的服务器上保持禁用，导致无法执行密钥环操作。在这种情况下，可能需要连接到运行的服务器并使用以下语句手动启用 [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)：
+- en: '[PRE0]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Online key migration provides for pausing keyring operations on a single running
+    server. To perform a migration if multiple running servers are using the keystores
+    involved, use the procedure described at [Key Migration Involving Multiple Running
+    Servers](keyring-key-migration.html#keyring-key-migration-multiple-running-servers
+    "Key Migration Involving Multiple Running Servers").
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在线密钥迁移允许在单个运行的服务器上暂停密钥环操作。如果多个运行的服务器正在使用涉及的密钥库，则使用在 [涉及多个运行服务器的密钥迁移](keyring-key-migration.html#keyring-key-migration-multiple-running-servers
+    "涉及多个运行服务器的密钥迁移") 中描述的过程。
+- en: Key Migration Using a Migration Server
+  id: totrans-28
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用迁移服务器进行密钥迁移
+- en: Note
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Online key migration using a migration server is only supported if the running
+    server allows socket connections or TCP/IP connections using TLS; it is not supported
+    when, for example, the server is running on a Windows platform and only allows
+    shared memory connections.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅当运行的服务器允许套接字连接或使用 TLS 的 TCP/IP 连接时，才支持使用迁移服务器进行在线密钥迁移；例如，当服务器在 Windows 平台上运行并且仅允许共享内存连接时，不支持此功能。
+- en: A MySQL server becomes a migration server if invoked in a special operational
+    mode that supports key migration. A migration server does not accept client connections.
+    Instead, it runs only long enough to migrate keys, then exits. A migration server
+    reports errors to the console (the standard error output).
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果以支持密钥迁移的特殊操作模式调用，则 MySQL 服务器将成为迁移服务器。迁移服务器不接受客户端连接。相反，它只运行足够长的时间来迁移密钥，然后退出。迁移服务器将错误报告给控制台（标准错误输出）。
+- en: 'A migration server supports these migration types:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 迁移服务器支持以下迁移类型：
+- en: Migration from one keyring plugin to another.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从一个密钥环插件迁移到另一个。
+- en: Migration from a keyring plugin to a keyring component. This capability is available
+    as of MySQL 8.0.24\. Older servers support only migration from one keyring plugin
+    to another, in which case the parts of these instructions that refer to keyring
+    components do not apply.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从密钥环插件迁移到密钥环组件。此功能自 MySQL 8.0.24 版本开始提供。较旧的服务器仅支持从一个密钥环插件迁移到另一个，此时这些指令中涉及密钥环组件的部分不适用。
+- en: A migration server does not support migration from one keyring component to
+    another. For that type of migration, see [Key Migration Using the mysql_migrate_keyring
+    Utility](keyring-key-migration.html#keyring-key-migration-using-mysql-migrate-keyring
+    "Key Migration Using the mysql_migrate_keyring Utility").
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 迁移服务器不支持从一个密钥环组件迁移到另一个密钥环组件。对于这种类型的迁移，请参阅[使用 mysql_migrate_keyring 实用程序进行密钥迁移](keyring-key-migration.html#keyring-key-migration-using-mysql-migrate-keyring
+    "使用 mysql_migrate_keyring 实用程序进行密钥迁移")。
+- en: 'To perform a key migration operation using a migration server, determine the
+    key migration options required to specify which keyring plugins or components
+    are involved, and whether the migration is offline or online:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用迁移服务器执行密钥迁移操作，请确定需要的密钥迁移选项，以指定涉及哪些密钥环插件或组件，以及迁移是离线还是在线的：
+- en: 'To indicate the source keyring plugin and the destination keyring plugin or
+    component, specify these options:'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要指示源密钥环插件和目标密钥环插件或组件，请指定这些选项：
+- en: '[`--keyring-migration-source`](keyring-options.html#option_mysqld_keyring-migration-source):
+    The source keyring plugin that manages the keys to be migrated.'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-source`](keyring-options.html#option_mysqld_keyring-migration-source):
+    管理要迁移的密钥的源密钥环插件。'
+- en: '[`--keyring-migration-destination`](keyring-options.html#option_mysqld_keyring-migration-destination):
+    The destination keyring plugin or component to which the migrated keys are to
+    be copied.'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-destination`](keyring-options.html#option_mysqld_keyring-migration-destination):
+    要将迁移的密钥复制到的目标密钥环插件或组件。'
+- en: '[`--keyring-migration-to-component`](keyring-options.html#option_mysqld_keyring-migration-to-component):
+    This option is required if the destination is a keyring component rather than
+    a keyring plugin.'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-to-component`](keyring-options.html#option_mysqld_keyring-migration-to-component):
+    如果目标是密钥环组件而不是密钥环插件，则需要此选项。'
+- en: The [`--keyring-migration-source`](keyring-options.html#option_mysqld_keyring-migration-source)
+    and [`--keyring-migration-destination`](keyring-options.html#option_mysqld_keyring-migration-destination)
+    options signify to the server that it should run in key migration mode. For key
+    migration operations, both options are mandatory. Each plugin or component is
+    specified using the name of its library file, including any platform-specific
+    extension such as `.so` or `.dll`. The source and destination must differ, and
+    the migration server must support them both.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-source`](keyring-options.html#option_mysqld_keyring-migration-source)
+    和 [`--keyring-migration-destination`](keyring-options.html#option_mysqld_keyring-migration-destination)
+    选项表示服务器应该运行在密钥迁移模式下。对于密钥迁移操作，这两个选项都是必需的。每个插件或组件都使用其库文件的名称指定，包括任何特定于平台的扩展，如`.so`或`.dll`。源和目标必须不同，并且迁移服务器必须支持它们两者。'
+- en: For an offline migration, no additional key migration options are needed.
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于离线迁移，不需要额外的密钥迁移选项。
+- en: For an online migration, some running server currently is using the source or
+    destination keystore. To invoke the migration server, specify additional key migration
+    options that indicate how to connect to the running server. This is necessary
+    so that the migration server can connect to the running server and tell it to
+    pause keyring use during the migration operation.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于在线迁移，某个运行服务器当前正在使用源或目标密钥库。要调用迁移服务器，请指定额外的密钥迁移选项，指示如何连接到运行服务器。这是必要的，以便迁移服务器可以连接到运行服务器并告诉其在迁移操作期间暂停密钥环使用。
+- en: 'Use of any of the following options signifies an online migration:'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用以下任何选项表示在线迁移：
+- en: '[`--keyring-migration-host`](keyring-options.html#option_mysqld_keyring-migration-host):
+    The host where the running server is located. This is always the local host because
+    the migration server can migrate keys only between keystores managed by local
+    plugins and components.'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-host`](keyring-options.html#option_mysqld_keyring-migration-host)：运行服务器所在的主机。这始终是本地主机，因为迁移服务器只能在本地插件和组件管理的密钥库之间迁移密钥。'
+- en: '[`--keyring-migration-user`](keyring-options.html#option_mysqld_keyring-migration-user),
+    [`--keyring-migration-password`](keyring-options.html#option_mysqld_keyring-migration-password):
+    The account credentials to use to connect to the running server.'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-user`](keyring-options.html#option_mysqld_keyring-migration-user)，[`--keyring-migration-password`](keyring-options.html#option_mysqld_keyring-migration-password)：用于连接到运行服务器的帐户凭据。'
+- en: '[`--keyring-migration-port`](keyring-options.html#option_mysqld_keyring-migration-port):
+    For TCP/IP connections, the port number to connect to on the running server.'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-port`](keyring-options.html#option_mysqld_keyring-migration-port)：对于TCP/IP连接，连接到运行服务器的端口号。'
+- en: '[`--keyring-migration-socket`](keyring-options.html#option_mysqld_keyring-migration-socket):
+    For Unix socket file or Windows named pipe connections, the socket file or named
+    pipe to connect to on the running server.'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--keyring-migration-socket`](keyring-options.html#option_mysqld_keyring-migration-socket)：对于Unix套接字文件或Windows命名管道连接，连接到运行服务器的套接字文件或命名管道。'
+- en: For additional details about the key migration options, see [Section 8.4.4.18,
+    “Keyring Command Options”](keyring-options.html "8.4.4.18 Keyring Command Options").
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关密钥迁移选项的更多详细信息，请参见[第 8.4.4.18 节，“密钥环命令选项”](keyring-options.html "8.4.4.18 Keyring
+    Command Options")。
+- en: 'Start the migration server with key migration options indicating the source
+    and destination keystores and whether the migration is offline or online, possibly
+    with other options. Keep the following considerations in mind:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用指示源和目标密钥库以及迁移是离线还是在线的密钥迁移选项启动迁移服务器，可能还有其他选项。请牢记以下考虑事项：
+- en: Other server options might be required, such as configuration parameters for
+    the two keyring plugins. For example, if `keyring_file` is the source or destination,
+    you must set the [`keyring_file_data`](keyring-system-variables.html#sysvar_keyring_file_data)
+    system variable if the keyring data file location is not the default location.
+    Other non-keyring options may be required as well. One way to specify these options
+    is by using [`--defaults-file`](option-file-options.html#option_general_defaults-file)
+    to name an option file that contains the required options.
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可能需要其他服务器选项，例如两个密钥环插件的配置参数。例如，如果`keyring_file`是源或目标，则必须设置[`keyring_file_data`](keyring-system-variables.html#sysvar_keyring_file_data)系统变量，如果密钥环数据文件位置不是默认位置。还可能需要其他非密钥环选项。指定这些选项的一种方法是使用[`--defaults-file`](option-file-options.html#option_general_defaults-file)命名包含所需选项的选项文件。
+- en: The migration server expects path name option values to be full paths. Relative
+    path names may not be resolved as you expect.
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 迁移服务器期望路径名选项值为完整路径。相对路径名可能不会按您的预期解析。
+- en: The user who invokes a server in key-migration mode must not be the `root` operating
+    system user, unless the [`--user`](server-options.html#option_mysqld_user) option
+    is specified with a non-`root` user name to run the server as that user.
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 调用服务器以密钥迁移模式启动的用户不得是`root`操作系统用户，除非使用[`--user`](server-options.html#option_mysqld_user)选项指定一个非`root`用户名来以该用户身份运行服务器。
+- en: The user a server in key-migration mode runs as must have permission to read
+    and write any local keyring files, such as the data file for a file-based plugin.
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 以密钥迁移模式运行的服务器的用户必须具有读取和写入任何本地密钥环文件的权限，例如基于文件的插件的数据文件。
+- en: If you invoke the migration server from a system account different from that
+    normally used to run MySQL, it might create keyring directories or files that
+    are inaccessible to the server during normal operation. Suppose that [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") normally runs as the `mysql` operating system
+    user, but you invoke the migration server while logged in as `isabel`. Any new
+    directories or files created by the migration server are owned by `isabel`. Subsequent
+    startup fails when a server run as the `mysql` operating system user attempts
+    to access file system objects owned by `isabel`.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您以不同于通常用于运行MySQL的系统帐户调用迁移服务器，则可能会创建对服务器在正常操作期间无法访问的密钥环目录或文件。假设[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")通常以`mysql`操作系统用户运行，但您以`isabel`登录时调用迁移服务器。迁移服务器创建的任何新目录或文件都归`isabel`所有。当以`mysql`操作系统用户运行的服务器尝试访问由`isabel`拥有的文件系统对象时，后续启动将失败。
+- en: To avoid this issue, start the migration server as the `root` operating system
+    user and provide a [`--user=*`user_name`*`](server-options.html#option_mysqld_user)
+    option, where *`user_name`* is the system account normally used to run MySQL.
+    Alternatively, after the migration, examine the keyring-related file system objects
+    and change their ownership and permissions if necessary using **chown**, **chmod**,
+    or similar commands, so that the objects are accessible to the running server.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为避免此问题，请将迁移服务器作为`root`操作系统用户启动，并提供[`--user=*`user_name`*`](server-options.html#option_mysqld_user)选项，其中*`user_name`*是通常用于运行MySQL的系统帐户。或者，在迁移后，使用**chown**、**chmod**或类似命令检查与密钥环相关的文件系统对象，并根据需要更改其所有权和权限，以便运行服务器可以访问这些对象。
+- en: 'Example command line for offline migration between two keyring plugins (enter
+    the command on a single line):'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 离线迁移两个密钥环插件之间的示例命令行（在一行上输入命令）：
+- en: '[PRE1]'
+  id: totrans-58
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Example command line for online migration between two keyring plugins:'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个密钥环插件之间的在线迁移示例命令行：
+- en: '[PRE2]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: To perform a migration when the destination is a keyring component rather than
+    a keyring plugin, specify the [`--keyring-migration-to-component`](keyring-options.html#option_mysqld_keyring-migration-to-component)
+    option, and name the component as the value of the [`--keyring-migration-destination`](keyring-options.html#option_mysqld_keyring-migration-destination)
+    option.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 若要执行将目标设置为密钥环组件而不是密钥环插件的迁移，请指定[`--keyring-migration-to-component`](keyring-options.html#option_mysqld_keyring-migration-to-component)选项，并将组件命名为[`--keyring-migration-destination`](keyring-options.html#option_mysqld_keyring-migration-destination)选项的值。
+- en: 'Example command line for offline migration from a keyring plugin to a keyring
+    component:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从密钥环插件迁移到密钥环组件的离线迁移示例命令行：
+- en: '[PRE3]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Notice that in this case, no `keyring_encrypted_file_password` value is specified.
+    The password for the component data file is listed in the component configuration
+    file.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，在这种情况下，未指定`keyring_encrypted_file_password`值。组件数据文件的密码列在组件配置文件中。
+- en: 'Example command line for online migration from a keyring plugin to a keyring
+    component:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从密钥环插件迁移到密钥环组件的在线迁移示例命令行：
+- en: '[PRE4]'
+  id: totrans-66
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'The key migration server performs a migration operation as follows:'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 密钥迁移服务器执行以下迁移操作：
+- en: (Online migration only) Connect to the running server using the connection options.
+  id: totrans-68
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅在线迁移）使用连接选项连接到运行中的服务器。
+- en: (Online migration only) Disable [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    on the running server.
+  id: totrans-69
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅在线迁移）在运行中的服务器上禁用[`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)。
+- en: Load the keyring plugin/component libraries for the source and destination keystores.
+  id: totrans-70
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 加载源和目标密钥环插件/组件库。
+- en: Copy keys from the source keystore to the destination.
+  id: totrans-71
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将密钥从源密钥库复制到目标密钥库。
+- en: Unload the keyring plugin/component libraries for the source and destination
+    keystores.
+  id: totrans-72
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 卸载源和目标密钥环插件/组件库。
+- en: (Online migration only) Enable [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    on the running server.
+  id: totrans-73
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅在线迁移）在运行中的服务器上启用[`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)。
+- en: (Online migration only) Disconnect from the running server.
+  id: totrans-74
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅在线迁移）断开与运行中的服务器的连接。
+- en: If an error occurs during key migration, the destination keystore is restored
+    to its premigration state.
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在密钥迁移过程中发生错误，则目标密钥库将恢复到迁移前的状态。
+- en: 'After a successful online key migration operation, the running server might
+    need to be restarted:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 成功进行在线密钥迁移操作后，可能需要重新启动运行中的服务器：
+- en: If the running server was using the source keystore before the migration and
+    should continue to use it after the migration, it need not be restarted after
+    the migration.
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果运行的服务器在迁移前使用源密钥库，并且在迁移后应继续使用它，则在迁移后无需重新启动。
+- en: If the running server was using the destination keystore before the migration
+    and should continue to use it after the migration, it should be restarted after
+    the migration to load all keys migrated into the destination keystore.
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果运行的服务器在迁移前使用目标密钥库，并且在迁移后应继续使用它，则应在迁移后重新启动以加载所有迁移到目标密钥库中的密钥。
+- en: If the running server was using the source keystore before the migration but
+    should use the destination keystore after the migration, it must be reconfigured
+    to use the destination keystore and restarted. In this case, be aware that although
+    the running server is paused from modifying the source keystore during the migration
+    itself, it is not paused during the interval between the migration and the subsequent
+    restart. Care should be taken that the server does not modify the source keystore
+    during this interval because any such changes will not be reflected in the destination
+    keystore.
+  id: totrans-79
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果运行的服务器在迁移前使用源密钥库，但在迁移后应使用目标密钥库，则必须重新配置为使用目标密钥库并重新启动。在这种情况下，请注意，尽管在迁移过程中运行的服务器暂停修改源密钥库，但在迁移和随后的重新启动之间的间隔期间不会暂停。应注意在此间隔期间服务器不要修改源密钥库，因为这样的任何更改将不会反映在目标密钥库中。
+- en: Key Migration Using the mysql_migrate_keyring Utility
+  id: totrans-80
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用 mysql_migrate_keyring 实用程序进行密钥迁移
+- en: The [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") utility migrates keys from one keyring component
+    to another. It does not support migrations involving keyring plugins. For that
+    type of migration, use a MySQL server operating in key migration mode; see [Key
+    Migration Using a Migration Server](keyring-key-migration.html#keyring-key-migration-using-migration-server
+    "Key Migration Using a Migration Server").
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — 密钥迁移实用程序") 实用程序将密钥从一个密钥环组件迁移到另一个。它不支持涉及密钥环插件的迁移。对于这种类型的迁移，请使用在密钥迁移模式下运行的 MySQL
+    服务器；参见[使用迁移服务器进行密钥迁移](keyring-key-migration.html#keyring-key-migration-using-migration-server
+    "使用迁移服务器进行密钥迁移")。'
+- en: 'To perform a key migration operation using [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility"), determine the
+    key migration options required to specify which keyring components are involved,
+    and whether the migration is offline or online:'
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — 密钥迁移实用程序")执行密钥迁移操作时，确定所需的密钥迁移选项，以指定涉及哪些密钥环组件，以及迁移是离线还是在线的：
+- en: 'To indicate the source and destination keyring components and their location,
+    specify these options:'
+  id: totrans-83
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要指示源和目标密钥环组件及其位置，请指定以下选项：
+- en: '[`--source-keyring`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_source-keyring):
+    The source keyring component that manages the keys to be migrated.'
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--source-keyring`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_source-keyring)：管理要迁移的密钥的源密钥环组件。'
+- en: '[`--destination-keyring`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_destination-keyring):
+    The destination keyring component to which the migrated keys are to be copied.'
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--destination-keyring`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_destination-keyring)：要将迁移的密钥复制到的目标密钥环组件。'
+- en: '`--component-dir`: The directory containing keyring component library files.
+    This is typically the value of the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    system variable for the local MySQL server.'
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`--component-dir`：包含密钥环组件库文件的目录。这通常是本地 MySQL 服务器的[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量的值。'
+- en: All three options are mandatory. Each keyring component name is a component
+    library file name specified without any platform-specific extension such as `.so`
+    or `.dll`. For example, to use the component for which the library file is `component_keyring_file.so`,
+    specify the option as [`--source-keyring=component_keyring_file`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_source-keyring).
+    The source and destination must differ, and [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility") must support them
+    both.
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 所有三个选项都是必需的。每个密钥库组件名称都是一个组件库文件名，不带任何平台特定的扩展名，如`.so`或`.dll`。例如，要使用库文件为`component_keyring_file.so`的组件，请将选项指定为[`--source-keyring=component_keyring_file`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_source-keyring)。源和目标必须不同，并且[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility")必须同时支持它们。
+- en: For an offline migration, no additional options are needed.
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于离线迁移，不需要额外的选项。
+- en: For an online migration, some running server currently is using the source or
+    destination keystore. In this case, specify the `--online-migration` option to
+    signify an online migration. In addition, specify connection options indicating
+    how to connect to the running server, so that [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility") can connect to
+    it and tell it to pause keyring use during the migration operation.
+  id: totrans-89
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于在线迁移，某个正在运行的服务器当前正在使用源或目标密钥库。在这种情况下，请指定`--online-migration`选项表示在线迁移。此外，请指定连接选项，指示如何连接到运行的服务器，以便[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility")可以连接到它并告诉它在迁移操作期间暂停密钥环使用。
+- en: 'The `--online-migration` option is commonly used in conjunction with connection
+    options such as these:'
+  id: totrans-90
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`--online-migration`选项通常与这些连接选项一起使用：'
+- en: '[`--host`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_host): The
+    host where the running server is located. This is always the local host because
+    [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") can migrate keys only between keystores managed
+    by local components.'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--host`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_host)：运行服务器所在的主机。这始终是本地主机，因为[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility")只能在本地组件管理的密钥库之间迁移密钥。'
+- en: '[`--user`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_user), [`--password`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_password):
+    The account credentials to use to connect to the running server.'
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--user`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_user)、[`--password`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_password)：用于连接到运行服务器的帐户凭据。'
+- en: '[`--port`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_port): For
+    TCP/IP connections, the port number to connect to on the running server.'
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--port`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_port)：对于TCP/IP连接，在运行服务器上连接的端口号。'
+- en: '[`--socket`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_socket):
+    For Unix socket file or Windows named pipe connections, the socket file or named
+    pipe to connect to on the running server.'
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--socket`](mysql-migrate-keyring.html#option_mysql_migrate_keyring_socket)：对于Unix套接字文件或Windows命名管道连接，在运行服务器上连接的套接字文件或命名管道。'
+- en: For descriptions of all available options, see [Section 6.6.8, “mysql_migrate_keyring
+    — Keyring Key Migration Utility”](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility").
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看所有可用选项的描述，请参阅[Section 6.6.8, “mysql_migrate_keyring — Keyring Key Migration
+    Utility”](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring — Keyring Key
+    Migration Utility")。
+- en: 'Start [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") with options indicating the source and destination
+    keystores and whether the migration is offline or online, possibly with other
+    options. Keep the following considerations in mind:'
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 启动[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility")时，需要指定源和目标密钥库以及迁移是离线还是在线，可能还有其他选项。请记住以下几点：
+- en: The user who invokes [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility") must not be the
+    `root` operating system user.
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 调用[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility")的用户不能是`root`操作系统用户。
+- en: The user who invokes [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility") must have permission
+    to read and write any local keyring files, such as the data file for a file-based
+    plugin.
+  id: totrans-98
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 调用[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — 密钥环密钥迁移实用程序")的用户必须具有读取和写入任何本地密钥环文件的权限，例如基于文件的插件的数据文件。
+- en: If you invoke [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") from a system account different from that normally
+    used to run MySQL, it might create keyring directories or files that are inaccessible
+    to the server during normal operation. Suppose that [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") normally runs as the `mysql` operating system user, but you
+    invoke [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") while logged in as `isabel`. Any new directories
+    or files created by [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") are owned by `isabel`. Subsequent startup fails
+    when a server run as the `mysql` operating system user attempts to access file
+    system objects owned by `isabel`.
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您以不同于通常用于运行MySQL的系统帐户调用[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — 密钥环密钥迁移实用程序")，可能会创建对运行服务器在正常操作期间无法访问的密钥环目录或文件。假设[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器")通常以`mysql`操作系统用户身份运行，但您在`isabel`登录时调用[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — 密钥环密钥迁移实用程序")。[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — 密钥环密钥迁移实用程序")创建的任何新目录或文件都归`isabel`所有。当以`mysql`操作系统用户身份运行的服务器尝试访问由`isabel`拥有的文件系统对象时，随后的启动将失败。
+- en: To avoid this issue, invoke [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility") as the `mysql`
+    operating system user. Alternatively, after the migration, examine the keyring-related
+    file system objects and change their ownership and permissions if necessary using
+    **chown**, **chmod**, or similar commands, so that the objects are accessible
+    to the running server.
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为避免此问题，请以`mysql`操作系统用户的身份调用[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — 密钥环密钥迁移实用程序")。或者，在迁移后，检查与密钥环相关的文件系统对象，并根据需要使用**chown**、**chmod**或类似命令更改它们的所有权和权限，以便运行服务器可以访问这些对象。
+- en: Suppose that you want to migrate keys from `component_keyring_file` to `component_keyring_encrypted_file`,
+    and that the local server stores its keyring component library files in `/usr/local/mysql/lib/plugin`.
+  id: totrans-101
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您想要从`component_keyring_file`迁移密钥到`component_keyring_encrypted_file`，并且本地服务器将其密钥环组件库文件存储在`/usr/local/mysql/lib/plugin`中。
+- en: 'If no running server is using the keyring, an offline migration is permitted.
+    Invoke [**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") like this (enter the command on a single line):'
+  id: totrans-102
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果没有运行中的服务器正在使用密钥环，允许进行离线迁移。像这样调用[**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — 密钥环密钥迁移实用程序")（在一行中输入命令）：
+- en: '[PRE5]'
+  id: totrans-103
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: If a running server is using the keyring, you must perform an online migration
+    instead. In this case, the `--online-migration` option must be given, along with
+    any connection options required to specify which server to connect to and the
+    MySQL account to use.
+  id: totrans-104
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果运行中的服务器正在使用密钥环，则必须执行在线迁移。在这种情况下，必须提供`--online-migration`选项，以及指定要连接的服务器和要使用的MySQL帐户所需的任何连接选项。
+- en: 'The following command performs an online migration. It connects to the local
+    server using a TCP/IP connection and the `admin` account. The command prompts
+    for a password, which you should enter when prompted:'
+  id: totrans-105
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下命令执行在线迁移。它使用TCP/IP连接和`admin`帐户连接到本地服务器。命令提示输入密码，您应在提示时输入密码：
+- en: '[PRE6]'
+  id: totrans-106
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — Keyring Key Migration Utility") performs a migration operation as follows:'
+  id: totrans-107
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — 密钥环密钥迁移实用程序")执行迁移操作如下：'
+- en: (Online migration only) Connect to the running server using the connection options.
+  id: totrans-108
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅限在线迁移）使用连接选项连接到运行中的服务器。
+- en: (Online migration only) Disable [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    on the running server.
+  id: totrans-109
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅限在线迁移）在运行中的服务器上禁用[`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)。
+- en: Load the keyring component libraries for the source and destination keystores.
+  id: totrans-110
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 加载源和目标密钥库的密钥环组件库。
+- en: Copy keys from the source keystore to the destination.
+  id: totrans-111
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将密钥从源密钥库复制到目标密钥库。
+- en: Unload the keyring component libraries for the source and destination keystores.
+  id: totrans-112
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 卸载源和目标密钥库的密钥环组件库。
+- en: (Online migration only) Enable [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    on the running server.
+  id: totrans-113
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅限在线迁移）在运行中的服务器上启用[`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)。
+- en: (Online migration only) Disconnect from the running server.
+  id: totrans-114
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （仅限在线迁移）断开与运行中的服务器的连接。
+- en: If an error occurs during key migration, the destination keystore is restored
+    to its premigration state.
+  id: totrans-115
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在密钥迁移过程中发生错误，则目标密钥库将恢复到迁移前的状态。
+- en: 'After a successful online key migration operation, the running server might
+    need to be restarted:'
+  id: totrans-116
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在成功的在线密钥迁移操作之后，运行中的服务器可能需要重新启动：
+- en: If the running server was using the source keystore before the migration and
+    should continue to use it after the migration, it need not be restarted after
+    the migration.
+  id: totrans-117
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果运行中的服务器在迁移前使用源密钥库，并且在迁移后应继续使用它，则在迁移后无需重新启动。
+- en: If the running server was using the destination keystore before the migration
+    and should continue to use it after the migration, it should be restarted after
+    the migration to load all keys migrated into the destination keystore.
+  id: totrans-118
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在迁移前运行中的服务器使用目标密钥库，并且在迁移后应继续使用它，则应在迁移后重新启动以加载所有迁移到目标密钥库中的密钥。
+- en: If the running server was using the source keystore before the migration but
+    should use the destination keystore after the migration, it must be reconfigured
+    to use the destination keystore and restarted. In this case, be aware that although
+    the running server is paused from modifying the source keystore during the migration
+    itself, it is not paused during the interval between the migration and the subsequent
+    restart. Care should be taken that the server does not modify the source keystore
+    during this interval because any such changes will not be reflected in the destination
+    keystore.
+  id: totrans-119
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在迁移前运行中的服务器使用源密钥库，但在迁移后应使用目标密钥库，则必须重新配置以使用目标密钥库并重新启动。在这种情况下，请注意，尽管在迁移过程中暂停了运行中的服务器对源密钥库的修改，但在迁移和随后的重新启动之间的间隔期间，服务器并未暂停。应注意确保服务器在此间隔期间不修改源密钥库，因为这些更改不会反映在目标密钥库中。
+- en: Key Migration Involving Multiple Running Servers
+  id: totrans-120
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 涉及多个运行中的服务器的密钥迁移
+- en: 'Online key migration provides for pausing keyring operations on a single running
+    server. To perform a migration if multiple running servers are using the keystores
+    involved, use this procedure:'
+  id: totrans-121
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在线密钥迁移允许暂停单个运行中的服务器上的密钥环操作。如果多个运行中的服务器正在使用涉及的密钥库，则使用以下过程执行迁移：
+- en: Connect to each running server manually and set [`keyring_operations=OFF`](keyring-system-variables.html#sysvar_keyring_operations).
+    This ensures that no running server is using the source or destination keystore
+    and satisfies the required condition for offline migration.
+  id: totrans-122
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 手动连接到每个运行中的服务器，并设置[`keyring_operations=OFF`](keyring-system-variables.html#sysvar_keyring_operations)。这确保没有运行中的服务器正在使用源密钥库或目标密钥库，并满足离线迁移所需的条件。
+- en: Use a migration server or [**mysql_migrate_keyring**](mysql-migrate-keyring.html
+    "6.6.8 mysql_migrate_keyring — Keyring Key Migration Utility") to perform an offline
+    key migration for each paused server.
+  id: totrans-123
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用迁移服务器或[**mysql_migrate_keyring**](mysql-migrate-keyring.html "6.6.8 mysql_migrate_keyring
+    — 密钥迁移实用程序")为每个暂停的服务器执行离线密钥迁移。
+- en: Connect to each running server manually and set [`keyring_operations=ON`](keyring-system-variables.html#sysvar_keyring_operations).
+  id: totrans-124
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 手动连接到每个运行中的服务器，并设置[`keyring_operations=ON`](keyring-system-variables.html#sysvar_keyring_operations)。
+- en: All running servers must support the [`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)
+    system variable. Any server that does not must be stopped before the migration
+    and restarted after.
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有运行中的服务器必须支持[`keyring_operations`](keyring-system-variables.html#sysvar_keyring_operations)系统变量。任何不支持的服务器在迁移前必须停止，并在迁移后重新启动。

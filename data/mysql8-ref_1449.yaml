@@ -1,0 +1,143 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-memory.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-memory.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-memory.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-memory.html)
+- en: 19.5.1.21 Replication and MEMORY Tables
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.21 复制和MEMORY表
+- en: When a replication source server shuts down and restarts, its [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables become empty. To replicate this effect
+    to replicas, the first time that the source uses a given [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") table after startup, it logs an event that notifies
+    replicas that the table must be emptied by writing a [`DELETE`](delete.html "15.2.2 DELETE
+    Statement") or (from MySQL 8.0.22) [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE
+    TABLE Statement") statement for that table to the binary log. This generated event
+    is identifiable by a comment in the binary log, and if GTIDs are in use on the
+    server, it has a GTID assigned. The statement is always logged in statement format,
+    even if the binary logging format is set to `ROW`, and it is written even if `read_only`
+    or `super_read_only` mode is set on the server. Note that the replica still has
+    outdated data in a [`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage
+    Engine") table during the interval between the source's restart and its first
+    use of the table. To avoid this interval when a direct query to the replica could
+    return stale data, you can set the [`init_file`](server-system-variables.html#sysvar_init_file)
+    system variable to name a file containing statements that populate the `MEMORY`
+    table on the source at startup.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当复制源服务器关闭并重新启动时，其[`MEMORY`](memory-storage-engine.html "18.3 MEMORY存储引擎")表会变为空。为了将这种效果复制到副本中，源在启动后第一次使用给定的[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表时，会记录一个事件，通知副本该表必须通过向二进制日志写入[`DELETE`](delete.html "15.2.2 DELETE语句")或（从MySQL
+    8.0.22开始）[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE语句")语句来清空该表。这个生成的事件在二进制日志中通过注释可识别，如果服务器上使用了GTID，则会分配一个GTID。该语句始终以语句格式记录，即使二进制日志格式设置为`ROW`，并且即使服务器设置为`read_only`或`super_read_only`模式，也会写入。请注意，在源重新启动并首次使用表之间的间隔期间，副本仍然具有[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表中的过时数据。为了避免这种间隔，当直接查询副本可能返回陈旧数据时，您可以设置[`init_file`](server-system-variables.html#sysvar_init_file)系统变量以命名一个包含在启动时在源上填充`MEMORY`表的语句的文件。
+- en: 'When a replica server shuts down and restarts, its [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables become empty. This causes the replica
+    to be out of synchrony with the source and may lead to other failures or cause
+    the replica to stop:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当副本服务器关闭并重新启动时，其[`MEMORY`](memory-storage-engine.html "18.3 MEMORY存储引擎")表会变为空。这会导致副本与源不同步，并可能导致其他故障或导致副本停止：
+- en: Row-format updates and deletes received from the source may fail with `Can't
+    find record in '*`memory_table`*'`.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 来自源的行格式更新和删除可能会因为`Can't find record in '*`memory_table`*'`而失败。
+- en: Statements such as [`INSERT INTO ... SELECT FROM *`memory_table`*`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement") may insert a different set of rows on
+    the source and replica.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 诸如[`INSERT INTO ... SELECT FROM *`memory_table`*`](insert-select.html "15.2.7.1 INSERT
+    ... SELECT语句")之类的语句可能在源和副本上插入不同的行集。
+- en: The replica also writes a [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    or (from MySQL 8.0.22) [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE
+    TABLE Statement") statement to its own binary log, which is passed on to any downstream
+    replicas, causing them to empty their own [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 副本还会将一个[`DELETE`](delete.html "15.2.2 DELETE语句")或（从MySQL 8.0.22开始）[`TRUNCATE
+    TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE语句")语句写入其自己的二进制日志，传递给任何下游副本，导致它们清空自己的[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表。
+- en: The safe way to restart a replica that is replicating [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables is to first drop or delete all rows from
+    the [`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage Engine") tables
+    on the source and wait until those changes have replicated to the replica. Then
+    it is safe to restart the replica.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重新启动正在复制[`MEMORY`](memory-storage-engine.html "18.3 MEMORY存储引擎")表的副本的安全方法是首先在源上删除或清空所有[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表中的行，并等待这些更改复制到副本。然后才能安全地重新启动副本。
+- en: An alternative restart method may apply in some cases. When [`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format),
+    you can prevent the replica from stopping if you set [`replica_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_replica_exec_mode)
+    (from MySQL 8.0.26) or [`slave_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_slave_exec_mode)
+    (before MySQL 8.0.26) before you start the replica again. This allows the replica
+    to continue to replicate, but its [`MEMORY`](memory-storage-engine.html "18.3 The
+    MEMORY Storage Engine") tables still differ from those on the source. This is
+    acceptable if the application logic is such that the contents of [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables can be safely lost (for example, if the
+    [`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage Engine") tables
+    are used for caching). [`replica_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_replica_exec_mode)
+    or [`slave_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_slave_exec_mode)
+    applies globally to all tables, so it may hide other replication errors in non-[`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些情况下可能适用另一种重启方法。当[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)时，如果在重新启动复制之前设置[`replica_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_replica_exec_mode)（从MySQL
+    8.0.26开始）或[`slave_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_slave_exec_mode)（在MySQL
+    8.0.26之前），则可以防止复制停止。这样可以使复制继续进行，但其[`MEMORY`](memory-storage-engine.html "18.3 MEMORY存储引擎")表仍然与源端不同。如果应用逻辑允许[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表的内容安全丢失（例如，如果[`MEMORY`](memory-storage-engine.html "18.3 MEMORY存储引擎")表用于缓存），那么这是可以接受的。[`replica_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_replica_exec_mode)或[`slave_exec_mode=IDEMPOTENT`](replication-options-replica.html#sysvar_slave_exec_mode)对所有表都适用，因此可能会隐藏非[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表中的其他复制错误。
+- en: (The method just described is not applicable in NDB Cluster, where [`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)
+    or [`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)
+    is always `IDEMPOTENT`, and cannot be changed.)
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: （刚刚描述的方法在NDB Cluster中不适用，那里的[`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)或[`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)始终为`IDEMPOTENT`，且无法更改。）
+- en: 'The size of [`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage
+    Engine") tables is limited by the value of the [`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)
+    system variable, which is not replicated (see [Section 19.5.1.39, “Replication
+    and Variables”](replication-features-variables.html "19.5.1.39 Replication and
+    Variables")). A change in `max_heap_table_size` takes effect for `MEMORY` tables
+    that are created or updated using [`ALTER TABLE ... ENGINE = MEMORY`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") or [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE
+    TABLE Statement") following the change, or for all [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables following a server restart. If you increase
+    the value of this variable on the source without doing so on the replica, it becomes
+    possible for a table on the source to grow larger than its counterpart on the
+    replica, leading to inserts that succeed on the source but fail on the replica
+    with Table is full errors. This is a known issue (Bug #48666). In such cases,
+    you must set the global value of [`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)
+    on the replica as well as on the source, then restart replication. It is also
+    recommended that you restart both the source and replica MySQL servers, to ensure
+    that the new value takes complete (global) effect on each of them.'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`MEMORY`](memory-storage-engine.html "18.3 MEMORY存储引擎")表的大小受[`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)系统变量的值限制，该值不会被复制（参见[Section 19.5.1.39，“复制和变量”](replication-features-variables.html
+    "19.5.1.39 复制和变量")）。更改`max_heap_table_size`对于使用[`ALTER TABLE ... ENGINE = MEMORY`](alter-table.html
+    "15.1.9 ALTER TABLE语句")或[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE
+    TABLE语句")创建或更新的`MEMORY`表会生效，或者对于所有在服务器重新启动后的[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表也会生效。如果你在源端增加了此变量的值而在复制端没有这样做，那么源端的表可能会比复制端的表更大，导致在源端成功插入但在复制端出现“表已满”错误。这是一个已知问题（Bug
+    #48666）。在这种情况下，你必须在复制端和源端都设置[`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)的全局值，然后重新启动复制。建议同时重新启动源端和复制端的MySQL服务器，以确保新值在它们各自上完全生效。'
+- en: See [Section 18.3, “The MEMORY Storage Engine”](memory-storage-engine.html "18.3 The
+    MEMORY Storage Engine"), for more information about [`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine") tables.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查看[第18.3节，“MEMORY存储引擎”](memory-storage-engine.html "18.3 The MEMORY Storage
+    Engine")，了解有关[`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage Engine")表的更多信息。

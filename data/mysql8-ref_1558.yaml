@@ -1,0 +1,152 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-upgrading-member.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-upgrading-member.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-upgrading-member.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-upgrading-member.html)
+- en: 20.8.3.2 Upgrading a Group Replication Member
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.8.3.2 升级组复制成员
+- en: This section explains the steps required for upgrading a member of a group.
+    This procedure is part of the methods described at [Section 20.8.3.3, “Group Replication
+    Online Upgrade Methods”](group-replication-online-upgrade-methods.html "20.8.3.3 Group
+    Replication Online Upgrade Methods"). The process of upgrading a member of a group
+    is common to all methods and is explained first. The way which you join upgraded
+    members can depend on which method you are following, and other factors such as
+    whether the group is operating in single-primary or multi-primary mode. How you
+    upgrade the server instance, using either the in-place or provision approach,
+    does not impact on the methods described here.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节解释了升级组成员所需的步骤。此过程是[第20.8.3.3节“组复制在线升级方法”](group-replication-online-upgrade-methods.html
+    "20.8.3.3 Group Replication Online Upgrade Methods")描述的方法的一部分。升级组成员的过程对所有方法都是通用的，并首先进行解释。加入升级成员的方式可能取决于您正在遵循的方法，以及诸如组是在单主还是多主模式下运行等其他因素。您如何升级服务器实例，无论是使用就地升级还是预置方法，都不会影响此处描述的方法。
+- en: The process of upgrading a member consists of removing it from the group, following
+    your chosen method of upgrading the member, and then rejoining the upgraded member
+    to a group. The recommended order of upgrading members in a single-primary group
+    is to upgrade all secondaries, and then upgrade the primary last. If the primary
+    is upgraded before a secondary, a new primary using the older MySQL version is
+    chosen, but there is no need for this step.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 升级成员的过程包括将其从组中移除，按照您选择的升级成员的方法进行升级，然后将升级后的成员重新加入组。在单主组中升级成员的推荐顺序是先升级所有次要成员，然后最后再升级主要成员。如果在次要成员之前升级主要成员，则会选择使用旧版MySQL版本的新主要成员，但这一步是不必要的。
+- en: 'To upgrade a member of a group:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要升级组的成员：
+- en: Connect a client to the group member and issue [`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement"). Before proceeding, ensure that the
+    member's status is `OFFLINE` by monitoring the [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") table.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 连接客户端到组成员并发出[`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP
+    GROUP_REPLICATION Statement")。在继续之前，请通过监视[`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table")表确保成员的状态为`OFFLINE`。
+- en: Disable Group Replication from starting up automatically so that you can safely
+    connect to the member after upgrading and configure it without it rejoining the
+    group by setting [`group_replication_start_on_boot=0`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot).
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 禁用自动启动组复制，以便您可以安全地在升级后连接到成员并进行配置，而不会在设置[`group_replication_start_on_boot=0`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)后重新加入组。
+- en: Important
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: If an upgraded member has [`group_replication_start_on_boot=1`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    then it could rejoin the group before you can perform the MySQL upgrade procedure
+    and could result in issues. For example, if the upgrade fails and the server restarts
+    again, then a possibly broken server could try to join the group.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果升级的成员设置了[`group_replication_start_on_boot=1`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)，那么在你执行MySQL升级过程之前，它可能会重新加入组，并可能导致问题。例如，如果升级失败并且服务器再次重启，那么可能会尝试加入组的是一个可能损坏的服务器。
+- en: Stop the member, for example using [**mysqladmin shutdown**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") or the [`SHUTDOWN`](shutdown.html
+    "15.7.8.9 SHUTDOWN Statement") statement. Any other members in the group continue
+    running.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 停止成员，例如使用[**mysqladmin shutdown**](mysqladmin.html "6.5.2 mysqladmin — A MySQL
+    Server Administration Program")或[`SHUTDOWN`](shutdown.html "15.7.8.9 SHUTDOWN
+    Statement")语句。组中的其他成员继续运行。
+- en: Upgrade the member, using the in-place or provisioning approach. See [Chapter 3,
+    *Upgrading MySQL*](upgrading.html "Chapter 3 Upgrading MySQL") for details. When
+    restarting the upgraded member, because [`group_replication_start_on_boot`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    is set to 0, Group Replication does not start on the instance, and therefore it
+    does not rejoin the group.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用就地或配置方法升级成员。有关详细信息，请参见[第3章，*升级MySQL*](upgrading.html "第3章 升级MySQL")。在重新启动升级后的成员时，因为[`group_replication_start_on_boot`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)设置为0，Group
+    Replication不会在实例上启动，因此它不会重新加入组。
+- en: Once the MySQL upgrade procedure has been performed on the member, [`group_replication_start_on_boot`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    must be set to 1 to ensure Group Replication starts correctly after restart. Restart
+    the member.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一旦在成员上执行了MySQL升级过程，必须将[`group_replication_start_on_boot`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)设置为1，以确保在重新启动后正确启动Group
+    Replication。重新启动成员。
+- en: Connect to the upgraded member and issue [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement"). This rejoins the member to the
+    group. The Group Replication metadata is in place on the upgraded server, therefore
+    there is usually no need to reconfigure Group Replication. The server has to catch
+    up with any transactions processed by the group while the server was offline.
+    Once it has caught up with the group, it becomes an online member of the group.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 连接到升级后的成员并发出[`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement")。这将重新加入成员到组中。升级服务器上已经存在Group Replication元数据，因此通常不需要重新配置Group
+    Replication。服务器必须赶上在其离线时组处理的任何事务。一旦赶上组，它就成为组的在线成员。
+- en: Note
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The longer it takes to upgrade a server, the more time that member is offline
+    and therefore the more time it takes for the server to catch up when added back
+    to the group.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 升级服务器所需的时间越长，该成员离线的时间就越长，因此在重新添加到组中时，服务器需要花费更多时间来赶上。
+- en: 'When an upgraded member joins a group which has any member running an earlier
+    MySQL Server version, the upgraded member joins with [`super_read_only=on`](server-system-variables.html#sysvar_super_read_only).
+    This ensures that no writes are made to upgraded members until all members are
+    running the newer version. In a multi-primary mode group, when the upgrade has
+    been completed successfully and the group is ready to process transactions, members
+    that are intended as writeable primaries must be set to read-write mode. From
+    MySQL 8.0.17, when all members of a group have been upgraded to the same release,
+    they all change back to read-write mode automatically. For earlier releases you
+    must set each member manually to read-write mode. Connect to each member and issue:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当升级后的成员加入任何运行较早MySQL服务器版本的组时，升级后的成员会以[`super_read_only=on`](server-system-variables.html#sysvar_super_read_only)加入。这确保在所有成员都运行新版本之前，不会向升级后的成员进行写入。在多主模式组中，当升级成功完成并且组准备好处理事务时，打算作为可写主节点的成员必须设置为读写模式。从MySQL
+    8.0.17开始，当组的所有成员都升级到相同版本时，它们都会自动切换回读写模式。对于早期版本，您必须手动将每个成员设置为读写模式。连接到每个成员并发出：
+- en: '[PRE0]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'

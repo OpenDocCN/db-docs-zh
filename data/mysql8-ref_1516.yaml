@@ -1,0 +1,153 @@
+- en: 20.5.4 Distributed Recovery
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.5.4 分布式恢复
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery.html)
+- en: '[20.5.4.1 Connections for Distributed Recovery](group-replication-distributed-recovery-connections.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.4.1 用于分布式恢复的连接](group-replication-distributed-recovery-connections.html)'
+- en: '[20.5.4.2 Cloning for Distributed Recovery](group-replication-cloning.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.4.2 用于分布式恢复的克隆](group-replication-cloning.html)'
+- en: '[20.5.4.3 Configuring Distributed Recovery](group-replication-tuning-recovery.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.4.3 配置分布式恢复](group-replication-tuning-recovery.html)'
+- en: '[20.5.4.4 Fault Tolerance for Distributed Recovery](group-replication-distributed-recovery-fault.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.4.4 分布式恢复的容错性](group-replication-distributed-recovery-fault.html)'
+- en: '[20.5.4.5 How Distributed Recovery Works](group-replication-view-changes.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.4.5 分布式恢复的工作原理](group-replication-view-changes.html)'
+- en: Whenever a member joins or rejoins a replication group, it must catch up with
+    the transactions that were applied by the group members before it joined, or while
+    it was away. This process is called distributed recovery.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每当成员加入或重新加入复制组时，它必须赶上在其加入之前或离开期间组成员应用的事务。这个过程称为分布式恢复。
+- en: The joining member begins by checking the relay log for its `group_replication_applier`
+    channel for any transactions that it already received from the group but did not
+    yet apply. If the joining member was in the group previously, it might find unapplied
+    transactions from before it left, in which case it applies these as a first step.
+    A member that is new to the group does not have anything to apply.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 加入成员首先通过检查其`group_replication_applier`通道的中继日志，查看组中已接收但尚未应用的任何事务。如果加入成员以前曾在组中，它可能会发现在离开之前未应用的事务，这种情况下会将其作为第一步应用。新加入组的成员没有任何需要应用的事务。
+- en: After this, the joining member connects to an online existing member to carry
+    out state transfer. The joining member transfers all the transactions that took
+    place in the group before it joined or while it was away, which are provided by
+    the existing member (called the *donor*). Next, the joining member applies the
+    transactions that took place in the group while this state transfer was in progress.
+    When this process is complete, the joining member has caught up with the remaining
+    servers in the group, and it begins to participate normally in the group.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此之后，加入成员连接到在线现有成员以进行状态传输。加入成员传输了在其加入组之前或离开期间发生的所有事务，这些事务由现有成员（称为*捐赠者*）提供。接下来，加入成员应用了在此状态传输过程中组中发生的事务。当此过程完成时，加入成员已经赶上了组中的其余服务器，并开始正常参与组中的活动。
+- en: 'Group Replication uses a combination of these methods for state transfer during
+    distributed recovery:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组复制在分布式恢复期间使用这些方法的组合进行状态传输：
+- en: A remote cloning operation using the clone plugin's function, which is available
+    from MySQL 8.0.17\. To enable this method of state transfer, you must install
+    the clone plugin on the group members and the joining member. Group Replication
+    automatically configures the required clone plugin settings and manages the remote
+    cloning operation.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用克隆插件的功能进行远程克隆操作，该功能从MySQL 8.0.17起可用。要启用此状态传输方法，必须在组成员和加入成员上安装克隆插件。组复制自动配置所需的克隆插件设置，并管理远程克隆操作。
+- en: Replicating from a donor's binary log and applying the transactions on the joining
+    member. This method uses a standard asynchronous replication channel named `group_replication_recovery`
+    that is established between the donor and the joining member.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从捐赠者的二进制日志复制并在加入成员上应用事务。此方法使用一个名为`group_replication_recovery`的标准异步复制通道，在捐赠者和加入成员之间建立。
+- en: Group Replication automatically selects the best combination of these methods
+    for state transfer after you issue [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") on the joining member. To do this,
+    Group Replication checks which existing members are suitable as donors, how many
+    transactions the joining member needs from a donor, and whether any required transactions
+    are no longer present in the binary log files on any group member. If the transaction
+    gap between the joining member and a suitable donor is large, or if some required
+    transactions are not in any donor's binary log files, Group Replication begins
+    distributed recovery with a remote cloning operation. If there is not a large
+    transaction gap, or if the clone plugin is not installed, Group Replication proceeds
+    directly to state transfer from a donor's binary log.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在加入成员上发出[`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement")后，组复制会自动选择这些方法的最佳组合进行状态转移。为此，组复制会检查哪些现有成员适合作为捐赠者，加入成员需要从捐赠者那里获取多少事务，以及是否在任何组成员的二进制日志文件中不再存在任何必需的事务。如果加入成员与适当的捐赠者之间的事务差距很大，或者某些必需的事务不在任何捐赠者的二进制日志文件中，组复制将开始进行远程克隆操作的分布式恢复。如果事务差距不大，或者未安装克隆插件，则组复制直接进行从捐赠者的二进制日志进行状态转移。
+- en: During a remote cloning operation, the existing data on the joining member is
+    removed, and replaced with a copy of the donor's data. When the remote cloning
+    operation is complete and the joining member has restarted, state transfer from
+    a donor's binary log is carried out to get the transactions that the group applied
+    while the remote cloning operation was in progress.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在远程克隆操作期间，加入成员上的现有数据将被删除，并替换为捐赠者的数据副本。当远程克隆操作完成并加入成员重新启动时，将执行从捐赠者的二进制日志进行状态转移，以获取在远程克隆操作进行时组应用的事务。
+- en: During state transfer from a donor's binary log, the joining member replicates
+    and applies the required transactions from the donor's binary log, applying the
+    transactions as they are received, up to the point where the binary log records
+    that the joining member joined the group (a view change event). While this is
+    in progress, the joining member buffers the new transactions that the group applies.
+    When state transfer from the binary log is complete, the joining member applies
+    the buffered transactions.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在从捐赠者的二进制日志进行状态转移期间，加入成员复制并应用所需的事务从捐赠者的二进制日志中，按照接收到的事务逐个应用，直到二进制日志记录加入成员加入组的点（视图更改事件）。在此过程中，加入成员缓冲组应用的新事务。当从二进制日志的状态转移完成时，加入成员应用缓冲事务。
+- en: When the joining member is up to date with all the group's transactions, it
+    is declared online and can participate in the group as a normal member, and distributed
+    recovery is complete.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当加入成员与组的所有事务保持最新时，它被声明为在线，并可以作为正常成员参与组，并且分布式恢复完成。
+- en: Tip
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 提示
+- en: State transfer from the binary log is Group Replication's base mechanism for
+    distributed recovery, and if the donors and joining members in your replication
+    group are not set up to support cloning, this is the only available option. As
+    state transfer from the binary log is based on classic asynchronous replication,
+    it might take a very long time if the server joining the group does not have the
+    group's data at all, or has data taken from a very old backup image. In this situation,
+    it is therefore recommended that before adding a server to the group, you should
+    set it up with the group's data by transferring a fairly recent snapshot of a
+    server already in the group. This minimizes the time taken for distributed recovery,
+    and reduces the impact on donor servers, since they have to retain and transfer
+    fewer binary log files.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从二进制日志进行状态转移是组复制的分布式恢复的基本机制，如果您的复制组中的捐赠者和加入成员未设置为支持克隆，则这是唯一可用的选项。由于从二进制日志进行状态转移是基于经典的异步复制，如果加入组的服务器根本没有组的数据，或者具有来自非常旧的备份镜像的数据，可能需要很长时间。因此，在将服务器添加到组之前，建议您通过传输一个相当新的服务器快照来设置具有组数据的服务器。这样可以最大程度地减少分布式恢复所需的时间，并减少对捐赠者服务器的影响，因为它们需要保留和传输更少的二进制日志文件。

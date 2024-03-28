@@ -1,0 +1,187 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-communication-protocol.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-communication-protocol.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: '[https://dev.mysql.com/doc/refman/8.0/en/group-replication-communication-protocol.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-communication-protocol.html)'
+- en: 20.5.1.4 Setting a Group's Communication Protocol Version
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.5.1.4 设置组的通信协议版本
+- en: From MySQL 8.0.16, Group Replication has the concept of a communication protocol
+    for the group. The Group Replication communication protocol version can be managed
+    explicitly, and set to accommodate the oldest MySQL Server version that you want
+    the group to support. This enables groups to be formed from members at different
+    MySQL Server versions while ensuring backward compatibility.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.16 开始，Group Replication 具有组的通信协议的概念。Group Replication 通信协议版本可以被明确管理，并设置为适应您希望组支持的最旧
+    MySQL Server 版本。这使得可以从不同 MySQL Server 版本的成员组成组，同时确保向后兼容性。
+- en: Versions from MySQL 5.7.14 allow compression of messages (see [Section 20.7.4,
+    “Message Compression”](group-replication-message-compression.html "20.7.4 Message
+    Compression")).
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 5.7.14 版本允许消息的压缩（参见[Section 20.7.4, “Message Compression”](group-replication-message-compression.html
+    "20.7.4 Message Compression")）。
+- en: Versions from MySQL 8.0.16 also allow fragmentation of messages (see [Section 20.7.5,
+    “Message Fragmentation”](group-replication-performance-message-fragmentation.html
+    "20.7.5 Message Fragmentation")).
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.16 版本还允许消息的分段（参见[Section 20.7.5, “Message Fragmentation”](group-replication-performance-message-fragmentation.html
+    "20.7.5 Message Fragmentation")）。
+- en: Versions from MySQL 8.0.27 also allow the group communication engine to operate
+    with a single consensus leader when the group is in single-primary mode and [`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)
+    is set to true (see [Section 20.7.3, “Single Consensus Leader”](group-replication-single-consensus-leader.html
+    "20.7.3 Single Consensus Leader")).
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.27 版本还允许在单主模式下，当[`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)设置为
+    true 时，组通信引擎可以与单一一致性领导者一起运行（参见[Section 20.7.3, “Single Consensus Leader”](group-replication-single-consensus-leader.html
+    "20.7.3 Single Consensus Leader")）。
+- en: All members of the group must use the same communication protocol version, so
+    that group members can be at different MySQL Server releases but only send messages
+    that can be understood by all group members.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有组成员必须使用相同的通信协议版本，以便组成员可以处于不同的 MySQL Server 版本，但只发送所有组成员都能理解的消息。
+- en: A MySQL server at version X can only join and reach `ONLINE` status in a replication
+    group if the group's communication protocol version is less than or equal to X.
+    When a new member joins a replication group, it checks the communication protocol
+    version that is announced by the existing members of the group. If the joining
+    member supports that version, it joins the group and uses the communication protocol
+    that the group has announced, even if the member supports additional communication
+    capabilities. If the joining member does not support the communication protocol
+    version, it is expelled from the group.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 服务器在版本 X 下，只有当复制组的通信协议版本小于或等于 X 时，才能加入并达到`ONLINE`状态。当新成员加入复制组时，它会检查现有成员所宣布的通信协议版本。如果加入成员支持该版本，则加入该组并使用组宣布的通信协议，即使该成员支持额外的通信能力。如果加入成员不支持通信协议版本，则会被从组中驱逐。
+- en: 'If two members attempt to join in the same membership change event, they can
+    only join if the communication protocol version for both members is already compatible
+    with the group''s communication protocol version. Members with different communication
+    protocol versions from the group must join in isolation. For example:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果两个成员尝试在同一成员变更事件中加入，只有当两个成员的通信协议版本已经与组的通信协议版本兼容时，它们才能加入。与组不同通信协议版本的成员必须独立加入。例如：
+- en: One MySQL Server 8.0.16 instance can successfully join a group that uses the
+    communication protocol version 5.7.24.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个 MySQL Server 8.0.16 实例可以成功加入使用通信协议版本 5.7.24 的组。
+- en: One MySQL Server 5.7.24 instance cannot successfully join a group that uses
+    the communication protocol version 8.0.16.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个 MySQL Server 5.7.24 实例无法成功加入使用通信协议版本 8.0.16 的组。
+- en: Two MySQL Server 8.0.16 instances cannot simultaneously join a group that uses
+    the communication protocol version 5.7.24.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 两个 MySQL Server 8.0.16 实例不能同时加入使用通信协议版本 5.7.24 的组。
+- en: Two MySQL Server 8.0.16 instances can simultaneously join a group that uses
+    the communication protocol version 8.0.16.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 两个 MySQL Server 8.0.16 实例可以同时加入使用通信协议版本 8.0.16 的组。
+- en: 'You can inspect the communication protocol in use by a group by using the [`group_replication_get_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-get-communication-protocol)
+    function, which returns the oldest MySQL Server version that the group supports.
+    All existing members of the group return the same communication protocol version.
+    For example:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[`group_replication_get_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-get-communication-protocol)函数检查组正在使用的通信协议，该函数返回组支持的最旧
+    MySQL Server 版本。组的所有现有成员返回相同的通信协议版本。例如：
+- en: '[PRE0]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note that the [`group_replication_get_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-get-communication-protocol)
+    function returns the minimum MySQL version that the group supports, which might
+    differ from the version number that was passed to the [`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)
+    function, and from the MySQL Server version that is installed on the member where
+    you use the function.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，[`group_replication_get_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-get-communication-protocol)函数返回组支持的最低
+    MySQL 版本，这可能与传递给[`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)函数的版本号不同，并且可能与您在使用该函数的成员上安装的
+    MySQL Server 版本不同。
+- en: 'If you need to change the communication protocol version of a group so that
+    members at earlier releases can join, use the [`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)
+    function to specify the MySQL Server version of the oldest member that you want
+    to allow. This makes the group fall back to a compatible communication protocol
+    version if possible. The [`GROUP_REPLICATION_ADMIN`](privileges-provided.html#priv_group-replication-admin)
+    privilege is required to use this function, and all existing group members must
+    be online when you issue the statement, with no loss of majority. For example:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您需要更改组的通信协议版本，以便早期版本的成员可以加入，请使用[`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)函数指定您希望允许的最旧成员的
+    MySQL Server 版本。如果可能的话，这将使组回退到兼容的通信协议版本。使用此函数需要[`GROUP_REPLICATION_ADMIN`](privileges-provided.html#priv_group-replication-admin)权限，并且在发出语句时，所有现有组成员必须在线，没有多数成员丢失。例如：
+- en: '[PRE1]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'If you upgrade all the members of a replication group to a new MySQL Server
+    release, the group''s communication protocol version is not automatically upgraded
+    to match. If you no longer need to support members at earlier releases, you can
+    use the [`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)
+    function to set the communication protocol version to the new MySQL Server version
+    to which you have upgraded the members. For example:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您将复制组的所有成员升级到新的 MySQL Server 版本，则组的通信协议版本不会自动升级以匹配。如果您不再需要支持早期版本的成员，您可以使用[`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)函数将通信协议版本设置为您已经升级成员的新
+    MySQL Server 版本。例如：
+- en: '[PRE2]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The [`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)
+    function is implemented as a group action, so it is executed at the same time
+    on all members of the group. The group action starts buffering messages and waits
+    for delivery of any outgoing messages that were already in progress to complete,
+    then changes the communication protocol version and sends the buffered messages.
+    If a member attempts to join the group at any time after you change the communication
+    protocol version, the group members announce the new protocol version.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)
+    函数被实现为一个组操作，因此在组的所有成员上同时执行。组操作开始缓冲消息，并等待任何正在进行中的传出消息的传递完成，然后更改通信协议版本并发送缓冲消息。如果在更改通信协议版本后的任何时间点，有成员尝试加入组，组成员会宣布新的协议版本。'
+- en: MySQL InnoDB cluster automatically and transparently manages the communication
+    protocol versions of its members, whenever the cluster topology is changed using
+    AdminAPI operations. An InnoDB cluster always uses the most recent communication
+    protocol version that is supported by all the instances that are currently part
+    of the cluster or joining it. For details, see [InnoDB Cluster and Group Replication
+    Protocol](/doc/mysql-shell/8.0/en/monitoring-innodb-cluster.html#innodb-cluster-group-replication-protocol).
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL InnoDB 集群在使用 AdminAPI 操作更改集群拓扑结构时，自动透明地管理其成员的通信协议版本。InnoDB 集群始终使用当前所有实例支持的最新通信协议版本，这些实例当前是集群的一部分或正在加入其中。有关详细信息，请参阅[InnoDB
+    集群和组复制协议](/doc/mysql-shell/8.0/en/monitoring-innodb-cluster.html#innodb-cluster-group-replication-protocol)。

@@ -1,0 +1,124 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-temptables.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-temptables.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-temptables.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-temptables.html)
+- en: 19.5.1.31 Replication and Temporary Tables
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.31 复制和临时表
+- en: In MySQL 8.0, when [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `ROW` or `MIXED`, statements that exclusively use temporary tables are
+    not logged on the source, and therefore the temporary tables are not replicated.
+    Statements that involve a mix of temporary and nontemporary tables are logged
+    on the source only for the operations on nontemporary tables, and the operations
+    on temporary tables are not logged. This means that there are never any temporary
+    tables on the replica to be lost in the event of an unplanned shutdown by the
+    replica. For more information about row-based replication and temporary tables,
+    see [Row-based logging of temporary tables](replication-rbr-usage.html#replication-rbr-usage-temptables
+    "Row-based logging of temporary tables").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0中，当[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`ROW`或`MIXED`时，仅使用临时表的语句不会在源上记录，因此临时表不会被复制。涉及临时表和非临时表混合的语句仅在源上为非临时表的操作记录，临时表的操作不会记录。这意味着在副本发生意外关闭时，副本上永远不会有临时表丢失。有关基于行的复制和临时表的更多信息，请参阅[基于行的临时表记录](replication-rbr-usage.html#replication-rbr-usage-temptables
+    "基于行的临时表记录")。
+- en: When [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `STATEMENT`, operations on temporary tables are logged on the source
+    and replicated on the replica, provided that the statements involving temporary
+    tables can be logged safely using statement-based format. In this situation, loss
+    of replicated temporary tables on the replica can be an issue. In statement-based
+    replication mode, [`CREATE TEMPORARY TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement") and [`DROP TEMPORARY TABLE`](drop-table.html "15.1.32 DROP TABLE
+    Statement") statements cannot be used inside a transaction, procedure, function,
+    or trigger when GTIDs are in use on the server (that is, when the [`enforce_gtid_consistency`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)
+    system variable is set to `ON`). They can be used outside these contexts when
+    GTIDs are in use, provided that [`autocommit=1`](server-system-variables.html#sysvar_autocommit)
+    is set.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时，涉及临时表的语句在源上记录并在副本上复制，前提是涉及临时表的语句可以安全地使用基于语句的格式记录。在这种情况下，在副本上丢失复制的临时表可能是一个问题。在基于语句的复制模式中，当服务器上使用GTIDs时（即，当[`enforce_gtid_consistency`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)系统变量设置为`ON`时），不能在事务、过程、函数或触发器中使用[`CREATE
+    TEMPORARY TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")和[`DROP TEMPORARY
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句。当使用GTIDs时，可以在这些上下文之外使用它们，前提是设置了[`autocommit=1`](server-system-variables.html#sysvar_autocommit)。
+- en: Because of the differences in behavior between row-based or mixed replication
+    mode and statement-based replication mode regarding temporary tables, you cannot
+    switch the replication format at runtime, if the change applies to a context (global
+    or session) that contains any open temporary tables. For more details, see the
+    description of the [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    option.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于基于行或混合复制模式与基于语句的复制模式在临时表行为上的差异，如果更改适用于包含任何打开临时表的上下文（全局或会话），则不能在运行时切换复制格式。有关更多详细信息，请参阅[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)选项的描述。
+- en: '**Safe replica shutdown when using temporary tables. ** In statement-based
+    replication mode, temporary tables are replicated except in the case where you
+    stop the replica server (not just the replication threads) and you have replicated
+    temporary tables that are open for use in updates that have not yet been executed
+    on the replica. If you stop the replica server, the temporary tables needed by
+    those updates are no longer available when the replica is restarted. To avoid
+    this problem, do not shut down the replica while it has temporary tables open.
+    Instead, use the following procedure:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**在使用临时表时安全地关闭复制。** 在基于语句的复制模式下，临时表会被复制，除非您停止复制服务器（而不仅仅是复制线程），并且您已经复制了在副本上尚未执行的更新中使用的临时表。如果停止复制服务器，则在重新启动副本时，这些更新所需的临时表将不再可用。为了避免这个问题，请不要在副本有打开的临时表时关闭副本。而是使用以下过程：'
+- en: Issue a `STOP REPLICA SQL_THREAD` statement.
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 发出`STOP REPLICA SQL_THREAD`语句。
+- en: Use [`SHOW STATUS`](show-status.html "15.7.7.37 SHOW STATUS Statement") to check
+    the value of the [`Replica_open_temp_tables`](server-status-variables.html#statvar_Replica_open_temp_tables)
+    or [`Slave_open_temp_tables`](server-status-variables.html#statvar_Slave_open_temp_tables)
+    status variable.
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`SHOW STATUS`](show-status.html "15.7.7.37 SHOW STATUS Statement")来检查[`Replica_open_temp_tables`](server-status-variables.html#statvar_Replica_open_temp_tables)或[`Slave_open_temp_tables`](server-status-variables.html#statvar_Slave_open_temp_tables)状态变量的值。
+- en: If the value is not 0, restart the replication SQL thread with `START REPLICA
+    SQL_THREAD` and repeat the procedure later.
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果值不为0，请使用`START REPLICA SQL_THREAD`重新启动复制SQL线程，稍后重复该过程。
+- en: When the value is 0, issue a [**mysqladmin shutdown**](mysqladmin.html "6.5.2 mysqladmin
+    — A MySQL Server Administration Program") command to stop the replica.
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当值为0时，发出[**mysqladmin shutdown**](mysqladmin.html "6.5.2 mysqladmin — A MySQL
+    Server Administration Program")命令来停止复制。
+- en: '**Temporary tables and replication options. ** By default, with statement-based
+    replication, all temporary tables are replicated; this happens whether or not
+    there are any matching [`--replicate-do-db`](replication-options-replica.html#option_mysqld_replicate-do-db),
+    [`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table),
+    or [`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)
+    options in effect. However, the [`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)
+    and [`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    options are honored for temporary tables. The exception is that to enable correct
+    removal of temporary tables at the end of a session, a replica always replicates
+    a `DROP TEMPORARY TABLE IF EXISTS` statement, regardless of any exclusion rules
+    that would normally apply for the specified table.'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**临时表和复制选项。** 默认情况下，使用基于语句的复制时，所有临时表都会被复制；无论是否存在任何匹配的[`--replicate-do-db`](replication-options-replica.html#option_mysqld_replicate-do-db)，[`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)，或[`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)选项。但是，对于临时表，会遵守[`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)和[`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)选项。唯一的例外是，为了在会话结束时正确删除临时表，复制总是会复制`DROP
+    TEMPORARY TABLE IF EXISTS`语句，而不管通常适用于指定表的任何排除规则。'
+- en: A recommended practice when using statement-based replication is to designate
+    a prefix for exclusive use in naming temporary tables that you do not want replicated,
+    then employ a [`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    option to match that prefix. For example, you might give all such tables names
+    beginning with `norep` (such as `norepmytable`, `norepyourtable`, and so on),
+    then use [`--replicate-wild-ignore-table=norep%`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    to prevent them from being replicated.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用基于语句的复制时，建议指定一个专用前缀用于命名不希望被复制的临时表，然后使用[`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)选项来匹配该前缀。例如，您可以给所有这样的表命名以`norep`开头（如`norepmytable`，`norepyourtable`等），然后使用[`--replicate-wild-ignore-table=norep%`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)来阻止它们被复制。

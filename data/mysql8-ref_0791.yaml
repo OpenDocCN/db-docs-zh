@@ -1,0 +1,385 @@
+- en: 14.3 Type Conversion in Expression Evaluation
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 14.3 表达式求值中的类型转换
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/type-conversion.html](https://dev.mysql.com/doc/refman/8.0/en/type-conversion.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/type-conversion.html](https://dev.mysql.com/doc/refman/8.0/en/type-conversion.html)
+- en: When an operator is used with operands of different types, type conversion occurs
+    to make the operands compatible. Some conversions occur implicitly. For example,
+    MySQL automatically converts strings to numbers as necessary, and vice versa.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用具有不同类型操作数的运算符时，会发生类型转换以使操作数兼容。一些转换会隐式发生。例如，MySQL会根据需要自动将字符串转换为数字，反之亦然。
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: It is also possible to convert a number to a string explicitly using the [`CAST()`](cast-functions.html#function_cast)
+    function. Conversion occurs implicitly with the [`CONCAT()`](string-functions.html#function_concat)
+    function because it expects string arguments.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以使用[`CAST()`](cast-functions.html#function_cast)函数将数字显式转换为字符串。使用[`CONCAT()`](string-functions.html#function_concat)函数时会隐式进行转换，因为它期望字符串参数。
+- en: '[PRE1]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: See later in this section for information about the character set of implicit
+    number-to-string conversions, and for modified rules that apply to `CREATE TABLE
+    ... SELECT` statements.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请参阅本节后面有关隐式数字到字符串转换的字符集信息，以及适用于`CREATE TABLE ... SELECT`语句的修改规则。
+- en: 'The following rules describe how conversion occurs for comparison operations:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下规则描述了比较操作的转换方式：
+- en: If one or both arguments are `NULL`, the result of the comparison is `NULL`,
+    except for the `NULL`-safe [`<=>`](comparison-operators.html#operator_equal-to)
+    equality comparison operator. For `NULL <=> NULL`, the result is true. No conversion
+    is needed.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个或两个参数为`NULL`，则比较的结果为`NULL`，除了`NULL`安全的[`<=>`](comparison-operators.html#operator_equal-to)等于比较运算符。对于`NULL
+    <=> NULL`，结果为真。不需要转换。
+- en: If both arguments in a comparison operation are strings, they are compared as
+    strings.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果比较操作中的两个参数都是字符串，则将它们作为字符串进行比较。
+- en: If both arguments are integers, they are compared as integers.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果两个参数都是整数，则将它们作为整数进行比较。
+- en: Hexadecimal values are treated as binary strings if not compared to a number.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果十六进制值与数字进行比较，则将其视为二进制字符串。
+- en: If one of the arguments is a [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME,
+    and TIMESTAMP Types") or [`DATETIME`](datetime.html "13.2.2 The DATE, DATETIME,
+    and TIMESTAMP Types") column and the other argument is a constant, the constant
+    is converted to a timestamp before the comparison is performed. This is done to
+    be more ODBC-friendly. This is not done for the arguments to [`IN()`](comparison-operators.html#operator_in).
+    To be safe, always use complete datetime, date, or time strings when doing comparisons.
+    For example, to achieve best results when using [`BETWEEN`](comparison-operators.html#operator_between)
+    with date or time values, use [`CAST()`](cast-functions.html#function_cast) to
+    explicitly convert the values to the desired data type.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果其中一个参数是[`TIMESTAMP`](datetime.html "13.2.2 日期、DATETIME 和 TIMESTAMP 类型")或[`DATETIME`](datetime.html
+    "13.2.2 日期、DATETIME 和 TIMESTAMP 类型")列，另一个参数是常量，则在执行比较之前将常量转换为时间戳。这样做是为了更符合ODBC标准。但对于[`IN()`](comparison-operators.html#operator_in)的参数不会执行此操作。为了安全起见，在进行比较时，始终使用完整的日期、日期或时间字符串。例如，当使用[`BETWEEN`](comparison-operators.html#operator_between)与日期或时间值时，使用[`CAST()`](cast-functions.html#function_cast)将值显式转换为所需的数据类型以获得最佳结果。
+- en: A single-row subquery from a table or tables is not considered a constant. For
+    example, if a subquery returns an integer to be compared to a [`DATETIME`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") value, the comparison is done
+    as two integers. The integer is not converted to a temporal value. To compare
+    the operands as [`DATETIME`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP
+    Types") values, use [`CAST()`](cast-functions.html#function_cast) to explicitly
+    convert the subquery value to [`DATETIME`](datetime.html "13.2.2 The DATE, DATETIME,
+    and TIMESTAMP Types").
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 来自表或表的单行子查询不被视为常量。例如，如果子查询返回一个整数用于与[`DATETIME`](datetime.html "13.2.2 日期、DATETIME
+    和 TIMESTAMP 类型")值进行比较，则比较将作为两个整数进行。整数不会转换为时间值。要将操作数作为[`DATETIME`](datetime.html
+    "13.2.2 日期、DATETIME 和 TIMESTAMP 类型")值进行比较，请使用[`CAST()`](cast-functions.html#function_cast)将子查询值显式转换为[`DATETIME`](datetime.html
+    "13.2.2 日期、DATETIME 和 TIMESTAMP 类型")。
+- en: If one of the arguments is a decimal value, comparison depends on the other
+    argument. The arguments are compared as decimal values if the other argument is
+    a decimal or integer value, or as floating-point values if the other argument
+    is a floating-point value.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果其中一个参数是十进制值，则比较取决于另一个参数。如果另一个参数是十进制或整数值，则将参数作为十进制值进行比较，如果另一个参数是浮点值，则将参数作为浮点值进行比较。
+- en: In all other cases, the arguments are compared as floating-point (double-precision)
+    numbers. For example, a comparison of string and numeric operands takes place
+    as a comparison of floating-point numbers.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在所有其他情况下，参数将作为浮点（双精度）数进行比较。例如，字符串和数字操作数的比较将作为浮点数的比较进行。
+- en: For information about conversion of values from one temporal type to another,
+    see [Section 13.2.8, “Conversion Between Date and Time Types”](date-and-time-type-conversion.html
+    "13.2.8 Conversion Between Date and Time Types").
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关从一种时间类型转换为另一种时间类型的值的转换信息，请参见[第13.2.8节，“日期和时间类型之间的转换”](date-and-time-type-conversion.html
+    "13.2.8 日期和时间类型之间的转换")。
+- en: Comparison of JSON values takes place at two levels. The first level of comparison
+    is based on the JSON types of the compared values. If the types differ, the comparison
+    result is determined solely by which type has higher precedence. If the two values
+    have the same JSON type, a second level of comparison occurs using type-specific
+    rules. For comparison of JSON and non-JSON values, the non-JSON value is converted
+    to JSON and the values compared as JSON values. For details, see [Comparison and
+    Ordering of JSON Values](json.html#json-comparison "Comparison and Ordering of
+    JSON Values").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON值的比较分为两个级别。第一级别的比较基于比较值的JSON类型。如果类型不同，则比较结果仅由具有更高优先级的类型确定。如果两个值具有相同的JSON类型，则使用特定于类型的规则进行第二级别的比较。对于JSON和非JSON值的比较，将非JSON值转换为JSON，然后将值作为JSON值进行比较。有关详细信息，请参见[JSON值的比较和排序](json.html#json-comparison
+    "JSON值的比较和排序")。
+- en: 'The following examples illustrate conversion of strings to numbers for comparison
+    operations:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例说明了将字符串转换为数字进行比较操作：
+- en: '[PRE2]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'For comparisons of a string column with a number, MySQL cannot use an index
+    on the column to look up the value quickly. If *`str_col`* is an indexed string
+    column, the index cannot be used when performing the lookup in the following statement:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于字符串列与数字的比较，MySQL无法使用列上的索引快速查找值。如果*`str_col`*是一个带索引的字符串列，在执行以下语句中进行查找时，索引将无法使用：
+- en: '[PRE3]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The reason for this is that there are many different strings that may convert
+    to the value `1`, such as `'1'`, `' 1'`, or `'1a'`.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是因为有许多不同的字符串可能转换为值`1`，比如`'1'`，`' 1'`或`'1a'`。
+- en: Comparisons between floating-point numbers and large values of `INTEGER` type
+    are approximate because the integer is converted to double-precision floating
+    point before comparison, which is not capable of representing all 64-bit integers
+    exactly. For example, the integer value 2^(53) + 1 is not representable as a float,
+    and is rounded to 2^(53) or 2^(53) + 2 before a float comparison, depending on
+    the platform.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 浮点数和大整数类型的比较是近似的，因为在比较之前整数被转换为双精度浮点数，而双精度浮点数无法精确表示所有64位整数。例如，整数值2^(53) + 1无法表示为浮点数，在浮点比较之前会被四舍五入为2^(53)或2^(53)
+    + 2，具体取决于平台。
+- en: 'To illustrate, only the first of the following comparisons compares equal values,
+    but both comparisons return true (1):'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅以以下比较中的第一个比较相等的值，但两个比较都返回true（1）：
+- en: '[PRE4]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'When conversions from string to floating-point and from integer to floating-point
+    occur, they do not necessarily occur the same way. The integer may be converted
+    to floating-point by the CPU, whereas the string is converted digit by digit in
+    an operation that involves floating-point multiplications. Also, results can be
+    affected by factors such as computer architecture or the compiler version or optimization
+    level. One way to avoid such problems is to use [`CAST()`](cast-functions.html#function_cast)
+    so that a value is not converted implicitly to a float-point number:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当从字符串到浮点数和从整数到浮点数的转换发生时，它们不一定以相同的方式发生。整数可能由CPU转换为浮点数，而字符串则通过涉及浮点数乘法的操作逐位转换。此外，结果可能受到诸如计算机架构、编译器版本或优化级别等因素的影响。避免此类问题的一种方法是使用[`CAST()`](cast-functions.html#function_cast)以便值不会隐式转换为浮点数：
+- en: '[PRE5]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: For more information about floating-point comparisons, see [Section B.3.4.8,
+    “Problems with Floating-Point Values”](problems-with-float.html "B.3.4.8 Problems
+    with Floating-Point Values").
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关浮点比较的更多信息，请参见[第B.3.4.8节，“浮点值的问题”](problems-with-float.html "B.3.4.8 Problems
+    with Floating-Point Values")。
+- en: 'The server includes `dtoa`, a conversion library that provides the basis for
+    improved conversion between string or [`DECIMAL`](fixed-point-types.html "13.1.3 Fixed-Point
+    Types (Exact Value) - DECIMAL, NUMERIC") values and approximate-value ([`FLOAT`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE")/[`DOUBLE`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE")) numbers:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器包含`dtoa`，一个转换库，提供了在字符串或[`DECIMAL`](fixed-point-types.html "13.1.3 Fixed-Point
+    Types (Exact Value) - DECIMAL, NUMERIC")值和近似值（[`FLOAT`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE")/[`DOUBLE`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE")）之间改进转换的基础：
+- en: Consistent conversion results across platforms, which eliminates, for example,
+    Unix versus Windows conversion differences.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 跨平台的一致转换结果，消除了Unix与Windows转换差异，例如。
+- en: Accurate representation of values in cases where results previously did not
+    provide sufficient precision, such as for values close to IEEE limits.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在以前结果未提供足够精度的情况下准确表示值，例如接近IEEE极限的值。
+- en: Conversion of numbers to string format with the best possible precision. The
+    precision of `dtoa` is always the same or better than that of the standard C library
+    functions.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将数字转换为具有最佳可能精度的字符串格式。`dtoa`的精度始终与标准C库函数相同或更好。
+- en: Because the conversions produced by this library differ in some cases from non-`dtoa`
+    results, the potential exists for incompatibilities in applications that rely
+    on previous results. For example, applications that depend on a specific exact
+    result from previous conversions might need adjustment to accommodate additional
+    precision.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于此库产生的转换在某些情况下与非`dtoa`结果不同，因此存在应用程序不兼容的潜在可能性，这些应用程序依赖于以前的结果。例如，依赖于以前转换的特定精确结果的应用程序可能需要调整以适应额外的精度。
+- en: The `dtoa` library provides conversions with the following properties. *`D`*
+    represents a value with a [`DECIMAL`](fixed-point-types.html "13.1.3 Fixed-Point
+    Types (Exact Value) - DECIMAL, NUMERIC") or string representation, and *`F`* represents
+    a floating-point number in native binary (IEEE) format.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`dtoa`库提供了以下属性的转换。*`D`* 表示具有[`DECIMAL`](fixed-point-types.html "13.1.3 Fixed-Point
+    Types (Exact Value) - DECIMAL, NUMERIC")或字符串表示的值，*`F`* 表示本机二进制（IEEE）格式的浮点数。'
+- en: '*`F`* -> *`D`* conversion is done with the best possible precision, returning
+    *`D`* as the shortest string that yields *`F`* when read back in and rounded to
+    the nearest value in native binary format as specified by IEEE.'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`F`* -> *`D`* 转换是以最佳可能精度进行的，返回 *`D`* 作为最短字符串，当读回并按IEEE指定的本机二进制格式四舍五入到最接近的值时，会产生
+    *`F`*。'
+- en: '*`D`* -> *`F`* conversion is done such that *`F`* is the nearest native binary
+    number to the input decimal string *`D`*.'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`D`* -> *`F`* 转换是这样进行的，使得 *`F`* 是输入十进制字符串 *`D`* 最接近的本机二进制数。'
+- en: These properties imply that *`F`* -> *`D`* -> *`F`* conversions are lossless
+    unless *`F`* is `-inf`, `+inf`, or `NaN`. The latter values are not supported
+    because the SQL standard defines them as invalid values for [`FLOAT`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE") or [`DOUBLE`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE").
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些属性意味着 *`F`* -> *`D`* -> *`F`* 转换是无损失的，除非 *`F`* 是 `-inf`，`+inf` 或 `NaN`。后三个值不受支持，因为SQL标准将它们定义为[`FLOAT`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE")或[`DOUBLE`](floating-point-types.html
+    "13.1.4 Floating-Point Types (Approximate Value) - FLOAT, DOUBLE")的无效值。
+- en: For *`D`* -> *`F`* -> *`D`* conversions, a sufficient condition for losslessness
+    is that *`D`* uses 15 or fewer digits of precision, is not a denormal value, `-inf`,
+    `+inf`, or `NaN`. In some cases, the conversion is lossless even if *`D`* has
+    more than 15 digits of precision, but this is not always the case.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 *`D`* -> *`F`* -> *`D`* 转换，无损失的一个充分条件是 *`D`* 使用15位或更少的精度，不是非规格化值，也不是 `-inf`，`+inf`
+    或 `NaN`。在某些情况下，即使 *`D`* 的精度超过15位，转换也是无损失的，但并非总是如此。
+- en: Implicit conversion of a numeric or temporal value to string produces a value
+    that has a character set and collation determined by the [`character_set_connection`](server-system-variables.html#sysvar_character_set_connection)
+    and [`collation_connection`](server-system-variables.html#sysvar_collation_connection)
+    system variables. (These variables commonly are set with [`SET NAMES`](set-names.html
+    "15.7.6.3 SET NAMES Statement"). For information about connection character sets,
+    see [Section 12.4, “Connection Character Sets and Collations”](charset-connection.html
+    "12.4 Connection Character Sets and Collations").)
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将数值或时间值隐式转换为字符串会产生一个具有由[`character_set_connection`](server-system-variables.html#sysvar_character_set_connection)和[`collation_connection`](server-system-variables.html#sysvar_collation_connection)系统变量确定的字符集和排序规则的值。（这些变量通常使用[`SET
+    NAMES`](set-names.html "15.7.6.3 SET NAMES Statement")设置。有关连接字符集的信息，请参见[第12.4节，“连接字符集和排序规则”](charset-connection.html
+    "12.4 Connection Character Sets and Collations")。）
+- en: This means that such a conversion results in a character (nonbinary) string
+    (a [`CHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), [`VARCHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types"), or [`LONGTEXT`](blob.html "13.3.4 The BLOB
+    and TEXT Types") value), except in the case that the connection character set
+    is set to `binary`. In that case, the conversion result is a binary string (a
+    [`BINARY`](binary-varbinary.html "13.3.3 The BINARY and VARBINARY Types"), [`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types"), or [`LONGBLOB`](blob.html "13.3.4 The
+    BLOB and TEXT Types") value).
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这意味着这样的转换会产生一个字符（非二进制）字符串（一个[`CHAR`](char.html "13.3.2 The CHAR and VARCHAR
+    Types")、[`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types")或[`LONGTEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types")值），除非连接字符集设置为`binary`。在这种情况下，转换结果是一个二进制字符串（一个[`BINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types")、[`VARBINARY`](binary-varbinary.html "13.3.3 The
+    BINARY and VARBINARY Types")或[`LONGBLOB`](blob.html "13.3.4 The BLOB and TEXT
+    Types")值）。
+- en: 'For integer expressions, the preceding remarks about expression *evaluation*
+    apply somewhat differently for expression *assignment*; for example, in a statement
+    such as this:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于整数表达式，关于表达式*评估*的前述备注在表达式*赋值*方面有所不同；例如，在这样的语句中：
+- en: '[PRE6]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'In this case, the table in the column resulting from the expression has type
+    [`INT`](integer-types.html "13.1.2 Integer Types (Exact Value) - INTEGER, INT,
+    SMALLINT, TINYINT, MEDIUMINT, BIGINT") or [`BIGINT`](integer-types.html "13.1.2 Integer
+    Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT") depending
+    on the length of the integer expression. If the maximum length of the expression
+    does not fit in an [`INT`](integer-types.html "13.1.2 Integer Types (Exact Value)
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT"), [`BIGINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT") is used instead. The length is taken from the `max_length` value of the
+    [`SELECT`](select.html "15.2.13 SELECT Statement") result set metadata (see [C
+    API Basic Data Structures](/doc/c-api/8.0/en/c-api-data-structures.html)). This
+    means that you can force a [`BIGINT`](integer-types.html "13.1.2 Integer Types
+    (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT") rather than
+    [`INT`](integer-types.html "13.1.2 Integer Types (Exact Value) - INTEGER, INT,
+    SMALLINT, TINYINT, MEDIUMINT, BIGINT") by use of a sufficiently long expression:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，由表达式生成的列中的表具有[`INT`](integer-types.html "13.1.2 Integer Types (Exact
+    Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")或[`BIGINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT")类型，具体取决于整数表达式的长度。如果表达式的最大长度不适合[`INT`](integer-types.html "13.1.2 Integer
+    Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")，则改用[`BIGINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT")。长度取自[`SELECT`](select.html "15.2.13 SELECT Statement")结果集元数据的`max_length`值（参见[C
+    API基本数据结构](/doc/c-api/8.0/en/c-api-data-structures.html)）。这意味着您可以通过使用足够长的表达式来强制使用[`BIGINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT")而不是[`INT`](integer-types.html "13.1.2 Integer Types (Exact Value) - INTEGER,
+    INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")：
+- en: '[PRE7]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'

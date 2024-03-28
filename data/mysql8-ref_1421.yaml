@@ -1,0 +1,102 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover-replica.html](https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover-replica.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover-replica.html](https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover-replica.html)
+- en: 19.4.9.2 Asynchronous Connection Failover for Replicas
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.4.9.2 副本的异步连接故障转移
+- en: In MySQL 8.0.27 and later, asynchronous connection failover for replicas is
+    activated automatically for a replication channel on a Group Replication primary
+    when you set [`SOURCE_CONNECTION_AUTO_FAILOVER=1`](change-replication-source-to.html#crs-opt-source_connection_auto_failover)
+    in the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") statement for the channel. The feature is designed
+    for a group of senders and a group of receivers to keep synchronized with each
+    other even when some members are temporarily unavailable. When the feature is
+    active and correctly configured, if the primary that is replicating goes offline
+    or into an error state, the new primary starts replication on the same channel
+    when it is elected. The new primary uses the source list for the channel to select
+    the source with the highest priority (weight) setting, which might not be the
+    same as the original source.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.27 及更高版本中，当你在复制通道上设置[`SOURCE_CONNECTION_AUTO_FAILOVER=1`](change-replication-source-to.html#crs-opt-source_connection_auto_failover)时，副本的异步连接故障转移将自动激活于
+    Group Replication 主服务器上。该功能旨在设计一个发送者组和一个接收者组，即使一些成员暂时不可用，它们也能保持同步。当该功能处于活动状态并正确配置时，如果正在复制的主服务器离线或进入错误状态，新的主服务器在选举时将在同一通道上开始复制。新的主服务器使用通道的源列表来选择具有最高优先级（权重）设置的源，这可能与原始源不同。
+- en: To configure this feature, the replication channel and the replication user
+    account and password for the channel must be set up on all the member servers
+    in the replication group, and on any new joining members. Ensure that [`SOURCE_RETRY_COUNT`](change-replication-source-to.html#crs-opt-source_retry_count)
+    and [`SOURCE_CONNECT_RETRY`](change-replication-source-to.html#crs-opt-source_connect_retry)
+    are set to minimal numbers that just allow a few retry attempts, for example 3
+    and 10\. You can set up the replication channel using `CHANGE REPLICATION SOURCE
+    TO`, or if the new servers are provisioned using MySQL's clone functionality,
+    this all happens automatically. The `SOURCE_CONNECTION_AUTO_FAILOVER` setting
+    for the channel is broadcast to group members from the primary when they join.
+    If you later disable `SOURCE_CONNECTION_AUTO_FAILOVER` for the channel on the
+    primary, this is also broadcast to the secondary servers, and they change the
+    status of the channel to match.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要配置此功能，必须在复制组中的所有成员服务器以及任何新加入的成员上设置复制通道和通道的复制用户帐户和密码。确保[`SOURCE_RETRY_COUNT`](change-replication-source-to.html#crs-opt-source_retry_count)和[`SOURCE_CONNECT_RETRY`](change-replication-source-to.html#crs-opt-source_connect_retry)设置为允许少量重试尝试的最小数字，例如3和10。您可以使用`CHANGE
+    REPLICATION SOURCE TO`设置复制通道，或者如果新服务器是使用 MySQL 的克隆功能进行配置的，则所有这些都会自动发生。当新成员加入时，主服务器会向组成员广播通道的`SOURCE_CONNECTION_AUTO_FAILOVER`设置。如果您稍后在主服务器上禁用通道的`SOURCE_CONNECTION_AUTO_FAILOVER`，这也会广播到辅助服务器，并且它们会更改通道的状态以匹配。
+- en: Note
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: A server participating in a group in single-primary mode must be started with
+    [`--skip-replica-start=ON`](replication-options-replica.html#option_mysqld_skip-replica-start).
+    Otherwise, the server cannot join the group as a secondary.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在单主模式下参与组的服务器必须使用[`--skip-replica-start=ON`](replication-options-replica.html#option_mysqld_skip-replica-start)启动。否则，服务器无法作为辅助服务器加入组。
+- en: 'Asynchronous connection failover for replicas is activated and deactivated
+    using the Group Replication member action `mysql_start_failover_channels_if_primary`,
+    which is enabled by default. You can disable it for the whole group by disabling
+    that member action on the primary, using the [`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)
+    function, as in this example:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 副本的异步连接故障转移是通过 Group Replication 成员操作`mysql_start_failover_channels_if_primary`来激活和停用的，默认情况下启用。您可以通过在主服务器上禁用该成员操作来为整个组禁用它，使用[`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)函数，如下例所示：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The function can only be changed on a primary, and must be enabled or disabled
+    for the whole group, so you cannot have some members providing failover and others
+    not. When the `mysql_start_failover_channels_if_primary` member action is disabled,
+    the channel does not need to be configured on secondary members, but if the primary
+    goes offline or into an error state, replication stops for the channel. Note that
+    if there is more than one channel with `SOURCE_CONNECTION_AUTO_FAILOVER=1` , the
+    member action covers all the channels, so they cannot be individually enabled
+    and disabled by that method. Set `SOURCE_CONNECTION_AUTO_FAILOVER=0` on the primary
+    to disable an individual channel.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该功能只能在主服务器上更改，并且必须为整个组启用或禁用，因此不能让一些成员提供故障转移，而其他成员不提供。当禁用`mysql_start_failover_channels_if_primary`成员操作时，次要成员不需要配置频道，但如果主服务器下线或进入错误状态，则该频道的复制将停止。请注意，如果有多个具有`SOURCE_CONNECTION_AUTO_FAILOVER=1`的频道，则成员操作将覆盖所有频道，因此它们不能通过该方法单独启用或禁用。在主服务器上将`SOURCE_CONNECTION_AUTO_FAILOVER=0`设置为禁用单个频道。
+- en: The source list for a channel with `SOURCE_CONNECTION_AUTO_FAILOVER=1` is broadcast
+    to all group members when they join, and also when it changes. This is the case
+    whether the sources are a managed group for which the membership is updated automatically,
+    or whether they are added or changed manually using [`asynchronous_connection_failover_add_source()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-add-source),
+    [`asynchronous_connection_failover_delete_source()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-delete-source),
+    [`asynchronous_connection_failover_add_managed()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-add-managed),
+    or [`asynchronous_connection_failover_delete_managed()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-delete-managed).
+    All group members receive the current source list as recorded in the `mysql.replication_asynchronous_connection_failover`
+    and `mysql.replication_asynchronous_connection_failover_managed` tables. Because
+    the sources do not have to be in a managed group, you can set up the function
+    to synchronize a group of receivers with one or more alternative standalone senders,
+    or even a single sender. A standalone replica that is not part of a replication
+    group cannot use this feature.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当频道具有`SOURCE_CONNECTION_AUTO_FAILOVER=1`时，源列表会在所有组成员加入时广播，并在更改时也会广播。无论这些源是否是一个受管理的组，其成员资格是否会自动更新，或者是使用[`asynchronous_connection_failover_add_source()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-add-source)，[`asynchronous_connection_failover_delete_source()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-delete-source)，[`asynchronous_connection_failover_add_managed()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-add-managed)，或[`asynchronous_connection_failover_delete_managed()`](replication-functions-async-failover.html#function_asynchronous-connection-failover-delete-managed)手动添加或更改。所有组成员都会收到当前源列表，记录在`mysql.replication_asynchronous_connection_failover`和`mysql.replication_asynchronous_connection_failover_managed`表中。因为源不必在受管理的组中，所以您可以设置该功能以将一组接收器与一个或多个备用独立发件人同步，甚至是单个发件人。不属于复制组的独立副本无法使用此功能。

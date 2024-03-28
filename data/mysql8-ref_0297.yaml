@@ -1,0 +1,580 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-usage.html](https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-usage.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-usage.html](https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-usage.html)
+- en: 7.6.4.2 Using the Rewriter Query Rewrite Plugin
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.6.4.2 使用Rewriter查询重写插件
+- en: 'To enable or disable the plugin, enable or disable the [`rewriter_enabled`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)
+    system variable. By default, the `Rewriter` plugin is enabled when you install
+    it (see [Section 7.6.4.1, “Installing or Uninstalling the Rewriter Query Rewrite
+    Plugin”](rewriter-query-rewrite-plugin-installation.html "7.6.4.1 Installing or
+    Uninstalling the Rewriter Query Rewrite Plugin")). To set the initial plugin state
+    explicitly, you can set the variable at server startup. For example, to enable
+    the plugin in an option file, use these lines:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要启用或禁用插件，请启用或禁用[`rewriter_enabled`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)系统变量。默认情况下，安装插件时`Rewriter`插件是启用的（参见[第7.6.4.1节，“安装或卸载Rewriter查询重写插件”](rewriter-query-rewrite-plugin-installation.html
+    "7.6.4.1 安装或卸载Rewriter查询重写插件")）。要显式设置初始插件状态，可以在服务器启动时设置该变量。例如，要在选项文件中启用插件，请使用以下行：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'It is also possible to enable or disable the plugin at runtime:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以在运行时启用或禁用插件：
+- en: '[PRE1]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Assuming that the `Rewriter` plugin is enabled, it examines and possibly modifies
+    each rewritable statement received by the server. The plugin determines whether
+    to rewrite statements based on its in-memory cache of rewriting rules, which are
+    loaded from the `rewrite_rules` table in the `query_rewrite` database.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设`Rewriter`插件已启用，它会检查并可能修改服务器接收到的每个可重写语句。插件根据其内存中的重写规则缓存来决定是否重写语句，这些规则从`query_rewrite`数据库中的`rewrite_rules`表中加载。
+- en: 'These statements are subject to rewriting:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些语句会被重写：
+- en: 'As of MySQL 8.0.12: [`SELECT`](select.html "15.2.13 SELECT Statement"), [`INSERT`](insert.html
+    "15.2.7 INSERT Statement"), [`REPLACE`](replace.html "15.2.12 REPLACE Statement"),
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement"), and [`DELETE`](delete.html
+    "15.2.2 DELETE Statement").'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.12：[`SELECT`](select.html "15.2.13 SELECT语句")、[`INSERT`](insert.html
+    "15.2.7 INSERT语句")、[`REPLACE`](replace.html "15.2.12 REPLACE语句")、[`UPDATE`](update.html
+    "15.2.17 UPDATE语句")和[`DELETE`](delete.html "15.2.2 DELETE语句")。
+- en: 'Prior to MySQL 8.0.12: [`SELECT`](select.html "15.2.13 SELECT Statement") only.'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.12之前：仅[`SELECT`](select.html "15.2.13 SELECT语句")。
+- en: Standalone statements and prepared statements are subject to rewriting. Statements
+    occurring within view definitions or stored programs are not subject to rewriting.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 独立语句和准备语句会被重写。在视图定义或存储程序中出现的语句不会被重写。
+- en: Beginning with MySQL 8.0.31, statements run by users with the [`SKIP_QUERY_REWRITE`](privileges-provided.html#priv_skip-query-rewrite)
+    privilege are not subject to rewriting, provided that the [`rewriter_enabled_for_threads_without_privilege_checks`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled_for_threads_without_privilege_checks)
+    system variable is set to `OFF` (default `ON`). This can be used for control statements
+    and statements that should be replicated unchanged, such as those from the `SOURCE_USER`
+    specified by [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement"). This is also true for statements
+    executed by MySQL client programs including [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files"), [**mysqladmin**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program"), [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program"), and [**mysqlpump**](mysqlpump.html
+    "6.5.6 mysqlpump — A Database Backup Program"); for this reason, you should grant
+    `SKIP_QUERY_REWRITE` to the user account or accounts used by these utilities to
+    connect to MySQL.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.31开始，具有[`SKIP_QUERY_REWRITE`](privileges-provided.html#priv_skip-query-rewrite)权限的用户运行的语句不会被重写，前提是[`rewriter_enabled_for_threads_without_privilege_checks`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled_for_threads_without_privilege_checks)系统变量设置为`OFF`（默认为`ON`）。这可用于控制语句和应该保持不变的语句，例如来自由[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO语句")指定的`SOURCE_USER`的语句。对于由MySQL客户端程序执行的语句，包括[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")、[**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin
+    — MySQL服务器管理程序")、[**mysqldump**](mysqldump.html "6.5.4 mysqldump — 数据库备份程序")和[**mysqlpump**](mysqlpump.html
+    "6.5.6 mysqlpump — 数据库备份程序")；因此，您应该授予`SKIP_QUERY_REWRITE`给这些实用程序用于连接到MySQL的用户帐户或帐户。
+- en: '[Adding Rewrite Rules](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-adding-rewrite-rules
+    "Adding Rewrite Rules")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[添加重写规则](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-adding-rewrite-rules
+    "Adding Rewrite Rules")'
+- en: '[How Statement Matching Works](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-how-statement-matching-works
+    "How Statement Matching Works")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[语句匹配工作原理](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-how-statement-matching-works
+    "How Statement Matching Works")'
+- en: '[Rewriting Prepared Statements](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-rewriting-prepared-statements
+    "Rewriting Prepared Statements")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[重写准备语句](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-rewriting-prepared-statements
+    "Rewriting Prepared Statements")'
+- en: '[Rewriter Plugin Operational Information](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-operational-information
+    "Rewriter Plugin Operational Information")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[重写插件操作信息](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-operational-information
+    "Rewriter Plugin Operational Information")'
+- en: '[Rewriter Plugin Use of Character Sets](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-use-of-character-sets
+    "Rewriter Plugin Use of Character Sets")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[字符集的重写插件使用](rewriter-query-rewrite-plugin-usage.html#rewriter-query-rewrite-plugin-use-of-character-sets
+    "Rewriter Plugin Use of Character Sets")'
+- en: Adding Rewrite Rules
+  id: totrans-17
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 添加重写规则
+- en: 'To add rules for the `Rewriter` plugin, add rows to the `rewrite_rules` table,
+    then invoke the `flush_rewrite_rules()` stored procedure to load the rules from
+    the table into the plugin. The following example creates a simple rule to match
+    statements that select a single literal value:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为`Rewriter`插件添加规则，请向`rewrite_rules`表添加行，然后调用`flush_rewrite_rules()`存储过程将规则从表中加载到插件中。以下示例创建了一个简单的规则，用于匹配选择单个文字值的语句：
+- en: '[PRE2]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The resulting table contents look like this:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 结果表内容如下所示：
+- en: '[PRE3]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'The rule specifies a pattern template indicating which [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statements to match, and a replacement template indicating
+    how to rewrite matching statements. However, adding the rule to the `rewrite_rules`
+    table is not sufficient to cause the `Rewriter` plugin to use the rule. You must
+    invoke `flush_rewrite_rules()` to load the table contents into the plugin in-memory
+    cache:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 规则指定了一个模式模板，指示要匹配哪些[`SELECT`](select.html "15.2.13 SELECT Statement")语句，并指定了一个替换模板，指示如何重写匹配的语句。但是，将规则添加到`rewrite_rules`表中并不足以使`Rewriter`插件使用该规则。您必须调用`flush_rewrite_rules()`将表内容加载到插件的内存缓存中：
+- en: '[PRE4]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Tip
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 提示
+- en: If your rewrite rules seem not to be working properly, make sure that you have
+    reloaded the rules table by calling `flush_rewrite_rules()`.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的重写规则似乎无法正常工作，请确保通过调用`flush_rewrite_rules()`重新加载规则表。
+- en: 'When the plugin reads each rule from the rules table, it computes a normalized
+    (statement digest) form from the pattern and a digest hash value, and uses them
+    to update the `normalized_pattern` and `pattern_digest` columns:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当插件从规则表中读取每个规则时，它会从模式计算出一个规范化（语句摘要）形式和一个摘要哈希值，并使用它们来更新`normalized_pattern`和`pattern_digest`列：
+- en: '[PRE5]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: For information about statement digesting, normalized statements, and digest
+    hash values, see [Section 29.10, “Performance Schema Statement Digests and Sampling”](performance-schema-statement-digests.html
+    "29.10 Performance Schema Statement Digests and Sampling").
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关语句摘要、规范化语句和摘要哈希值的信息，请参见[第29.10节，“性能模式语句摘要和采样”](performance-schema-statement-digests.html
+    "29.10 Performance Schema Statement Digests and Sampling")。
+- en: 'If a rule cannot be loaded due to some error, calling `flush_rewrite_rules()`
+    produces an error:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果由于某些错误而无法加载��则，则调用`flush_rewrite_rules()`会产生一个错误：
+- en: '[PRE6]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: When this occurs, the plugin writes an error message to the `message` column
+    of the rule row to communicate the problem. Check the `rewrite_rules` table for
+    rows with non-`NULL` `message` column values to see what problems exist.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当发生这种情况时，插件会将错误消息写入规则行的`message`列，以传达问题。检查`rewrite_rules`表，查看具有非`NULL` `message`列值的行，以查看存在哪些问题。
+- en: Patterns use the same syntax as prepared statements (see [Section 15.5.1, “PREPARE
+    Statement”](prepare.html "15.5.1 PREPARE Statement")). Within a pattern template,
+    `?` characters act as parameter markers that match data values. The `?` characters
+    should not be enclosed within quotation marks. Parameter markers can be used only
+    where data values should appear, and they cannot be used for SQL keywords, identifiers,
+    functions, and so on. The plugin parses a statement to identify the literal values
+    (as defined in [Section 11.1, “Literal Values”](literals.html "11.1 Literal Values")),
+    so you can put a parameter marker in place of any literal value.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 模式使用与准备语句相同的语法（参见[第15.5.1节，“PREPARE语句”](prepare.html "15.5.1 PREPARE Statement")）。在模式模板中，`?`字符充当匹配数据值的参数标记。`?`字符不应包含在引号内。参数标记仅可用于数据值应出现的位置，不能用于SQL关键字、标识符、函数等。插件解析语句以识别文本值（如[第11.1节，“文本值”](literals.html
+    "11.1 Literal Values")中定义的那样），因此您可以在任何文本值的位置放置参数标记。
+- en: Like the pattern, the replacement can contain `?` characters. For a statement
+    that matches a pattern template, the plugin rewrites it, replacing `?` parameter
+    markers in the replacement using data values matched by the corresponding markers
+    in the pattern. The result is a complete statement string. The plugin asks the
+    server to parse it, and returns the result to the server as the representation
+    of the rewritten statement.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 像模式一样，替换内容可以包含`?`字符。对于与模式模板匹配的语句，插件会重写它，使用数据值替换替换中的`?`参数标记，这些数据值由模式中相应标记匹配的数据值确定。结果是一个完整的语句字符串。插件要求服务器解析它，并将重写后的语句表示返回给服务器。
+- en: 'After adding and loading the rule, check whether rewriting occurs according
+    to whether statements match the rule pattern:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 添加并加载规则后，请检查是否根据语句是否与规则模式匹配而进行重写：
+- en: '[PRE7]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'No rewriting occurs for the first [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statement, but does for the second. The second statement illustrates that when
+    the `Rewriter` plugin rewrites a statement, it produces a warning message. To
+    view the message, use [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS
+    Statement"):'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一个[`SELECT`](select.html "15.2.13 SELECT Statement")语句不会进行重写，但第二个会。第二个语句说明了当`Rewriter`插件重写语句时，会生成警告消息。要查看消息，请使用[`SHOW
+    WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")：
+- en: '[PRE8]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'A statement need not be rewritten to a statement of the same type. The following
+    example loads a rule that rewrites [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    statements to [`UPDATE`](update.html "15.2.17 UPDATE Statement") statements:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 语句不必重写为相同类型的语句。以下示例加载一个将[`DELETE`](delete.html "15.2.2 DELETE Statement")语句重写为[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")语句的规则：
+- en: '[PRE9]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'To enable or disable an existing rule, modify its `enabled` column and reload
+    the table into the plugin. To disable rule 1:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要启用或禁用现有规则，请修改其`enabled`列并重新加载表到插件中。要禁用规则1：
+- en: '[PRE10]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: This enables you to deactivate a rule without removing it from the table.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这使您可以停用规则而无需将其从表中删除。
+- en: 'To re-enable rule 1:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要重新启用规则1：
+- en: '[PRE11]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'The `rewrite_rules` table contains a `pattern_database` column that `Rewriter`
+    uses for matching table names that are not qualified with a database name:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`rewrite_rules`表包含一个`pattern_database`列，`Rewriter`用于匹配未使用数据库名称限定的表名：'
+- en: Qualified table names in statements match qualified names in the pattern if
+    corresponding database and table names are identical.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 语句中的限定表名仅在相应数据库和表名相同的情况下与模式中的限定名称匹配。
+- en: Unqualified table names in statements match unqualified names in the pattern
+    only if the default database is the same as `pattern_database` and the table names
+    are identical.
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 语句中的未限定表名仅在默认数据库与`pattern_database`相同且表名相同的情况下与模式中的未限定名称匹配。
+- en: 'Suppose that a table named `appdb.users` has a column named `id` and that applications
+    are expected to select rows from the table using a query of one of these forms,
+    where the second can be used when `appdb` is the default database:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设一个名为`appdb.users`的表有一个名为`id`的列，并且应用程序预期使用以下形式之一的查询从表中选择行，第二种形式可以在`appdb`是默认数据库时使用：
+- en: '[PRE12]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: Suppose also that the `id` column is renamed to `user_id` (perhaps the table
+    must be modified to add another type of ID and it is necessary to indicate more
+    specifically what type of ID the `id` column represents).
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还假设`id`列被重命名为`user_id`（也许必须修改表以添加另一种ID，并且有必要更明确地指示`id`列代表什么类型的ID）。
+- en: 'The change means that applications must refer to `user_id` rather than `id`
+    in the `WHERE` clause, but old applications that cannot be updated no longer work
+    properly. The `Rewriter` plugin can solve this problem by matching and rewriting
+    problematic statements. To match the statement `SELECT * FROM appdb.users WHERE
+    id = *`value`*` and rewrite it as `SELECT * FROM appdb.users WHERE user_id = *`value`*`,
+    you can insert a row representing a replacement rule into the rewrite rules table.
+    If you also want to match this `SELECT` using the unqualified table name, it is
+    also necessary to add an explicit rule. Using `?` as a value placeholder, the
+    two [`INSERT`](insert.html "15.2.7 INSERT Statement") statements needed look like
+    this:'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更改意味着应用程序必须在`WHERE`子句中引用`user_id`而不是`id`，但无法更新的旧应用程序将不再正常工作。`Rewriter`插件可以通过匹配和重写有问题的语句来解决此问题。要将语句`SELECT
+    * FROM appdb.users WHERE id = *`value`*`匹配并重写为`SELECT * FROM appdb.users WHERE
+    user_id = *`value`*`，您可以向重写规则表中插入代表替换规则的行。如果还想使用未限定表名匹配此`SELECT`，还需要添加一个显式规则。使用`?`作为值占位符，需要的两个[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句如下：
+- en: '[PRE13]'
+  id: totrans-52
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'After adding the two new rules, execute the following statement to cause them
+    to take effect:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 添加两个新规则后，执行以下语句使其生效：
+- en: '[PRE14]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: '`Rewriter` uses the first rule to match statements that use the qualified table
+    name, and the second to match statements that use the unqualified name. The second
+    rule works only when `appdb` is the default database.'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Rewriter`使用第一条规则匹配使用限定表名的语句，第二条规则匹配使用未限定名称的语句。只有当`appdb`是默认数据库时，第二条规则才有效。'
+- en: How Statement Matching Works
+  id: totrans-56
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 语句匹配原理
+- en: The `Rewriter` plugin uses statement digests and digest hash values to match
+    incoming statements against rewrite rules in stages. The `max_digest_length` system
+    variable determines the size of the buffer used for computing statement digests.
+    Larger values enable computation of digests that distinguish longer statements.
+    Smaller values use less memory but increase the likelihood of longer statements
+    colliding with the same digest value.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Rewriter`插件使用语句摘要和摘要哈希值来在各个阶段匹配传入语句与重写规则。`max_digest_length`系统变量确定用于计算语句摘要的缓冲区大小。较大的值可以计算出区分较长语句的摘要。较小的值使用更少的内存，但增加了较长语句与相同摘要值发生冲突的可能性。'
+- en: 'The plugin matches each statement to the rewrite rules as follows:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该插件将每个语句与重写规则进行匹配：
+- en: Compute the statement digest hash value and compare it to the rule digest hash
+    values. This is subject to false positives, but serves as a quick rejection test.
+  id: totrans-59
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 计算语句摘要哈希值并将其与规则摘要哈希值进行比较。这可能会产生误报，但可以作为快速拒绝测试。
+- en: If the statement digest hash value matches any pattern digest hash values, match
+    the normalized (statement digest) form of the statement to the normalized form
+    of the matching rule patterns.
+  id: totrans-60
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果语句摘要哈希值与任何模式摘要哈希值匹配，则将语句的规范形式（语句摘要）与匹配规则模式的规范形式进行匹配。
+- en: If the normalized statement matches a rule, compare the literal values in the
+    statement and the pattern. A `?` character in the pattern matches any literal
+    value in the statement. If the statement prepares a statement, `?` in the pattern
+    also matches `?` in the statement. Otherwise, corresponding literals must be the
+    same.
+  id: totrans-61
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果规范语句与规则匹配，则比较语句和模式中的文字值。模式中的`?`字符匹配语句中的任何文字值。如果语句准备了一个语句，则模式中的`?`也匹配语句中的`?`。否则，相应的文字值必须相同。
+- en: If multiple rules match a statement, it is nondeterministic which one the plugin
+    uses to rewrite the statement.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果多个规则匹配一个语句，则插件使用哪个规则重写语句是不确定的。
+- en: If a pattern contains more markers than the replacement, the plugin discards
+    excess data values. If a pattern contains fewer markers than the replacement,
+    it is an error. The plugin notices this when the rules table is loaded, writes
+    an error message to the `message` column of the rule row to communicate the problem,
+    and sets the [`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)
+    status variable to `ON`.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果模式包含的标记比替换多，插件会丢弃多余的数据值。如果模式包含的标记比替换少，这将是一个错误。当加载规则表时，插件会注意到这一点，将错误消息写入规则行的`message`列以传达问题，并将[`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)状态变量设置为`ON`。
+- en: Rewriting Prepared Statements
+  id: totrans-64
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 重写预处理语句
+- en: Prepared statements are rewritten at parse time (that is, when they are prepared),
+    not when they are executed later.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 预处理语句在解析时（即在准备时）重写，而不是在稍后执行时。
+- en: 'Prepared statements differ from nonprepared statements in that they may contain
+    `?` characters as parameter markers. To match a `?` in a prepared statement, a
+    `Rewriter` pattern must contain `?` in the same location. Suppose that a rewrite
+    rule has this pattern:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 预处理语句与非预处理语句的区别在于，它们可能包含`?`字符作为参数标记。要匹配预处理语句中的`?`，`Rewriter`模式必须在相同位置包含`?`。假设重写规则具有以下模式：
+- en: '[PRE15]'
+  id: totrans-67
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: The following table shows several prepared [`SELECT`](select.html "15.2.13 SELECT
+    Statement") statements and whether the rule pattern matches them.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格显示了几个预处理[`SELECT`](select.html "15.2.13 SELECT Statement")语句以及规则模式是否匹配它们。
+- en: '| Prepared Statement | Whether Pattern Matches Statement |'
+  id: totrans-69
+  prefs: []
+  type: TYPE_TB
+  zh: '| 预处理语句 | 匹配语句的模式是否匹配 |'
+- en: '| `PREPARE s AS ''SELECT 3, 3''` | Yes |'
+  id: totrans-70
+  prefs: []
+  type: TYPE_TB
+  zh: '| `PREPARE s AS ''SELECT 3, 3''` | 是 |'
+- en: '| `PREPARE s AS ''SELECT ?, 3''` | Yes |'
+  id: totrans-71
+  prefs: []
+  type: TYPE_TB
+  zh: '| `PREPARE s AS ''SELECT ?, 3''` | 是 |'
+- en: '| `PREPARE s AS ''SELECT 3, ?''` | No |'
+  id: totrans-72
+  prefs: []
+  type: TYPE_TB
+  zh: '| `PREPARE s AS ''SELECT 3, ?''` | 否 |'
+- en: '| `PREPARE s AS ''SELECT ?, ?''` | No |'
+  id: totrans-73
+  prefs: []
+  type: TYPE_TB
+  zh: '| `PREPARE s AS ''SELECT ?, ?''` | 否 |'
+- en: Rewriter Plugin Operational Information
+  id: totrans-74
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 重写插件操作信息
+- en: 'The `Rewriter` plugin makes information available about its operation by means
+    of several status variables:'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Rewriter`插件通过几个状态变量提供有关其操作的信息：'
+- en: '[PRE16]'
+  id: totrans-76
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: For descriptions of these variables, see [Section 7.6.4.3.4, “Rewriter Query
+    Rewrite Plugin Status Variables”](rewriter-query-rewrite-plugin-reference.html#rewriter-query-rewrite-plugin-status-variables
+    "7.6.4.3.4 Rewriter Query Rewrite Plugin Status Variables").
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关这些变量的描述，请参阅[Section 7.6.4.3.4, “Rewriter Query Rewrite Plugin Status Variables”](rewriter-query-rewrite-plugin-reference.html#rewriter-query-rewrite-plugin-status-variables
+    "7.6.4.3.4 Rewriter Query Rewrite Plugin Status Variables")。
+- en: 'When you load the rules table by calling the `flush_rewrite_rules()` stored
+    procedure, if an error occurs for some rule, the `CALL` statement produces an
+    error, and the plugin sets the `Rewriter_reload_error` status variable to `ON`:'
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当通过调用`flush_rewrite_rules()`存储过程加载规则表时，如果某个规则出现错误，则`CALL`语句会产生错误，并且插件将`Rewriter_reload_error`状态变量设置为`ON`：
+- en: '[PRE17]'
+  id: totrans-79
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: In this case, check the `rewrite_rules` table for rows with non-`NULL` `message`
+    column values to see what problems exist.
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，检查`rewrite_rules`表中具有非`NULL` `message`列值的行，以查看存在哪些问题。
+- en: Rewriter Plugin Use of Character Sets
+  id: totrans-81
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 重写插件使用字符集
+- en: When the `rewrite_rules` table is loaded into the `Rewriter` plugin, the plugin
+    interprets statements using the current global value of the [`character_set_client`](server-system-variables.html#sysvar_character_set_client)
+    system variable. If the global [`character_set_client`](server-system-variables.html#sysvar_character_set_client)
+    value is changed subsequently, the rules table must be reloaded.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当`rewrite_rules`表加载到`Rewriter`插件中时，插件使用当前全局值的[`character_set_client`](server-system-variables.html#sysvar_character_set_client)系统变量解释语句。如果随后更改了全局[`character_set_client`](server-system-variables.html#sysvar_character_set_client)值，则必须重新加载规则表。
+- en: A client must have a session [`character_set_client`](server-system-variables.html#sysvar_character_set_client)
+    value identical to what the global value was when the rules table was loaded or
+    rule matching does not work for that client.
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端必须具有与加载规则表时全局值相同的会话[`character_set_client`](server-system-variables.html#sysvar_character_set_client)值，否则该客户端的规则匹配将无法工作。

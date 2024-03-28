@@ -1,0 +1,724 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/converting-tables-to-innodb.html](https://dev.mysql.com/doc/refman/8.0/en/converting-tables-to-innodb.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/converting-tables-to-innodb.html](https://dev.mysql.com/doc/refman/8.0/en/converting-tables-to-innodb.html)
+- en: 17.6.1.5 Converting Tables from MyISAM to InnoDB
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.6.1.5 将表从`MyISAM`转换为`InnoDB`
+- en: If you have [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine")
+    tables that you want to convert to [`InnoDB`](innodb-storage-engine.html "Chapter 17 The
+    InnoDB Storage Engine") for better reliability and scalability, review the following
+    guidelines and tips before converting.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您有想要转换为更可靠和可扩展的`InnoDB`的[`MyISAM`](myisam-storage-engine.html "18.2 MyISAM存储引擎")表，请在转换之前查看以下准则和提示。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Partitioned `MyISAM` tables created in previous versions of MySQL are not compatible
+    with MySQL 8.0. Such tables must be prepared prior to upgrade, either by removing
+    the partitioning, or by converting them to `InnoDB`. See [Section 26.6.2, “Partitioning
+    Limitations Relating to Storage Engines”](partitioning-limitations-storage-engines.html
+    "26.6.2 Partitioning Limitations Relating to Storage Engines"), for more information.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在之前的MySQL版本中创建的分区`MyISAM`表与MySQL 8.0不兼容。这些表必须在升级之前进行准备，可以通过删除分区或将其转换为`InnoDB`来完成。有关更多信息，请参阅[Section 26.6.2,
+    “与存储引擎相关的分区限制”](partitioning-limitations-storage-engines.html "26.6.2 与存储引擎相关的分区限制")。
+- en: '[Adjusting Memory Usage for MyISAM and InnoDB](converting-tables-to-innodb.html#innodb-convert-memory-usage
+    "Adjusting Memory Usage for MyISAM and InnoDB")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[调整`MyISAM`和`InnoDB`的内存使用](converting-tables-to-innodb.html#innodb-convert-memory-usage
+    "调整`MyISAM`和`InnoDB`的内存使用")'
+- en: '[Handling Too-Long Or Too-Short Transactions](converting-tables-to-innodb.html#innodb-convert-transactions
+    "Handling Too-Long Or Too-Short Transactions")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[处理过长或过短的事务](converting-tables-to-innodb.html#innodb-convert-transactions "处理过长或过短的事务")'
+- en: '[Handling Deadlocks](converting-tables-to-innodb.html#innodb-convert-deadlock
+    "Handling Deadlocks")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[处理死锁](converting-tables-to-innodb.html#innodb-convert-deadlock "处理死锁")'
+- en: '[Storage Layout](converting-tables-to-innodb.html#innodb-convert-plan-storage
+    "Storage Layout")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[存储布局](converting-tables-to-innodb.html#innodb-convert-plan-storage "存储布局")'
+- en: '[Converting an Existing Table](converting-tables-to-innodb.html#innodb-convert-convert
+    "Converting an Existing Table")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[转换现有表](converting-tables-to-innodb.html#innodb-convert-convert "转换现有表")'
+- en: '[Cloning the Structure of a Table](converting-tables-to-innodb.html#innodb-convert-clone
+    "Cloning the Structure of a Table")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[克隆表的结构](converting-tables-to-innodb.html#innodb-convert-clone "克隆表的结构")'
+- en: '[Transferring Data](converting-tables-to-innodb.html#innodb-convert-transfer
+    "Transferring Data")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[数据转移](converting-tables-to-innodb.html#innodb-convert-transfer "数据转移")'
+- en: '[Storage Requirements](converting-tables-to-innodb.html#innodb-convert-storage-requirements
+    "Storage Requirements")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[存储需求](converting-tables-to-innodb.html#innodb-convert-storage-requirements
+    "存储需求")'
+- en: '[Defining Primary Keys](converting-tables-to-innodb.html#innodb-convert-primary-key
+    "Defining Primary Keys")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[定义主键](converting-tables-to-innodb.html#innodb-convert-primary-key "定义主键")'
+- en: '[Application Performance Considerations](converting-tables-to-innodb.html#innodb-convert-application-performance
+    "Application Performance Considerations")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[应用性能考虑](converting-tables-to-innodb.html#innodb-convert-application-performance
+    "应用性能考虑")'
+- en: '[Understanding Files Associated with InnoDB Tables](converting-tables-to-innodb.html#innodb-convert-understand-files
+    "Understanding Files Associated with InnoDB Tables")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[了解与`InnoDB`表相关的文件](converting-tables-to-innodb.html#innodb-convert-understand-files
+    "了解与`InnoDB`表相关的文件")'
+- en: Adjusting Memory Usage for MyISAM and InnoDB
+  id: totrans-16
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 调整`MyISAM`和`InnoDB`的内存使用
+- en: As you transition away from `MyISAM` tables, lower the value of the [`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)
+    configuration option to free memory no longer needed for caching results. Increase
+    the value of the [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    configuration option, which performs a similar role of allocating cache memory
+    for `InnoDB` tables. The `InnoDB` [buffer pool](glossary.html#glos_buffer_pool
+    "buffer pool") caches both table data and index data, speeding up lookups for
+    queries and keeping query results in memory for reuse. For guidance regarding
+    buffer pool size configuration, see [Section 10.12.3.1, “How MySQL Uses Memory”](memory-use.html
+    "10.12.3.1 How MySQL Uses Memory").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当你从`MyISAM`表过渡时，降低[`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)配置选项的值，释放不再需要用于缓存结果的内存。增加[`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)配置选项的值，它扮演着为`InnoDB`表分配缓存内存的类似角色。`InnoDB`[缓冲池](glossary.html#glos_buffer_pool
+    "buffer pool")同时缓存表数据和索引数据，加快查询的查找速度，并将查询结果保留在内存中以便重复使用。有关缓冲池大小配置的指导，请参见[第10.12.3.1节，“MySQL如何使用内存”](memory-use.html
+    "10.12.3.1 How MySQL Uses Memory")。
+- en: Handling Too-Long Or Too-Short Transactions
+  id: totrans-18
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 处理过长或过短的事务
+- en: Because `MyISAM` tables do not support [transactions](glossary.html#glos_transaction
+    "transaction"), you might not have paid much attention to the [`autocommit`](server-system-variables.html#sysvar_autocommit)
+    configuration option and the [`COMMIT`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") and [`ROLLBACK`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") statements. These keywords are important to
+    allow multiple sessions to read and write `InnoDB` tables concurrently, providing
+    substantial scalability benefits in write-heavy workloads.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为`MyISAM`表不支持[事务](glossary.html#glos_transaction "transaction")，你可能没有太关注[`autocommit`](server-system-variables.html#sysvar_autocommit)配置选项以及[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")和[`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")语句。这些关键词对于允许多个会话同时读写`InnoDB`表非常重要，在写入密集型工作负载中提供了可观的可扩展性优势。
+- en: 'While a transaction is open, the system keeps a snapshot of the data as seen
+    at the beginning of the transaction, which can cause substantial overhead if the
+    system inserts, updates, and deletes millions of rows while a stray transaction
+    keeps running. Thus, take care to avoid transactions that run for too long:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当事务打开时，系统会保留事务开始时看到的数据快照，如果系统在一个杂乱的事务持续运行时插入、更新和删除数百万行数据，这可能会导致很大的开销。因此，要注意避免运行时间过长的事务：
+- en: If you are using a [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") session for interactive experiments, always [`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements") (to finalize the changes) or [`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") (to undo the changes)
+    when finished. Close down interactive sessions rather than leave them open for
+    long periods, to avoid keeping transactions open for long periods by accident.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果你正在使用一个[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")会话进行交互式实验，完成后始终要[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")（以完成更改）或[`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")（以撤消更改）。关闭交互式会话而不是长时间保持打开，以避免意外保持事务长时间打开。
+- en: Make sure that any error handlers in your application also [`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") incomplete changes
+    or [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")
+    completed changes.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 确保应用程序中的任何错误处理程序也会[`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements")未完成的更改或[`COMMIT`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements")已完成的更改。
+- en: '[`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")
+    is a relatively expensive operation, because [`INSERT`](insert.html "15.2.7 INSERT
+    Statement"), [`UPDATE`](update.html "15.2.17 UPDATE Statement"), and [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") operations are written to `InnoDB` tables prior to
+    the [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements"),
+    with the expectation that most changes are committed successfully and rollbacks
+    are rare. When experimenting with large volumes of data, avoid making changes
+    to large numbers of rows and then rolling back those changes.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")是一个相对昂贵的操作，因为[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")、[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")操作在[`COMMIT`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements")之前被写入`InnoDB`表，预期大多数更改都会成功提交，而回滚是罕见的。在处理大量数据时，避免对大量行进行更改，然后回滚这些更改。'
+- en: When loading large volumes of data with a sequence of [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements, periodically [`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements") the results to avoid having transactions
+    that last for hours. In typical load operations for data warehousing, if something
+    goes wrong, you truncate the table (using [`TRUNCATE TABLE`](truncate-table.html
+    "15.1.37 TRUNCATE TABLE Statement")) and start over from the beginning rather
+    than doing a [`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements").
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当使用一系列[`INSERT`](insert.html "15.2.7 INSERT Statement")语句加载大量数据时，定期[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")结果，以避免持续数小时的事务。在数据仓库的典型加载操作中，如果出现问题，你会截断表（使用[`TRUNCATE
+    TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement")），然后从头开始，而不是执行[`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")。
+- en: The preceding tips save memory and disk space that can be wasted during too-long
+    transactions. When transactions are shorter than they should be, the problem is
+    excessive I/O. With each [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements"), MySQL makes sure each change is safely recorded to
+    disk, which involves some I/O.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 上述提示可以节省在过长事务期间可能浪费的内存和磁盘空间。当事务比应该更短时，问题在于过多的I/O。每次[`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements")时，MySQL都会确保每个更改都安全记录到磁盘上，这涉及一些I/O。
+- en: For most operations on `InnoDB` tables, you should use the setting [`autocommit=0`](server-system-variables.html#sysvar_autocommit).
+    From an efficiency perspective, this avoids unnecessary I/O when you issue large
+    numbers of consecutive [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement"), or [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    statements. From a safety perspective, this allows you to issue a [`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") statement to recover
+    lost or garbled data if you make a mistake on the [**mysql**](mysql.html "6.5.1 mysql
+    — The MySQL Command-Line Client") command line, or in an exception handler in
+    your application.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于大多数`InnoDB`表操作，应该使用设置[`autocommit=0`](server-system-variables.html#sysvar_autocommit)。从效率的角度来看，这样可以避免在连续发出大量[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")、[`UPDATE`](update.html "15.2.17 UPDATE Statement")或[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")语句时产生不必要的I/O。从安全性的角度来看，这允许你发出一个[`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")语句，以恢复在[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")命令行上犯错或在应用程序的异常处理程序中出现错误的数据。
+- en: '[`autocommit=1`](server-system-variables.html#sysvar_autocommit) is suitable
+    for `InnoDB` tables when running a sequence of queries for generating reports
+    or analyzing statistics. In this situation, there is no I/O penalty related to
+    [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")
+    or [`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements"),
+    and `InnoDB` can [automatically optimize the read-only workload](innodb-performance-ro-txn.html
+    "10.5.3 Optimizing InnoDB Read-Only Transactions").'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在运行一系列用于生成报告或分析统计数据的查询时，[`autocommit=1`](server-system-variables.html#sysvar_autocommit)适用于`InnoDB`表。在这种情况下，与[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")或[`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")相关的I/O惩罚不存在，而`InnoDB`可以[自动优化只读工作负载](innodb-performance-ro-txn.html
+    "10.5.3 Optimizing InnoDB Read-Only Transactions")。
+- en: If you make a series of related changes, finalize all the changes at once with
+    a single [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements") at the end. For example, if you insert related pieces of information
+    into several tables, do a single [`COMMIT`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") after making all the changes. Or if you run
+    many consecutive [`INSERT`](insert.html "15.2.7 INSERT Statement") statements,
+    do a single [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements") after all the data is loaded; if you are doing millions of [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements, perhaps split up the huge transaction by
+    issuing a [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements") every ten thousand or hundred thousand records, so the transaction
+    does not grow too large.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您进行一系列相关更改，请在最后一次使用单个[`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements")完成所有更改。例如，如果您将相关信息插入多个表中，请在进行所有更改后执行单个[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")。或者如果您运行许多连续的[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句，请在所有数据加载后执行单个[`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements")；如果您正在执行数百万次[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句，也许可以通过在每一万或十万条记录后发出一个[`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements")来拆分巨大的事务，以避免事务过大。
+- en: Remember that even a [`SELECT`](select.html "15.2.13 SELECT Statement") statement
+    opens a transaction, so after running some report or debugging queries in an interactive
+    [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") session,
+    either issue a [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements") or close the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") session.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 请记住，即使是[`SELECT`](select.html "15.2.13 SELECT Statement")语句也会开启一个事务，因此在交互式[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")会话中运行一些报告或调试查询后，要么执行一个[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")，要么关闭[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")会话。
+- en: For related information, see [Section 17.7.2.2, “autocommit, Commit, and Rollback”](innodb-autocommit-commit-rollback.html
+    "17.7.2.2 autocommit, Commit, and Rollback").
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关信息，请参阅[第17.7.2.2节，“自动提交、提交和回滚”](innodb-autocommit-commit-rollback.html "17.7.2.2 autocommit,
+    Commit, and Rollback")。
+- en: Handling Deadlocks
+  id: totrans-31
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 处理死锁
+- en: You might see warning messages referring to “deadlocks” in the MySQL error log,
+    or the output of [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW
+    ENGINE Statement"). A [deadlock](glossary.html#glos_deadlock "deadlock") is not
+    a serious issue for `InnoDB` tables, and often does not require any corrective
+    action. When two transactions start modifying multiple tables, accessing the tables
+    in a different order, they can reach a state where each transaction is waiting
+    for the other and neither can proceed. When [deadlock detection](glossary.html#glos_deadlock_detection
+    "deadlock detection") is enabled (the default), MySQL immediately detects this
+    condition and cancels ([rolls back](glossary.html#glos_rollback "rollback")) the
+    “smaller” transaction, allowing the other to proceed. If deadlock detection is
+    disabled using the [`innodb_deadlock_detect`](innodb-parameters.html#sysvar_innodb_deadlock_detect)
+    configuration option, `InnoDB` relies on the [`innodb_lock_wait_timeout`](innodb-parameters.html#sysvar_innodb_lock_wait_timeout)
+    setting to roll back transactions in case of a deadlock.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可能会在MySQL错误日志中看到指向“死锁”的警告消息，或者[`SHOW ENGINE INNODB STATUS`](show-engine.html
+    "15.7.7.15 SHOW ENGINE Statement")的输出。[死锁](glossary.html#glos_deadlock "deadlock")对于`InnoDB`表来说并不是一个严重的问题，通常不需要任何纠正措施。当两个事务开始修改多个表，以不同顺序访问这些表时，它们可能会达到一个状态，其中每个事务都在等待另一个事务，而两者都无法继续。当启用[死锁检测](glossary.html#glos_deadlock_detection
+    "deadlock detection")（默认情况下），MySQL会立即检测到这种情况并取消（[回滚](glossary.html#glos_rollback
+    "rollback")）“较小”的事务，从而允许另一个事务继续。如果使用[`innodb_deadlock_detect`](innodb-parameters.html#sysvar_innodb_deadlock_detect)配置选项禁用死锁检测，则`InnoDB`依赖于[`innodb_lock_wait_timeout`](innodb-parameters.html#sysvar_innodb_lock_wait_timeout)设置，在死锁发生时回滚事务。
+- en: Either way, your applications need error-handling logic to restart a transaction
+    that is forcibly cancelled due to a deadlock. When you re-issue the same SQL statements
+    as before, the original timing issue no longer applies. Either the other transaction
+    has already finished and yours can proceed, or the other transaction is still
+    in progress and your transaction waits until it finishes.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论哪种方式，您的应用程序都需要错误处理逻辑来重新启动因死锁而被强制取消的事务。当重新发出与之前相同的SQL语句时，原始的时间问题不再存在。要么另一个事务已经完成，您的事务可以继续，要么另一个事务仍在进行中，您的事务将等待直到其完成。
+- en: If deadlock warnings occur constantly, you might review the application code
+    to reorder the SQL operations in a consistent way, or to shorten the transactions.
+    You can test with the [`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks)
+    option enabled to see all deadlock warnings in the MySQL error log, rather than
+    only the last warning in the [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW
+    ENGINE Statement") output.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果死锁警告频繁发生，您可能需要审查应用程序代码以以一致的方式重新排序SQL操作，或缩短事务。您可以启用[`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks)选项进行测试，以在MySQL错误日志中看到所有死锁警告，而不仅仅是[`SHOW
+    ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")输出中的最后一个警告。
+- en: For more information, see [Section 17.7.5, “Deadlocks in InnoDB”](innodb-deadlocks.html
+    "17.7.5 Deadlocks in InnoDB").
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[Section 17.7.5, “Deadlocks in InnoDB”](innodb-deadlocks.html "17.7.5 Deadlocks
+    in InnoDB")。
+- en: Storage Layout
+  id: totrans-36
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 存储布局
+- en: To get the best performance from `InnoDB` tables, you can adjust a number of
+    parameters related to storage layout.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从`InnoDB`表中获得最佳性能，您可以调整与存储布局相关的多个参数。
+- en: When you convert `MyISAM` tables that are large, frequently accessed, and hold
+    vital data, investigate and consider the [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    and [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size) variables,
+    and the [`ROW_FORMAT` and `KEY_BLOCK_SIZE` clauses](innodb-row-format.html "17.10 InnoDB
+    Row Formats") of the [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE
+    Statement") statement.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您转换大型、频繁访问且保存重要数据的`MyISAM`表时，请调查并考虑[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)和[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)变量，以及[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句的[`ROW_FORMAT`和`KEY_BLOCK_SIZE`子句](innodb-row-format.html
+    "17.10 InnoDB Row Formats")。
+- en: During your initial experiments, the most important setting is [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table).
+    When this setting is enabled, which is the default, new `InnoDB` tables are implicitly
+    created in [file-per-table](glossary.html#glos_file_per_table "file-per-table")
+    tablespaces. In contrast with the `InnoDB` system tablespace, file-per-table tablespaces
+    allow disk space to be reclaimed by the operating system when a table is truncated
+    or dropped. File-per-table tablespaces also support [DYNAMIC](glossary.html#glos_dynamic_row_format
+    "dynamic row format") and [COMPRESSED](glossary.html#glos_compressed_row_format
+    "compressed row format") row formats and associated features such as table compression,
+    efficient off-page storage for long variable-length columns, and large index prefixes.
+    For more information, see [Section 17.6.3.2, “File-Per-Table Tablespaces”](innodb-file-per-table-tablespaces.html
+    "17.6.3.2 File-Per-Table Tablespaces").
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在您的初始实验中，最重要的设置是[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)。当启用此设置时（默认情况下），新的`InnoDB`表会隐式地创建在[file-per-table](glossary.html#glos_file_per_table
+    "file-per-table")表空间中。与`InnoDB`系统表空间相比，file-per-table表空间允许在表被截断或删除时由操作系统回收磁盘空间。File-per-table表空间还支持[DYNAMIC](glossary.html#glos_dynamic_row_format
+    "dynamic row format")和[COMPRESSED](glossary.html#glos_compressed_row_format "compressed
+    row format")行格式以及相关功能，如表压缩、长变长列的高效离页存储和大索引前缀。更多信息，请参见[Section 17.6.3.2, “File-Per-Table
+    Tablespaces”](innodb-file-per-table-tablespaces.html "17.6.3.2 File-Per-Table
+    Tablespaces")。
+- en: You can also store `InnoDB` tables in a shared general tablespace, which support
+    multiple tables and all row formats. For more information, see [Section 17.6.3.3,
+    “General Tablespaces”](general-tablespaces.html "17.6.3.3 General Tablespaces").
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以将`InnoDB`表存储在共享的通用表空间中，支持多个表和所有行格式。更多信息，请参见[Section 17.6.3.3, “General Tablespaces”](general-tablespaces.html
+    "17.6.3.3 General Tablespaces")。
+- en: Converting an Existing Table
+  id: totrans-41
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 转换现有表
+- en: 'To convert a non-`InnoDB` table to use `InnoDB` use [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement"):'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将非`InnoDB`表转换为使用`InnoDB`，请使用[`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")：
+- en: '[PRE0]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Cloning the Structure of a Table
+  id: totrans-44
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 复制表的结构
+- en: You might make an `InnoDB` table that is a clone of a MyISAM table, rather than
+    using [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") to perform
+    conversion, to test the old and new table side-by-side before switching.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以创建一个`InnoDB`表，它是MyISAM表的克隆，而不是使用[`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")执行转换，以在切换之前测试旧表和新表并排放置。
+- en: Create an empty `InnoDB` table with identical column and index definitions.
+    Use `SHOW CREATE TABLE *`table_name`*\G` to see the full [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statement to use. Change the `ENGINE` clause
+    to `ENGINE=INNODB`.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建一个具有相同列和索引定义的空`InnoDB`表。使用`SHOW CREATE TABLE *`table_name`*\G`查看完整的[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句。将`ENGINE`子句更改为`ENGINE=INNODB`。
+- en: Transferring Data
+  id: totrans-47
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 数据传输
+- en: To transfer a large volume of data into an empty `InnoDB` table created as shown
+    in the previous section, insert the rows with `INSERT INTO *`innodb_table`* SELECT
+    * FROM *`myisam_table`* ORDER BY *`primary_key_columns`*`.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将大量数据传输到在上一节中创建的空`InnoDB`表中，使用`INSERT INTO *`innodb_table`* SELECT * FROM *`myisam_table`*
+    ORDER BY *`primary_key_columns`*`插入行。
+- en: You can also create the indexes for the `InnoDB` table after inserting the data.
+    Historically, creating new secondary indexes was a slow operation for `InnoDB`,
+    but now you can create the indexes after the data is loaded with relatively little
+    overhead from the index creation step.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在插入数据后，您还可以为`InnoDB`表创建索引。历史上，为`InnoDB`创建新的辅助索引是一个缓慢的操作，但现在您可以在加载数据后创建索引，而索引创建步骤的开销相对较小。
+- en: 'If you have `UNIQUE` constraints on secondary keys, you can speed up a table
+    import by turning off the uniqueness checks temporarily during the import operation:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在辅助键上有`UNIQUE`约束，您可以在导入操作期间暂时关闭唯一性检查以加快表导入速度：
+- en: '[PRE1]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: For big tables, this saves disk I/O because `InnoDB` can use its [change buffer](glossary.html#glos_change_buffer
+    "change buffer") to write secondary index records as a batch. Be certain that
+    the data contains no duplicate keys. [`unique_checks`](server-system-variables.html#sysvar_unique_checks)
+    permits but does not require storage engines to ignore duplicate keys.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于大表，这样可以节省磁盘I/O，因为`InnoDB`可以使用其[更改缓冲区](glossary.html#glos_change_buffer "更改缓冲区")批量写入辅助索引记录。确保数据不包含重复键。[`unique_checks`](server-system-variables.html#sysvar_unique_checks)允许但不要求存储引擎忽略重复键。
+- en: 'For better control over the insertion process, you can insert big tables in
+    pieces:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了更好地控制插入过程，您可以分批插入大表：
+- en: '[PRE2]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: After all records are inserted, you can rename the tables.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插入所有记录后，您可以重命名表。
+- en: During the conversion of big tables, increase the size of the `InnoDB` buffer
+    pool to reduce disk I/O. Typically, the recommended buffer pool size is 50 to
+    75 percent of system memory. You can also increase the size of `InnoDB` log files.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在转换大表时，增加`InnoDB`缓冲池的大小以减少磁盘I/O。通常，推荐的缓冲池大小为系统内存的50到75％。您还可以增加`InnoDB`日志文件的大小。
+- en: Storage Requirements
+  id: totrans-57
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 存储要求
+- en: If you intend to make several temporary copies of your data in `InnoDB` tables
+    during the conversion process, it is recommended that you create the tables in
+    file-per-table tablespaces so that you can reclaim the disk space when you drop
+    the tables. When the [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    configuration option is enabled (the default), newly created `InnoDB` tables are
+    implicitly created in file-per-table tablespaces.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您打算在转换过程中在`InnoDB`表中创建多个临时副本，建议您创建文件级表空间中的表，以便在删除表时可以回收磁盘空间。当启用[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)配置选项（默认情况下）时，新创建的`InnoDB`表会隐式地创建在文件级表空间中。
+- en: Whether you convert the `MyISAM` table directly or create a cloned `InnoDB`
+    table, make sure that you have sufficient disk space to hold both the old and
+    new tables during the process. **`InnoDB` tables require more disk space than
+    `MyISAM` tables.** If an [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") operation runs out of space, it starts a rollback, and that can take
+    hours if it is disk-bound. For inserts, `InnoDB` uses the insert buffer to merge
+    secondary index records to indexes in batches. That saves a lot of disk I/O. For
+    rollback, no such mechanism is used, and the rollback can take 30 times longer
+    than the insertion.
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论是直接转换`MyISAM`表还是创建一个克隆的`InnoDB`表，确保在整个过程中有足够的磁盘空间来容纳新旧表。**`InnoDB`表需要比`MyISAM`表更多的磁盘空间。**如果[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")操作空间不足，它会启动回滚，如果受限于磁盘，这可能需要数小时。对于插入操作，`InnoDB`使用插入缓冲区批量合并次要索引记录到索引中。这样可以节省大量磁盘I/O。但对于回滚操作，没有使用这样的机制，回滚可能比插入操作慢30倍。
+- en: In the case of a runaway rollback, if you do not have valuable data in your
+    database, it may be advisable to kill the database process rather than wait for
+    millions of disk I/O operations to complete. For the complete procedure, see [Section 17.21.3,
+    “Forcing InnoDB Recovery”](forcing-innodb-recovery.html "17.21.3 Forcing InnoDB
+    Recovery").
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在出现无法控制的回滚情况下，如果数据库中没有重要数据，可能建议终止数据库进程，而不是等待数百万次磁盘I/O操作完成。有关完整的步骤，请参见[第17.21.3节，“强制InnoDB恢复”](forcing-innodb-recovery.html
+    "17.21.3 Forcing InnoDB Recovery")。
+- en: Defining Primary Keys
+  id: totrans-61
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 定义主键
+- en: The `PRIMARY KEY` clause is a critical factor affecting the performance of MySQL
+    queries and the space usage for tables and indexes. The primary key uniquely identifies
+    a row in a table. Every row in the table should have a primary key value, and
+    no two rows can have the same primary key value.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`PRIMARY KEY`子句是影响MySQL查询性能和表格及索引空间使用的关键因素。主键在表中唯一标识一行。表中的每一行应该有一个主键值，而且没有两行可以有相同的主键值。'
+- en: These are guidelines for the primary key, followed by more detailed explanations.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些是主键的指导原则，后面是更详细的解释。
+- en: Declare a `PRIMARY KEY` for each table. Typically, it is the most important
+    column that you refer to in `WHERE` clauses when looking up a single row.
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为每个表声明一个`PRIMARY KEY`。通常，这是在查找单行时在`WHERE`子句中引用的最重要的列。
+- en: Declare the `PRIMARY KEY` clause in the original [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statement, rather than adding it later through
+    an [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statement.
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在原始的[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句中声明`PRIMARY
+    KEY`子句，而不是通过[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句后期添加。
+- en: Choose the column and its data type carefully. Prefer numeric columns over character
+    or string ones.
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仔细选择列和其数据类型。优先选择数值列而不是字符或字符串列。
+- en: Consider using an auto-increment column if there is not another stable, unique,
+    non-null, numeric column to use.
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果没有其他稳定的、唯一的、非空的、数值列可用，考虑使用自增列。
+- en: An auto-increment column is also a good choice if there is any doubt whether
+    the value of the primary key column could ever change. Changing the value of a
+    primary key column is an expensive operation, possibly involving rearranging data
+    within the table and within each secondary index.
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果对主键列的值是否会发生变化存在任何疑问，自增列也是一个不错的选择。更改主键列的值是一项昂贵的操作，可能涉及表内数据和每个次要索引的重新排列。
+- en: Consider adding a [primary key](glossary.html#glos_primary_key "primary key")
+    to any table that does not already have one. Use the smallest practical numeric
+    type based on the maximum projected size of the table. This can make each row
+    slightly more compact, which can yield substantial space savings for large tables.
+    The space savings are multiplied if the table has any [secondary indexes](glossary.html#glos_secondary_index
+    "secondary index"), because the primary key value is repeated in each secondary
+    index entry. In addition to reducing data size on disk, a small primary key also
+    lets more data fit into the [buffer pool](glossary.html#glos_buffer_pool "buffer
+    pool"), speeding up all kinds of operations and improving concurrency.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑为任何尚未拥有主键的表添加[主键](glossary.html#glos_primary_key "主键")。根据表的最大预期大小，使用最小的实用数值类型。这可以使每行稍微更紧凑，对于大表可以产生大量的空间节省。如果表具有任何[次要索引](glossary.html#glos_secondary_index
+    "次要索引")，则空间节省会成倍增加，因为主键值在每个次要索引条目中重复。除了减少磁盘上的数据大小外，较小的主键还可以让更多的数据适应[缓冲池](glossary.html#glos_buffer_pool
+    "缓冲池")，加快各种操作的速度，并提高并发性。
+- en: If the table already has a primary key on some longer column, such as a `VARCHAR`,
+    consider adding a new unsigned `AUTO_INCREMENT` column and switching the primary
+    key to that, even if that column is not referenced in queries. This design change
+    can produce substantial space savings in the secondary indexes. You can designate
+    the former primary key columns as `UNIQUE NOT NULL` to enforce the same constraints
+    as the `PRIMARY KEY` clause, that is, to prevent duplicate or null values across
+    all those columns.
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果表已经在某个较长的列上有一个主键，比如`VARCHAR`，考虑添加一个新的无符号的`AUTO_INCREMENT`列，并将主键切换到该列，即使该列在查询中没有被引用。这种设计更改可以在次要索引中产生大量的空间节省。您可以将以前的主键列指定为`UNIQUE
+    NOT NULL`，以强制执行与`PRIMARY KEY`子句相同的约束，即防止所有这些列中的重复或空值。
+- en: If you spread related information across multiple tables, typically each table
+    uses the same column for its primary key. For example, a personnel database might
+    have several tables, each with a primary key of employee number. A sales database
+    might have some tables with a primary key of customer number, and other tables
+    with a primary key of order number. Because lookups using the primary key are
+    very fast, you can construct efficient join queries for such tables.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您将相关信息分布在多个表中，通常每个表都使用相同的列作为其主键。例如，人事数据库可能有几个表，每个表的主键都是员工编号。销售数据库可能有一些表的主键是客户编号，其他表的主键是订单编号。由于使用主键进行查找非常快速，您可以为这些表构建高效的连接查询。
+- en: If you leave the `PRIMARY KEY` clause out entirely, MySQL creates an invisible
+    one for you. It is a 6-byte value that might be longer than you need, thus wasting
+    space. Because it is hidden, you cannot refer to it in queries.
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果完全省略`PRIMARY KEY`子句，MySQL会为您创建一个不可见的主键。这是一个6字节的值，可能比您需要的要长，从而浪费空间。由于它是隐藏的，您无法在查询中引用它。
+- en: Application Performance Considerations
+  id: totrans-73
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 应用程序性能考虑
+- en: The reliability and scalability features of `InnoDB` require more disk storage
+    than equivalent `MyISAM` tables. You might change the column and index definitions
+    slightly, for better space utilization, reduced I/O and memory consumption when
+    processing result sets, and better query optimization plans making efficient use
+    of index lookups.
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`的可靠性和可扩展性功能需要比等效的`MyISAM`表更多的磁盘存储空间。您可以稍微更改列和索引定义，以获得更好的空间利用率，在处理结果集时减少I/O和内存消耗，并制定更好的查询优化计划，以有效利用索引查找。'
+- en: 'If you set up a numeric ID column for the primary key, use that value to cross-reference
+    with related values in any other tables, particularly for [join](glossary.html#glos_join
+    "join") queries. For example, rather than accepting a country name as input and
+    doing queries searching for the same name, do one lookup to determine the country
+    ID, then do other queries (or a single join query) to look up relevant information
+    across several tables. Rather than storing a customer or catalog item number as
+    a string of digits, potentially using up several bytes, convert it to a numeric
+    ID for storing and querying. A 4-byte unsigned [`INT`](integer-types.html "13.1.2 Integer
+    Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT") column
+    can index over 4 billion items (with the US meaning of billion: 1000 million).
+    For the ranges of the different integer types, see [Section 13.1.2, “Integer Types
+    (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT”](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT").'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果为主键设置了一个数字ID列，请使用该值与其他表中的相关值进行交叉引用，特别是对于[连接](glossary.html#glos_join "连接")查询。例如，不要接受国家名称作为输入并执行搜索相同名称的查询，而是进行一次查找以确定国家ID，然后进行其他查询（或单个连接查询）以查找跨多个表的相关信息。而不是将客户或目录项号存储为一串数字，可能使用多个字节，将其转换为数字ID以进行存储和查询。一个4字节的无符号[`INT`](integer-types.html
+    "13.1.2 整数类型（精确值） - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")列可以索引超过40亿个项目（使用十进制中的十亿：1000百万）。有关不同整数类型的范围，请参见[第13.1.2节，“整数类型（精确值）
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT”](integer-types.html "13.1.2 整数类型（精确值）
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")。
+- en: Understanding Files Associated with InnoDB Tables
+  id: totrans-76
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 理解与InnoDB表相关的文件
+- en: '`InnoDB` files require more care and planning than `MyISAM` files do.'
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`文件需要比`MyISAM`文件更多的关注和计划。'
+- en: You must not delete the [ibdata files](glossary.html#glos_ibdata_file "ibdata
+    file") that represent the `InnoDB` [system tablespace](glossary.html#glos_system_tablespace
+    "system tablespace").
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你不应删除代表`InnoDB`[系统表空间](glossary.html#glos_system_tablespace "系统表空间")的[ibdata文件](glossary.html#glos_ibdata_file
+    "ibdata文件")。
+- en: Methods of moving or copying `InnoDB` tables to a different server are described
+    in [Section 17.6.1.4, “Moving or Copying InnoDB Tables”](innodb-migration.html
+    "17.6.1.4 Moving or Copying InnoDB Tables").
+  id: totrans-79
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 描述了将`InnoDB`表移动或复制到不同服务器的方法在[第17.6.1.4节，“移动或复制InnoDB表”](innodb-migration.html
+    "17.6.1.4 移动或复制InnoDB表")中。

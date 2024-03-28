@@ -1,0 +1,501 @@
+- en: 10.9.5 The Optimizer Cost Model
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.9.5 优化器成本模型
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/cost-model.html](https://dev.mysql.com/doc/refman/8.0/en/cost-model.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/cost-model.html](https://dev.mysql.com/doc/refman/8.0/en/cost-model.html)
+- en: To generate execution plans, the optimizer uses a cost model that is based on
+    estimates of the cost of various operations that occur during query execution.
+    The optimizer has a set of compiled-in default “cost constants” available to it
+    to make decisions regarding execution plans.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为生成执行计划，优化器使用基于查询执行过程中各种操作成本的估算的成本模型。优化器具有一组编译默认的“成本常量”可供其在决定执行计划时使用。
+- en: The optimizer also has a database of cost estimates to use during execution
+    plan construction. These estimates are stored in the `server_cost` and `engine_cost`
+    tables in the `mysql` system database and are configurable at any time. The intent
+    of these tables is to make it possible to easily adjust the cost estimates that
+    the optimizer uses when it attempts to arrive at query execution plans.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器还具有成本估算数据库，用于执行计划构建过程中使用。这些估算存储在`mysql`系统数据库的`server_cost`和`engine_cost`表中，并且可以随时进行配置。这些表的目的是使得优化器在尝试生成查询执行计划时能够轻松调整使用的成本估算。
+- en: '[Cost Model General Operation](cost-model.html#cost-model-operation "Cost Model
+    General Operation")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[成本模型一般操作](cost-model.html#cost-model-operation "成本模型一般操作")'
+- en: '[The Cost Model Database](cost-model.html#cost-model-database "The Cost Model
+    Database")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[成本模型数据库](cost-model.html#cost-model-database "成本模型数据库")'
+- en: '[Making Changes to the Cost Model Database](cost-model.html#cost-model-database-modifications
+    "Making Changes to the Cost Model Database")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[对成本模型数据库进行更改](cost-model.html#cost-model-database-modifications "对成本模型数据库进行更改")'
+- en: Cost Model General Operation
+  id: totrans-7
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 成本模型一般操作
+- en: 'The configurable optimizer cost model works like this:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可配置的优化器成本模型工作方式如下：
+- en: The server reads the cost model tables into memory at startup and uses the in-memory
+    values at runtime. Any non-`NULL` cost estimate specified in the tables takes
+    precedence over the corresponding compiled-in default cost constant. Any `NULL`
+    estimate indicates to the optimizer to use the compiled-in default.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器在启动时将成本模型表读入内存，并在运行时使用内存中的值。表中指定的任何非`NULL`成本估算优先于相应的编译默认成本常量。任何`NULL`估算指示优化器使用编译默认值。
+- en: At runtime, the server may re-read the cost tables. This occurs when a storage
+    engine is dynamically loaded or when a [`FLUSH OPTIMIZER_COSTS`](flush.html#flush-optimizer-costs)
+    statement is executed.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在运行时，服务器可能会重新读取成本表。当动态加载存储引擎或执行[`FLUSH OPTIMIZER_COSTS`](flush.html#flush-optimizer-costs)语句时会发生这种情况。
+- en: Cost tables enable server administrators to easily adjust cost estimates by
+    changing entries in the tables. It is also easy to revert to a default by setting
+    an entry's cost to `NULL`. The optimizer uses the in-memory cost values, so changes
+    to the tables should be followed by [`FLUSH OPTIMIZER_COSTS`](flush.html#flush-optimizer-costs)
+    to take effect.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 成本表使服务器管理员可以通过更改表中的条目轻松调整成本估算。通过将条目的成本设置为`NULL`可以轻松恢复默认值。优化器使用内存中的成本值，因此更改表后应跟随[`FLUSH
+    OPTIMIZER_COSTS`](flush.html#flush-optimizer-costs)以生效。
+- en: The in-memory cost estimates that are current when a client session begins apply
+    throughout that session until it ends. In particular, if the server re-reads the
+    cost tables, any changed estimates apply only to subsequently started sessions.
+    Existing sessions are unaffected.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当客户端会话开始时，内存中的成本估算值将贯穿整个会话直至结束。特别是，如果服务器重新读取成本表，则任何更改的估算仅适用于随后启动的会话。现有会话不受影响。
+- en: Cost tables are specific to a given server instance. The server does not replicate
+    cost table changes to replicas.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 成本表特定于给定的服务器实例。服务器不会将成本表更改复制到副本。
+- en: The Cost Model Database
+  id: totrans-14
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 成本模型数据库
+- en: 'The optimizer cost model database consists of two tables in the `mysql` system
+    database that contain cost estimate information for operations that occur during
+    query execution:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器成本模型数据库包括`mysql`系统数据库中的两个表，这些表包含查询执行过程中发生的操作的成本估算信息：
+- en: '`server_cost`: Optimizer cost estimates for general server operations'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`server_cost`：一般服务器操作的优化器成本估算'
+- en: '`engine_cost`: Optimizer cost estimates for operations specific to particular
+    storage engines'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`engine_cost`：特定存储引擎操作的优化器成本估算'
+- en: 'The `server_cost` table contains these columns:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`server_cost`表包含以下列：'
+- en: '`cost_name`'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`cost_name`'
+- en: The name of a cost estimate used in the cost model. The name is not case-sensitive.
+    If the server does not recognize the cost name when it reads this table, it writes
+    a warning to the error log.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于成本模型的成本估算名称。名称不区分大小写。如果服务器在读取此表时无法识别成本名称，则会将警告写入错误日志。
+- en: '`cost_value`'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`cost_value`'
+- en: The cost estimate value. If the value is non-`NULL`, the server uses it as the
+    cost. Otherwise, it uses the default estimate (the compiled-in value). DBAs can
+    change a cost estimate by updating this column. If the server finds that the cost
+    value is invalid (nonpositive) when it reads this table, it writes a warning to
+    the error log.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 成本估算值。如果值为非`NULL`，服务器将其用作成本。否则，它使用默认估算值（编译值）。DBA可以通过更新此列来更改成本估算。如果服务器在读取此表时发现成本值无效（非正数），则会将警告写入错误日志。
+- en: To override a default cost estimate (for an entry that specifies `NULL`), set
+    the cost to a non-`NULL` value. To revert to the default, set the value to `NULL`.
+    Then execute [`FLUSH OPTIMIZER_COSTS`](flush.html#flush-optimizer-costs) to tell
+    the server to re-read the cost tables.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要覆盖默认成本估算（对于指定`NULL`的条目），请将成本设置为非`NULL`值。要恢复默认值，请将值设置为`NULL`。然后执行[`FLUSH OPTIMIZER_COSTS`](flush.html#flush-optimizer-costs)以告诉服务器重新读取成本表。
+- en: '`last_update`'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`last_update`'
+- en: The time of the last row update.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 最后一次行更新的时间。
+- en: '`comment`'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`comment`'
+- en: A descriptive comment associated with the cost estimate. DBAs can use this column
+    to provide information about why a cost estimate row stores a particular value.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与成本估算相关联的描述性注释。DBA可以使用此列提供有关为什么成本估算行存储特定值的信息。
+- en: '`default_value`'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`default_value`'
+- en: The default (compiled-in) value for the cost estimate. This column is a read-only
+    generated column that retains its value even if the associated cost estimate is
+    changed. For rows added to the table at runtime, the value of this column is `NULL`.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 成本估算的默认（编译内）值。此列是只读生成的列，即使关联的成本估算更改，它也保留其值。对于在运行时添加到表中的行，此列的值为`NULL`。
+- en: The primary key for the `server_cost` table is the `cost_name` column, so it
+    is not possible to create multiple entries for any cost estimate.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`server_cost`表的主键是`cost_name`列，因此不可能为任何成本估算创建多个条目。'
+- en: 'The server recognizes these `cost_name` values for the `server_cost` table:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器识别`server_cost`表的这些`cost_name`值：
+- en: '`disk_temptable_create_cost`, `disk_temptable_row_cost`'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`disk_temptable_create_cost`，`disk_temptable_row_cost`'
+- en: The cost estimates for internally created temporary tables stored in a disk-based
+    storage engine (either `InnoDB` or `MyISAM`). Increasing these values increases
+    the cost estimate of using internal temporary tables and makes the optimizer prefer
+    query plans with less use of them. For information about such tables, see [Section 10.4.4,
+    “Internal Temporary Table Use in MySQL”](internal-temporary-tables.html "10.4.4 Internal
+    Temporary Table Use in MySQL").
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 存储在基于磁盘的存储引擎（`InnoDB`或`MyISAM`）中的内部创建临时表的成本估算。增加这些值会增加使用内部临时表的成本估算，并使优化器更倾向于使用较少的查询计划。有关此类表的信息，请参见[Section 10.4.4,
+    “MySQL中的内部临时表使用”](internal-temporary-tables.html "10.4.4 MySQL中的内部临时表使用")。
+- en: The larger default values for these disk parameters compared to the default
+    values for the corresponding memory parameters (`memory_temptable_create_cost`,
+    `memory_temptable_row_cost`) reflects the greater cost of processing disk-based
+    tables.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与相应内存参数（`memory_temptable_create_cost`，`memory_temptable_row_cost`）的默认值相比，这些磁盘参数的默认值较大，反映了处理基于磁盘的表的更高成本。
+- en: '`key_compare_cost`'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_compare_cost`'
+- en: The cost of comparing record keys. Increasing this value causes a query plan
+    that compares many keys to become more expensive. For example, a query plan that
+    performs a `filesort` becomes relatively more expensive compared to a query plan
+    that avoids sorting by using an index.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 比较记录键的成本。增加此值会导致比较许多键的查询计划变得更昂贵。例如，执行`filesort`的查询计划相对于通过使用索引避免排序的查询计划变得更昂贵。
+- en: '`memory_temptable_create_cost`, `memory_temptable_row_cost`'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`memory_temptable_create_cost`，`memory_temptable_row_cost`'
+- en: The cost estimates for internally created temporary tables stored in the `MEMORY`
+    storage engine. Increasing these values increases the cost estimate of using internal
+    temporary tables and makes the optimizer prefer query plans with less use of them.
+    For information about such tables, see [Section 10.4.4, “Internal Temporary Table
+    Use in MySQL”](internal-temporary-tables.html "10.4.4 Internal Temporary Table
+    Use in MySQL").
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 存储在`MEMORY`存储引擎中的内部创建临时表的成本估算。增加这些值会增加使用内部临时表的成本估算，并使优化器更倾向于使用较少的查询计划。有关这些表的信息，请参见[Section 10.4.4,
+    “MySQL中的内部临时表使用”](internal-temporary-tables.html "10.4.4 MySQL中的内部临时表使用")。
+- en: The smaller default values for these memory parameters compared to the default
+    values for the corresponding disk parameters (`disk_temptable_create_cost`, `disk_temptable_row_cost`)
+    reflects the lesser cost of processing memory-based tables.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与相应磁盘参数的默认值（`disk_temptable_create_cost`，`disk_temptable_row_cost`）相比，这些内存参数的默认值较小，反映了处理基于内存的表的较低成本。
+- en: '`row_evaluate_cost`'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`row_evaluate_cost`'
+- en: The cost of evaluating record conditions. Increasing this value causes a query
+    plan that examines many rows to become more expensive compared to a query plan
+    that examines fewer rows. For example, a table scan becomes relatively more expensive
+    compared to a range scan that reads fewer rows.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 评估记录条件的成本。增加这个值会导致查询计划检查许多行变得比检查较少行的查询计划更昂贵。例如，与读取较少行的范围扫描相比，表扫描变得相对更昂贵。
+- en: 'The `engine_cost` table contains these columns:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`engine_cost`表包含以下列：'
+- en: '`engine_name`'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`engine_name`'
+- en: The name of the storage engine to which this cost estimate applies. The name
+    is not case-sensitive. If the value is `default`, it applies to all storage engines
+    that have no named entry of their own. If the server does not recognize the engine
+    name when it reads this table, it writes a warning to the error log.
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 适用于此成本估算的存储引擎的名称。名称不区分大小写。如果值为`default`，则适用于所有没有自己命名条目的存储引擎。如果服务器在读取此表时不识别引擎名称，则会将警告写入错误日志。
+- en: '`device_type`'
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`device_type`'
+- en: The device type to which this cost estimate applies. The column is intended
+    for specifying different cost estimates for different storage device types, such
+    as hard disk drives versus solid state drives. Currently, this information is
+    not used and 0 is the only permitted value.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 适用于此成本估算的设备类型。该列用于指定不同存储设备类型（例如硬盘驱动器与固态驱动器）的不同成本估算。目前，此信息未被使用，0是唯一允许的值。
+- en: '`cost_name`'
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`cost_name`'
+- en: Same as in the `server_cost` table.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与`server_cost`表中相同。
+- en: '`cost_value`'
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`cost_value`'
+- en: Same as in the `server_cost` table.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与`server_cost`表中相同。
+- en: '`last_update`'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`last_update`'
+- en: Same as in the `server_cost` table.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与`server_cost`表中相同。
+- en: '`comment`'
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`注释`'
+- en: Same as in the `server_cost` table.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与`server_cost`表中相同。
+- en: '`default_value`'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`default_value`'
+- en: The default (compiled-in) value for the cost estimate. This column is a read-only
+    generated column that retains its value even if the associated cost estimate is
+    changed. For rows added to the table at runtime, the value of this column is `NULL`,
+    with the exception that if the row has the same `cost_name` value as one of the
+    original rows, the `default_value` column has the same value as that row.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 成本估算的默认（编译内）值。此列是一个只读生成的列，即使相关的成本估算发生变化，它也会保留其值。对于在运行时添加到表中的行，此列的值为`NULL`，但有一个例外，即如果该行具有与原始行之一相同的`cost_name`值，则`default_value`列的值与该行相同。
+- en: The primary key for the `engine_cost` table is a tuple comprising the (`cost_name`,
+    `engine_name`, `device_type`) columns, so it is not possible to create multiple
+    entries for any combination of values in those columns.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`engine_cost`表的主键是由(`cost_name`, `engine_name`, `device_type`)列组成的元组，因此不可能为这些列中的任何值组合创建多个条目。'
+- en: 'The server recognizes these `cost_name` values for the `engine_cost` table:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器识别`engine_cost`表中的这些`cost_name`值：
+- en: '`io_block_read_cost`'
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`io_block_read_cost`'
+- en: The cost of reading an index or data block from disk. Increasing this value
+    causes a query plan that reads many disk blocks to become more expensive compared
+    to a query plan that reads fewer disk blocks. For example, a table scan becomes
+    relatively more expensive compared to a range scan that reads fewer blocks.
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从磁盘读取索引或数据块的成本。增加这个值会导致读取许多磁盘块的查询计划变得比读取较少磁盘块的查询计划更昂贵。例如，与读取较少块的范围扫描相比，表扫描变得相对更昂贵。
+- en: '`memory_block_read_cost`'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`memory_block_read_cost`'
+- en: Similar to `io_block_read_cost`, but represents the cost of reading an index
+    or data block from an in-memory database buffer.
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 类似于`io_block_read_cost`，但表示从内存数据库缓冲区读取索引或数据块的成本。
+- en: If the `io_block_read_cost` and `memory_block_read_cost` values differ, the
+    execution plan may change between two runs of the same query. Suppose that the
+    cost for memory access is less than the cost for disk access. In that case, at
+    server startup before data has been read into the buffer pool, you may get a different
+    plan than after the query has been run because then the data is in memory.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`io_block_read_cost`和`memory_block_read_cost`的值不同，同一查询的两次运行之间可能会导致执行计划的变化。假设内存访问的成本低于磁盘访问的成本。在服务器启动时，数据尚未读入缓冲池之前，可能会得到不同的计划，而在查询运行后，数据已经在内存中。
+- en: Making Changes to the Cost Model Database
+  id: totrans-64
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 更改成本模型数据库
+- en: For DBAs who wish to change the cost model parameters from their defaults, try
+    doubling or halving the value and measuring the effect.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于希望从默认值更改成本模型参数的数据库管理员，尝试将值加倍或减半，并测量效果。
+- en: Changes to the `io_block_read_cost` and `memory_block_read_cost` parameters
+    are most likely to yield worthwhile results. These parameter values enable cost
+    models for data access methods to take into account the costs of reading information
+    from different sources; that is, the cost of reading information from disk versus
+    reading information already in a memory buffer. For example, all other things
+    being equal, setting `io_block_read_cost` to a value larger than `memory_block_read_cost`
+    causes the optimizer to prefer query plans that read information already held
+    in memory to plans that must read from disk.
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更改`io_block_read_cost`和`memory_block_read_cost`参数最有可能产生有价值的结果。这些参数值使得数据访问方法的成本模型能够考虑从不同来源读取信息的成本；也就是说，从磁盘读取信息的成本与从内存缓冲区中读取信息的成本。例如，其他条件相同的情况下，将`io_block_read_cost`设置为大于`memory_block_read_cost`的值会导致优化器更倾向于选择已经保存在内存中的信息而不是需要从磁盘读取的查询计划。
+- en: 'This example shows how to change the default value for `io_block_read_cost`:'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个示例展示了如何更改`io_block_read_cost`的默认值：
+- en: '[PRE0]'
+  id: totrans-68
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'This example shows how to change the value of `io_block_read_cost` only for
+    the `InnoDB` storage engine:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个示例展示了如何仅为`InnoDB`存储引擎更改`io_block_read_cost`的值：
+- en: '[PRE1]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'

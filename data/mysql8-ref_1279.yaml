@@ -1,0 +1,226 @@
+- en: 17.20.5 Security Considerations for the InnoDB memcached Plugin
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.20.5 InnoDB memcached插件的安全注意事项
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-security.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-security.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-security.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-security.html)
+- en: Caution
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Consult this section before deploying the `daemon_memcached` plugin on a production
+    server, or even on a test server if the MySQL instance contains sensitive data.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在将`daemon_memcached`插件部署到生产服务器之前，请参考本节，甚至在包含敏感数据的MySQL实例上的测试服务器上。
+- en: Because **memcached** does not use an authentication mechanism by default, and
+    the optional SASL authentication is not as strong as traditional DBMS security
+    measures, only keep non-sensitive data in the MySQL instance that uses the `daemon_memcached`
+    plugin, and wall off any servers that use this configuration from potential intruders.
+    Do not allow **memcached** access to these servers from the Internet; only allow
+    access from within a firewalled intranet, ideally from a subnet whose membership
+    you can restrict.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为**memcached**默认不使用身份验证机制，而可选的SASL身份验证不如传统的DBMS安全措施强大，因此只在使用`daemon_memcached`插件的MySQL实例中保留非敏感数据，并将使用此配置的任何服务器与潜在入侵者隔离开。不要允许来自Internet的**memcached**访问这些服务器；只允许来自受防火墙保护的内部网络的访问，最好是来自可以限制成员资格的子网。
+- en: Password-Protecting memcached Using SASL
+  id: totrans-5
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 通过使用SASL对memcached进行密码保护
+- en: SASL support provides the capability to protect your MySQL database from unauthenticated
+    access through **memcached** clients. This section explains how to enable SASL
+    with the `daemon_memcached` plugin. The steps are almost identical to those performed
+    to enabled SASL for a traditional **memcached** server.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SASL支持提供了保护MySQL数据库免受通过**memcached**客户端的未经身份验证访问的能力。本节介绍如何启用具有`daemon_memcached`插件的SASL。这些步骤几乎与为传统**memcached**服务器启用SASL执行的步骤相同。
+- en: SASL stands for “Simple Authentication and Security Layer”, a standard for adding
+    authentication support to connection-based protocols. **memcached** added SASL
+    support in version 1.4.3.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SASL代表“简单身份验证和安全层”，这是一种为基于连接的协议添加身份验证支持的标准。**memcached**在1.4.3版本中添加了SASL支持。
+- en: SASL authentication is only supported with the binary protocol.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SASL身份验证仅受二进制协议支持。
+- en: '**memcached** clients are only able to access `InnoDB` tables that are registered
+    in the `innodb_memcache.containers` table. Even though a DBA can place access
+    restrictions on such tables, access through **memcached** applications cannot
+    be controlled. For this reason, SASL support is provided to control access to
+    `InnoDB` tables associated with the `daemon_memcached` plugin.'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**memcached**客户端只能访问在`innodb_memcache.containers`表中注册的`InnoDB`表。尽管DBA可以对这些表施加访问限制，但无法控制通过**memcached**应用程序的访问。因此，提供了SASL支持以控制与`daemon_memcached`插件关联的`InnoDB`表的访问。'
+- en: The following section shows how to build, enable, and test an SASL-enabled `daemon_memcached`
+    plugin.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下部分显示了如何构建、启用和测试启用SASL的`daemon_memcached`插件。
+- en: Building and Enabling SASL with the InnoDB memcached Plugin
+  id: totrans-11
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 构建和启用具有InnoDB memcached插件的SASL
+- en: 'By default, an SASL-enabled `daemon_memcached` plugin is not included in MySQL
+    release packages, since an SASL-enabled `daemon_memcached` plugin requires building
+    **memcached** with SASL libraries. To enable SASL support, download the MySQL
+    source and rebuild the `daemon_memcached` plugin after downloading the SASL libraries:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，MySQL发布包中不包含启用SASL的`daemon_memcached`插件，因为启用SASL的`daemon_memcached`插件需要使用SASL库构建**memcached**。要启用SASL支持，请下载MySQL源代码，并在下载SASL库后重新构建`daemon_memcached`插件：
+- en: 'Install the SASL development and utility libraries. For example, on Ubuntu,
+    use **apt-get** to obtain the libraries:'
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 安装SASL开发和实用程序库。例如，在Ubuntu上，使用**apt-get**获取这些库：
+- en: '[PRE0]'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Build the `daemon_memcached` plugin shared libraries with SASL capability by
+    adding `ENABLE_MEMCACHED_SASL=1` to your **cmake** options. **memcached** also
+    provides *simple cleartext password support*, which facilitates testing. To enable
+    simple cleartext password support, specify the `ENABLE_MEMCACHED_SASL_PWDB=1`
+    **cmake** option.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过将`ENABLE_MEMCACHED_SASL=1`添加到**cmake**选项中，可以构建具有SASL功能的`daemon_memcached`插件共享库。**memcached**还提供*简单的明文密码支持*，这有助于测试。要启用简单的明文密码支持，请指定`ENABLE_MEMCACHED_SASL_PWDB=1`
+    **cmake**选项。
+- en: 'In summary, add following three **cmake** options:'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 总之，添加以下三个**cmake**选项：
+- en: '[PRE1]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Install the `daemon_memcached` plugin, as described in [Section 17.20.3, “Setting
+    Up the InnoDB memcached Plugin”](innodb-memcached-setup.html "17.20.3 Setting
+    Up the InnoDB memcached Plugin").
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 安装`daemon_memcached`插件，如[第17.20.3节，“设置InnoDB memcached插件”](innodb-memcached-setup.html
+    "17.20.3 Setting Up the InnoDB memcached Plugin")所述。
+- en: Configure a user name and password file. (This example uses **memcached** simple
+    cleartext password support.)
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 配置一个用户名和密码文件。（此示例使用**memcached**简单明文密码支持。）
+- en: 'In a file, create a user named `testname` and define the password as `testpasswd`:'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在文件中创建一个名为`testname`的用户，并将密码定义为`testpasswd`：
+- en: '[PRE2]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Configure the `MEMCACHED_SASL_PWDB` environment variable to inform `memcached`
+    of the user name and password file:'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 配置`MEMCACHED_SASL_PWDB`环境变量，通知`memcached`用户名称和密码文件的位置：
+- en: '[PRE3]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Inform `memcached` that a cleartext password is used:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通知`memcached`使用明文密码：
+- en: '[PRE4]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Enable SASL by restarting the MySQL server with the **memcached** `-S` option
+    encoded in the [`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)
+    configuration parameter:'
+  id: totrans-26
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过在[`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)配置参数中编码**memcached**
+    `-S`选项，通过重新启动MySQL服务器启用SASL：
+- en: '[PRE5]'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: To test the setup, use an SASL-enabled client such as [SASL-enabled libmemcached](https://code.launchpad.net/~trond-norbye/libmemcached/sasl).
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 为了测试设置，使用支持SASL的客户端，如[SASL-enabled libmemcached](https://code.launchpad.net/~trond-norbye/libmemcached/sasl)。
+- en: '[PRE6]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: If you specify an incorrect user name or password, the operation is rejected
+    with a `memcache error AUTHENTICATION FAILURE` message. In this case, examine
+    the cleartext password set in the `memcached-sasl-db` file to verify that the
+    credentials you supplied are correct.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果指定了不正确的用户名或密码，则操作将被拒绝，并显示`memcache error AUTHENTICATION FAILURE`消息。在这种情况下，请检查`memcached-sasl-db`文件中设置的明文密码，以验证您提供的凭据是否正确。
+- en: There are other methods to test SASL authentication with **memcached**, but
+    the method described above is the most straightforward.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还有其他测试使用**memcached**进行SASL身份验证的方法，但上述描述的方法是最直接的。

@@ -1,0 +1,117 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-auto-increment.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-auto-increment.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-auto-increment.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-auto-increment.html)
+- en: 19.5.1.1 Replication and AUTO_INCREMENT
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.1 复制和AUTO_INCREMENT
+- en: 'Statement-based replication of `AUTO_INCREMENT`, [`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id),
+    and [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    values is carried out subject to the following exceptions:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 基于语句的复制`AUTO_INCREMENT`、[`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id)和[`TIMESTAMP`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")值的执行受以下异常情况的影响：
+- en: 'A statement invoking a trigger or function that causes an update to an `AUTO_INCREMENT`
+    column is not replicated correctly using statement-based replication. These statements
+    are marked as unsafe. (Bug #45677)'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '调用触发器或导致`AUTO_INCREMENT`列更新的函数的语句在基于语句的复制中无法正确复制。这些语句被标记为不安全。（Bug #45677）'
+- en: 'An [`INSERT`](insert.html "15.2.7 INSERT Statement") into a table that has
+    a composite primary key that includes an `AUTO_INCREMENT` column that is not the
+    first column of this composite key is not safe for statement-based logging or
+    replication. These statements are marked as unsafe. (Bug #11754117, Bug #45670)'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '对于具有包含`AUTO_INCREMENT`列但不是这个复合主键的第一列的复合主键的表进行[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")不适用于基于语句的日志记录或复制。这些语句被标记为不安全。（Bug #11754117, Bug #45670）'
+- en: This issue does not affect tables using the [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") storage engine, since an `InnoDB` table
+    with an [AUTO_INCREMENT](glossary.html#glos_auto_increment "auto-increment") column
+    requires at least one key where the auto-increment column is the only or leftmost
+    column.
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个问题不影响使用[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage
+    Engine")存储引擎的表，因为`InnoDB`表的`AUTO_INCREMENT`列需要至少一个键，其中`AUTO_INCREMENT`列是唯一的或最左边的列。
+- en: 'Adding an `AUTO_INCREMENT` column to a table with [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") might not produce the same ordering of the rows
+    on the replica and the source. This occurs because the order in which the rows
+    are numbered depends on the specific storage engine used for the table and the
+    order in which the rows were inserted. If it is important to have the same order
+    on the source and replica, the rows must be ordered before assigning an `AUTO_INCREMENT`
+    number. Assuming that you want to add an `AUTO_INCREMENT` column to a table `t1`
+    that has columns `col1` and `col2`, the following statements produce a new table
+    `t2` identical to `t1` but with an `AUTO_INCREMENT` column:'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 向具有[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")的表添加`AUTO_INCREMENT`列可能不会在副本和源上产生相同的行顺序。这是因为行编号的顺序取决于用于表的特定存储引擎以及插入行的顺序。如果在源和副本上具有相同的顺序很重要，则在分配`AUTO_INCREMENT`编号之前必须对行进行排序。假设您想向具有列`col1`和`col2`的表`t1`添加`AUTO_INCREMENT`列，以下语句将生成一个与`t1`相同但具有`AUTO_INCREMENT`列的新表`t2`：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Important
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: To guarantee the same ordering on both source and replica, the `ORDER BY` clause
+    must name *all* columns of `t1`.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了保证源和副本的顺序相同，`ORDER BY`子句必须命名`t1`的*所有*列。
+- en: 'The instructions just given are subject to the limitations of [`CREATE TABLE
+    ... LIKE`](create-table-like.html "15.1.20.3 CREATE TABLE ... LIKE Statement"):
+    Foreign key definitions are ignored, as are the `DATA DIRECTORY` and `INDEX DIRECTORY`
+    table options. If a table definition includes any of those characteristics, create
+    `t2` using a [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    statement that is identical to the one used to create `t1`, but with the addition
+    of the `AUTO_INCREMENT` column.'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 刚刚给出的指令受到[`CREATE TABLE ... LIKE`](create-table-like.html "15.1.20.3 CREATE
+    TABLE ... LIKE Statement")的限制：外键定义被忽略，`DATA DIRECTORY`和`INDEX DIRECTORY`表选项也被忽略。如果表定义包含任何这些特征，使用与创建`t1`相同的[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句创建`t2`，但增加`AUTO_INCREMENT`列。
+- en: 'Regardless of the method used to create and populate the copy having the `AUTO_INCREMENT`
+    column, the final step is to drop the original table and then rename the copy:'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 无论用于创建和填充具有`AUTO_INCREMENT`列的副本的方法如何，最后一步是删除原始表，然后重命名副本：
+- en: '[PRE1]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: See also [Section B.3.6.1, “Problems with ALTER TABLE”](alter-table-problems.html
+    "B.3.6.1 Problems with ALTER TABLE").
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另请参阅[Section B.3.6.1, “Problems with ALTER TABLE”](alter-table-problems.html
+    "B.3.6.1 Problems with ALTER TABLE")。

@@ -1,0 +1,286 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/hash-joins.html](https://dev.mysql.com/doc/refman/8.0/en/hash-joins.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/hash-joins.html](https://dev.mysql.com/doc/refman/8.0/en/hash-joins.html)
+- en: 10.2.1.4 Hash Join Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.4 哈希连接优化
+- en: By default, MySQL (8.0.18 and later) employs hash joins whenever possible. It
+    is possible to control whether hash joins are employed using one of the [`BNL`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") and [`NO_BNL`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") optimizer hints, or by setting [`block_nested_loop=on`](switchable-optimizations.html#optflag_block-nested-loop)
+    or `block_nested_loop=off` as part of the setting for the optimizer_switch server
+    system variable.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，MySQL（8.0.18及更高版本）尽可能使用哈希连接。可以使用[`BNL`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints")和[`NO_BNL`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints")优化器提示之一，或者将[`block_nested_loop=on`](switchable-optimizations.html#optflag_block-nested-loop)或`block_nested_loop=off`作为optimizer_switch服务器系统变量设置的一部分来控制是否使用哈希连接。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: MySQL 8.0.18 supported setting a [`hash_join`](switchable-optimizations.html#optflag_hash-join)
+    flag in [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch),
+    as well as the optimizer hints [`HASH_JOIN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") and `NO_HASH_JOIN`. In MySQL 8.0.19 and later,
+    none of these have any effect any longer.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.18支持在[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)中设置[`hash_join`](switchable-optimizations.html#optflag_hash-join)标志，以及优化器提示[`HASH_JOIN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints")和`NO_HASH_JOIN`。在MySQL 8.0.19及更高版本中，这些都不再起作用。
+- en: 'Beginning with MySQL 8.0.18, MySQL employs a hash join for any query for which
+    each join has an equi-join condition, and in which there are no indexes that can
+    be applied to any join conditions, such as this one:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.18开始，MySQL为每个连接都具有等值连接条件的查询使用哈希连接，并且没有可以应用于任何连接条件的索引，就像这个例子一样：
+- en: '[PRE0]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: A hash join can also be used when there are one or more indexes that can be
+    used for single-table predicates.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当存在一个或多个可以用于单表谓词的索引时，也可以使用哈希连接。
+- en: A hash join is usually faster than and is intended to be used in such cases
+    instead of the block nested loop algorithm (see [Block Nested-Loop Join Algorithm](nested-loop-joins.html#block-nested-loop-join-algorithm
+    "Block Nested-Loop Join Algorithm")) employed in previous versions of MySQL. Beginning
+    with MySQL 8.0.20, support for block nested loop is removed, and the server employs
+    a hash join wherever a block nested loop would have been used previously.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 哈希连接通常比块嵌套循环算法更快，并且在这种情况下应该使用哈希连接，而不是在以前版本的MySQL中使用的块嵌套循环算法（参见[块嵌套循环连接算法](nested-loop-joins.html#block-nested-loop-join-algorithm
+    "Block Nested-Loop Join Algorithm")）。从MySQL 8.0.20开始，不再支持块嵌套循环，服务器在以前可能使用块嵌套循环的地方使用哈希连接。
+- en: 'In the example just shown and the remaining examples in this section, we assume
+    that the three tables `t1`, `t2`, and `t3` have been created using the following
+    statements:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在刚刚显示的示例和本节中的其余示例中，我们假设使用以下语句创建了三个表`t1`、`t2`和`t3`：
+- en: '[PRE1]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'You can see that a hash join is being employed by using [`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement"), like this:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以通过使用[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")来查看哈希连接的使用情况，就像这样：
+- en: '[PRE2]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: (Prior to MySQL 8.0.20, it was necessary to include the `FORMAT=TREE` option
+    to see whether hash joins were being used for a given join.)
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: (在MySQL 8.0.20之前，有必要包含`FORMAT=TREE`选项，以查看给定连接是否使用了哈希连接。)
+- en: '[`EXPLAIN ANALYZE`](explain.html#explain-analyze "Obtaining Information with
+    EXPLAIN ANALYZE") also displays information about hash joins used.'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`EXPLAIN ANALYZE`](explain.html#explain-analyze "使用EXPLAIN ANALYZE获取信息")还显示了使用的哈希连接的信息。'
+- en: 'The hash join is used for queries involving multiple joins as well, as long
+    as at least one join condition for each pair of tables is an equi-join, like the
+    query shown here:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 哈希连接也用于涉及多个连接的查询，只要每对表的至少一个连接条件是等值连接，就像这里显示的查询一样：
+- en: '[PRE3]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'In cases like the one just shown, which makes use of an inner join, any extra
+    conditions which are not equi-joins are applied as filters after the join is executed.
+    (For outer joins, such as left joins, semijoins, and antijoins, they are printed
+    as part of the join.) This can be seen here in the output of `EXPLAIN`:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在像刚刚显示的这种情况下，使用内连接时，任何不是等值连接的额外条件在连接执行后作为过滤器应用。（对于外连接，如左连接、半连接和反连接，它们作为连接的一部分打印。）这可以在`EXPLAIN`的输出中看到：
+- en: '[PRE4]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: As also can be seen from the output just shown, multiple hash joins can be (and
+    are) used for joins having multiple equi-join conditions.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如刚刚展示的输出所示，多个哈希连接可以用于具有多个等值连接条件的连接。
+- en: 'Prior to MySQL 8.0.20, a hash join could not be used if any pair of joined
+    tables did not have at least one equi-join condition, and the slower block nested
+    loop algorithm was employed. In MySQL 8.0.20 and later, the hash join is used
+    in such cases, as shown here:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.20之前，如果任何一对连接的表没有至少一个等值连接条件，则无法使用哈希连接，并且会使用较慢的块嵌套循环算法。在MySQL 8.0.20及更高版本中，在这种情况下使用哈希连接，如下所示：
+- en: '[PRE5]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: (Additional examples are provided later in this section.)
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: (本节稍后提供更多示例。)
+- en: 'A hash join is also applied for a Cartesian product—that is, when no join condition
+    is specified, as shown here:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当未指定连接条件时，哈希连接也适用于笛卡尔积，如下所示：
+- en: '[PRE6]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'In MySQL 8.0.20 and later, it is no longer necessary for the join to contain
+    at least one equi-join condition in order for a hash join to be used. This means
+    that the types of queries which can be optimized using hash joins include those
+    in the following list (with examples):'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.20及更高版本中，连接不再需要至少包含一个等值连接条件才能使用哈希连接。这意味着可以使用哈希连接优化的查询类���包括以下列表中的查询（附有示例）：
+- en: '*Inner non-equi-join*:'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*内部非等值连接*：'
+- en: '[PRE7]'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '*Semijoin*:'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*半连接*：'
+- en: '[PRE8]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: '*Antijoin*:'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*反连接*：'
+- en: '[PRE9]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: '*Left outer join*:'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*左外连接*：'
+- en: '[PRE10]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: '*Right outer join* (observe that MySQL rewrites all right outer joins as left
+    outer joins):'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*右外连接*（请注意，MySQL将所有右外连接重写为左外连接）：'
+- en: '[PRE11]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: By default, MySQL 8.0.18 and later employs hash joins whenever possible. It
+    is possible to control whether hash joins are employed using one of the [`BNL`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") and `NO_BNL` optimizer hints.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，MySQL 8.0.18及更高版本在可能的情况下始终使用哈希连接。可以使用[`BNL`](optimizer-hints.html#optimizer-hints-table-level
+    "表级优化器提示")和`NO_BNL`优化器提示之一来控制是否使用哈希连接。
+- en: (MySQL 8.0.18 supported [`hash_join=on`](switchable-optimizations.html#optflag_hash-join)
+    or [`hash_join=off`](switchable-optimizations.html#optflag_hash-join) as part
+    of the setting for the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    server system variable as well as the optimizer hints [`HASH_JOIN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") or [`NO_HASH_JOIN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints"). In MySQL 8.0.19 and later, these no longer have
+    any effect.)
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: （MySQL 8.0.18支持[`hash_join=on`](switchable-optimizations.html#optflag_hash-join)或[`hash_join=off`](switchable-optimizations.html#optflag_hash-join)作为[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)服务器系统变量设置的一部分，以及优化器提示[`HASH_JOIN`](optimizer-hints.html#optimizer-hints-table-level
+    "表级优化器提示")或[`NO_HASH_JOIN`](optimizer-hints.html#optimizer-hints-table-level "表级优化器提示")。在MySQL
+    8.0.19及更高版本中，这些不再起作用。）
+- en: 'Memory usage by hash joins can be controlled using the [`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    system variable; a hash join cannot use more memory than this amount. When the
+    memory required for a hash join exceeds the amount available, MySQL handles this
+    by using files on disk. If this happens, you should be aware that the join may
+    not succeed if a hash join cannot fit into memory and it creates more files than
+    set for [`open_files_limit`](server-system-variables.html#sysvar_open_files_limit).
+    To avoid such problems, make either of the following changes:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用[`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)系统变量来控制哈希连接的内存使用情况；哈希连接不能使用超过此数量的内存。当哈希连接所需的内存超过可用量时，MySQL会通过在磁盘上使用文件来处理此问题。如果发生这种情况，您应该意识到，如果哈希连接无法适应内存并且创建的文件多于为[`open_files_limit`](server-system-variables.html#sysvar_open_files_limit)设置的数量，则连接可能不会成功。为避免此类问题，请进行以下更改之一：
+- en: Increase `join_buffer_size` so that the hash join does not spill over to disk.
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 增加`join_buffer_size`，以使哈希连接不会溢出到磁盘。
+- en: Increase `open_files_limit`.
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 增加`open_files_limit`。
+- en: Beginning with MySQL 8.0.18, join buffers for hash joins are allocated incrementally;
+    thus, you can set [`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    higher without small queries allocating very large amounts of RAM, but outer joins
+    allocate the entire buffer. In MySQL 8.0.20 and later, hash joins are used for
+    outer joins (including antijoins and semijoins) as well, so this is no longer
+    an issue.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.18开始，为哈希连接分配增量式连接缓冲区；因此，您可以将[`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)设置得更高，而不会使小查询分配大量RAM，但外连接会分配整个缓冲区。在MySQL
+    8.0.20及更高版本中，哈希连接也用于外连接（包括反连接和半连接），因此这不再是一个问题。

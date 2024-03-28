@@ -1,0 +1,591 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-reading.html](https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-reading.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-reading.html](https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-reading.html)
+- en: 8.4.5.6 Reading Audit Log Files
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.5.6 读取审计日志文件
+- en: The audit log plugin supports functions that provide an SQL interface for reading
+    JSON-format audit log files. (This capability does not apply to log files written
+    in other formats.)
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 审计日志插件支持提供 SQL 接口以读取 JSON 格式审计日志文件的函数。（此功能不适用于其他格式的日志文件。）
+- en: 'When the audit log plugin initializes and is configured for JSON logging, it
+    uses the directory containing the current audit log file as the location to search
+    for readable audit log files. The plugin determines the file location, base name,
+    and suffix from the value of the [`audit_log_file`](audit-log-reference.html#sysvar_audit_log_file)
+    system variable, then looks for files with names that match the following pattern,
+    where `[...]` indicates optional file name parts:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当审计日志插件初始化并配置为 JSON 记录时，它使用包含当前审计日志文件的目录作为搜索可读取审计日志文件的位置。插件从[`audit_log_file`](audit-log-reference.html#sysvar_audit_log_file)系统变量的值中确定文件位置、基本名称和后缀，然后查找与以下模式匹配的文件，其中`[...]`表示可选文件名部分：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'If a file name ends with `.enc`, the file is encrypted and reading its unencrypted
+    contents requires a decryption password obtained from the keyring. The audit log
+    plugin determines the keyring ID of the decryption password as follows:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果文件名以`.enc`结尾，则文件已加密，读取其未加密内容需要从密钥环获取解密密码。审计日志插件确定解密密码的密钥环 ID 如下：
+- en: If `.enc` is preceded by *`pwd_id`*, the keyring ID is `audit_log-*`pwd_id`*`.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果`.enc`之前是*`pwd_id`*，密钥环 ID 是`audit_log-*`pwd_id`*`。
+- en: If `.enc` is not preceded by *`pwd_id`*, the file has an old name from before
+    audit log encryption password history was implemented. The keyring ID is `audit_log`.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果`.enc`之前不是*`pwd_id`*，则文件具有在实施审计日志加密密码历史之前的旧名称。密钥环 ID 是`audit_log`。
+- en: For more information about encrypted audit log files, see [Encrypting Audit
+    Log Files](audit-log-logging-configuration.html#audit-log-file-encryption "Encrypting
+    Audit Log Files").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关加密审计日志文件的更多信息，请参阅[加密审计日志文件](audit-log-logging-configuration.html#audit-log-file-encryption
+    "加密审计日志文件")。
+- en: 'The plugin ignores files that have been renamed manually and do not match the
+    pattern, and files that were encrypted with a password no longer available in
+    the keyring. The plugin opens each remaining candidate file, verifies that the
+    file actually contains [`JSON`](json.html "13.5 The JSON Data Type") audit events,
+    and sorts the files using the timestamps from the first event of each file. The
+    result is a sequence of files that are subject to access using the log-reading
+    functions:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插件会忽略那些被手动重命名且不符合模式的文件，以及使用密码加密但密钥环中不再存在密码的文件。插件会打开每个剩余的候选文件，验证文件是否实际包含[`JSON`](json.html
+    "13.5 JSON 数据类型")审计事件，并使用每个文件的第一个事件的时间戳对文件进行排序。结果是一系列文件，可以通过日志读取函数进行访问：
+- en: '[`audit_log_read()`](audit-log-reference.html#function_audit-log-read) reads
+    events from the audit log or closes the reading process.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`audit_log_read()`](audit-log-reference.html#function_audit-log-read) 从审计日志中读取事件或关闭读取过程。'
+- en: '[`audit_log_read_bookmark()`](audit-log-reference.html#function_audit-log-read-bookmark)
+    returns a bookmark for the most recently written audit log event. This bookmark
+    is suitable for passing to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    to indicate where to begin reading.'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`audit_log_read_bookmark()`](audit-log-reference.html#function_audit-log-read-bookmark)
+    返回最近写入的审计日志事件的书签。此书签适合传递给[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)以指示从何处开始读取。'
+- en: '[`audit_log_read()`](audit-log-reference.html#function_audit-log-read) takes
+    an optional [`JSON`](json.html "13.5 The JSON Data Type") string argument, and
+    the result returned from a successful call to either function is a [`JSON`](json.html
+    "13.5 The JSON Data Type") string.'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`audit_log_read()`](audit-log-reference.html#function_audit-log-read) 接受一个可选的[`JSON`](json.html
+    "13.5 JSON 数据类型")字符串参数，成功调用任一函数后返回的结果是一个[`JSON`](json.html "13.5 JSON 数据类型")字符串。'
+- en: 'To use the functions to read the audit log, follow these principles:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用函数读取审计日志，请遵循以下原则：
+- en: 'Call [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    to read events beginning from a given position or the current position, or to
+    close reading:'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 调用[`audit_log_read()`](audit-log-reference.html#function_audit-log-read) 从给定位置或当前位置开始读取事件，或关闭读取：
+- en: 'To initialize an audit log read sequence, pass an argument that indicates the
+    position at which to begin. One way to do so is to pass the bookmark returned
+    by [`audit_log_read_bookmark()`](audit-log-reference.html#function_audit-log-read-bookmark):'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要初始化审核日志读取序列，请传递指示开始位置的参数。一种方法是传递由[`audit_log_read_bookmark()`](audit-log-reference.html#function_audit-log-read-bookmark)返回的书签：
+- en: '[PRE1]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'To continue reading from the current position in the sequence, call [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    with no position specified:'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要从序列中的当前位置继续读取，请调用[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)而不指定位置：
+- en: '[PRE2]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To explicitly close the read sequence, pass a [`JSON`](json.html "13.5 The
+    JSON Data Type") `null` argument:'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要显式关闭读取序列，请传递一个[`JSON`](json.html "13.5 JSON 数据类型") `null`参数：
+- en: '[PRE3]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: It is unnecessary to close reading explicitly. Reading is closed implicitly
+    when the session ends or a new read sequence is initialized by calling [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    with an argument that indicates the position at which to begin.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不需要显式关闭读取。当会话结束或通过调用带有指示开始位置参数的[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)来初始化新的读取序列时，读取会在隐式关闭。
+- en: 'A successful call to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    to read events returns a [`JSON`](json.html "13.5 The JSON Data Type") string
+    containing an array of audit events:'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 成功调用[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)读取事件将返回一个包含审核事件数组的[`JSON`](json.html
+    "13.5 JSON 数据类型")字符串：
+- en: If the final value of the returned array is not a [`JSON`](json.html "13.5 The
+    JSON Data Type") `null` value, there are more events following those just read
+    and [`audit_log_read()`](audit-log-reference.html#function_audit-log-read) can
+    be called again to read more of them.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果返回数组的最终值不是[`JSON`](json.html "13.5 JSON 数据类型") `null`值，则在刚刚读取的事件后还有更多事件，并且可以再次调用[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)来读取更多事件。
+- en: If the final value of the returned array is a [`JSON`](json.html "13.5 The JSON
+    Data Type") `null` value, there are no more events left to be read in the current
+    read sequence.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果返回数组的最终值是[`JSON`](json.html "13.5 JSON 数据类型") `null`值，则当前读取序列中没有更多事件可读取。
+- en: 'Each non-`null` array element is an event represented as a [`JSON`](json.html
+    "13.5 The JSON Data Type") hash. For example:'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个非`null`数组元素都表示为[`JSON`](json.html "13.5 JSON 数据类型")哈希。例如：
+- en: '[PRE4]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: For more information about the content of JSON-format audit events, see [JSON
+    Audit Log File Format](audit-log-file-formats.html#audit-log-file-json-format
+    "JSON Audit Log File Format").
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关 JSON 格式审核事件内容的更多信息，请参阅[JSON 审计日志文件格式](audit-log-file-formats.html#audit-log-file-json-format
+    "JSON 审计日志文件格式")。
+- en: 'An [`audit_log_read()`](audit-log-reference.html#function_audit-log-read) call
+    to read events that does not specify a position produces an error under any of
+    these conditions:'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 未指定位置的[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)调用在以下任何条件下都会产生错误：
+- en: A read sequence has not yet been initialized by passing a position to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read).
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过向[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)传递位置参数来初始化读取序列。
+- en: There are no more events left to be read in the current read sequence; that
+    is, [`audit_log_read()`](audit-log-reference.html#function_audit-log-read) previously
+    returned an array ending with a [`JSON`](json.html "13.5 The JSON Data Type")
+    `null` value.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当前读取序列中没有更多事件可读取；也就是说，[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)先前返回了以[`JSON`](json.html
+    "13.5 JSON 数据类型") `null`值结尾的数组。
+- en: The most recent read sequence has been closed by passing a [`JSON`](json.html
+    "13.5 The JSON Data Type") `null` value to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read).
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过向[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)传递一个[`JSON`](json.html
+    "13.5 JSON 数据类型") `null`值，最近的读取序列已被关闭。
+- en: To read events under those conditions, it is necessary to first initialize a
+    read sequence by calling [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    with an argument that specifies a position.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要在这些条件下读取事件，需要首先通过调用带有指定位置参数的[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)来初始化读取序列。
+- en: 'To specify a position to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read),
+    include an argument that indicates where to begin reading. For example, pass a
+    bookmark, which is a [`JSON`](json.html "13.5 The JSON Data Type") hash containing
+    `timestamp` and `id` elements that uniquely identify a particular event. Here
+    is an example bookmark, obtained by calling the [`audit_log_read_bookmark()`](audit-log-reference.html#function_audit-log-read-bookmark)
+    function:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要指定传递给[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)的位置，请包含指示从何处开始读取的参数。例如，传递一个书签，这是一个包含`timestamp`和`id`元素的[`JSON`](json.html
+    "13.5 JSON 数据类型")哈希，用于唯一标识特定事件。以下是通过调用[`audit_log_read_bookmark()`](audit-log-reference.html#function_audit-log-read-bookmark)函数获得的示例书签：
+- en: '[PRE5]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Passing the current bookmark to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    initializes event reading beginning at the bookmark position:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将当前书签传递给[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)会初始化从书签位置开始的事件读取：
+- en: '[PRE6]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The argument to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    is optional. If present, it can be a [`JSON`](json.html "13.5 The JSON Data Type")
+    `null` value to close the read sequence, or a [`JSON`](json.html "13.5 The JSON
+    Data Type") hash.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 传递给[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)的参数是可选的。如果存在，则可以是[`JSON`](json.html
+    "13.5 JSON 数据类型") `null`值以关闭读取序列，或者是[`JSON`](json.html "13.5 JSON 数据类型")哈希。
+- en: 'Within a hash argument to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read),
+    items are optional and control aspects of the read operation such as the position
+    at which to begin reading or how many events to read. The following items are
+    significant (other items are ignored):'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在传递给[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)的哈希参数中，项目是可选的，用于控制读取操作的方面，例如开始读取的位置或要读取的事件数量。以下项目是重要的（其他项目将被忽略）：
+- en: '`start`: The position within the audit log of the first event to read. The
+    position is given as a timestamp and the read starts from the first event that
+    occurs on or after the timestamp value. The `start` item has this format, where
+    *`value`* is a literal timestamp value:'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`start`：要读取的第一个事件在审计日志中的位置。位置以时间戳给出，并且读取从时间戳值之后或同时发生的第一个事件开始。`start`项目具有以下格式，其中*`value`*是一个文字时间戳值：'
+- en: '[PRE7]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: The `start` item is permitted as of MySQL 8.0.22.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`start`项目自MySQL 8.0.22起允许使用。'
+- en: '`timestamp`, `id`: The position within the audit log of the first event to
+    read. The `timestamp` and `id` items together comprise a bookmark that uniquely
+    identify a particular event. If an [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    argument includes either item, it must include both to completely specify a position
+    or an error occurs.'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`timestamp`，`id`：读取的第一个事件在审计日志中的位置。`timestamp`和`id`项目一起构成一个书签，唯一标识特定事件。如果[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)参数包括任一项目，则必须同时包括两者才能完全指定位置，否则会出现错误。'
+- en: '`max_array_length`: The maximum number of events to read from the log. If this
+    item is omitted, the default is to read to the end of the log or until the read
+    buffer is full, whichever comes first.'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`max_array_length`：从日志中读取的最大事件数。如果省略此项目，默认情况下是读取到日志末尾或直到读取缓冲区已满为止。'
+- en: To specify a starting position to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read),
+    pass a hash argument that includes either a `start` item or a bookmark consisting
+    of `timestamp` and `id` items. If a hash argument includes both a `start` item
+    and a bookmark, an error occurs.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要指定传递给[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)的起始位置，请传递一个包含`start`项目或由`timestamp`和`id`项目组成的书签的哈希参数。如果哈希参数同时包括`start`项目和书签，则会出现错误。
+- en: If a hash argument specifies no starting position, reading continues from the
+    current position.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果哈希参数未指定起始位置，则从当前位置继续读取。
+- en: If a timestamp value includes no time part, a time part of `00:00:00` is assumed.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果时间戳值不包含时间部分，则假定时间部分为`00:00:00`。
+- en: 'Example arguments accepted by [`audit_log_read()`](audit-log-reference.html#function_audit-log-read):'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)接受的示例参数：'
+- en: 'Read events starting with the first event that occurs on or after the given
+    timestamp:'
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从给定时间戳之后或同时发生的第一个事件开始读取事件：
+- en: '[PRE8]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Like the previous example, but read at most 3 events:'
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类似于前一个示例，但最多读取3个事件：
+- en: '[PRE9]'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'Read events starting with the first event that occurs on or after `2020-05-24
+    00:00:00` (the timestamp includes no time part, so `00:00:00` is assumed):'
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从`2020-05-24 00:00:00`之后或同时发生的第一个事件开始读取事件（时间戳不包含时间部分，因此假定为`00:00:00`）：
+- en: '[PRE10]'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'Read events starting with the event that has the exact timestamp and event
+    ID:'
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从具有确切时间戳和事件 ID 的事件开始读取事件：
+- en: '[PRE11]'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'Like the previous example, but read at most 3 events:'
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与前一个示例类似，但最多读取 3 个事件：
+- en: '[PRE12]'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'Read events from the current position in the read sequence:'
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从读取序列的当前位置读取事件：
+- en: '[PRE13]'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'Read at most 5 events beginning at the current position in the read sequence:'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从当前位置开始读取最多 5 个事件：
+- en: '[PRE14]'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'Close the current read sequence:'
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 关闭当前读取序列：
+- en: '[PRE15]'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'A [`JSON`](json.html "13.5 The JSON Data Type") string returned from either
+    log-reading function can be manipulated as necessary. Suppose that a call to obtain
+    a bookmark produces this value:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从任一日志读取函数返回的[`JSON`](json.html "13.5 The JSON Data Type")字符串可以根据需要进行操作。假设调用以获取书签产生此值：
+- en: '[PRE16]'
+  id: totrans-65
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'Calling [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    with that argument can return multiple events. To limit [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    to reading at most *`N`* events, add to the string a `max_array_length` item with
+    that value. For example, to read a single event, modify the string as follows:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用该参数调用[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)可以返回多个事件。要限制[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)最多读取
+    *`N`* 个事件，请向字符串添加一个具有该值的 `max_array_length` 项。例如，要读取单个事件，请修改字符串如下：
+- en: '[PRE17]'
+  id: totrans-67
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: The modified string, when passed to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read),
+    produces a result containing at most one event, no matter how many are available.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修改后的字���串，当传递给[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)时，将产生一个包含最多一个事件的结果，无论有多少事件可用。
+- en: 'Prior to MySQL 8.0.19, string return values from audit log functions are binary
+    strings. To use a binary string with functions that require a nonbinary string
+    (such as functions that manipulate [`JSON`](json.html "13.5 The JSON Data Type")
+    values), convert it to a nonbinary string. For example, before passing a bookmark
+    to [`JSON_SET()`](json-modification-functions.html#function_json-set), convert
+    it to `utf8mb4` as follows:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.19 之前，审计日志函数返回的字符串返回值是二进制字符串。要将二进制字符串用于需要非二进制字符串的函数（例如操作[`JSON`](json.html
+    "13.5 The JSON Data Type")值的函数），请将其转换为非二进制字符串。例如，在将书签传递给[`JSON_SET()`](json-modification-functions.html#function_json-set)之前，将其转换为`utf8mb4`如下：
+- en: '[PRE18]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: That statement can be used even for MySQL 8.0.19 and higher; for those versions,
+    it is essentially a no-op and is harmless.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该语句即使对于 MySQL 8.0.19 及更高版本也可以使用；对于这些版本，它基本上是一个无操作，并且是无害的。
+- en: If an audit log function is invoked from within the [**mysql**](mysql.html "6.5.1 mysql
+    — The MySQL Command-Line Client") client, binary string results display using
+    hexadecimal notation, depending on the value of the [`--binary-as-hex`](mysql-command-options.html#option_mysql_binary-as-hex).
+    For more information about that option, see [Section 6.5.1, “mysql — The MySQL
+    Command-Line Client”](mysql.html "6.5.1 mysql — The MySQL Command-Line Client").
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果从[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")客户端内调用审计日志函数，则根据[`--binary-as-hex`](mysql-command-options.html#option_mysql_binary-as-hex)的值，二进制字符串结果将以十六进制表示。有关该选项的更多信息，请参见[Section 6.5.1,
+    “mysql — The MySQL Command-Line Client”](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client")。
+- en: To set a limit on the number of bytes that [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    reads, set the [`audit_log_read_buffer_size`](audit-log-reference.html#sysvar_audit_log_read_buffer_size)
+    system variable. As of MySQL 8.0.12, this variable has a default of 32KB and can
+    be set at runtime. Each client should set its session value of [`audit_log_read_buffer_size`](audit-log-reference.html#sysvar_audit_log_read_buffer_size)
+    appropriately for its use of [`audit_log_read()`](audit-log-reference.html#function_audit-log-read).
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要限制[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)读取的字节数量，请设置[`audit_log_read_buffer_size`](audit-log-reference.html#sysvar_audit_log_read_buffer_size)系统变量。从
+    MySQL 8.0.12 开始，此变量默认为 32KB，并且可以在运行时设置。每个客户端应适当设置其对[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)的使用的会话值[`audit_log_read_buffer_size`](audit-log-reference.html#sysvar_audit_log_read_buffer_size)。
+- en: 'Each call to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    returns as many available events as fit within the buffer size. Events that do
+    not fit within the buffer size are skipped and generate warnings. Given this behavior,
+    consider these factors when assessing the proper buffer size for an application:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每次调用[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)都会返回尽可能多的可用事件，适合缓冲区大小。不适合缓冲区大小的事件将被跳过并生成警告。考虑这种行为时，应考虑以下因素来评估应用程序的适当缓冲区大小：
+- en: 'There is a tradeoff between number of calls to [`audit_log_read()`](audit-log-reference.html#function_audit-log-read)
+    and events returned per call:'
+  id: totrans-75
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在调用[`audit_log_read()`](audit-log-reference.html#function_audit-log-read)和每次调用返回的事件数量之间存在权衡：
+- en: With a smaller buffer size, calls return fewer events, so more calls are needed.
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用更小的缓冲区大小，调用会返回更少的事件，因此需要更多的调用。
+- en: With a larger buffer size, calls return more events, so fewer calls are needed.
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用更大的缓冲区大小，调用会返回更多事件，因此需要更少的调用。
+- en: With a smaller buffer size, such as the default size of 32KB, there is a greater
+    chance for events to exceed the buffer size and thus to be skipped.
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用较小的缓冲区大小，例如默认大小为32KB，事件超过缓冲区大小并因此被跳过的可能性更大。
+- en: Prior to MySQL 8.0.12, [`audit_log_read_buffer_size`](audit-log-reference.html#sysvar_audit_log_read_buffer_size)
+    has a default of 1MB, affects all clients, and can be changed only at server startup.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.12之前，[`audit_log_read_buffer_size`](audit-log-reference.html#sysvar_audit_log_read_buffer_size)默认为1MB，影响所有客户端，只能在服务器启动时更改。
+- en: For additional information about audit log-reading functions, see [Audit Log
+    Functions](audit-log-reference.html#audit-log-routines "Audit Log Functions").
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关审计日志读取函数的更多信息，请参见[Audit Log Functions](audit-log-reference.html#audit-log-routines
+    "Audit Log Functions")。

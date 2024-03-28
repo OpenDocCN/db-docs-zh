@@ -1,0 +1,92 @@
+- en: 10.11.3 Concurrent Inserts
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.11.3 并发插入
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/concurrent-inserts.html](https://dev.mysql.com/doc/refman/8.0/en/concurrent-inserts.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/concurrent-inserts.html](https://dev.mysql.com/doc/refman/8.0/en/concurrent-inserts.html)
+- en: 'The `MyISAM` storage engine supports concurrent inserts to reduce contention
+    between readers and writers for a given table: If a `MyISAM` table has no holes
+    in the data file (deleted rows in the middle), an [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statement can be executed to add rows to the end of the table at the
+    same time that [`SELECT`](select.html "15.2.13 SELECT Statement") statements are
+    reading rows from the table. If there are multiple [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statements, they are queued and performed in sequence, concurrently
+    with the [`SELECT`](select.html "15.2.13 SELECT Statement") statements. The results
+    of a concurrent [`INSERT`](insert.html "15.2.7 INSERT Statement") may not be visible
+    immediately.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`MyISAM` 存储引擎支持并发插入，以减少读者和写者在给定表中的竞争：如果 `MyISAM` 表在数据文件中没有空洞（中间删除的行），则可以执行
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") 语句，同时向表的末尾添加行，而 [`SELECT`](select.html
+    "15.2.13 SELECT Statement") 语句正在从表中读取行。如果有多个 [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") 语句，则它们会被排队并按顺序执行，与 [`SELECT`](select.html "15.2.13 SELECT Statement")
+    语句并发执行。并发 [`INSERT`](insert.html "15.2.7 INSERT Statement") 的结果可能不会立即可见。'
+- en: The [`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert)
+    system variable can be set to modify the concurrent-insert processing. By default,
+    the variable is set to `AUTO` (or 1) and concurrent inserts are handled as just
+    described. If [`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert)
+    is set to `NEVER` (or 0), concurrent inserts are disabled. If the variable is
+    set to `ALWAYS` (or 2), concurrent inserts at the end of the table are permitted
+    even for tables that have deleted rows. See also the description of the [`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert)
+    system variable.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert)
+    系统变量可用于修改并发插入处理。默认情况下，该变量设置为 `AUTO`（或 1），并发插入会按照上述描述进行处理。如果 [`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert)
+    设置为 `NEVER`（或 0），则禁用并发插入。如果该变量设置为 `ALWAYS`（或 2），即使对于具有已删除行的表，也允许在表的末尾进行并发插入。另请参阅
+    [`concurrent_insert`](server-system-variables.html#sysvar_concurrent_insert) 系统变量的描述。'
+- en: If you are using the binary log, concurrent inserts are converted to normal
+    inserts for `CREATE ... SELECT` or [`INSERT ... SELECT`](insert-select.html "15.2.7.1 INSERT
+    ... SELECT Statement") statements. This is done to ensure that you can re-create
+    an exact copy of your tables by applying the log during a backup operation. See
+    [Section 7.4.4, “The Binary Log”](binary-log.html "7.4.4 The Binary Log"). In
+    addition, for those statements a read lock is placed on the selected-from table
+    such that inserts into that table are blocked. The effect is that concurrent inserts
+    for that table must wait as well.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您正在使用二进制日志，对于 `CREATE ... SELECT` 或 [`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement") 语句，将并发插入转换为普通插入。这样做是为了确保您可以通过在备份操作期间应用日志来重新创建表的精确副本。请参阅
+    [Section 7.4.4, “The Binary Log”](binary-log.html "7.4.4 The Binary Log")。此外，对于这些语句，会在所选表上放置读锁，以阻止对该表的插入。其效果是，该表的并发插入也必须等待。
+- en: With [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement"), if you specify
+    `CONCURRENT` with a `MyISAM` table that satisfies the condition for concurrent
+    inserts (that is, it contains no free blocks in the middle), other sessions can
+    retrieve data from the table while [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA
+    Statement") is executing. Use of the `CONCURRENT` option affects the performance
+    of [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") a bit, even if no
+    other session is using the table at the same time.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")，如果您在满足并发插入条件的
+    `MyISAM` 表中指定 `CONCURRENT`（即，它在中间不包含空闲块），则其他会话可以在 [`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement") 执行时从表中检索数据。即使没有其他会话同时使用该表，使用 `CONCURRENT` 选项也会稍微影响
+    [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") 的性能。
+- en: If you specify `HIGH_PRIORITY`, it overrides the effect of the [`--low-priority-updates`](server-system-variables.html#sysvar_low_priority_updates)
+    option if the server was started with that option. It also causes concurrent inserts
+    not to be used.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您指定 `HIGH_PRIORITY`，它会覆盖 [`--low-priority-updates`](server-system-variables.html#sysvar_low_priority_updates)
+    选项的效果，如果服务器是以该选项启动的。它还会导致不使用并发插入。
+- en: For [`LOCK TABLE`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"),
+    the difference between `READ LOCAL` and `READ` is that `READ LOCAL` permits nonconflicting
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") statements (concurrent inserts)
+    to execute while the lock is held. However, this cannot be used if you are going
+    to manipulate the database using processes external to the server while you hold
+    the lock.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`LOCK TABLE`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")，`READ
+    LOCAL`和`READ`之间的区别在于，`READ LOCAL`允许非冲突的[`INSERT`](insert.html "15.2.7 INSERT Statement")语句（并发插入）在持有锁的情况下执行。然而，如果在持有锁的同时要使用外部进程来操作数据库，则不能使用此选项。

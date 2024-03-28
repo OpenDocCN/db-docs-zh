@@ -1,0 +1,439 @@
+- en: 14.9.6 Fine-Tuning MySQL Full-Text Search
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 14.9.6 调整 MySQL 全文搜索
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/fulltext-fine-tuning.html](https://dev.mysql.com/doc/refman/8.0/en/fulltext-fine-tuning.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/fulltext-fine-tuning.html](https://dev.mysql.com/doc/refman/8.0/en/fulltext-fine-tuning.html)
+- en: MySQL's full-text search capability has few user-tunable parameters. You can
+    exert more control over full-text searching behavior if you have a MySQL source
+    distribution because some changes require source code modifications. See [Section 2.8,
+    “Installing MySQL from Source”](source-installation.html "2.8 Installing MySQL
+    from Source").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 的全文搜索功能有很少的用户可调参数。如果你有 MySQL 源码分发，你可以更多地控制全文搜索行为，因为一些更改需要修改源代码。参见 [Section 2.8,
+    “从源代码安装 MySQL”](source-installation.html "2.8 从源代码安装 MySQL")。
+- en: Full-text search is carefully tuned for effectiveness. Modifying the default
+    behavior in most cases can actually decrease effectiveness. *Do not alter the
+    MySQL sources unless you know what you are doing*.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全文搜索经过精心调整以提高效果。在大多数情况下修改默认行为实际上可能会降低效果。*不要修改 MySQL 源码，除非你知道你在做什么*。
+- en: Most full-text variables described in this section must be set at server startup
+    time. A server restart is required to change them; they cannot be modified while
+    the server is running.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述的大多数全文变量必须在服务器启动时设置。更改它们需要重新启动服务器；不能在服务器运行时修改。
+- en: Some variable changes require that you rebuild the `FULLTEXT` indexes in your
+    tables. Instructions for doing so are given later in this section.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些变量更改需要重建表中的`FULLTEXT`索引。如何执行此操作将在本节后面给出。
+- en: '[Configuring Minimum and Maximum Word Length](fulltext-fine-tuning.html#fulltext-word-length
+    "Configuring Minimum and Maximum Word Length")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置最小和最大单词长度](fulltext-fine-tuning.html#fulltext-word-length "配置最小和最大单词长度")'
+- en: '[Configuring the Natural Language Search Threshold](fulltext-fine-tuning.html#fulltext-natural-language-threshold
+    "Configuring the Natural Language Search Threshold")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置自然语言搜索阈值](fulltext-fine-tuning.html#fulltext-natural-language-threshold
+    "配置自然语言搜索阈值")'
+- en: '[Modifying Boolean Full-Text Search Operators](fulltext-fine-tuning.html#fulltext-modify-boolean-operators
+    "Modifying Boolean Full-Text Search Operators")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[修改布尔全文搜索运算符](fulltext-fine-tuning.html#fulltext-modify-boolean-operators "修改布尔全文搜索运算符")'
+- en: '[Character Set Modifications](fulltext-fine-tuning.html#fulltext-modify-character-set
+    "Character Set Modifications")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[字符集修改](fulltext-fine-tuning.html#fulltext-modify-character-set "字符集修改")'
+- en: '[Rebuilding InnoDB Full-Text Indexes](fulltext-fine-tuning.html#fulltext-rebuild-innodb-indexes
+    "Rebuilding InnoDB Full-Text Indexes")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[重建 InnoDB 全文索引](fulltext-fine-tuning.html#fulltext-rebuild-innodb-indexes
+    "重建 InnoDB 全文索引")'
+- en: '[Optimizing InnoDB Full-Text Indexes](fulltext-fine-tuning.html#fulltext-optimize
+    "Optimizing InnoDB Full-Text Indexes")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[优化 InnoDB 全文索引](fulltext-fine-tuning.html#fulltext-optimize "优化 InnoDB 全文索引")'
+- en: '[Rebuilding MyISAM Full-Text Indexes](fulltext-fine-tuning.html#fulltext-rebuild-myisam-indexes
+    "Rebuilding MyISAM Full-Text Indexes")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[重建 MyISAM 全文索引](fulltext-fine-tuning.html#fulltext-rebuild-myisam-indexes
+    "重建 MyISAM 全文索引")'
+- en: Configuring Minimum and Maximum Word Length
+  id: totrans-13
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置最小和最大单词长度
+- en: The minimum and maximum lengths of words to be indexed are defined by the [`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size)
+    and [`innodb_ft_max_token_size`](innodb-parameters.html#sysvar_innodb_ft_max_token_size)
+    for `InnoDB` search indexes, and [`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len)
+    and [`ft_max_word_len`](server-system-variables.html#sysvar_ft_max_word_len) for
+    `MyISAM` ones.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要索引的单词的最小和最大长度由 [`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size)
+    和 [`innodb_ft_max_token_size`](innodb-parameters.html#sysvar_innodb_ft_max_token_size)（对于`InnoDB`搜索索引）以及
+    [`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len) 和 [`ft_max_word_len`](server-system-variables.html#sysvar_ft_max_word_len)（对于`MyISAM`）定义。
+- en: Note
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Minimum and maximum word length full-text parameters do not apply to `FULLTEXT`
+    indexes created using the ngram parser. ngram token size is defined by the [`ngram_token_size`](server-system-variables.html#sysvar_ngram_token_size)
+    option.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最小和最大单词长度全文参数不适用于使用 ngram 解析器创建的`FULLTEXT`索引。ngram 标记大小由 [`ngram_token_size`](server-system-variables.html#sysvar_ngram_token_size)
+    选项定义。
+- en: 'After changing any of these options, rebuild your `FULLTEXT` indexes for the
+    change to take effect. For example, to make two-character words searchable, you
+    could put the following lines in an option file:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在更改任何这些选项后，重新构建你的`FULLTEXT`索引以使更改生效。例如，要使两个字符的单词可搜索，你可以在选项文件中加入以下行：
+- en: '[PRE0]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Then restart the server and rebuild your `FULLTEXT` indexes. For `MyISAM` tables,
+    note the remarks regarding [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") in the instructions that follow for rebuilding `MyISAM`
+    full-text indexes.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后重新启动服务器并重建您的`FULLTEXT`索引。对于`MyISAM`表，请注意以下有关重建`MyISAM`全文索引的说明中关于[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")的备注。
+- en: Configuring the Natural Language Search Threshold
+  id: totrans-20
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置自然语言搜索阈值
+- en: 'For `MyISAM` search indexes, the 50% threshold for natural language searches
+    is determined by the particular weighting scheme chosen. To disable it, look for
+    the following line in `storage/myisam/ftdefs.h`:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`MyISAM`搜索索引，自然语言搜索的50%阈值取决于所选择的特定加权方案。要禁用它，请查找`storage/myisam/ftdefs.h`中的以下行：
+- en: '[PRE1]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Change that line to this:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将该行更改为：
+- en: '[PRE2]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Then recompile MySQL. There is no need to rebuild the indexes in this case.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后重新编译 MySQL。在这种情况下，无需重建索引。
+- en: Note
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: By making this change, you *severely* decrease MySQL's ability to provide adequate
+    relevance values for the [`MATCH()`](fulltext-search.html#function_match) function.
+    If you really need to search for such common words, it would be better to search
+    using `IN BOOLEAN MODE` instead, which does not observe the 50% threshold.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过进行此更改，您*严重*降低了 MySQL 为[`MATCH()`](fulltext-search.html#function_match)函数提供充分相关性值的能力。如果您真的需要搜索这样的常见词，最好使用`IN
+    BOOLEAN MODE`进行搜索，该模式不遵守50%的阈值。
+- en: Modifying Boolean Full-Text Search Operators
+  id: totrans-28
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 修改布尔全文搜索运算符
+- en: To change the operators used for boolean full-text searches on `MyISAM` tables,
+    set the [`ft_boolean_syntax`](server-system-variables.html#sysvar_ft_boolean_syntax)
+    system variable. (`InnoDB` does not have an equivalent setting.) This variable
+    can be changed while the server is running, but you must have privileges sufficient
+    to set global system variables (see [Section 7.1.9.1, “System Variable Privileges”](system-variable-privileges.html
+    "7.1.9.1 System Variable Privileges")). No rebuilding of indexes is necessary
+    in this case.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要更改在`MyISAM`表上用于布尔全文搜索的运算符，请设置[`ft_boolean_syntax`](server-system-variables.html#sysvar_ft_boolean_syntax)系统变量。（`InnoDB`没有相应的设置。）此变量可以在服务器运行时更改，但您必须具有足够的权限来设置全局系统变量（请参阅[第7.1.9.1节，“系统变量权限”](system-variable-privileges.html
+    "7.1.9.1 系统变量权限")）。在这种情况下，不需要重建索引。
+- en: Character Set Modifications
+  id: totrans-30
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 字符集修改
+- en: 'For the built-in full-text parser, you can change the set of characters that
+    are considered word characters in several ways, as described in the following
+    list. After making the modification, rebuild the indexes for each table that contains
+    any `FULLTEXT` indexes. Suppose that you want to treat the hyphen character (''-'')
+    as a word character. Use one of these methods:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于内置全文解析器，您可以通过以下列表中描述的几种方式更改被视为单词字符的字符集。进行修改后，重新为包含任何`FULLTEXT`索引的每个表重建索引。假设您希望将连字符字符（'-'）视为单词字符。使用以下方法之一：
+- en: 'Modify the MySQL source: In `storage/innobase/handler/ha_innodb.cc` (for `InnoDB`),
+    or in `storage/myisam/ftdefs.h` (for `MyISAM`), see the `true_word_char()` and
+    `misc_word_char()` macros. Add `''-''` to one of those macros and recompile MySQL.'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 修改 MySQL 源代码：在`storage/innobase/handler/ha_innodb.cc`（对于`InnoDB`）或`storage/myisam/ftdefs.h`（对于`MyISAM`）中查看`true_word_char()`和`misc_word_char()`宏。将`'-'`添加到其中一个宏中，然后重新编译
+    MySQL。
+- en: 'Modify a character set file: This requires no recompilation. The `true_word_char()`
+    macro uses a “character type” table to distinguish letters and numbers from other
+    characters. . You can edit the contents of the `<ctype><map>` array in one of
+    the character set XML files to specify that `''-''` is a “letter.” Then use the
+    given character set for your `FULLTEXT` indexes. For information about the `<ctype><map>`
+    array format, see [Section 12.13.1, “Character Definition Arrays”](character-arrays.html
+    "12.13.1 Character Definition Arrays").'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 修改字符集文件：这不需要重新编译。`true_word_char()`宏使用“字符类型”表来区分字母和数字与其他字符。 您可以编辑一个字符集 XML 文件中的`<ctype><map>`数组的内容，以指定`'-'`是一个“字母”。然后使用给定的字符集为您的`FULLTEXT`索引。有关`<ctype><map>`数组格式的信息，请参阅[第12.13.1节，“字符定义数组”](character-arrays.html
+    "12.13.1 字符定义数组")。
+- en: Add a new collation for the character set used by the indexed columns, and alter
+    the columns to use that collation. For general information about adding collations,
+    see [Section 12.14, “Adding a Collation to a Character Set”](adding-collation.html
+    "12.14 Adding a Collation to a Character Set"). For an example specific to full-text
+    indexing, see [Section 14.9.7, “Adding a User-Defined Collation for Full-Text
+    Indexing”](full-text-adding-collation.html "14.9.7 Adding a User-Defined Collation
+    for Full-Text Indexing").
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为使用索引列的字符集添加新的排序规则，并修改列以使用该排序规则。有关添加排序规则的一般信息，请参见[Section 12.14, “Adding a Collation
+    to a Character Set”](adding-collation.html "12.14 Adding a Collation to a Character
+    Set")。有关全文索引的特定示例，请参见[Section 14.9.7, “Adding a User-Defined Collation for Full-Text
+    Indexing”](full-text-adding-collation.html "14.9.7 Adding a User-Defined Collation
+    for Full-Text Indexing")。
+- en: Rebuilding InnoDB Full-Text Indexes
+  id: totrans-35
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 重建InnoDB全文索引
+- en: 'For the changes to take effect, `FULLTEXT` indexes must be rebuilt after modifying
+    any of the following full-text index variables: [`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size);
+    [`innodb_ft_max_token_size`](innodb-parameters.html#sysvar_innodb_ft_max_token_size);
+    [`innodb_ft_server_stopword_table`](innodb-parameters.html#sysvar_innodb_ft_server_stopword_table);
+    [`innodb_ft_user_stopword_table`](innodb-parameters.html#sysvar_innodb_ft_user_stopword_table);
+    [`innodb_ft_enable_stopword`](innodb-parameters.html#sysvar_innodb_ft_enable_stopword);
+    [`ngram_token_size`](server-system-variables.html#sysvar_ngram_token_size). Modifying
+    [`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size),
+    [`innodb_ft_max_token_size`](innodb-parameters.html#sysvar_innodb_ft_max_token_size),
+    or [`ngram_token_size`](server-system-variables.html#sysvar_ngram_token_size)
+    requires restarting the server.'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使更改生效，必须在修改以下任一全文索引变量后重建`FULLTEXT`索引：[`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size);
+    [`innodb_ft_max_token_size`](innodb-parameters.html#sysvar_innodb_ft_max_token_size);
+    [`innodb_ft_server_stopword_table`](innodb-parameters.html#sysvar_innodb_ft_server_stopword_table);
+    [`innodb_ft_user_stopword_table`](innodb-parameters.html#sysvar_innodb_ft_user_stopword_table);
+    [`innodb_ft_enable_stopword`](innodb-parameters.html#sysvar_innodb_ft_enable_stopword);
+    [`ngram_token_size`](server-system-variables.html#sysvar_ngram_token_size)。修改[`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size)、[`innodb_ft_max_token_size`](innodb-parameters.html#sysvar_innodb_ft_max_token_size)或[`ngram_token_size`](server-system-variables.html#sysvar_ngram_token_size)需要重新启动服务器。
+- en: To rebuild `FULLTEXT` indexes for an `InnoDB` table, use [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") with the `DROP INDEX` and `ADD INDEX` options
+    to drop and re-create each index.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为`InnoDB`表重建`FULLTEXT`索引，请使用[`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")与`DROP INDEX`和`ADD INDEX`选项，以删除并重新创建每个索引。
+- en: Optimizing InnoDB Full-Text Indexes
+  id: totrans-38
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 优化InnoDB全文索引
+- en: Running [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")
+    on a table with a full-text index rebuilds the full-text index, removing deleted
+    Document IDs and consolidating multiple entries for the same word, where possible.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在具有全文索引的表上运行[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE
+    Statement")会重建全文索引，删除已删除的文档ID，并在可能的情况下 consololidating 多个相同单词的条目。
+- en: To optimize a full-text index, enable [`innodb_optimize_fulltext_only`](innodb-parameters.html#sysvar_innodb_optimize_fulltext_only)
+    and run `OPTIMIZE TABLE`.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要优化全文索引，请启用[`innodb_optimize_fulltext_only`](innodb-parameters.html#sysvar_innodb_optimize_fulltext_only)并运行`OPTIMIZE
+    TABLE`。
+- en: '[PRE3]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: To avoid lengthy rebuild times for full-text indexes on large tables, you can
+    use the [`innodb_ft_num_word_optimize`](innodb-parameters.html#sysvar_innodb_ft_num_word_optimize)
+    option to perform the optimization in stages. The `innodb_ft_num_word_optimize`
+    option defines the number of words that are optimized each time [`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement") is run. The default setting is 2000, which
+    means that 2000 words are optimized each time [`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement") is run. Subsequent [`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement") operations continue from where the preceding
+    [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement") operation
+    ended.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免在大表上进行全文索引的长时间重建，您可以使用[`innodb_ft_num_word_optimize`](innodb-parameters.html#sysvar_innodb_ft_num_word_optimize)选项分阶段执行优化。`innodb_ft_num_word_optimize`选项定义了每次运行[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")时优化的单词数。默认设置为2000，这意味着每次运行[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")时会优化2000个单词。后续的[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")操作将从前一个[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")操作结束的地方继续。
+- en: Rebuilding MyISAM Full-Text Indexes
+  id: totrans-43
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 重建MyISAM全文索引
+- en: If you modify full-text variables that affect indexing ([`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len),
+    [`ft_max_word_len`](server-system-variables.html#sysvar_ft_max_word_len), or [`ft_stopword_file`](server-system-variables.html#sysvar_ft_stopword_file)),
+    or if you change the stopword file itself, you must rebuild your `FULLTEXT` indexes
+    after making the changes and restarting the server.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您修改影响索引的全文变量（[`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len)、[`ft_max_word_len`](server-system-variables.html#sysvar_ft_max_word_len)或[`ft_stopword_file`](server-system-variables.html#sysvar_ft_stopword_file)），或者更改停用词文件本身，则在进行更改并重新启动服务器后，必须重建您的`FULLTEXT`索引。
+- en: 'To rebuild the `FULLTEXT` indexes for a `MyISAM` table, it is sufficient to
+    do a `QUICK` repair operation:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要重建`MyISAM`表的`FULLTEXT`索引，只需进行`QUICK`修复操作即可：
+- en: '[PRE4]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Alternatively, use [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    as just described. In some cases, this may be faster than a repair operation.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，如刚才所述使用[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")。在某些情况下，这可能比修复操作更快。
+- en: Each table that contains any `FULLTEXT` index must be repaired as just shown.
+    Otherwise, queries for the table may yield incorrect results, and modifications
+    to the table causes the server to see the table as corrupt and in need of repair.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个包含任何`FULLTEXT`索引的表必须按照刚才展示的方式进行修复。否则，对该表的查询可能会产生不正确的结果，并且对表的修改会导致服务器将表视为损坏并需要修复。
+- en: If you use [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") to perform an operation that modifies `MyISAM` table indexes (such as
+    repair or analyze), the `FULLTEXT` indexes are rebuilt using the *default* full-text
+    parameter values for minimum word length, maximum word length, and stopword file
+    unless you specify otherwise. This can result in queries failing.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")执行修改`MyISAM`表索引的操作（如修复或分析），`FULLTEXT`索引将使用默认的全文参数值进行重建，包括最小单词长度、最大单词长度和停用词文件，除非您另有规定。这可能导致查询失败。
+- en: 'The problem occurs because these parameters are known only by the server. They
+    are not stored in `MyISAM` index files. To avoid the problem if you have modified
+    the minimum or maximum word length or stopword file values used by the server,
+    specify the same [`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len),
+    [`ft_max_word_len`](server-system-variables.html#sysvar_ft_max_word_len), and
+    [`ft_stopword_file`](server-system-variables.html#sysvar_ft_stopword_file) values
+    for [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") that you use for [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server"). For example, if you have set the minimum word length to 3, you can repair
+    a table with [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") like this:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 问题出现在这些参数仅由服务器知道。它们不存储在`MyISAM`索引文件中。如果您已修改了服务器使用的最小或最大单词长度或停用词文件值，为了避免问题，请为[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")指定与[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")使用的相同的[`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len)、[`ft_max_word_len`](server-system-variables.html#sysvar_ft_max_word_len)和[`ft_stopword_file`](server-system-variables.html#sysvar_ft_stopword_file)值。例如，如果您将最小单词长度设置为3，您可以像这样使用[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")修复表：
+- en: '[PRE5]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'To ensure that [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") and the server use the same values for full-text parameters, place each
+    one in both the `[mysqld]` and `[myisamchk]` sections of an option file:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了确保[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")和服务器使用相同的全文参数值，将每个值放在选项文件的`[mysqld]`和`[myisamchk]`部分中：
+- en: '[PRE6]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: An alternative to using [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") for `MyISAM` table index modification is to use the
+    [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement"), [`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement"), [`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement"), or [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") statements. These statements are performed by the server, which
+    knows the proper full-text parameter values to use.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于`MyISAM`表索引修改的一种替代方法是使用[`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR
+    TABLE Statement")、[`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE
+    Statement")、[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")或[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句。这些语句由服务器执行，服务器知道要使用的正确全文参数值。

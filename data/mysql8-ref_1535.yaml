@@ -1,0 +1,60 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-throttling.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-throttling.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-throttling.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-throttling.html)
+- en: 20.7.2.2 Group Replication Throttling
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.7.2.2 组复制限流
+- en: Based on the metrics gathered across all servers in the group, a throttling
+    mechanism kicks in and decides whether to limit the rate a member is able to execute/commit
+    new transactions.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 基于在组中所有服务器收集的指标，限流机制会启动并决定是否限制成员能够执行/提交新事务的速率。
+- en: 'Therefore, metrics acquired from all members are the basis for calculating
+    the capacity of each member: if a member has a large queue (for certification
+    or the applier thread), then the capacity to execute new transactions should be
+    close to ones certified or applied in the last period.'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，从所有成员获取的指标是计算每个成员容量的基础：如果成员有一个大队列（用于认证或应用程序线程），那么执行新事务的能力应该接近上个周期认证或应用的事务。
+- en: The lowest capacity of all the members in the group determines the real capacity
+    of the group, while the number of local transactions determines how many members
+    are writing to it, and, consequently, how many members should that available capacity
+    be shared with.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组中所有成员的最低容量确定了组的实际容量，而本地事务的数量确定了有多少成员正在向其写入，因此，可用容量应该与多少成员共享。
+- en: This means that every member has an established write quota based on the available
+    capacity, in other words a number of transactions it can safely issue for the
+    next period. The writer-quota is enforced by the throttling mechanism if the queue
+    size of the certifier or the binary log applier exceeds a user-defined threshold.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这意味着每个成员都有一个根据可用容量确定的已建立的写入配额，换句话说，它可以安全地为下一个周期发出的事务数量。如果认证者或二进制日志应用程序的队列大小超过用户定义的阈值，写入配额将由限流机制执行。
+- en: The quota is reduced by the number of transactions that were delayed in the
+    last period, and then also further reduced by 10% to allow the queue that triggered
+    the problem to reduce its size. In order to avoid large jumps in throughput once
+    the queue size goes beyond the threshold, the throughput is only allowed to grow
+    by the same 10% per period after that.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 配额将减少上个周期延迟的事务数量，然后再减少10%，以允许触发问题的队列减小其大小。为了避免一旦队列大小超过阈值就出现大幅增加的吞吐量，吞吐量在此后每个周期只允许增长相同的10%。
+- en: The current throttling mechanism does not penalize transactions below quota,
+    but delays finishing those transactions that exceed it until the end of the monitoring
+    period. As a consequence, if the quota is very small for the write requests issued
+    some transactions may have latencies close to the monitoring period.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当前的限流机制不会对低于配额的事务进行惩罚，但会延迟完成那些超出配额的事务，直到监控周期结束。因此，如果写请求的配额非常小，一些事务的延迟可能接近监控周期。

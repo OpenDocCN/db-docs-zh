@@ -1,0 +1,176 @@
+- en: 20.8.1 Combining Different Member Versions in a Group
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.8.1 在组中组合不同的成员版本
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-combining-versions.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-combining-versions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-combining-versions.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-combining-versions.html)
+- en: '[20.8.1.1 Member Versions During Upgrades](group-replication-compatibility-upgrade.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.8.1.1 升级期间的成员版本](group-replication-compatibility-upgrade.html)'
+- en: '[20.8.1.2 Group Replication Communication Protocol Version](group-replication-compatibility-communication.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.8.1.2 组复制通信协议版本](group-replication-compatibility-communication.html)'
+- en: 'Group Replication is versioned according to the MySQL Server version that the
+    Group Replication plugin was bundled with. For example, if a member is running
+    MySQL 5.7.26 then that is the version of the Group Replication plugin. To check
+    the version of MySQL Server on a group member issue:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组复制的版本与捆绑有 Group Replication 插件的 MySQL 服务器版本相对应。例如，如果一个成员运行 MySQL 5.7.26，则 Group
+    Replication 插件的版本就是这个版本。要检查组成员上的 MySQL 服务器版本，请发出：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: For guidance on understanding the MySQL Server version and selecting a version,
+    see [Section 2.1.2, “Which MySQL Version and Distribution to Install”](which-version.html
+    "2.1.2 Which MySQL Version and Distribution to Install").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关理解 MySQL 服务器版本和选择版本的指导，请参见[Section 2.1.2，“选择要安装的 MySQL 版本和发行版”](which-version.html
+    "2.1.2 Which MySQL Version and Distribution to Install")。
+- en: For optimal compatibility and performance, all members of a group should run
+    the same version of MySQL Server and therefore of Group Replication. However,
+    while you are in the process of upgrading an online group, in order to maximize
+    availability, you might need to have members with different MySQL Server versions
+    running at the same time. Depending on the changes made between the versions of
+    MySQL, you could encounter incompatibilities in this situation. For example, if
+    a feature has been deprecated between major versions, then combining the versions
+    in a group might cause members that rely on the deprecated feature to fail. Conversely,
+    writing to a member running a newer MySQL version while there are read-write members
+    in the group running an older MySQL version might cause issues on members that
+    lack functions introduced in the newer release.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了获得最佳兼容性和性能，组中的所有成员应该运行相同版本的 MySQL 服务器，因此也应该运行相同版本的组复制。然而，在在线升级组的过程中，为了最大化可用性，您可能需要同时运行具有不同
+    MySQL 服务器版本的成员。根据 MySQL 版本之间的更改，您可能会在这种情况下遇到不兼容性。例如，如果在主要版本之间已弃用某个功能，则将版本组合到组中可能导致依赖于已弃用功能的成员失败。相反，如果在组中有运行较新
+    MySQL 版本的读写成员时向运行较旧 MySQL 版本的成员写入数据，可能会导致缺少较新版本引入的功能的成员出现问题。
+- en: To prevent these issues, Group Replication includes compatibility policies that
+    enable you to safely combine members running different versions of MySQL in the
+    same group. A member applies these policies to decide whether to join the group
+    normally, or join in read-only mode, or not join the group, depending on which
+    choice results in the safe operation of the joining member and of the existing
+    members of the group. In an upgrade scenario, each server must leave the group,
+    be upgraded, and rejoin the group with its new server version. At this point the
+    member applies the policies for its new server version, which might have changed
+    from the policies it applied when it originally joined the group.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了防止这些问题，组复制包括兼容性策略，使您能够安全地将运行不同 MySQL 版本的成员组合到同一组中。成员应用这些策略来决定是否正常加入组，或以只读模式加入，或不加入组，具体取决于哪种选择能够确保加入成员和现有组成员的安全运行。在升级场景中，每个服务器必须离开组，进行升级，然后使用新的服务器版本重新加入组。此时，成员将应用其新服务器版本的策略，这可能已经与其最初加入组时应用的策略不同。
+- en: As the administrator, you can instruct any server to attempt to join any group
+    by configuring the server appropriately and issuing a [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") statement. A decision to join or
+    not join the group, or to join the group in read-only mode, is made and implemented
+    by the joining member itself after you attempt to add it to the group. The joining
+    member receives information on the MySQL Server versions of the current group
+    members, assesses its own compatibility with those members, and applies the policies
+    used in its own MySQL Server version (*not* the policies used by the existing
+    members) to decide whether it is compatible.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 作为管理员，你可以通过配置服务器并发出 [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") 语句，指示任何服务器尝试加入任何组。加入组或不加入组，或以只读模式加入组的决定由加入成员自己在尝试将其添加到组后进行，并由其自行实施。加入成员接收当前组成员的
+    MySQL 服务器版本信息，评估自己与这些成员的兼容性，并应用其自己 MySQL 服务器版本中使用的策略（*而不是*现有成员使用的策略）来决定是否兼容。
+- en: 'The compatibility policies that a joining member applies when attempting to
+    join a group are as follows:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 加入组时，加入成员应用的兼容性策略如下：
+- en: A member does not join a group if it is running a lower MySQL Server version
+    than the lowest version that the existing group members are running.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果成员运行的 MySQL 服务器版本低于现有组成员运行的最低版本，则该成员不加入组。
+- en: A member joins a group normally if it is running the same MySQL Server version
+    as the lowest version that the existing group members are running.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果成员运行的 MySQL 服务器版本与现有组成员运行的最低版本相同，则该成员正常加入组。
+- en: A member joins a group but remains in read-only mode if it is running a higher
+    MySQL Server version than the lowest version that the existing group members are
+    running. This behavior only makes a difference when the group is running in multi-primary
+    mode, because in a group that is running in single-primary mode, newly added members
+    default to being read-only in any case.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果成员运行的 MySQL 服务器版本高于现有组成员运行的最低版本，则该成员加入组但保持只读模式。这种行为仅在组以多主模式运行时才有区别，因为在以单主模式运行的组中，新添加的成员默认始终为只读模式。
+- en: 'Members running MySQL 8.0.17 or higher take into account the patch version
+    of the release when checking their compatibility. Members running MySQL 8.0.16
+    or lower, or MySQL 5.7, only take into account the major version. For example,
+    if you have a group with members all running MySQL version 8.0.13:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 运行 MySQL 8.0.17 或更高版本的成员在检查兼容性时考虑发布的补丁版本。运行 MySQL 8.0.16 或更低版本，或 MySQL 5.7 的成员只考虑主要版本。例如，如果你有一个所有成员都运行
+    MySQL 版本 8.0.13 的组：
+- en: A member that is running MySQL version 5.7 does not join.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 运行 MySQL 版本 5.7 的成员无法加入。
+- en: A member running MySQL 8.0.16 joins normally (because it considers the major
+    version).
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 运行 MySQL 8.0.16 的成员正常加入（因为它考虑主要版本）。
+- en: A member running MySQL 8.0.17 joins but remains in read-only mode (because it
+    considers the patch version).
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 运行 MySQL 8.0.17 的成员加入但保持只读模式（因为它考虑了补丁版本）。
+- en: Note that joining members running releases before MySQL 5.7.27 check against
+    all group members to find whether their own MySQL Server major version is lower.
+    They therefore fail this check for a group where any members are running MySQL
+    8.0 releases, and cannot join the group even if it already has other members running
+    MySQL 5.7\. From MySQL 5.7.27, joining members only check against the group members
+    that are running the lowest major version, so they can join a mixed version group
+    where other MySQL 5.7 servers are present.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，运行 MySQL 5.7.27 之前版本的加入成员会检查所有组成员，以确定自己的 MySQL 服务器主要版本是否较低。因此，对于任何成员运行 MySQL
+    8.0 版本的组，它们将无法通过此检查，即使该组已经有其他运行 MySQL 5.7 的成员。从 MySQL 5.7.27 开始，加入成员只会检查运行最低主要版本的组成员，因此它们可以加入一个混合版本组，其中存在其他
+    MySQL 5.7 服务器。
+- en: In a multi-primary mode group with members that use different MySQL Server versions,
+    Group Replication automatically manages the read-write and read-only status of
+    members running MySQL 8.0.17 or higher. If a member leaves the group, the members
+    running the version that is now the lowest are automatically set to read-write
+    mode. When you change a group that was running in single-primary mode to run in
+    multi-primary mode, using the [`group_replication_switch_to_multi_primary_mode()`](group-replication-functions-for-mode.html#function_group-replication-switch-to-multi-primary-mode)
+    function, Group Replication automatically sets members to the correct mode. Members
+    are automatically placed in read-only mode if they are running a higher MySQL
+    server version than the lowest version present in the group, and members running
+    the lowest version are placed in read-write mode.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在一个多主模式组中，成员使用不同的MySQL Server版本，Group Replication会自动管理运行MySQL 8.0.17或更高版本的成员的读写和只读状态。如果一个成员离开组，那些运行当前最低版本的成员会自动设置为读写模式。当你将原本以单主模式运行的组改为多主模式时，使用[`group_replication_switch_to_multi_primary_mode()`](group-replication-functions-for-mode.html#function_group-replication-switch-to-multi-primary-mode)函数，Group
+    Replication会自动将成员设置为正确的模式。如果某些成员运行的MySQL服务器版本高于组中最低版本，那么它们会自动被设置为只读模式，而运行最低版本的成员会被设置为读写模式。

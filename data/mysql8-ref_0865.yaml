@@ -1,0 +1,345 @@
+- en: 14.19.3 MySQL Handling of GROUP BY
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 14.19.3 MySQL GROUP BY 处理
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-by-handling.html](https://dev.mysql.com/doc/refman/8.0/en/group-by-handling.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-by-handling.html](https://dev.mysql.com/doc/refman/8.0/en/group-by-handling.html)
+- en: 'SQL-92 and earlier does not permit queries for which the select list, `HAVING`
+    condition, or `ORDER BY` list refer to nonaggregated columns that are not named
+    in the `GROUP BY` clause. For example, this query is illegal in standard SQL-92
+    because the nonaggregated `name` column in the select list does not appear in
+    the `GROUP BY`:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SQL-92及更早版本不允许查询，其中选择列表、`HAVING`条件或`ORDER BY`列表引用未在`GROUP BY`子句中命名的非聚合列。例如，这个查询在标准SQL-92中是非法的，因为选择列表中的非聚合`name`列不出现在`GROUP
+    BY`中：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: For the query to be legal in SQL-92, the `name` column must be omitted from
+    the select list or named in the `GROUP BY` clause.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使查询在SQL-92中合法，`name`列必须在选择列表中省略或在`GROUP BY`子句中命名。
+- en: 'SQL:1999 and later permits such nonaggregates per optional feature T301 if
+    they are functionally dependent on `GROUP BY` columns: If such a relationship
+    exists between `name` and `custid`, the query is legal. This would be the case,
+    for example, were `custid` a primary key of `customers`.'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SQL:1999及更高版本允许这样的非聚合列，如果它们在功能上依赖于`GROUP BY`列，则可选择功能T301的可选特性：如果`name`和`custid`之间存在这样的关系，则查询是合法的。例如，如果`custid`是`customers`的主键，则会出现这种情况。
+- en: MySQL implements detection of functional dependence. If the [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    SQL mode is enabled (which it is by default), MySQL rejects queries for which
+    the select list, `HAVING` condition, or `ORDER BY` list refer to nonaggregated
+    columns that are neither named in the `GROUP BY` clause nor are functionally dependent
+    on them.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL实现了功能依赖的检测。如果启用了（默认情况下启用的）[`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    SQL模式，MySQL会拒绝查询，其中选择列表、`HAVING`条件或`ORDER BY`列表引用既不在`GROUP BY`子句中命名也不在功能上依赖于它们的非聚合列。
+- en: 'MySQL also permits a nonaggregate column not named in a `GROUP BY` clause when
+    SQL [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by) mode is enabled,
+    provided that this column is limited to a single value, as shown in the following
+    example:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当启用SQL [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)模式时，MySQL还允许在`GROUP
+    BY`子句中未命名的非聚合列，前提是该列被限制为单个值，如下例所示：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'It is also possible to have more than one nonaggregate column in the [`SELECT`](select.html
+    "15.2.13 SELECT Statement") list when employing [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by).
+    In this case, every such column must be limited to a single value in the `WHERE`
+    clause, and all such limiting conditions must be joined by logical `AND`, as shown
+    here:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用[`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)时，[`SELECT`](select.html
+    "15.2.13 SELECT Statement")列表中也可以有多个非聚合列。在这种情况下，每个这样的列必须在`WHERE`子句中限制为单个值，并且所有这些限制条件必须通过逻辑`AND`连接，如下所示：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: If [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by) is disabled,
+    a MySQL extension to the standard SQL use of `GROUP BY` permits the select list,
+    `HAVING` condition, or `ORDER BY` list to refer to nonaggregated columns even
+    if the columns are not functionally dependent on `GROUP BY` columns. This causes
+    MySQL to accept the preceding query. In this case, the server is free to choose
+    any value from each group, so unless they are the same, the values chosen are
+    nondeterministic, which is probably not what you want. Furthermore, the selection
+    of values from each group cannot be influenced by adding an `ORDER BY` clause.
+    Result set sorting occurs after values have been chosen, and `ORDER BY` does not
+    affect which value within each group the server chooses. Disabling [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    is useful primarily when you know that, due to some property of the data, all
+    values in each nonaggregated column not named in the `GROUP BY` are the same for
+    each group.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果禁用了[`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)，MySQL对`GROUP
+    BY`的标准SQL使用的扩展允许选择列表、`HAVING`条件或`ORDER BY`列表引用非聚合列，即使这些列在功能上不依赖于`GROUP BY`列。这导致MySQL接受前面的查询。在这种情况下，服务器可以自由选择每个组中的任何值，因此除非它们相同，否则所选的值是不确定的，这可能不是您想要的。此外，从每个组中选择值后，不能通过添加`ORDER
+    BY`子句来影响。结果集排序发生在值被选择之后，`ORDER BY`不影响服务器选择每个组中的哪个值。禁用[`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)主要在您知道由于数据的某些属性，`GROUP
+    BY`中未命名的每个非聚合列的所有值对于每个组都相同时才有用。
+- en: You can achieve the same effect without disabling [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    by using [`ANY_VALUE()`](miscellaneous-functions.html#function_any-value) to refer
+    to the nonaggregated column.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以通过使用 [`ANY_VALUE()`](miscellaneous-functions.html#function_any-value) 引用非聚合列来达到相同效果，而不禁用
+    [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)。
+- en: The following discussion demonstrates functional dependence, the error message
+    MySQL produces when functional dependence is absent, and ways of causing MySQL
+    to accept a query in the absence of functional dependence.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论演示了功能依赖，当功能依赖不存在时 MySQL 产生的错误消息，以及在功能依赖不存在时导致 MySQL 接受查询的方法。
+- en: 'This query might be invalid with [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    enabled because the nonaggregated `address` column in the select list is not named
+    in the `GROUP BY` clause:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果启用了 [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)，则此查询可能无效，因为选择列表中的非聚合
+    `address` 列未在 `GROUP BY` 子句中命名：
+- en: '[PRE3]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The query is valid if `name` is a primary key of `t` or is a unique `NOT NULL`
+    column. In such cases, MySQL recognizes that the selected column is functionally
+    dependent on a grouping column. For example, if `name` is a primary key, its value
+    determines the value of `address` because each group has only one value of the
+    primary key and thus only one row. As a result, there is no randomness in the
+    choice of `address` value in a group and no need to reject the query.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 `name` 是 `t` 的主键或是唯一的 `NOT NULL` 列，则查询是有效的。在这种情况下，MySQL 会认识到所选列在一个分组列上具有功能依赖关系。例如，如果
+    `name` 是主键，其值确定了 `address` 的值，因为每个组只有一个主键值，因此只有一行。因此，在组中选择 `address` 值时没有随机性，也不需要拒绝查询。
+- en: 'The query is invalid if `name` is not a primary key of `t` or a unique `NOT
+    NULL` column. In this case, no functional dependency can be inferred and an error
+    occurs:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 `name` 不是 `t` 的主键或唯一的 `NOT NULL` 列，则查询是无效的。在这种情况下，无法推断出功能依赖关系，会发生错误：
+- en: '[PRE4]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'If you know that, *for a given data set,* each `name` value in fact uniquely
+    determines the `address` value, `address` is effectively functionally dependent
+    on `name`. To tell MySQL to accept the query, you can use the [`ANY_VALUE()`](miscellaneous-functions.html#function_any-value)
+    function:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你知道，*对于给定的数据集*，每个 `name` 值实际上唯一确定了 `address` 值，那么 `address` 实际上是依赖于 `name`
+    的。为了告诉 MySQL 接受这个查询，你可以使用 [`ANY_VALUE()`](miscellaneous-functions.html#function_any-value)
+    函数：
+- en: '[PRE5]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Alternatively, disable [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by).
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者禁用 [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)。
+- en: The preceding example is quite simple, however. In particular, it is unlikely
+    you would group on a single primary key column because every group would contain
+    only one row. For additional examples demonstrating functional dependence in more
+    complex queries, see [Section 14.19.4, “Detection of Functional Dependence”](group-by-functional-dependence.html
+    "14.19.4 Detection of Functional Dependence").
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 上面的例子相当简单。特别是，你不太可能仅对一个主键列进行分组，因为每个组只包含一行。要了解更复杂查询中的功能依赖的其他示例，请参见 [第 14.19.4
+    节，“功能依赖的检测”](group-by-functional-dependence.html "14.19.4 功能依赖的检测")。
+- en: 'If a query has aggregate functions and no `GROUP BY` clause, it cannot have
+    nonaggregated columns in the select list, `HAVING` condition, or `ORDER BY` list
+    with [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by) enabled:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个查询有聚合函数但没有 `GROUP BY` 子句，则在启用 [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    的情况下，选择列表、`HAVING` 条件或 `ORDER BY` 列中不能有非聚合列：
+- en: '[PRE6]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Without `GROUP BY`, there is a single group and it is nondeterministic which
+    `name` value to choose for the group. Here, too, [`ANY_VALUE()`](miscellaneous-functions.html#function_any-value)
+    can be used, if it is immaterial which `name` value MySQL chooses:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 没有 `GROUP BY`，只有一个组，对于选择哪个 `name` 值为该组是不确定的。在这种情况下，也可以使用 [`ANY_VALUE()`](miscellaneous-functions.html#function_any-value)，如果
+    MySQL 选择哪个 `name` 值并不重要：
+- en: '[PRE7]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '`ONLY_FULL_GROUP_BY` also affects handling of queries that use `DISTINCT` and
+    `ORDER BY`. Consider the case of a table `t` with three columns `c1`, `c2`, and
+    `c3` that contains these rows:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ONLY_FULL_GROUP_BY` 也会影响使用 `DISTINCT` 和 `ORDER BY` 的查询处理。考虑一个包含三列 `c1`、`c2`
+    和 `c3` 的表 `t`，其中包含以下行：'
+- en: '[PRE8]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Suppose that we execute the following query, expecting the results to be ordered
+    by `c3`:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设我们执行以下查询，期望结果按 `c3` 排序：
+- en: '[PRE9]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'To order the result, duplicates must be eliminated first. But to do so, should
+    we keep the first row or the third? This arbitrary choice influences the retained
+    value of `c3`, which in turn influences ordering and makes it arbitrary as well.
+    To prevent this problem, a query that has `DISTINCT` and `ORDER BY` is rejected
+    as invalid if any `ORDER BY` expression does not satisfy at least one of these
+    conditions:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要对结果进行排序，必须先消除重复项。但是，在这样做时，我们应该保留第一行还是第三行？这种任意选择会影响 `c3` 的保留值，进而影响排序并使其变得任意。为了避免这个问题，如果任何一个
+    `ORDER BY` 表达式不满足以下条件，具有 `DISTINCT` 和 `ORDER BY` 的查询将被拒绝为无效：
+- en: The expression is equal to one in the select list
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 该表达式等于选择列表中的一个
+- en: All columns referenced by the expression and belonging to the query's selected
+    tables are elements of the select list
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表达式引用的所有列并且属于查询选定的表的元素都在选择列表中
+- en: 'Another MySQL extension to standard SQL permits references in the `HAVING`
+    clause to aliased expressions in the select list. For example, the following query
+    returns `name` values that occur only once in table `orders`:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一个 MySQL 对标准 SQL 的扩展允许在 `HAVING` 子句中引用选择列表中的别名表达式。例如，以下查询返回表 `orders` 中仅出现一次的
+    `name` 值：
+- en: '[PRE10]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'The MySQL extension permits the use of an alias in the `HAVING` clause for
+    the aggregated column:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 扩展允许在聚合列的 `HAVING` 子句中使用别名：
+- en: '[PRE11]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'Standard SQL permits only column expressions in `GROUP BY` clauses, so a statement
+    such as this is invalid because `FLOOR(value/100)` is a noncolumn expression:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 标准 SQL 仅允许在 `GROUP BY` 子句中使用列表达式，因此像这样的语句是无效的，因为 `FLOOR(value/100)` 是一个非列表达式：
+- en: '[PRE12]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: MySQL extends standard SQL to permit noncolumn expressions in `GROUP BY` clauses
+    and considers the preceding statement valid.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 扩展了标准 SQL，允许在 `GROUP BY` 子句中使用非列表达式，并认为前述语句是有效的。
+- en: 'Standard SQL also does not permit aliases in `GROUP BY` clauses. MySQL extends
+    standard SQL to permit aliases, so another way to write the query is as follows:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 标准 SQL 也不允许在 `GROUP BY` 子句中使用别名。MySQL 扩展了标准 SQL，允许使用别名，因此编写查询的另一种方式如下：
+- en: '[PRE13]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: The alias `val` is considered a column expression in the `GROUP BY` clause.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 别名 `val` 被视为 `GROUP BY` 子句中的列表达式。
+- en: 'In the presence of a noncolumn expression in the `GROUP BY` clause, MySQL recognizes
+    equality between that expression and expressions in the select list. This means
+    that with [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by) SQL
+    mode enabled, the query containing `GROUP BY id, FLOOR(value/100)` is valid because
+    that same [`FLOOR()`](mathematical-functions.html#function_floor) expression occurs
+    in the select list. However, MySQL does not try to recognize functional dependence
+    on `GROUP BY` noncolumn expressions, so the following query is invalid with [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    enabled, even though the third selected expression is a simple formula of the
+    `id` column and the [`FLOOR()`](mathematical-functions.html#function_floor) expression
+    in the `GROUP BY` clause:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 `GROUP BY` 子句中存在非列表达式的情况下，MySQL 认可该表达式与选择列表中的表达式相等。这意味着启用 [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by)
+    SQL 模式时，包含 `GROUP BY id, FLOOR(value/100)` 的查询是有效的，因为选择列表中也包含相同的 [`FLOOR()`](mathematical-functions.html#function_floor)
+    表达式。然而，MySQL 不会尝试识别对 `GROUP BY` 非列表达式的函数依赖性，因此即使第三个选择的表达式是 `id` 列和 `GROUP BY`
+    子句中的 [`FLOOR()`](mathematical-functions.html#function_floor) 表达式的简单公式，以下查询在启用
+    [`ONLY_FULL_GROUP_BY`](sql-mode.html#sqlmode_only_full_group_by) 的情况下是无效的：
+- en: '[PRE14]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'A workaround is to use a derived table:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个解决方法是使用派生表：
+- en: '[PRE15]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'

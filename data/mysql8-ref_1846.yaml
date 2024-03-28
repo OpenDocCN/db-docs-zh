@@ -1,0 +1,423 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-columns-range.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-columns-range.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-columns-range.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-columns-range.html)
+- en: 26.2.3.1 RANGE COLUMNS partitioning
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 26.2.3.1 RANGE COLUMNS分区
+- en: Range columns partitioning is similar to range partitioning, but enables you
+    to define partitions using ranges based on multiple column values. In addition,
+    you can define the ranges using columns of types other than integer types.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 列范围分区类似于范围分区，但允许您根据多个列值的范围定义分区。此外，您可以使用非整数类型的列定义范围。
+- en: '`RANGE COLUMNS` partitioning differs significantly from `RANGE` partitioning
+    in the following ways:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`RANGE COLUMNS`分区与`RANGE`分区在以下方面有显著不同：'
+- en: '`RANGE COLUMNS` does not accept expressions, only names of columns.'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`RANGE COLUMNS`不接受表达式，只接受列名。'
+- en: '`RANGE COLUMNS` accepts a list of one or more columns.'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`RANGE COLUMNS`接受一个或多个列的列表。'
+- en: '`RANGE COLUMNS` partitions are based on comparisons between tuples (lists of
+    column values) rather than comparisons between scalar values. Placement of rows
+    in `RANGE COLUMNS` partitions is also based on comparisons between tuples; this
+    is discussed further later in this section.'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`RANGE COLUMNS`分区基于元组（列值列表）之间的比较，而不是标量值之间的比较。将行放置在`RANGE COLUMNS`分区中也是基于元组之间的比较；这将在本节后面进一步讨论。'
+- en: '`RANGE COLUMNS` partitioning columns are not restricted to integer columns;
+    string, [`DATE`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    and [`DATETIME`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    columns can also be used as partitioning columns. (See [Section 26.2.3, “COLUMNS
+    Partitioning”](partitioning-columns.html "26.2.3 COLUMNS Partitioning"), for details.)'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`RANGE COLUMNS`分区列不限于整数列；字符串、[`DATE`](datetime.html "13.2.2 The DATE, DATETIME,
+    and TIMESTAMP Types")和[`DATETIME`](datetime.html "13.2.2 The DATE, DATETIME, and
+    TIMESTAMP Types")列也可以用作分区列。（详细信息请参阅[第26.2.3节，“COLUMNS Partitioning”](partitioning-columns.html
+    "26.2.3 COLUMNS Partitioning")。）'
+- en: 'The basic syntax for creating a table partitioned by `RANGE COLUMNS` is shown
+    here:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建由`RANGE COLUMNS`分区的基本语法如下所示：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Not all [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    options that can be used when creating partitioned tables are shown here. For
+    complete information, see [Section 15.1.20, “CREATE TABLE Statement”](create-table.html
+    "15.1.20 CREATE TABLE Statement").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在创建分区表时可以使用的并非所有[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")选项都在此处展示。有关完整信息，请参阅[第15.1.20节，“CREATE
+    TABLE Statement”](create-table.html "15.1.20 CREATE TABLE Statement")。
+- en: In the syntax just shown, *`column_list`* is a list of one or more columns (sometimes
+    called a partitioning column list), and *`value_list`* is a list of values (that
+    is, it is a partition definition value list). A *`value_list`* must be supplied
+    for each partition definition, and each *`value_list`* must have the same number
+    of values as the *`column_list`* has columns. Generally speaking, if you use *`N`*
+    columns in the `COLUMNS` clause, then each `VALUES LESS THAN` clause must also
+    be supplied with a list of *`N`* values.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在刚刚展示的语法中，*`column_list`*是一个或多个列的列表（有时称为分区列列表），*`value_list`*是一个值列表（即，它是一个分区定义值列表）。必须为每个分区定义提供一个*`value_list`*，并且每个*`value_list`*必须具有与*`column_list`*中列数相同的值。一般来说，如果在`COLUMNS`子句中使用了*`N`*列，则每个`VALUES
+    LESS THAN`子句也必须提供一个包含*`N`*个值的列表。
+- en: 'The elements in the partitioning column list and in the value list defining
+    each partition must occur in the same order. In addition, each element in the
+    value list must be of the same data type as the corresponding element in the column
+    list. However, the order of the column names in the partitioning column list and
+    the value lists does not have to be the same as the order of the table column
+    definitions in the main part of the [`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement") statement. As with table partitioned by `RANGE`, you can use
+    `MAXVALUE` to represent a value such that any legal value inserted into a given
+    column is always less than this value. Here is an example of a [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statement that helps to illustrate all of these
+    points:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分区列列表中的元素和定义每个分区的值列表中的元素必须以相同的顺序出现。此外，值列表中的每个元素必须与列列表中的相应元素具有相同的数据类型。然而，分区列列表和值列表中列名的顺序不必与[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句的主体部分中表列定义的顺序相同。与通过`RANGE`分区的表一样，您可以使用`MAXVALUE`来表示一个值，使得插入到给定列中的任何合法值始终小于此值。以下是一个[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句的示例，可帮助说明所有这些要点：
+- en: '[PRE1]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Table `rcx` contains the columns `a`, `b`, `c`, `d`. The partitioning column
+    list supplied to the `COLUMNS` clause uses 3 of these columns, in the order `a`,
+    `d`, `c`. Each value list used to define a partition contains 3 values in the
+    same order; that is, each value list tuple has the form (`INT`, `INT`, `CHAR(3)`),
+    which corresponds to the data types used by columns `a`, `d`, and `c` (in that
+    order).
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表`rcx`包含列`a`、`b`、`c`、`d`。提供给`COLUMNS`子句的分区列列表使用了这些列中的3列，顺序为`a`、`d`、`c`。用于定义分区的每个值列表包含3个值，顺序相同；也就是说，每个值列表元组的形式为（`INT`、`INT`、`CHAR(3)`），这对应于列`a`、`d`和`c`使用的数据类型（按顺序）。
+- en: Placement of rows into partitions is determined by comparing the tuple from
+    a row to be inserted that matches the column list in the `COLUMNS` clause with
+    the tuples used in the `VALUES LESS THAN` clauses to define partitions of the
+    table. Because we are comparing tuples (that is, lists or sets of values) rather
+    than scalar values, the semantics of `VALUES LESS THAN` as used with `RANGE COLUMNS`
+    partitions differs somewhat from the case with simple `RANGE` partitions. In `RANGE`
+    partitioning, a row generating an expression value that is equal to a limiting
+    value in a `VALUES LESS THAN` is never placed in the corresponding partition;
+    however, when using `RANGE COLUMNS` partitioning, it is sometimes possible for
+    a row whose partitioning column list's first element is equal in value to the
+    that of the first element in a `VALUES LESS THAN` value list to be placed in the
+    corresponding partition.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将行放入分区是通过比较要插入的行中与`COLUMNS`子句中匹配的元组与用于定义表分区的`VALUES LESS THAN`子句中使用的元组来确定的。因为我们比较的是元组（即值的列表或集合），而不是标量值，所以在与简单的`RANGE`分区不同的情况下，与`RANGE
+    COLUMNS`分区一起使用的`VALUES LESS THAN`的语义有所不同。在`RANGE`分区中，生成与`VALUES LESS THAN`中的限制值相等的表达式值的行永远不会放入相应的分区；然而，在使用`RANGE
+    COLUMNS`分区时，有时可能会将分区列列表的第一个元素的值与`VALUES LESS THAN`值列表中第一个元素的值相等的行放入相应的分区。
+- en: 'Consider the `RANGE` partitioned table created by this statement:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑通过以下语句创建的`RANGE`分区表：
+- en: '[PRE2]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'If we insert 3 rows into this table such that the column value for `a` is `5`
+    for each row, all 3 rows are stored in partition `p1` because the `a` column value
+    is in each case not less than 5, as we can see by executing the proper query against
+    the Information Schema [`PARTITIONS`](information-schema-partitions-table.html
+    "28.3.21 The INFORMATION_SCHEMA PARTITIONS Table") table:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果我们向该表中插入3行，使得每行的`a`列值均为`5`，则所有3行都存储在分区`p1`中，因为在每种情况下，`a`列值均不小于5，我们可以通过针对信息模式[`PARTITIONS`](information-schema-partitions-table.html
+    "28.3.21 The INFORMATION_SCHEMA PARTITIONS Table")表执行适当的查询来查看：
+- en: '[PRE3]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Now consider a similar table `rc1` that uses `RANGE COLUMNS` partitioning with
+    both columns `a` and `b` referenced in the `COLUMNS` clause, created as shown
+    here:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在考虑一个类似的表`rc1`，它使用了`RANGE COLUMNS`分区，`COLUMNS`子句中引用了列`a`和`b`，如下所示创建：
+- en: '[PRE4]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'If we insert exactly the same rows into `rc1` as we just inserted into `r1`,
+    the distribution of the rows is quite different:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果我们将刚刚插入`r1`的相同行插入`rc1`，则行的分布会有所不同：
+- en: '[PRE5]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'This is because we are comparing rows rather than scalar values. We can compare
+    the row values inserted with the limiting row value from the `VALUES THAN LESS
+    THAN` clause used to define partition `p0` in table `rc1`, like this:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是因为我们比较的是行而不是标量值。我们可以将插入的行值与用于在表`rc1`中定义分区`p0`的`VALUES THAN LESS THAN`子句中的限制行值进行比较，如下所示：
+- en: '[PRE6]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The 2 tuples `(5,10)` and `(5,11)` evaluate as less than `(5,12)`, so they are
+    stored in partition `p0`. Since 5 is not less than 5 and 12 is not less than 12,
+    `(5,12)` is considered not less than `(5,12)`, and is stored in partition `p1`.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 2元组`(5,10)`和`(5,11)`被认为小于`(5,12)`，因此它们被存储在分区`p0`中。由于5不小于5，12不小于12，`(5,12)`被认为不小于`(5,12)`，并存储在分区`p1`中。
+- en: 'The [`SELECT`](select.html "15.2.13 SELECT Statement") statement in the preceding
+    example could also have been written using explicit row constructors, like this:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在前面的示例中，[`SELECT`](select.html "15.2.13 SELECT Statement")语句也可以使用显式行构造函数编写，如下所示：
+- en: '[PRE7]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: For more information about the use of row constructors in MySQL, see [Section 15.2.15.5,
+    “Row Subqueries”](row-subqueries.html "15.2.15.5 Row Subqueries").
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关在MySQL中使用行构造函数的更多信息，请参阅[第15.2.15.5节，“行子查询”](row-subqueries.html "15.2.15.5 Row
+    Subqueries")。
+- en: 'For a table partitioned by `RANGE COLUMNS` using only a single partitioning
+    column, the storing of rows in partitions is the same as that of an equivalent
+    table that is partitioned by `RANGE`. The following `CREATE TABLE` statement creates
+    a table partitioned by `RANGE COLUMNS` using 1 partitioning column:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于只使用单个分区列进行`RANGE COLUMNS`分区的表，行存储在分区中的方式与通过`RANGE`分区的等效表相同。以下`CREATE TABLE`语句创建了一个使用1个分区列进行`RANGE
+    COLUMNS`分区的表：
+- en: '[PRE8]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'If we insert the rows `(5,10)`, `(5,11)`, and `(5,12)` into this table, we
+    can see that their placement is the same as it is for the table `r` we created
+    and populated earlier:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果我们将行`(5,10)`、`(5,11)`和`(5,12)`插入到这个表中，我们可以看到它们的放置方式与我们之前创建和填充的表`r`相同：
+- en: '[PRE9]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'It is also possible to create tables partitioned by `RANGE COLUMNS` where limiting
+    values for one or more columns are repeated in successive partition definitions.
+    You can do this as long as the tuples of column values used to define the partitions
+    are strictly increasing. For example, each of the following [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statements is valid:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以创建按`RANGE COLUMNS`分区的表，其中一个或多个列的限制值在连续的分区定义中重复。只要用于定义分区的列值元组严格递增，就可以这样做。例如，以下每个[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句都是有效的：
+- en: '[PRE10]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'The following statement also succeeds, even though it might appear at first
+    glance that it would not, since the limiting value of column `b` is 25 for partition
+    `p0` and 20 for partition `p1`, and the limiting value of column `c` is 100 for
+    partition `p1` and 50 for partition `p2`:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使乍看之下可能不会成功，以下语句也会成功，因为列`b`的限制值对于分区`p0`为25，对于分区`p1`为20，列`c`的限制值对于分区`p1`为100，对于分区`p2`为50：
+- en: '[PRE11]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'When designing tables partitioned by `RANGE COLUMNS`, you can always test successive
+    partition definitions by comparing the desired tuples using the [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") client, like this:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在设计按`RANGE COLUMNS`分区的表时，您可以通过使用[**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client")客户端对所需元组进行比较来测试连续的分区定义，如下所示：
+- en: '[PRE12]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'If a [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") statement
+    contains partition definitions that are not in strictly increasing order, it fails
+    with an error, as shown in this example:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句包含不严格递增顺序的分区定义，它将失败并显示错误，如下例所示：
+- en: '[PRE13]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'When you get such an error, you can deduce which partition definitions are
+    invalid by making “less than” comparisons between their column lists. In this
+    case, the problem is with the definition of partition `p2` because the tuple used
+    to define it is not less than the tuple used to define partition `p3`, as shown
+    here:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当你遇到这样的错误时，可以通过对它们的列列表进行“小于”比较来推断哪些分区定义是无效的。在这种情况下，问题出在分区`p2`的定义上，因为用于定义它的元组不小于用于定义分区`p3`的元组，如下所示：
+- en: '[PRE14]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: It is also possible for `MAXVALUE` to appear for the same column in more than
+    one `VALUES LESS THAN` clause when using `RANGE COLUMNS`. However, the limiting
+    values for individual columns in successive partition definitions should otherwise
+    be increasing, there should be no more than one partition defined where `MAXVALUE`
+    is used as the upper limit for all column values, and this partition definition
+    should appear last in the list of `PARTITION ... VALUES LESS THAN` clauses. In
+    addition, you cannot use `MAXVALUE` as the limiting value for the first column
+    in more than one partition definition.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用`RANGE COLUMNS`时，同一列中的`MAXVALUE`可能出现在多个`VALUES LESS THAN`子句中。但是，连续分区定义中各列的限制值应该是递增的，不应该定义超过一个分区，其中`MAXVALUE`用作所有列值的上限，并且此分区定义应该出现在`PARTITION
+    ... VALUES LESS THAN`子句列表的最后。此外，您不能将`MAXVALUE`用作连续分区定义中第一列的限制值。
+- en: 'As stated previously, it is also possible with `RANGE COLUMNS` partitioning
+    to use non-integer columns as partitioning columns. (See [Section 26.2.3, “COLUMNS
+    Partitioning”](partitioning-columns.html "26.2.3 COLUMNS Partitioning"), for a
+    complete listing of these.) Consider a table named `employees` (which is not partitioned),
+    created using the following statement:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，使用`RANGE COLUMNS`分区还可以使用非整数列作为分区列。（有关这些列的完整列表，请参阅[第26.2.3节，“列分区”](partitioning-columns.html
+    "26.2.3 列分区")。）考虑一个名为`employees`的表（未分区），使用以下语句创建：
+- en: '[PRE15]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'Using `RANGE COLUMNS` partitioning, you can create a version of this table
+    that stores each row in one of four partitions based on the employee''s last name,
+    like this:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`RANGE COLUMNS`分区，您可以创建这个表的一个版本，根据员工的姓氏将每一行存储在四个分区中的一个，就像这样：
+- en: '[PRE16]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'Alternatively, you could cause the `employees` table as created previously
+    to be partitioned using this scheme by executing the following [`ALTER TABLE`](alter-table-partition-operations.html
+    "15.1.9.1 ALTER TABLE Partition Operations") statement:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，您可以使用以下[`ALTER TABLE`](alter-table-partition-operations.html "15.1.9.1 ALTER
+    TABLE Partition Operations")语句使之前创建的`employees`表按照这种方案进行分区。
+- en: '[PRE17]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: Note
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Because different character sets and collations have different sort orders,
+    the character sets and collations in use may effect which partition of a table
+    partitioned by `RANGE COLUMNS` a given row is stored in when using string columns
+    as partitioning columns. In addition, changing the character set or collation
+    for a given database, table, or column after such a table is created may cause
+    changes in how rows are distributed. For example, when using a case-sensitive
+    collation, `'and'` sorts before `'Andersen'`, but when using a collation that
+    is case-insensitive, the reverse is true.
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为不同的字符集和校对规则具有不同的排序顺序，所以在使用字符串列作为分区列进行分区时，正在使用的字符集和校对规则可能会影响表按`RANGE COLUMNS`分区的哪个分区存储给定行。此外，在创建这样一个表之后更改给定数据库、表或列的字符集或校对规则可能会导致行分布方式的变化。例如，在使用区分大小写的校对规则时，`'and'`在`'Andersen'`之前排序，但在使用不区分大小写的校对规则时，情况则相反。
+- en: For information about how MySQL handles character sets and collations, see [Chapter 12,
+    *Character Sets, Collations, Unicode*](charset.html "Chapter 12 Character Sets,
+    Collations, Unicode").
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关MySQL如何处理字符集和校对规则的信息，请参阅[第12章，*字符集、校对规则、Unicode*](charset.html "第12章 字符集、校对规则、Unicode")。
+- en: 'Similarly, you can cause the `employees` table to be partitioned in such a
+    way that each row is stored in one of several partitions based on the decade in
+    which the corresponding employee was hired using the [`ALTER TABLE`](alter-table-partition-operations.html
+    "15.1.9.1 ALTER TABLE Partition Operations") statement shown here:'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 类似地，您可以使用此处显示的[`ALTER TABLE`](alter-table-partition-operations.html "15.1.9.1 ALTER
+    TABLE Partition Operations")语句使`employees`表按照雇佣员工的年代进行分区，使每一行存储在几个分区中的一个。
+- en: '[PRE18]'
+  id: totrans-56
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: See [Section 15.1.20, “CREATE TABLE Statement”](create-table.html "15.1.20 CREATE
+    TABLE Statement"), for additional information about `PARTITION BY RANGE COLUMNS`
+    syntax.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关`PARTITION BY RANGE COLUMNS`语法的更多信息，请参阅[第15.1.20节，“CREATE TABLE语句”](create-table.html
+    "15.1.20 CREATE TABLE Statement")。

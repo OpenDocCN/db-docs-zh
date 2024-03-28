@@ -1,0 +1,254 @@
+- en: 17.8.9 Purge Configuration
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.8.9 清理配置
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-purge-configuration.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-purge-configuration.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-purge-configuration.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-purge-configuration.html)
+- en: '`InnoDB` does not physically remove a row from the database immediately when
+    you delete it with an SQL statement. A row and its index records are only physically
+    removed when `InnoDB` discards the undo log record written for the deletion. This
+    removal operation, which only occurs after the row is no longer required for multi-version
+    concurrency control (MVCC) or rollback, is called a purge.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您使用 SQL 语句删除行时，`InnoDB` 不会立即从数据库中物理删除行。只有在 `InnoDB` 丢弃为删除编写的撤销日志记录时，行及其索引记录才会被物理删除。此删除操作仅在行不再需要用于多版本并发控制（MVCC）或回滚后发生，称为清理。
+- en: Purge runs on a periodic schedule. It parses and processes undo log pages from
+    the history list, which is a list of undo log pages for committed transactions
+    that is maintained by the `InnoDB` transaction system. Purge frees the undo log
+    pages from the history list after processing them.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 清理定期运行。它解析并处理来自历史列表的撤销日志页，历史列表是由 `InnoDB` 事务系统维护的已提交事务的撤销日志页列表。清理在处理完撤销日志页后会释放它们。
+- en: Configuring Purge Threads
+  id: totrans-4
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置清理线程
+- en: Purge operations are performed in the background by one or more purge threads.
+    The number of purge threads is controlled by the [`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    variable. The default value is 4.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 清理操作由一个或多个清理线程在后台执行。清理线程的数量由[`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    变量控制。默认值为 4。
+- en: If DML action is concentrated on a single table, purge operations for the table
+    are performed by a single purge thread, which can result in slowed purge operations,
+    increased purge lag, and increased tablespace file size if the DML operations
+    involve large object values. From MySQL 8.0.26, if the [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    setting is exceeded, purge work is automatically redistributed among available
+    purge threads. Too many active purge threads in this scenario can cause contention
+    with user threads, so manage the [`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    setting accordingly. The [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    variable is set to 0 by default, which means that there is no maximum purge lag
+    by default.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 DML 操作集中在单个表上，则该表的清理操作由单个清理线程执行，这可能导致清理操作减慢、清理延迟增加，并且如果 DML 操作涉及大对象值，则表空间文件大小会增加。从
+    MySQL 8.0.26 开始，如果超过了[`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    设置，清理工作会自动在可用的清理线程之间重新分配。在这种情况下，过多的活动清理线程可能会与用户线程发生争用，因此请相应地管理[`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    设置。[`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    变量默认设置为 0，这意味着默认情况下没有最大清理延迟。
+- en: If DML action is concentrated on few tables, keep the [`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    setting low so that the threads do not contend with each other for access to the
+    busy tables. If DML operations are spread across many tables, consider a higher
+    [`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads) setting.
+    The maximum number of purge threads is 32.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 DML 操作集中在少数表上，请将[`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    设置较低，以便线程不会因争夺对繁忙表的访问而相互竞争。如果 DML 操作分布在许多表上，请考虑设置更高的[`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)。清理线程的最大数量为
+    32。
+- en: The [`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    setting is the maximum number of purge threads permitted. The purge system automatically
+    adjusts the number of purge threads that are used.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    设置是允许的最大清理线程数。清理系统会自动调整使用的清理线程数。'
+- en: Configuring Purge Batch Size
+  id: totrans-9
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置清理批量大小
+- en: The [`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)
+    variable defines the number of undo log pages that purge parses and processes
+    in one batch from the history list. The default value is 300\. In a multithreaded
+    purge configuration, the coordinator purge thread divides [`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)
+    by [`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)
+    and assigns that number of pages to each purge thread.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)变量定义了清除器在一个批处理中解析和处理的撤销日志页数。默认值为300。在多线程清除配置中，协调员清除线程将[`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)除以[`innodb_purge_threads`](innodb-parameters.html#sysvar_innodb_purge_threads)，并将该数量的页分配给每个清除线程。'
+- en: The purge system also frees the undo log pages that are no longer required.
+    It does so every 128 iterations through the undo logs. In addition to defining
+    the number of undo log pages parsed and processed in a batch, the [`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)
+    variable defines the number of undo log pages that purge frees every 128 iterations
+    through the undo logs.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 清除系统还释放不再需要的撤销日志页。它每128次迭代通过撤销日志这样做。除了定义在批处理中解析和处理的撤销日志页数外，[`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)变量还定义了在每128次迭代中清除系统释放的撤销日志页数。
+- en: The [`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)
+    variable is intended for advanced performance tuning and experimentation. Most
+    users need not change [`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)
+    from its default value.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)变量用于高级性能调优和实验。大多数用户不需要更改[`innodb_purge_batch_size`](innodb-parameters.html#sysvar_innodb_purge_batch_size)的默认值。'
+- en: Configuring the Maximum Purge Lag
+  id: totrans-13
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置最大清除延迟
+- en: The [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    variable defines the desired maximum purge lag. When the purge lag exceeds the
+    [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag) threshold,
+    a delay is imposed on [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement"), and [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    operations to allow time for purge operations to catch up. The default value is
+    0, which means there is no maximum purge lag and no delay.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)变量定义了期望的最大清除延迟。当清除延迟超过[`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)阈值时，将对[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")、[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")操作施加延迟，以便清除操作赶上。默认值为0，表示没有最大清除延迟和延迟。'
+- en: 'The `InnoDB` transaction system maintains a list of transactions that have
+    index records delete-marked by [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    or [`DELETE`](delete.html "15.2.2 DELETE Statement") operations. The length of
+    the list is the purge lag. Prior to MySQL 8.0.14, the purge lag delay is calculated
+    by the following formula, which results in a minimum delay of 5000 microseconds:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`事务系统维护一个由[`UPDATE`](update.html "15.2.17 UPDATE Statement")或[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")操作删除标记的索引记录的事务列表。列表的长度即为清除延迟。在MySQL 8.0.14之前，清除延迟延迟是通过以下公式计算的，结果是最小延迟为5000微秒：'
+- en: '[PRE0]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: As of MySQL 8.0.14, the purge lag delay is calculated by the following revised
+    formula, which reduces the minimum delay to 5 microseconds. A delay of 5 microseconds
+    is more appropriate for modern systems.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.14开始，清除延迟延迟是通过以下修订后的公式计算的，将最小延迟减少到5微秒。5微秒的延迟对于现代系统更为合适。
+- en: '[PRE1]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The delay is calculated at the beginning of a purge batch.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 延迟是在清除批处理的开始时计算的。
+- en: A typical [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    setting for a problematic workload might be 1000000 (1 million), assuming that
+    transactions are small, only 100 bytes in size, and it is permissible to have
+    100MB of unpurged table rows.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于有问题的工作负载，典型的[`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)设置可能是1000000（100万），假设事务很小，只有100字节大小，并且可以有100MB的未清除表行。
+- en: The purge lag is presented as the `History list length` value in the `TRANSACTIONS`
+    section of [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE
+    Statement") output.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 清除延迟显示为`TRANSACTIONS`部分中的`History list length`值，在[`SHOW ENGINE INNODB STATUS`](show-engine.html
+    "15.7.7.15 SHOW ENGINE Statement")输出中。
+- en: '[PRE2]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The `History list length` is typically a low value, usually less than a few
+    thousand, but a write-heavy workload or long running transactions can cause it
+    to increase, even for transactions that are read only. The reason that a long
+    running transaction can cause the `History list length` to increase is that under
+    a consistent read transaction isolation level such as `REPEATABLE READ`, a transaction
+    must return the same result as when the read view for that transaction was created.
+    Consequently, the `InnoDB` multi-version concurrency control (MVCC) system must
+    keep a copy of the data in the undo log until all transactions that depend on
+    that data have completed. The following are examples of long running transactions
+    that could cause the `History list length` to increase:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`History list length` 通常是一个较低的值，通常少于几千，但是写入密集的工作负载或长时间运行的事务可能会导致其增加，即使是只读事务也可能会增加。长时间运行的事务可能会导致
+    `History list length` 增加的原因是，在诸如 `REPEATABLE READ` 这样的一致性读事务隔离级别下，事务必须返回与创建该事务的读视图时相同的结果。因此，`InnoDB`
+    多版本并发控制（MVCC）系统必须保留数据的副本在撤销日志中，直到所有依赖于该数据的事务完成。以下是可能导致 `History list length` 增加的长时间运行事务的示例：'
+- en: A [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    operation that uses the [`--single-transaction`](mysqldump.html#option_mysqldump_single-transaction)
+    option while there is a significant amount of concurrent DML.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当存在大量并发的 DML 时，执行一个使用 [`--single-transaction`](mysqldump.html#option_mysqldump_single-transaction)
+    选项的 [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    操作。
+- en: Running a [`SELECT`](select.html "15.2.13 SELECT Statement") query after disabling
+    [`autocommit`](server-system-variables.html#sysvar_autocommit), and forgetting
+    to issue an explicit `COMMIT` or `ROLLBACK`.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在禁用 [`autocommit`](server-system-variables.html#sysvar_autocommit) 后运行 [`SELECT`](select.html
+    "15.2.13 SELECT Statement") 查询，并忘记发出显式的 `COMMIT` 或 `ROLLBACK`。
+- en: To prevent excessive delays in extreme situations where the purge lag becomes
+    huge, you can limit the delay by setting the [`innodb_max_purge_lag_delay`](innodb-parameters.html#sysvar_innodb_max_purge_lag_delay)
+    variable. The [`innodb_max_purge_lag_delay`](innodb-parameters.html#sysvar_innodb_max_purge_lag_delay)
+    variable specifies the maximum delay in microseconds for the delay imposed when
+    the [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    threshold is exceeded. The specified [`innodb_max_purge_lag_delay`](innodb-parameters.html#sysvar_innodb_max_purge_lag_delay)
+    value is an upper limit on the delay period calculated by the [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    formula.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了防止在极端情况下出现过大的清理延迟，您可以通过设置 [`innodb_max_purge_lag_delay`](innodb-parameters.html#sysvar_innodb_max_purge_lag_delay)
+    变量来限制延迟。[`innodb_max_purge_lag_delay`](innodb-parameters.html#sysvar_innodb_max_purge_lag_delay)
+    变量指定了当超过 [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    阈值时施加的延迟的最大延迟时间（以微秒为单位）。指定的 [`innodb_max_purge_lag_delay`](innodb-parameters.html#sysvar_innodb_max_purge_lag_delay)
+    值是由 [`innodb_max_purge_lag`](innodb-parameters.html#sysvar_innodb_max_purge_lag)
+    公式计算的延迟时间的上限。
+- en: Purge and Undo Tablespace Truncation
+  id: totrans-27
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 清理和撤销表空间截断
+- en: The purge system is also responsible for truncating undo tablespaces. You can
+    configure the [`innodb_purge_rseg_truncate_frequency`](innodb-parameters.html#sysvar_innodb_purge_rseg_truncate_frequency)
+    variable to control the frequency with which the purge system looks for undo tablespaces
+    to truncate. For more information, see [Truncating Undo Tablespaces](innodb-undo-tablespaces.html#truncate-undo-tablespace
+    "Truncating Undo Tablespaces").
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 清理系统还负责截断撤销表空间。您可以配置 [`innodb_purge_rseg_truncate_frequency`](innodb-parameters.html#sysvar_innodb_purge_rseg_truncate_frequency)
+    变量来控制清理系统查找要截断的撤销表空间的频率。有关更多信息，请参见 [截断撤销表空间](innodb-undo-tablespaces.html#truncate-undo-tablespace
+    "截断撤销表空间")。

@@ -1,0 +1,448 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-prepared-statements-instances-table.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-prepared-statements-instances-table.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-prepared-statements-instances-table.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-prepared-statements-instances-table.html)
+- en: 29.12.6.4 The prepared_statements_instances Table
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 29.12.6.4 prepared_statements_instances 表
+- en: 'The Performance Schema provides instrumentation for prepared statements, for
+    which there are two protocols:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema 为准备语句提供了仪表化，有两种协议：
+- en: The binary protocol. This is accessed through the MySQL C API and maps onto
+    underlying server commands as shown in the following table.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 二进制协议。通过 MySQL C API 访问，映射到下表中显示的底层服务器命令。
+- en: '| C API Function | Corresponding Server Command |'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| C API 函数 | 对应的服务器命令 |'
+- en: '| [`mysql_stmt_prepare()`](/doc/c-api/8.0/en/mysql-stmt-prepare.html) | `COM_STMT_PREPARE`
+    |'
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`mysql_stmt_prepare()`](/doc/c-api/8.0/en/mysql-stmt-prepare.html) | `COM_STMT_PREPARE`
+    |'
+- en: '| [`mysql_stmt_execute()`](/doc/c-api/8.0/en/mysql-stmt-execute.html) | `COM_STMT_EXECUTE`
+    |'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`mysql_stmt_execute()`](/doc/c-api/8.0/en/mysql-stmt-execute.html) | `COM_STMT_EXECUTE`
+    |'
+- en: '| [`mysql_stmt_close()`](/doc/c-api/8.0/en/mysql-stmt-close.html) | `COM_STMT_CLOSE`
+    |'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`mysql_stmt_close()`](/doc/c-api/8.0/en/mysql-stmt-close.html) | `COM_STMT_CLOSE`
+    |'
+- en: The text protocol. This is accessed using SQL statements and maps onto underlying
+    server commands as shown in the following table.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 文本协议。通过 SQL 语句访问，映射到下表中显示的底层服务器命令。
+- en: '| SQL Statement | Corresponding Server Command |'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| SQL 语句 | 对应的服务器命令 |'
+- en: '| [`PREPARE`](prepare.html "15.5.1 PREPARE Statement") | `SQLCOM_PREPARE` |'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`PREPARE`](prepare.html "15.5.1 PREPARE 语句") | `SQLCOM_PREPARE` |'
+- en: '| [`EXECUTE`](execute.html "15.5.2 EXECUTE Statement") | `SQLCOM_EXECUTE` |'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`EXECUTE`](execute.html "15.5.2 EXECUTE 语句") | `SQLCOM_EXECUTE` |'
+- en: '| [`DEALLOCATE PREPARE`](deallocate-prepare.html "15.5.3 DEALLOCATE PREPARE
+    Statement"), [`DROP PREPARE`](deallocate-prepare.html "15.5.3 DEALLOCATE PREPARE
+    Statement") | `SQLCOM_DEALLOCATE PREPARE` |'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`DEALLOCATE PREPARE`](deallocate-prepare.html "15.5.3 DEALLOCATE PREPARE
+    语句"), [`DROP PREPARE`](deallocate-prepare.html "15.5.3 DEALLOCATE PREPARE 语句")
+    | `SQLCOM_DEALLOCATE PREPARE` |'
+- en: Performance Schema prepared statement instrumentation covers both protocols.
+    The following discussion refers to the server commands rather than the C API functions
+    or SQL statements.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema 准备语句仪表化涵盖了两种协议。以下讨论涉及服务器命令，而不是 C API 函数或 SQL 语句。
+- en: Information about prepared statements is available in the [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table. This table enables
+    inspection of prepared statements used in the server and provides aggregated statistics
+    about them. To control the size of this table, set the [`performance_schema_max_prepared_statements_instances`](performance-schema-system-variables.html#sysvar_performance_schema_max_prepared_statements_instances)
+    system variable at server startup.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关准备语句的信息可在 [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances 表") 表中找到。此表允许检查服务器中使用的准备语句，并提供有关它们的聚合统计信息。要控制此表的大小，请在服务器启动时设置
+    [`performance_schema_max_prepared_statements_instances`](performance-schema-system-variables.html#sysvar_performance_schema_max_prepared_statements_instances)
+    系统变量。
+- en: Collection of prepared statement information depends on the statement instruments
+    shown in the following table. These instruments are enabled by default. To modify
+    them, update the [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") table.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 收集准备语句信息取决于下表中显示的语句工具。这些工具默认启用。要修改它们，请更新 [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 setup_instruments 表") 表。
+- en: '| Instrument | Server Command |'
+  id: totrans-16
+  prefs: []
+  type: TYPE_TB
+  zh: '| 工具 | 服务器命令 |'
+- en: '| `statement/com/Prepare` | `COM_STMT_PREPARE` |'
+  id: totrans-17
+  prefs: []
+  type: TYPE_TB
+  zh: '| `statement/com/Prepare` | `COM_STMT_PREPARE` |'
+- en: '| `statement/com/Execute` | `COM_STMT_EXECUTE` |'
+  id: totrans-18
+  prefs: []
+  type: TYPE_TB
+  zh: '| `statement/com/Execute` | `COM_STMT_EXECUTE` |'
+- en: '| `statement/sql/prepare_sql` | `SQLCOM_PREPARE` |'
+  id: totrans-19
+  prefs: []
+  type: TYPE_TB
+  zh: '| `statement/sql/prepare_sql` | `SQLCOM_PREPARE` |'
+- en: '| `statement/sql/execute_sql` | `SQLCOM_EXECUTE` |'
+  id: totrans-20
+  prefs: []
+  type: TYPE_TB
+  zh: '| `statement/sql/execute_sql` | `SQLCOM_EXECUTE` |'
+- en: 'The Performance Schema manages the contents of the [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table as follows:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema 管理 [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances 表") 表的内容如下：
+- en: Statement preparation
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 语句准备
+- en: A `COM_STMT_PREPARE` or `SQLCOM_PREPARE` command creates a prepared statement
+    in the server. If the statement is successfully instrumented, a new row is added
+    to the [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table. If the statement cannot
+    be instrumented, [`Performance_schema_prepared_statements_lost`](performance-schema-status-variables.html#statvar_Performance_schema_prepared_statements_lost)
+    status variable is incremented.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`COM_STMT_PREPARE`或`SQLCOM_PREPARE`命令在服务器中创建一个预处理语句。如果成功地对语句进行了仪表化，将向[`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances表")表中添加一行新记录。如果无法对语句进行仪表化，则会增加[`Performance_schema_prepared_statements_lost`](performance-schema-status-variables.html#statvar_Performance_schema_prepared_statements_lost)状态变量。'
+- en: Prepared statement execution
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 预处理语句执行
+- en: Execution of a `COM_STMT_EXECUTE` or `SQLCOM_PREPARE` command for an instrumented
+    prepared statement instance updates the corresponding [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table row.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于仪表化预处理语句实例的`COM_STMT_EXECUTE`或`SQLCOM_PREPARE`命令的执行将更新相应的[`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances表")表行。
+- en: Prepared statement deallocation
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 预处理语句释放
+- en: Execution of a `COM_STMT_CLOSE` or `SQLCOM_DEALLOCATE_PREPARE` command for an
+    instrumented prepared statement instance removes the corresponding [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table row. To avoid resource
+    leaks, removal occurs even if the prepared statement instruments described previously
+    are disabled.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于仪表化预处理语句实例的`COM_STMT_CLOSE`或`SQLCOM_DEALLOCATE_PREPARE`命令的执行将删除相应的[`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances表")表行。为避免资源泄漏，即使禁用了先前描述的预处理语句仪表化，也会发生删除。
+- en: 'The [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table has these columns:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances表")表具有这些列：'
+- en: '`OBJECT_INSTANCE_BEGIN`'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OBJECT_INSTANCE_BEGIN`'
+- en: The address in memory of the instrumented prepared statement.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 仪表化预处理语句的内存地址。
+- en: '`STATEMENT_ID`'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STATEMENT_ID`'
+- en: The internal statement ID assigned by the server. The text and binary protocols
+    both use statement IDs.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 服务器分配的内部语句ID。文本和二进制协议都使用语句ID。
+- en: '`STATEMENT_NAME`'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STATEMENT_NAME`'
+- en: 'For the binary protocol, this column is `NULL`. For the text protocol, this
+    column is the external statement name assigned by the user. For example, for the
+    following SQL statement, the name of the prepared statement is `stmt`:'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于二进制协议，此列为`NULL`。对于文本协议，此列为用户分配的外部语句名称。例如，对于以下SQL语句，预处理语句的名称为`stmt`：
+- en: '[PRE0]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: '`SQL_TEXT`'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SQL_TEXT`'
+- en: The prepared statement text, with `?` placeholder markers.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 带有`?`占位符标记的预处理语句文本。
+- en: '`OWNER_THREAD_ID`, `OWNER_EVENT_ID`'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OWNER_THREAD_ID`，`OWNER_EVENT_ID`'
+- en: These columns indicate the event that created the prepared statement.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些列指示创建预处理语句的事件。
+- en: '`OWNER_OBJECT_TYPE`, `OWNER_OBJECT_SCHEMA`, `OWNER_OBJECT_NAME`'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OWNER_OBJECT_TYPE`，`OWNER_OBJECT_SCHEMA`，`OWNER_OBJECT_NAME`'
+- en: 'For a prepared statement created by a client session, these columns are `NULL`.
+    For a prepared statement created by a stored program, these columns point to the
+    stored program. A typical user error is forgetting to deallocate prepared statements.
+    These columns can be used to find stored programs that leak prepared statements:'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于由客户端会话创建的预处理语句，这些列为`NULL`。对于由存储过程创建的预处理语句，这些列指向存储过程。一个典型的用户错误是忘记释放预处理语句。这些列可用于查找泄漏预处理语句的存储过程：
+- en: '[PRE1]'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The query execution engine. The value is either `PRIMARY` or `SECONDARY`. For
+    use with MySQL HeatWave Service and HeatWave, where the `PRIMARY` engine is `InnoDB`
+    and the `SECONDARY` engine is HeatWave (`RAPID`). For MySQL Community Edition
+    Server, MySQL Enterprise Edition Server (on-premise), and MySQL HeatWave Service
+    without HeatWave, the value is always `PRIMARY`. This column was added in MySQL
+    8.0.29.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询执行引擎。其值为`PRIMARY`或`SECONDARY`。用于MySQL HeatWave服务和HeatWave，其中`PRIMARY`引擎为`InnoDB`，`SECONDARY`引擎为HeatWave（`RAPID`）。对于MySQL社区版服务器、MySQL企业版服务器（本地）和没有HeatWave的MySQL
+    HeatWave服务，该值始终为`PRIMARY`。此列在MySQL 8.0.29中添加。
+- en: '`TIMER_PREPARE`'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`TIMER_PREPARE`'
+- en: The time spent executing the statement preparation itself.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 执行语句准备本身所花费的时间。
+- en: '`COUNT_REPREPARE`'
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_REPREPARE`'
+- en: The number of times the statement was reprepared internally (see [Section 10.10.3,
+    “Caching of Prepared Statements and Stored Programs”](statement-caching.html "10.10.3 Caching
+    of Prepared Statements and Stored Programs")). Timing statistics for repreparation
+    are not available because it is counted as part of statement execution, not as
+    a separate operation.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语句在内部重新准备的次数（参见[第10.10.3节，“准备语句和存储程序的缓存”](statement-caching.html "10.10.3 准备语句和存储程序的缓存")）。重新准备的时间统计数据不可用，因为它被计算为语句执行的一部分，而不是作为单独的操作。
+- en: '`COUNT_EXECUTE`, `SUM_TIMER_EXECUTE`, `MIN_TIMER_EXECUTE`, `AVG_TIMER_EXECUTE`,
+    `MAX_TIMER_EXECUTE`'
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_EXECUTE`, `SUM_TIMER_EXECUTE`, `MIN_TIMER_EXECUTE`, `AVG_TIMER_EXECUTE`,
+    `MAX_TIMER_EXECUTE`'
+- en: Aggregated statistics for executions of the prepared statement.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 准备语句执行的聚合统计数据。
+- en: '`SUM_*`xxx`*`'
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUM_*`xxx`*`'
+- en: The remaining `SUM_*`xxx`*` columns are the same as for the statement summary
+    tables (see [Section 29.12.20.3, “Statement Summary Tables”](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables")).
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 剩余的`SUM_*`xxx`*`列与语句摘要表相同（参见[第29.12.20.3节，“语句摘要表”](performance-schema-statement-summary-tables.html
+    "29.12.20.3 语句摘要表")）。
+- en: '`MAX_CONTROLLED_MEMORY`'
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MAX_CONTROLLED_MEMORY`'
+- en: Reports the maximum amount of controlled memory used by a prepared statement
+    during execution.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 报告了执行期间准备语句使用的受控内存的最大量。
+- en: This column was added in MySQL 8.0.31.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此列在MySQL 8.0.31中添加。
+- en: '`MAX_TOTAL_MEMORY`'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MAX_TOTAL_MEMORY`'
+- en: Reports the maximum amount of memory used by a prepared statement during execution.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 报告了执行期间准备语句使用的最大内存量。
+- en: This column was added in MySQL 8.0.31.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此列在MySQL 8.0.31中添加。
+- en: 'The [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table has these indexes:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances表")表具有以下索引：'
+- en: Primary key on (`OBJECT_INSTANCE_BEGIN`)
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在(`OBJECT_INSTANCE_BEGIN`)上的主键
+- en: Index on (`STATEMENT_ID`)
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在(`STATEMENT_ID`)上的索引
+- en: Index on (`STATEMENT_NAME`)
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在(`STATEMENT_NAME`)上的索引
+- en: Index on (`OWNER_THREAD_ID`, `OWNER_EVENT_ID`)
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在(`OWNER_THREAD_ID`, `OWNER_EVENT_ID`)上的索引
+- en: Index on (`OWNER_OBJECT_TYPE`, `OWNER_OBJECT_SCHEMA`, `OWNER_OBJECT_NAME`)
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在(`OWNER_OBJECT_TYPE`, `OWNER_OBJECT_SCHEMA`, `OWNER_OBJECT_NAME`)上的索引
+- en: '[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement")
+    resets the statistics columns of the [`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 The prepared_statements_instances Table") table.'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE 语句") 重置[`prepared_statements_instances`](performance-schema-prepared-statements-instances-table.html
+    "29.12.6.4 prepared_statements_instances表")表的统计列。'

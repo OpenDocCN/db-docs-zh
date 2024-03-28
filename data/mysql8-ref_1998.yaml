@@ -1,0 +1,221 @@
+- en: 29.4.5 Pre-Filtering by Object
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 29.4.5 对象预过滤
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-object-filtering.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-object-filtering.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-object-filtering.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-object-filtering.html)
+- en: 'The [`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table") table controls whether the Performance Schema monitors particular
+    table and stored program objects. The initial [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") contents look like this:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table")表控制性能模式监视特定表格和存储程序对象。初始[`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table")内容如下：'
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Modifications to the [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") table affect object monitoring immediately.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对[`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table")表的修改会立即影响对象监视。
+- en: The `OBJECT_TYPE` column indicates the type of object to which a row applies.
+    `TABLE` filtering affects table I/O events (`wait/io/table/sql/handler` instrument)
+    and table lock events (`wait/lock/table/sql/handler` instrument).
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`OBJECT_TYPE`列指示行适用的对象类型。`TABLE`过滤影响表格I/O事件(`wait/io/table/sql/handler`仪器)和表格锁事件(`wait/lock/table/sql/handler`仪器)。'
+- en: The `OBJECT_SCHEMA` and `OBJECT_NAME` columns should contain a literal schema
+    or object name, or `'%'` to match any name.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`OBJECT_SCHEMA`和`OBJECT_NAME`列应包含文字模式或对象名称，或`''%''`以匹配任何名称。'
+- en: The `ENABLED` column indicates whether matching objects are monitored, and `TIMED`
+    indicates whether to collect timing information. Setting the `TIMED` column affects
+    Performance Schema table contents as described in [Section 29.4.1, “Performance
+    Schema Event Timing”](performance-schema-timing.html "29.4.1 Performance Schema
+    Event Timing").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ENABLED`列指示是否监视匹配对象，`TIMED`指示是否收集时间信息。设置`TIMED`列会影响性能模式表内容，如[第29.4.1节“性能模式事件定时”](performance-schema-timing.html
+    "29.4.1 Performance Schema Event Timing")中所述。'
+- en: The effect of the default object configuration is to instrument all objects
+    except those in the `mysql`, `INFORMATION_SCHEMA`, and `performance_schema` databases.
+    (Tables in the `INFORMATION_SCHEMA` database are not instrumented regardless of
+    the contents of [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table"); the row for `information_schema.%` simply
+    makes this default explicit.)
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认对象配置的效果是对除`mysql`、`INFORMATION_SCHEMA`和`performance_schema`数据库中的对象之外的所有对象进行仪器化。
+    (无论[`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table")的内容如何，`INFORMATION_SCHEMA`数据库中的表格都不会被仪器化；`information_schema.%`的行只是明确说明了这一默认值。)
+- en: 'When the Performance Schema checks for a match in [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table"), it tries to find more specific matches first.
+    For rows that match a given `OBJECT_TYPE`, the Performance Schema checks rows
+    in this order:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当性能模式在[`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table")中查找匹配时，它首先尝试找到更具体的匹配。对于匹配给定`OBJECT_TYPE`的行，性能模式按照以下顺序检查行：
+- en: Rows with `OBJECT_SCHEMA='*`literal`*'` and `OBJECT_NAME='*`literal`*'`.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 行中的`OBJECT_SCHEMA='*`文字`*'`和`OBJECT_NAME='*`文字`*'`。
+- en: Rows with `OBJECT_SCHEMA='*`literal`*'` and `OBJECT_NAME='%'`.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 行中的`OBJECT_SCHEMA='*`文字`*'`和`OBJECT_NAME='%'`。
+- en: Rows with `OBJECT_SCHEMA='%'` and `OBJECT_NAME='%'`.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表格中的`OBJECT_SCHEMA='%'`和`OBJECT_NAME='%'`。
+- en: For example, with a table `db1.t1`, the Performance Schema looks in `TABLE`
+    rows for a match for `'db1'` and `'t1'`, then for `'db1'` and `'%'`, then for
+    `'%'` and `'%'`. The order in which matching occurs matters because different
+    matching [`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table") rows can have different `ENABLED` and `TIMED` values.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，对于表格`db1.t1`，性能模式会在`TABLE`行中查找匹配`'db1'`和`'t1'`，然后是`'db1'`和`'%'`，最后是`'%'`和`'%'`。匹配发生的顺序很重要，因为不同的匹配[`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table")行可能具有不同的`ENABLED`和`TIMED`值。
+- en: 'For table-related events, the Performance Schema combines the contents of [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") with [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") to determine whether to enable instruments
+    and whether to time enabled instruments:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于与表相关的事件，性能模式将 [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") 的内容与 [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") 结合起来，以确定是否启用仪器以及是否计时启用的仪器：
+- en: For tables that match a row in [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table"), table instruments produce events only if
+    `ENABLED` is `YES` in both [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") and [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table").
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于与 [`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table") 中的行匹配的表，只有在 [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") 和 [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") 中的 `ENABLED` 都是 `YES` 时，表仪器才会产生事件。
+- en: The `TIMED` values in the two tables are combined, so that timing information
+    is collected only when both values are `YES`.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 两个表中的 `TIMED` 值被合并，只有当两个值都是 `YES` 时才收集时间信息。
+- en: For stored program objects, the Performance Schema takes the `ENABLED` and `TIMED`
+    columns directly from the [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") row. There is no combining of values with
+    [`setup_instruments`](performance-schema-setup-instruments-table.html "29.12.2.3 The
+    setup_instruments Table").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于存储过程对象，性能模式直接从 [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") 行中获取 `ENABLED` 和 `TIMED` 列。 不会将值与 [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") 结合。
+- en: 'Suppose that [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") contains the following `TABLE` rows that
+    apply to `db1`, `db2`, and `db3`:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设 [`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table") 包含适用于 `db1`、`db2` 和 `db3` 的以下 `TABLE` 行：
+- en: '[PRE1]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'If an object-related instrument in [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") has an `ENABLED` value of `NO`, events
+    for the object are not monitored. If the `ENABLED` value is `YES`, event monitoring
+    occurs according to the `ENABLED` value in the relevant [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") row:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 [`setup_instruments`](performance-schema-setup-instruments-table.html "29.12.2.3 The
+    setup_instruments Table") 中与对象相关的仪器具有 `ENABLED` 值为 `NO`，则不会监视对象的事件。 如果 `ENABLED`
+    值为 `YES`，则根据相关 [`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The
+    setup_objects Table") 行中的 `ENABLED` 值进行事件监视：
+- en: '`db1.t1` events are monitored'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db1.t1` 事件被监视'
+- en: '`db1.t2` events are not monitored'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db1.t2` 事件不被监视'
+- en: '`db2.t3` events are monitored'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db2.t3` 事件被监视'
+- en: '`db3.t4` events are not monitored'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db3.t4` 事件不被监视'
+- en: '`db4.t5` events are monitored'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db4.t5` 事件被监视'
+- en: Similar logic applies for combining the `TIMED` columns from the [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") and [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") tables to determine whether to collect event
+    timing information.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 类似的逻辑也适用于从 [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") 和 [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") 表中合并 `TIMED` 列以确定是否收集事件时间信息。
+- en: If a persistent table and a temporary table have the same name, matching against
+    [`setup_objects`](performance-schema-setup-objects-table.html "29.12.2.4 The setup_objects
+    Table") rows occurs the same way for both. It is not possible to enable monitoring
+    for one table but not the other. However, each table is instrumented separately.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个持久表和一个临时表具有相同的名称，则对 [`setup_objects`](performance-schema-setup-objects-table.html
+    "29.12.2.4 The setup_objects Table") 行进行匹配的方式对两者都是相同的。 不可能为一个表启用监视而不为另一个表启用。 但是，每个表都是单独进行仪器化的。

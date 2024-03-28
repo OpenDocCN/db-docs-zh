@@ -1,0 +1,347 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rules-table-options.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rules-table-options.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rules-table-options.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rules-table-options.html)
+- en: 19.2.5.2 Evaluation of Table-Level Replication Options
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.2.5.2 表级复制选项的评估
+- en: 'The replica checks for and evaluates table options only if either of the following
+    two conditions is true:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅当以下两个条件之一为真时，副本才会检查和评估表选项：
+- en: No matching database options were found.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 未找到匹配的数据库选项。
+- en: One or more database options were found, and were evaluated to arrive at an
+    “execute” condition according to the rules described in the previous section (see
+    [Section 19.2.5.1, “Evaluation of Database-Level Replication and Binary Logging
+    Options”](replication-rules-db-options.html "19.2.5.1 Evaluation of Database-Level
+    Replication and Binary Logging Options")).
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 找到了一个或多个数据库选项，并根据前一节中描述的规则评估这些选项，以确定“执行”条件。
+- en: First, as a preliminary condition, the replica checks whether statement-based
+    replication is enabled. If so, and the statement occurs within a stored function,
+    the replica executes the statement and exits. If row-based replication is enabled,
+    the replica does not know whether a statement occurred within a stored function
+    on the source, so this condition does not apply.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，作为初步条件，副本检查是否启用了基于语句的复制。如果是，并且语句出现在存储函数中，则副本执行该语句并退出。如果启用了基于行的复制，则副本不知道语句是否出现在源上的存储函数中，因此此条件不适用。
+- en: Note
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: For statement-based replication, replication events represent statements (all
+    changes making up a given event are associated with a single SQL statement); for
+    row-based replication, each event represents a change in a single table row (thus
+    a single statement such as `UPDATE mytable SET mycol = 1` may yield many row-based
+    events). When viewed in terms of events, the process of checking table options
+    is the same for both row-based and statement-based replication.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于基于语句的复制，复制事件代表语句（构成给定事件的所有更改与单个 SQL 语句相关联）；对于基于行的复制，每个事件代表单个表行的更改（因此，单个语句如`UPDATE
+    mytable SET mycol = 1`可能会产生许多基于行的事件）。从事件的角度来看，检查表选项的过程对于基于行和基于语句的复制都是相同的。
+- en: Having reached this point, if there are no table options, the replica simply
+    executes all events. If there are any [`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    or [`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)
+    options, the event must match one of these if it is to be executed; otherwise,
+    it is ignored. If there are any [`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)
+    or [`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    options, all events are executed except those that match any of these options.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 到达这一点后，如果没有表选项，副本简单地执行所有事件。如果有任何[`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)或[`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)选项，则事件必须与其中之一匹配才能执行；否则，它将被忽略。如果有任何[`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)或[`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)选项，则执行所有事件，除了与这些选项之一匹配的事件。
+- en: Important
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: Table-level replication filters are only applied to tables that are explicitly
+    mentioned and operated on in the query. They do not apply to tables that are implicitly
+    updated by the query. For example, a [`GRANT`](grant.html "15.7.1.6 GRANT Statement")
+    statement, which updates the `mysql.user` system table but does not mention that
+    table, is not affected by a filter that specifies `mysql.%` as the wildcard pattern.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表级复制过滤器仅适用于在查询中明确提及并操作的表。它们不适用于查询隐式更新的表。例如，一个[`GRANT`](grant.html "15.7.1.6 GRANT
+    Statement")语句，更新`mysql.user`系统表但未提及该表，不受指定`mysql.%`作为通配符模式的过滤器影响。
+- en: The following steps describe this evaluation in more detail. The starting point
+    is the end of the evaluation of the database-level options, as described in [Section 19.2.5.1,
+    “Evaluation of Database-Level Replication and Binary Logging Options”](replication-rules-db-options.html
+    "19.2.5.1 Evaluation of Database-Level Replication and Binary Logging Options").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下步骤更详细地描述了此评估。 起点是数据库级选项评估的结束，如[第 19.2.5.1 节，“数据库级复制和二进制日志选项的评估”](replication-rules-db-options.html
+    "19.2.5.1 数据库级复制和二进制日志选项的评估")中所述。
+- en: Are there any table replication options?
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 是否有任何表复制选项？
+- en: '**Yes. ** Continue to step 2.'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 继续到第 2 步。'
+- en: '**No. ** Execute the update and exit.'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 执行更新并退出。'
+- en: Which logging format is used?
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用哪种日志格式？
+- en: '**STATEMENT. ** Carry out the remaining steps for each statement that performs
+    an update.'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**语句。** 对执行更新的每个语句执行剩余步骤。'
+- en: '**ROW. ** Carry out the remaining steps for each update of a table row.'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**行。** 对每个表行更新执行剩余步骤。'
+- en: Are there any [`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    options?
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 是否有任何[`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)选项？
+- en: '**Yes. ** Does the table match any of them?'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 表是否与其中任何表匹配？'
+- en: '**Yes. ** Execute the update and exit.'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 执行更新并退出。'
+- en: '**No. ** Continue to step 4.'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 4 步。'
+- en: '**No. ** Continue to step 4.'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 4 步。'
+- en: Are there any [`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)
+    options?
+  id: totrans-23
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 是否有任何[`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)选项？
+- en: '**Yes. ** Does the table match any of them?'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 表是否与其中任何表匹配？'
+- en: '**Yes. ** Ignore the update and exit.'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 忽略更新并退出。'
+- en: '**No. ** Continue to step 5.'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 5 步。'
+- en: '**No. ** Continue to step 5.'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 5 步。'
+- en: Are there any [`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)
+    options?
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 是否有任何[`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)选项？
+- en: '**Yes. ** Does the table match any of them?'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 表是否与其中任何表匹配？'
+- en: '**Yes. ** Execute the update and exit.'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 执行更新并退出。'
+- en: '**No. ** Continue to step 6.'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 6 步。'
+- en: '**No. ** Continue to step 6.'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 6 步。'
+- en: Are there any [`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    options?
+  id: totrans-33
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 是否有任何[`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)选项？
+- en: '**Yes. ** Does the table match any of them?'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 表是否与其中任何表匹配？'
+- en: '**Yes. ** Ignore the update and exit.'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 忽略更新并退出。'
+- en: '**No. ** Continue to step 7.'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 7 步。'
+- en: '**No. ** Continue to step 7.'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 7 步。'
+- en: Is there another table to be tested?
+  id: totrans-38
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 是否有另一个表需要测试？
+- en: '**Yes. ** Go back to step 3.'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 返回到第 3 步。'
+- en: '**No. ** Continue to step 8.'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 继续到第 8 步。'
+- en: Are there any [`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    or [`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)
+    options?
+  id: totrans-41
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 是否有任何[`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)或[`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)选项？
+- en: '**Yes. ** Ignore the update and exit.'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**是的。** 忽略更新并退出。'
+- en: '**No. ** Execute the update and exit.'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**没有。** 执行更新并退出。'
+- en: Note
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Statement-based replication stops if a single SQL statement operates on both
+    a table that is included by a [`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    or [`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)
+    option, and another table that is ignored by a [`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)
+    or [`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    option. The replica must either execute or ignore the complete statement (which
+    forms a replication event), and it cannot logically do this. This also applies
+    to row-based replication for DDL statements, because DDL statements are always
+    logged as statements, without regard to the logging format in effect. The only
+    type of statement that can update both an included and an ignored table and still
+    be replicated successfully is a DML statement that has been logged with [`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format).
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果单个 SQL 语句同时操作一个被[`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)或[`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)选项包含的表和另一个被[`--replicate-ignore-table`](replication-options-replica.html#option_mysqld_replicate-ignore-table)或[`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)选项忽略的表，基于语句的复制会停止。复制实例必须执行或忽略完整的语句（形成一个复制事件），逻辑上无法做到这一点。对于
+    DDL 语句的基于行的复制也适用这一规则，因为 DDL 语句始终被记录为语句，而不考虑生效的日志格式。唯一能够成功复制同时更新包含和被忽略表的语句类型是已使用[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)记录的
+    DML 语句。

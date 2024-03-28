@@ -1,0 +1,603 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/persisted-system-variables.html](https://dev.mysql.com/doc/refman/8.0/en/persisted-system-variables.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/persisted-system-variables.html](https://dev.mysql.com/doc/refman/8.0/en/persisted-system-variables.html)
+- en: 7.1.9.3 Persisted System Variables
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.1.9.3 持久化系统变量
+- en: The MySQL server maintains system variables that configure its operation. A
+    system variable can have a global value that affects server operation as a whole,
+    a session value that affects the current session, or both. Many system variables
+    are dynamic and can be changed at runtime using the [`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") statement to affect operation of
+    the current server instance. [`SET`](set-variable.html "15.7.6.1 SET Syntax for
+    Variable Assignment") can also be used to persist certain global system variables
+    to the `mysqld-auto.cnf` file in the data directory, to affect server operation
+    for subsequent startups. [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET
+    PERSIST Statement") removes persisted settings from `mysqld-auto.cnf`.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 服务器维护配置其操作的系统变量。系统变量可以具有影响整个服务器操作的全局值，影响当前会话的会话值，或两者都有。许多系统变量是动态的，可以使用[`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment")语句在运行时更改，以影响当前服务器实例的操作。[`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment")也可以用于将某些全局系统变量持久化到数据目录中的`mysqld-auto.cnf`文件中，以影响后续启动时的服务器操作。[`RESET
+    PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement")会从`mysqld-auto.cnf`中删除持久化的设置。
+- en: 'The following discussion describes aspects of persisting system variables:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论描述了持久化系统变量的方面：
+- en: '[Overview of Persisted System Variables](persisted-system-variables.html#persisted-system-variables-overview
+    "Overview of Persisted System Variables")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[持久化系统变量概述](persisted-system-variables.html#persisted-system-variables-overview
+    "Overview of Persisted System Variables")'
+- en: '[Syntax for Persisting System Variables](persisted-system-variables.html#persisted-system-variables-syntax
+    "Syntax for Persisting System Variables")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[持久化系统变量的语法](persisted-system-variables.html#persisted-system-variables-syntax
+    "Syntax for Persisting System Variables")'
+- en: '[Obtaining Information About Persisted System Variables](persisted-system-variables.html#persisted-system-variables-information
+    "Obtaining Information About Persisted System Variables")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[获取有关持久化系统变量的信息](persisted-system-variables.html#persisted-system-variables-information
+    "Obtaining Information About Persisted System Variables")'
+- en: '[Format and Server Handling of the mysqld-auto.cnf File](persisted-system-variables.html#persisted-system-variables-file-handling
+    "Format and Server Handling of the mysqld-auto.cnf File")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[mysqld-auto.cnf 文件的格式和服务器处理方式](persisted-system-variables.html#persisted-system-variables-file-handling
+    "Format and Server Handling of the mysqld-auto.cnf File")'
+- en: '[Persisting Sensitive System Variables](persisted-system-variables.html#persisted-system-variables-sensitive
+    "Persisting Sensitive System Variables")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[持久化敏感系统变量](persisted-system-variables.html#persisted-system-variables-sensitive
+    "Persisting Sensitive System Variables")'
+- en: Overview of Persisted System Variables
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 持久化系统变量概述
+- en: 'The capability of persisting global system variables at runtime enables server
+    configuration that persists across server startups. Although many system variables
+    can be set at startup from a `my.cnf` option file, or at runtime using the [`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") statement, those methods of configuring
+    the server either require login access to the server host, or do not provide the
+    capability of persistently configuring the server at runtime or remotely:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在运行时持久化全局系统变量的能力使得服务器配置可以持续跨越服务器启动。尽管许多系统变量可以在启动时从`my.cnf`选项文件设置，或者使用[`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment")语句在运行时设置，但这些配置服务器的方法要么需要登录到服务器主机，要么不能提供在运行时或远程持久配置服务器的能力：
+- en: Modifying an option file requires direct access to that file, which requires
+    login access to the MySQL server host. This is not always convenient.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 修改选项文件需要直接访问该文件，这需要登录到 MySQL 服务器主机。这并不总是方便的。
+- en: Modifying system variables with [`SET GLOBAL`](set-variable.html "15.7.6.1 SET
+    Syntax for Variable Assignment") is a runtime capability that can be done from
+    clients run locally or from remote hosts, but the changes affect only the currently
+    running server instance. The settings are not persistent and do not carry over
+    to subsequent server startups.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[`SET GLOBAL`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")修改系统变量是一种运行时功能，可以从本地运行的客户端或远程主机执行，但更改仅影响当前运行的服务器实例。这些设置不是持久的，也不会传递到后续的服务器启动。
+- en: 'To augment administrative capabilities for server configuration beyond what
+    is achievable by editing option files or using [`SET GLOBAL`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment"), MySQL provides variants of [`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") syntax that persist system variable
+    settings to a file named `mysqld-auto.cnf` file in the data directory. Examples:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了增强服务器配置的管理能力，超出了通过编辑选项文件或使用[`SET GLOBAL`](set-variable.html "15.7.6.1 变量赋值的SET语法")所能实现的范围，MySQL提供了[`SET`](set-variable.html
+    "15.7.6.1 变量赋值的SET语法")语法的变体，将系统变量设置持久化到名为`mysqld-auto.cnf`的文件中。示例：
+- en: '[PRE0]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: MySQL also provides a [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST
+    Statement") statement for removing persisted system variables from `mysqld-auto.cnf`.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL还提供了一个[`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST语句")语句，用于从`mysqld-auto.cnf`中删除持久化的系统变量。
+- en: 'Server configuration performed by persisting system variables has these characteristics:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过持久化系统变量执行的服务器配置具有以下特点：
+- en: Persisted settings are made at runtime.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 持久化设置是在运行时进行的。
+- en: Persisted settings are permanent. They apply across server restarts.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 持久化设置是永久的。它们在服务器重新启动时生效。
+- en: Persisted settings can be made from local clients or clients who connect from
+    a remote host. This provides the convenience of remotely configuring multiple
+    MySQL servers from a central client host.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 持久化设置可以来自本地客户端或从远程主机连接的客户端。这提供了从中央客户端主机远程配置多个MySQL服务器的便利。
+- en: To persist system variables, you need not have login access to the MySQL server
+    host or file system access to option files. Ability to persist settings is controlled
+    using the MySQL privilege system. See [Section 7.1.9.1, “System Variable Privileges”](system-variable-privileges.html
+    "7.1.9.1 System Variable Privileges").
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要持久化系统变量，您无需登录MySQL服务器主机或具有选项文件的文件系统访问权限。持久化设置的能力是通过MySQL权限系统控制的。请参见[Section 7.1.9.1,
+    “系统变量权限”](system-variable-privileges.html "7.1.9.1 系统变量权限")。
+- en: An administrator with sufficient privileges can reconfigure a server by persisting
+    system variables, then cause the server to use the changed settings immediately
+    by executing a [`RESTART`](restart.html "15.7.8.8 RESTART Statement") statement.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 拥有足够权限的管理员可以通过持久化系统变量重新配置服务器，然后通过执行[`RESTART`](restart.html "15.7.8.8 RESTART语句")语句立即使服务器使用更改后的设置。
+- en: Persisted settings provide immediate feedback about errors. An error in a manually
+    entered setting might not be discovered until much later. [`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") statements that persist system
+    variables avoid the possibility of malformed settings because settings with syntax
+    errors do not succeed and do not change server configuration.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 持久化设置提供有关错误的即时反馈。手动输入设置中的错误可能要到很久之后才能发现。持久化系统变量的[`SET`](set-variable.html "15.7.6.1 变量赋值的SET语法")语句避免了设置格式错误的可能性，因为具有语法错误的设置不会成功，也不会更改服务器配置。
+- en: Syntax for Persisting System Variables
+  id: totrans-23
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 持久化系统变量的语法
+- en: 'These [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    syntax options are available for persisting system variables:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些[`SET`](set-variable.html "15.7.6.1 变量赋值的SET语法")语法选项可用于持久化系统变量：
+- en: 'To persist a global system variable to the `mysqld-auto.cnf` option file in
+    the data directory, precede the variable name by the `PERSIST` keyword or the
+    `@@PERSIST.` qualifier:'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要将全局系统变量持久化到数据目录中的`mysqld-auto.cnf`选项文件中，需在变量名之前加上`PERSIST`关键字或`@@PERSIST.`限定符：
+- en: '[PRE1]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Like [`SET GLOBAL`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment"),
+    [`SET PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    sets the global variable runtime value, but also writes the variable setting to
+    the `mysqld-auto.cnf` file (replacing any existing variable setting if there is
+    one).
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与[`SET GLOBAL`](set-variable.html "15.7.6.1 变量赋值的SET语法")类似，[`SET PERSIST`](set-variable.html
+    "15.7.6.1 变量赋值的SET语法")设置全局变量的运行时值，但也将变量设置写入`mysqld-auto.cnf`文件（如果存在任何现有变量设置，则会替换它）。
+- en: 'To persist a global system variable to the `mysqld-auto.cnf` file without setting
+    the global variable runtime value, precede the variable name by the `PERSIST_ONLY`
+    keyword or the `@@PERSIST_ONLY.` qualifier:'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要将全局系统变量持久化到`mysqld-auto.cnf`文件中，而不设置全局变量运行时值，需在变量名之前加上`PERSIST_ONLY`关键字或`@@PERSIST_ONLY.`限定符：
+- en: '[PRE2]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Like `PERSIST`, `PERSIST_ONLY` writes the variable setting to `mysqld-auto.cnf`.
+    However, unlike `PERSIST`, `PERSIST_ONLY` does not modify the global variable
+    runtime value. This makes `PERSIST_ONLY` suitable for configuring read-only system
+    variables that can be set only at server startup.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与 `PERSIST` 类似，`PERSIST_ONLY` 将变量设置写入 `mysqld-auto.cnf`。但是，与 `PERSIST` 不同，`PERSIST_ONLY`
+    不会修改全局变量的运行时值。这使得 `PERSIST_ONLY` 适用于配置只能在服务器启动时设置的只读系统变量。
+- en: For more information about [`SET`](set-variable.html "15.7.6.1 SET Syntax for
+    Variable Assignment"), see [Section 15.7.6.1, “SET Syntax for Variable Assignment”](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment").
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    的更多信息，请参阅 [Section 15.7.6.1, “SET Syntax for Variable Assignment”](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment")。
+- en: 'These [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement")
+    syntax options are available for removing persisted system variables:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些 [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement")
+    语法选项可用于移除持久化系统变量：
+- en: 'To remove all persisted variables from `mysqld-auto.cnf`, use [`RESET PERSIST`](reset-persist.html
+    "15.7.8.7 RESET PERSIST Statement") without naming any system variable:'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要从 `mysqld-auto.cnf` 中删除所有持久化变量，请使用 [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET
+    PERSIST Statement") 而不命名任何系统变量：
+- en: '[PRE3]'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'To remove a specific persisted variable from `mysqld-auto.cnf`, name it in
+    the statement:'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要从 `mysqld-auto.cnf` 中删除特定的持久化变量，请在语句中命名它：
+- en: '[PRE4]'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: This includes plugin system variables, even if the plugin is not currently installed.
+    If the variable is not present in the file, an error occurs.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这包括插件系统变量，即使插件当前未安装。如果变量不存在于文件中，则会发生错误。
+- en: 'To remove a specific persisted variable from `mysqld-auto.cnf`, but produce
+    a warning rather than an error if the variable is not present in the file, add
+    an `IF EXISTS` clause to the previous syntax:'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要从 `mysqld-auto.cnf` 中删除特定的持久化变量，但如果变量不存在于文件中则产生警告而不是错误，请在先前的语法中添加 `IF EXISTS`
+    子句：
+- en: '[PRE5]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: For more information about [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET
+    PERSIST Statement"), see [Section 15.7.8.7, “RESET PERSIST Statement”](reset-persist.html
+    "15.7.8.7 RESET PERSIST Statement").
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement")
+    的更多信息，请参阅 [Section 15.7.8.7, “RESET PERSIST Statement”](reset-persist.html "15.7.8.7 RESET
+    PERSIST Statement")。
+- en: Using [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    to persist a global system variable to a value of `DEFAULT` or to its literal
+    default value assigns the variable its default value and adds a setting for the
+    variable to `mysqld-auto.cnf`. To remove the variable from the file, use [`RESET
+    PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement").
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    将全局系统变量持久化为 `DEFAULT` 值或其字面默认值会将变量分配为其默认值，并向 `mysqld-auto.cnf` 添加变量设置。要从文件中删除变量，请使用
+    [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement")。
+- en: Some system variables cannot be persisted. See [Section 7.1.9.4, “Nonpersistible
+    and Persist-Restricted System Variables”](nonpersistible-system-variables.html
+    "7.1.9.4 Nonpersistible and Persist-Restricted System Variables").
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些系统变量无法持久化。请参阅 [Section 7.1.9.4, “Nonpersistible and Persist-Restricted System
+    Variables”](nonpersistible-system-variables.html "7.1.9.4 Nonpersistible and Persist-Restricted
+    System Variables")。
+- en: 'A system variable implemented by a plugin can be persisted if the plugin is
+    installed when the [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable
+    Assignment") statement is executed. Assignment of the persisted plugin variable
+    takes effect for subsequent server restarts if the plugin is still installed.
+    If the plugin is no longer installed, the plugin variable does not exist when
+    the server reads the `mysqld-auto.cnf` file. In this case, the server writes a
+    warning to the error log and continues:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果插件在执行 [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    语句时已安装，则插件实现的系统变量可以持久化。如果插件仍然安装，则持久化插件变量的分配将在后续服务器重新启动时生效。如果插件不再安装，则当服务器读取 `mysqld-auto.cnf`
+    文件时插件变量不存在。在这种情况下，服务器会向错误日志写入警告并继续：
+- en: '[PRE6]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Obtaining Information About Persisted System Variables
+  id: totrans-45
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 获取有关持久化系统变量的信息
+- en: The Performance Schema [`persisted_variables`](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables Table") table provides an SQL
+    interface to the `mysqld-auto.cnf` file, enabling its contents to be inspected
+    at runtime using [`SELECT`](select.html "15.2.13 SELECT Statement") statements.
+    See [Section 29.12.14.1, “Performance Schema persisted_variables Table”](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables Table").
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema [`persisted_variables`](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables 表") 表提供了对 `mysqld-auto.cnf`
+    文件的 SQL 接口，使得可以使用 [`SELECT`](select.html "15.2.13 SELECT 语句") 语句在运行时检查其内容。参见 [Section 29.12.14.1,
+    “Performance Schema persisted_variables Table”](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables 表")。
+- en: The Performance Schema [`variables_info`](performance-schema-variables-info-table.html
+    "29.12.14.2 Performance Schema variables_info Table") table contains information
+    showing when and by which user each system variable was most recently set. See
+    [Section 29.12.14.2, “Performance Schema variables_info Table”](performance-schema-variables-info-table.html
+    "29.12.14.2 Performance Schema variables_info Table").
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema [`variables_info`](performance-schema-variables-info-table.html
+    "29.12.14.2 Performance Schema variables_info 表") 表包含了显示每个系统变量最近由哪个用户何时设置的信息。参见
+    [Section 29.12.14.2, “Performance Schema variables_info Table”](performance-schema-variables-info-table.html
+    "29.12.14.2 Performance Schema variables_info 表")。
+- en: '[`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement") affects
+    the contents of the [`persisted_variables`](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables Table") table because the table
+    contents correspond to the contents of the `mysqld-auto.cnf` file. On the other
+    hand, because [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement")
+    does not change variable values, it has no effect on the contents of the [`variables_info`](performance-schema-variables-info-table.html
+    "29.12.14.2 Performance Schema variables_info Table") table until the server is
+    restarted.'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST 语句") 会影响 [`persisted_variables`](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables 表") 表的内容，因为表内容对应于 `mysqld-auto.cnf`
+    文件的内容。另一方面，因为 [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST 语句")
+    不会更改变量值，所以在服务器重新启动之前，它不会对 [`variables_info`](performance-schema-variables-info-table.html
+    "29.12.14.2 Performance Schema variables_info 表") 表的内容产生影响。'
+- en: Format and Server Handling of the mysqld-auto.cnf File
+  id: totrans-49
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: '`mysqld-auto.cnf` 文件的格式和服务器处理'
+- en: 'The `mysqld-auto.cnf` file uses a `JSON` format like this (reformatted slightly
+    for readability):'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mysqld-auto.cnf` 文件使用类似以下的 `JSON` 格式（稍作整理以提高可读性）：'
+- en: '[PRE7]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'At startup, the server processes the `mysqld-auto.cnf` file after all other
+    option files (see [Section 6.2.2.2, “Using Option Files”](option-files.html "6.2.2.2 Using
+    Option Files")). The server handles the file contents as follows:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在启动时，服务器在处理所有其他选项文件之后处理 `mysqld-auto.cnf` 文件（参见 [Section 6.2.2.2, “使用选项文件”](option-files.html
+    "6.2.2.2 使用选项文件")）。服务器处理文件内容如下：
+- en: If the [`persisted_globals_load`](server-system-variables.html#sysvar_persisted_globals_load)
+    system variable is disabled, the server ignores the `mysqld-auto.cnf` file.
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果 [`persisted_globals_load`](server-system-variables.html#sysvar_persisted_globals_load)
+    系统变量已禁用，则服务器会忽略 `mysqld-auto.cnf` 文件。
+- en: The `"mysql_server_static_options"` section contains read-only variables persisted
+    using [`SET PERSIST_ONLY`](set-variable.html "15.7.6.1 SET Syntax for Variable
+    Assignment"). The section may also (despite its name) contain certain dynamic
+    variables that are not read only. All variables present inside this section are
+    appended to the command line and processed with other command-line options.
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`"mysql_server_static_options"` 部分包含使用 [`SET PERSIST_ONLY`](set-variable.html
+    "15.7.6.1 变量赋值的 SET 语法") 持久化的只读变量。该部分也可能（尽管其名称如此）包含某些不是只读的动态变量。此部分中的所有变量都会附加��命令行并与其他命令行选项一起处理。'
+- en: All remaining persisted variables are set by executing the equivalent of a [`SET
+    GLOBAL`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment") statement
+    later, just before the server starts listening for client connections. These settings
+    therefore do not take effect until late in the startup process, which might be
+    unsuitable for certain system variables. It may be preferable to set such variables
+    in `my.cnf` rather than in `mysqld-auto.cnf`.
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有剩余的持久化变量都是通过在服务器开始监听客户端连接之前执行等效的 [`SET GLOBAL`](set-variable.html "15.7.6.1 变量赋值的
+    SET 语法") 语句来设置的。因此，这些设置直到启动过程的后期才会生效，这对于某些系统变量可能不太合适。在 `my.cnf` 而不是 `mysqld-auto.cnf`
+    中设置这些变量可能更可取。
+- en: 'Management of the `mysqld-auto.cnf` file should be left to the server. Manipulation
+    of the file should be performed only using [`SET`](set-variable.html "15.7.6.1 SET
+    Syntax for Variable Assignment") and [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET
+    PERSIST Statement") statements, not manually:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mysqld-auto.cnf`文件的管理应留给服务器处理。文件的操作应仅使用[`SET`](set-variable.html "15.7.6.1 变量赋值的SET语法")和[`RESET
+    PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST语句")语句执行，而不是手动操作：'
+- en: 'Removal of the file results in a loss of all persisted settings at the next
+    server startup. (This is permissible if your intent is to reconfigure the server
+    without these settings.) To remove all settings in the file without removing the
+    file itself, use this statement:'
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 删除文件会导致在下次服务器启动时丢失所有持久化设置。（如果您的意图是重新配置服务器而不需要这些设置，则可以这样做。）要删除文件中的所有设置而不删除文件本身，请使用以下语句：
+- en: '[PRE8]'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Manual changes to the file may result in a parse error at server startup. In
+    this case, the server reports an error and exits. If this issue occurs, start
+    the server with the [`persisted_globals_load`](server-system-variables.html#sysvar_persisted_globals_load)
+    system variable disabled or with the [`--no-defaults`](server-options.html#option_mysqld_no-defaults)
+    option. Alternatively, remove the `mysqld-auto.cnf` file. However, as noted previously,
+    removing this file results in a loss of all persisted settings.
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对文件的手动更改可能会导致服务器启动时出现解析错误。在这种情况下，服务器会报告错误并退出。如果出现此问题，请使用[`persisted_globals_load`](server-system-variables.html#sysvar_persisted_globals_load)系统变量禁用或使用[`--no-defaults`](server-options.html#option_mysqld_no-defaults)选项启动服务器。或者，删除`mysqld-auto.cnf`文件。但是，如前所述，删除此文件会导致所有持久化设置丢失。
+- en: Persisting Sensitive System Variables
+  id: totrans-60
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 持久化敏感系统变量
+- en: From MySQL 8.0.29, MySQL Server has the capability to securely store persisted
+    system variable values containing sensitive data such as private keys or passwords,
+    and restrict viewing of the values. No MySQL Server system variables are currently
+    marked as sensitive, but the new capability allows system variables containing
+    sensitive data to be persisted securely in the future. After upgrading to MySQL
+    8.0.29, the format of the `mysqld-auto.cnf` option file remains the same until
+    the first time a [`SET PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable
+    Assignment") or [`SET PERSIST ONLY`](set-variable.html "15.7.6.1 SET Syntax for
+    Variable Assignment") statement is issued, and at that point it is changed to
+    a new format, even if the system variable involved is not sensitive. In the new
+    format, the option file cannot be read by older releases of MySQL Server.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.29开始，MySQL服务器具有安全存储包含私钥或密码等敏感数据的持久化系统变量值的能力，并限制查看这些值。目前没有MySQL服务器系统变量被标记为敏感，但新功能允许将包含敏感数据的系统变量在未来安全地持久化。升级到MySQL
+    8.0.29后，`mysqld-auto.cnf`选项文件的格式保持不变，直到首次发出[`SET PERSIST`](set-variable.html "15.7.6.1 变量赋值的SET语法")或[`SET
+    PERSIST ONLY`](set-variable.html "15.7.6.1 变量赋值的SET语法")语句，此时即使涉及的系统变量不敏感，也会更改为新格式。在新格式中，即使涉及的系统变量不敏感，旧版本的MySQL服务器也无法读取选项文件。
+- en: Note
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: A keyring component must be enabled on the MySQL Server instance to support
+    secure storage for persisted system variable values, rather than a keyring plugin,
+    which do not support the function. See [Section 8.4.4, “The MySQL Keyring”](keyring.html
+    "8.4.4 The MySQL Keyring").
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器实例必须启用一个密钥环组件，以支持对持久化系统变量值进行安全存储，而不是使用不支持此功能的密钥环插件。请参阅[第8.4.4节，“MySQL密钥环”](keyring.html
+    "8.4.4 MySQL密钥环")。
+- en: In the `mysqld-auto.cnf` option file, the names and values of sensitive system
+    variables are stored in an encrypted format, along with a generated file key to
+    decrypt them. The generated file key is in turn encrypted using a master key (`persisted_variables_key`)
+    that is stored in a keyring. When the server starts up, the persisted sensitive
+    system variables are decrypted and used. By default, if encrypted values are present
+    in the option file but cannot be successfully decrypted at startup, their default
+    settings are used. The optional most secure setting makes the server halt startup
+    if the encrypted values cannot be decrypted.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在`mysqld-auto.cnf`选项文件中，敏感系统变量的名称和值以加密格式存储，同时还有一个生成的文件密钥用于解密它们。生成的文件密钥又使用一个存储在密钥环中的主密钥(`persisted_variables_key`)进行加密。服务器启动时，持久化的敏感系统变量会被解密并使用。默认情况下，如果选项文件中存在加密值但在启动时无法成功解密，将使用它们的默认设置。可选的最安全设置会使服务器在无法解密加密值时停止启动。
+- en: The system variable [`persist_sensitive_variables_in_plaintext`](server-system-variables.html#sysvar_persist_sensitive_variables_in_plaintext)
+    controls whether the server is permitted to store the values of sensitive system
+    variables in an unencrypted format, if keyring component support is not available
+    at the time when [`SET PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable
+    Assignment") is used to set the value. It also controls whether or not the server
+    can start if the encrypted values cannot be decrypted.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 系统变量[`persist_sensitive_variables_in_plaintext`](server-system-variables.html#sysvar_persist_sensitive_variables_in_plaintext)控制服务器是否允许以未加密格式存储敏感系统变量的值，如果在使用[`SET
+    PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")设置值时，此时不支持密钥环组件。它还控制服务器是否可以在无法解密加密值时启动。
+- en: The default setting, `ON`, encrypts the values if keyring component support
+    is available, and persists them unencrypted (with a warning) if it is not. The
+    next time any persisted system variable is set, if keyring support is available
+    at that time, the server encrypts the values of any unencrypted sensitive system
+    variables. The `ON` setting also allows the server to start if encrypted system
+    variable values cannot be decrypted, in which case a warning is issued and the
+    default values for the system variables are used. In that situation, their values
+    cannot be changed until they can be decrypted.
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认设置为`ON`，如果支持密钥环组件，则对值进行加密，并在不支持时以未加密方式持久化（附带警告）。下次设置任何持久化的系统变量时，如果此时支持密钥环，则服务器会加密任何未加密的敏感系统变量的值。`ON`设置还允许服务器在无法解密加密的系统变量值时启动，此时会发出警告并使用系统变量的默认值。在这种情况下，直到可以解密为止，它们的值不能被更改。
+- en: The most secure setting, `OFF`, means sensitive system variable values cannot
+    be persisted if keyring component support is unavailable. The `OFF` setting also
+    means the server does not start if encrypted system variable values cannot be
+    decrypted.
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 最安全的设置为`OFF`，意味着如果密钥环组件支持不可用，则敏感系统变量值无法持久化。`OFF`设置还意味着如果无法解密加密的系统变量值，则服务器不会启动。
+- en: The privilege [`SENSITIVE_VARIABLES_OBSERVER`](privileges-provided.html#priv_sensitive-variables-observer)
+    allows a holder to view the values of sensitive system variables in the Performance
+    Schema tables [`global_variables`](performance-schema-system-variable-tables.html
+    "29.12.14 Performance Schema System Variable Tables"), [`session_variables`](performance-schema-system-variable-tables.html
+    "29.12.14 Performance Schema System Variable Tables"), [`variables_by_thread`](performance-schema-system-variable-tables.html
+    "29.12.14 Performance Schema System Variable Tables"), and [`persisted_variables`](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables Table"), to issue `SELECT`
+    statements to return their values, and to track changes to them in session trackers
+    for connections. Users without this privilege cannot view or track those system
+    variable values.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 特权[`SENSITIVE_VARIABLES_OBSERVER`](privileges-provided.html#priv_sensitive-variables-observer)允许持有者查看性能模式表[`global_variables`](performance-schema-system-variable-tables.html
+    "29.12.14 Performance Schema System Variable Tables")、[`session_variables`](performance-schema-system-variable-tables.html
+    "29.12.14 Performance Schema System Variable Tables")、[`variables_by_thread`](performance-schema-system-variable-tables.html
+    "29.12.14 Performance Schema System Variable Tables")和[`persisted_variables`](performance-schema-persisted-variables-table.html
+    "29.12.14.1 Performance Schema persisted_variables Table")中敏感系统变量的值，发出`SELECT`语句返回它们的值，并在会话跟踪器中跟踪对它们的更改。没有此特权的用户无法查看或跟踪这些系统变量的值。
+- en: If a `SET` statement is issued for a sensitive system variable, the query is
+    rewritten to replace the value with “`<redacted>`” before it is logged to the
+    general log and audit log. This takes place even if secure storage through a keyring
+    component is not available on the server instance.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果对敏感系统变量发出`SET`语句，则在记录到一般日志和审计日志之前，查询会被重写以将值替换为“`<redacted>`”。即使服务器实例上没有通过密钥环组件进行安全存储，也会发生这种情况。

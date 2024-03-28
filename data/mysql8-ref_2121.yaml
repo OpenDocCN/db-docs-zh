@@ -1,0 +1,153 @@
+- en: 29.17 The Performance Schema Memory-Allocation Model
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 29.17 性能模式内存分配模型
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-memory-model.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-memory-model.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-memory-model.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-memory-model.html)
+- en: 'The Performance Schema uses this memory allocation model:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 性能模式使用此内存分配模型：
+- en: May allocate memory at server startup
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可能在服务器启动时分配内存。
+- en: May allocate additional memory during server operation
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可能在服务器运行期间分配额外的内存。
+- en: Never free memory during server operation (although it might be recycled)
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 永远不要在服务器运行期间释放内存（尽管它可能被回收）。
+- en: Free all memory used at shutdown
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在关闭时释放所有使用的内存。
+- en: The result is to relax memory constraints so that the Performance Schema can
+    be used with less configuration, and to decrease the memory footprint so that
+    consumption scales with server load. Memory used depends on the load actually
+    seen, not the load estimated or explicitly configured for.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 结果是放宽内存约束，以便性能模式可以在较少的配置下使用，并减少内存占用量，使消耗随服务器负载而扩展。内存使用取决于实际观察到的负载，而不是估计的负载或明确配置的负载。
+- en: 'Several Performance Schema sizing parameters are autoscaled and need not be
+    configured explicitly unless you want to establish an explicit limit on memory
+    allocation:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 几个性能模式大小参数是自动缩放的，除非您想要在内存分配上建立明确的限制，否则无需显式配置：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'For an autoscaled parameter, configuration works like this:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于自动缩放的参数，配置如下：
+- en: 'With the value set to -1 (the default), the parameter is autoscaled:'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当值设置为-1（默认值）时，参数会自动缩放：
+- en: The corresponding internal buffer is empty initially and no memory is allocated.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相应的内部缓冲区最初为空，不会分配任何内存。
+- en: As the Performance Schema collects data, memory is allocated in the corresponding
+    buffer. The buffer size is unbounded, and may grow with the load.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当性能模式收集数据时，内存会在相应的缓冲区中分配。缓冲区大小是无限的，并且可能随着负载而增长。
+- en: 'With the value set to 0:'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当值设置为0时：
+- en: The corresponding internal buffer is empty initially and no memory is allocated.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相应的内部缓冲区最初为空，不会分配任何内存。
+- en: 'With the value set to *`N`* > 0:'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当值设置为*`N`* > 0时：
+- en: The corresponding internal buffer is empty initially and no memory is allocated.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相应的内部缓冲区最初为空，不会分配任何内存。
+- en: As the Performance Schema collects data, memory is allocated in the corresponding
+    buffer, until the buffer size reaches *`N`*.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当性能模式收集数据时，内存会在相应的缓冲区中分配，直到缓冲区大小达到*`N`*。
+- en: Once the buffer size reaches *`N`*, no more memory is allocated. Data collected
+    by the Performance Schema for this buffer is lost, and any corresponding “lost
+    instance” counters are incremented.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一旦缓冲区大小达到*`N`*，就不会再分配更多内存。性能模式为此缓冲区收集的数据将丢失，并且任何相应的“丢失实例”计数器都会递增。
+- en: To see how much memory the Performance Schema is using, check the instruments
+    designed for that purpose. The Performance Schema allocates memory internally
+    and associates each buffer with a dedicated instrument so that memory consumption
+    can be traced to individual buffers. Instruments named with the prefix `memory/performance_schema/`
+    expose how much memory is allocated for these internal buffers. The buffers are
+    global to the server, so the instruments are displayed only in the [`memory_summary_global_by_event_name`](performance-schema-memory-summary-tables.html
+    "29.12.20.10 Memory Summary Tables") table, and not in other `memory_summary_by_*`xxx`*_by_event_name`
+    tables.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看性能模式使用了多少内存，请检查为此目的设计的工具。性能模式在内部分配内存，并将每个缓冲区与专用工具相关联，以便可以将内存消耗跟踪到各个缓冲区。以`memory/performance_schema/`为前缀命名的工具公开了为这些内部缓冲区分配了多少内存。这些缓冲区是全局的，因此这些工具仅在[`memory_summary_global_by_event_name`](performance-schema-memory-summary-tables.html
+    "29.12.20.10 内存摘要表")表中显示，并不在其他`memory_summary_by_*`xxx`*_by_event_name`表中显示。
+- en: 'This query shows the information associated with the memory instruments:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此查询显示与内存工具相关的信息：
+- en: '[PRE1]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'

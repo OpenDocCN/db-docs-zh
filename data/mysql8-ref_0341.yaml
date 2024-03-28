@@ -1,0 +1,171 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/using-gdb-on-mysqld.html](https://dev.mysql.com/doc/refman/8.0/en/using-gdb-on-mysqld.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/using-gdb-on-mysqld.html](https://dev.mysql.com/doc/refman/8.0/en/using-gdb-on-mysqld.html)
+- en: 7.9.1.4 Debugging mysqld under gdb
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.9.1.4 在 gdb 下调试 mysqld
+- en: On most systems you can also start [**mysqld**](mysqld.html "6.3.1 mysqld —
+    The MySQL Server") from **gdb** to get more information if [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") crashes.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在大多数系统上，你也可以从 **gdb** 中启动 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server") 以获取更多信息，如果 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    崩溃。
+- en: With some older **gdb** versions on Linux you must use `run --one-thread` if
+    you want to be able to debug [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server") threads. In this case, you can only have one thread active at a time.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Linux 上，如果你想要调试 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    线程，一些较旧的 **gdb** 版本必须使用 `run --one-thread`。在这种情况下，你一次只能有一个线程处于活动状态。
+- en: 'NPTL threads (the new thread library on Linux) may cause problems while running
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") under **gdb**. Some
+    symptoms are:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 **gdb** 下运行 MySQL 时，NPTL 线程（Linux 上的新线程库）可能会导致问题。一些症状包括：
+- en: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") hangs during startup
+    (before it writes `ready for connections`).'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 在启动过程中挂起（在写入 `ready
+    for connections` 之前）。'
+- en: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") crashes during
+    a `pthread_mutex_lock()` or `pthread_mutex_unlock()` call.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 在调用 `pthread_mutex_lock()`
+    或 `pthread_mutex_unlock()` 时崩溃。'
+- en: 'In this case, you should set the following environment variable in the shell
+    before starting **gdb**:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，在启动 **gdb** 之前，你应该在 shell 中设置以下环境变量：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: When running [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") under
+    **gdb**, you should disable the stack trace with [`--skip-stack-trace`](server-options.html#option_mysqld_skip-stack-trace)
+    to be able to catch segfaults within **gdb**.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 **gdb** 下运行 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 时，你应该使用
+    [`--skip-stack-trace`](server-options.html#option_mysqld_skip-stack-trace) 禁用堆栈跟踪，以便在
+    **gdb** 中捕获段错误。
+- en: Use the [`--gdb`](server-options.html#option_mysqld_gdb) option to [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") to install an interrupt handler for `SIGINT`
+    (needed to stop [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") with
+    `^C` to set breakpoints) and disable stack tracing and core file handling.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 [`--gdb`](server-options.html#option_mysqld_gdb) 选项为 [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") 安装一个 `SIGINT` 中断处理程序（用于使用 `^C` 停止 [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") 设置断点），并禁用堆栈跟踪和核心文件处理。
+- en: It is very hard to debug MySQL under **gdb** if you do a lot of new connections
+    the whole time as **gdb** does not free the memory for old threads. You can avoid
+    this problem by starting [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    with [`thread_cache_size`](server-system-variables.html#sysvar_thread_cache_size)
+    set to a value equal to [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    + 1\. In most cases just using [`--thread_cache_size=5'`](server-system-variables.html#sysvar_thread_cache_size)
+    helps a lot!
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你一直在 **gdb** 下进行大量新连接，那么在 **gdb** 中不释放旧线程的内存，会导致在 **gdb** 下调试 MySQL 非常困难。你可以通过将
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 的 [`thread_cache_size`](server-system-variables.html#sysvar_thread_cache_size)
+    设置为 [`max_connections`](server-system-variables.html#sysvar_max_connections) +
+    1 的值来避免这个问题。在大多数情况下，只需使用 [`--thread_cache_size=5'`](server-system-variables.html#sysvar_thread_cache_size)
+    就会有很大帮助！
+- en: 'If you want to get a core dump on Linux if [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") dies with a SIGSEGV signal, you can start [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") with the [`--core-file`](server-options.html#option_mysqld_core-file)
+    option. This core file can be used to make a backtrace that may help you find
+    out why [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") died:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在 Linux 上 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 因 SIGSEGV
+    信号而崩溃，你可以使用 [`--core-file`](server-options.html#option_mysqld_core-file) 选项启动
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 以获取核心转储文件。这个核心文件可以用来生成回溯，帮助你找出
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 为何崩溃：
+- en: '[PRE1]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: See [Section B.3.3.3, “What to Do If MySQL Keeps Crashing”](crashing.html "B.3.3.3 What
+    to Do If MySQL Keeps Crashing").
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 参见 [Section B.3.3.3, “What to Do If MySQL Keeps Crashing”](crashing.html "B.3.3.3 What
+    to Do If MySQL Keeps Crashing")。
+- en: 'If you are using **gdb** on Linux, you should install a `.gdb` file, with the
+    following information, in your current directory:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你在 Linux 上使用 **gdb**，你应该在当前目录中安装一个 `.gdb` 文件，包含以下信息：
+- en: '[PRE2]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Here is an example how to debug [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server"):'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里是一个调试 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 的示例：
+- en: '[PRE3]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Include the preceding output in a bug report, which you can file using the instructions
+    in [Section 1.5, “How to Report Bugs or Problems”](bug-reports.html "1.5 How to
+    Report Bugs or Problems").
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将上述输出包含在一个 bug 报告中，你可以按照 [Section 1.5, “How to Report Bugs or Problems”](bug-reports.html
+    "1.5 How to Report Bugs or Problems") 中的说明进行报告。
+- en: If [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") hangs, you can
+    try to use some system tools like `strace` or `/usr/proc/bin/pstack` to examine
+    where [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") has hung.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 卡住了，你可以尝试使用一些系统工具如
+    `strace` 或 `/usr/proc/bin/pstack` 来查看 [**mysqld**](mysqld.html "6.3.1 mysqld —
+    The MySQL Server") 卡在哪里。
+- en: '[PRE4]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: If you are using the Perl `DBI` interface, you can turn on debugging information
+    by using the `trace` method or by setting the `DBI_TRACE` environment variable.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你正在使用 Perl `DBI` 接口，可以通过使用 `trace` 方法或设置 `DBI_TRACE` 环境变量来打开调试信息。

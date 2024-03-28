@@ -1,0 +1,219 @@
+- en: 10.3.14 Indexed Lookups from TIMESTAMP Columns
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.3.14 从时间戳列进行索引查找
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/timestamp-lookups.html](https://dev.mysql.com/doc/refman/8.0/en/timestamp-lookups.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/timestamp-lookups.html](https://dev.mysql.com/doc/refman/8.0/en/timestamp-lookups.html)
+- en: Temporal values are stored in [`TIMESTAMP`](datetime.html "13.2.2 The DATE,
+    DATETIME, and TIMESTAMP Types") columns as UTC values, and values inserted into
+    and retrieved from [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and
+    TIMESTAMP Types") columns are converted between the session time zone and UTC.
+    (This is the same type of conversion performed by the [`CONVERT_TZ()`](date-and-time-functions.html#function_convert-tz)
+    function. If the session time zone is UTC, there is effectively no time zone conversion.)
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 时间值以UTC值的形式存储在[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")列中，并且插入和检索[`TIMESTAMP`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")列中的值在会话时区和UTC之间转换。（这与[`CONVERT_TZ()`](date-and-time-functions.html#function_convert-tz)函数执行的相同类型的转换相同。如果会话时区是UTC，则实际上没有时区转换。）
+- en: 'Due to conventions for local time zone changes such as Daylight Saving Time
+    (DST), conversions between UTC and non-UTC time zones are not one-to-one in both
+    directions. UTC values that are distinct may not be distinct in another time zone.
+    The following example shows distinct UTC values that become identical in a non-UTC
+    time zone:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于本地时区更改的惯例，如夏令时（DST），UTC和非UTC时区之间的转换在两个方向上不是一对一的。在另一个时区中，原本不同的UTC值可能变得相同。以下示例显示了在非UTC时区中变为相同的不同UTC值：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: To use named time zones such as `'MET'` or `'Europe/Amsterdam'`, the time zone
+    tables must be properly set up. For instructions, see [Section 7.1.15, “MySQL
+    Server Time Zone Support”](time-zone-support.html "7.1.15 MySQL Server Time Zone
+    Support").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用诸如`'MET'`或`'Europe/Amsterdam'`之类的命名时区，必须正确设置时区表。有关说明，请参见[第7.1.15节“MySQL服务器时区支持”](time-zone-support.html
+    "7.1.15 MySQL服务器时区支持")。
+- en: You can see that the two distinct UTC values are the same when converted to
+    the `'MET'` time zone. This phenomenon can lead to different results for a given
+    [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    column query, depending on whether the optimizer uses an index to execute the
+    query.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以看到，当转换为`'MET'`时区时，这两个不同的UTC值相同。这种现象可能导致对给定的[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")列查询的不同结果，具体取决于优化器是否使用索引来执行查询。
+- en: 'Suppose that a query selects values from the table shown earlier using a `WHERE`
+    clause to search the `ts` column for a single specific value such as a user-provided
+    timestamp literal:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设查询使用`WHERE`子句从`ts`列中搜索单个特定值，例如用户提供的时间戳文字：
+- en: '[PRE1]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Suppose further that the query executes under these conditions:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 进一步假设查询在以下条件下执行：
+- en: 'The session time zone is not UTC and has a DST shift. For example:'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 会话时区不是UTC并且存在夏令时转换。例如：
+- en: '[PRE2]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Unique UTC values stored in the [`TIMESTAMP`](datetime.html "13.2.2 The DATE,
+    DATETIME, and TIMESTAMP Types") column are not unique in the session time zone
+    due to DST shifts. (The example shown earlier illustrates how this can occur.)
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储在[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")列中的唯一UTC值，在会话时区中由于夏令时转换而不是唯一的。（前面显示的示例说明了这种情况。）
+- en: The query specifies a search value that is within the hour of entry into DST
+    in the session time zone.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询指定的搜索值在会话时区进入夏令时的那个小时内。
+- en: 'Under those conditions, the comparison in the `WHERE` clause occurs in different
+    ways for nonindexed and indexed lookups and leads to different results:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这些条件下，`WHERE`子句中的比较以不同的方式进行非索引和索引查找，并导致不同的结果：
+- en: 'If there is no index or the optimizer cannot use it, comparisons occur in the
+    session time zone. The optimizer performs a table scan in which it retrieves each
+    `ts` column value, converts it from UTC to the session time zone, and compares
+    it to the search value (also interpreted in the session time zone):'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果没有索引或优化器无法使用索引，则比较将在会话时区中进行。优化器执行表扫描，检索每个`ts`列值，将其从UTC转换为会话时区，然后将其与搜索值（也在会话时区中解释）进行比较：
+- en: '[PRE3]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Because the stored `ts` values are converted to the session time zone, it is
+    possible for the query to return two timestamp values that are distinct as UTC
+    values but equal in the session time zone: One value that occurs before the DST
+    shift when clocks are changed, and one value that was occurs after the DST shift.'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为存储的`ts`值被转换为会话时区，所以查询可能返回两个时间戳值，这些值在UTC值上是不同的，但在会话时区中是相等的：一个值发生在时钟更改之前的DST转换时，另一个值发生在DST转换之后。
+- en: 'If there is a usable index, comparisons occur in UTC. The optimizer performs
+    an index scan, first converting the search value from the session time zone to
+    UTC, then comparing the result to the UTC index entries:'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果存在可用的索引，则比较将在UTC时间发生。优化器执行索引扫描，首先将搜索值从会话时区转换为UTC，然后将结果与UTC索引条目进行比较：
+- en: '[PRE4]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: In this case, the (converted) search value is matched only to index entries,
+    and because the index entries for the distinct stored UTC values are also distinct,
+    the search value can match only one of them.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，（转换后的）搜索值仅与索引条目匹配，因为存储的不同UTC值的索引条目也是不同的，搜索值只能匹配其中一个。
+- en: 'Due to different optimizer operation for nonindexed and indexed lookups, the
+    query produces different results in each case. The result from the nonindexed
+    lookup returns all values that match in the session time zone. The indexed lookup
+    cannot do so:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于非索引和索引查找的优化器操作不同，因此查询在每种情况下产生不同的结果。非索引查找的结果返回所有在会话时区匹配的值。索引查找无法做到这一点：
+- en: It is performed within the storage engine, which knows only about UTC values.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这是在仅知道UTC值的存储引擎内执行的。
+- en: For the two distinct session time zone values that map to the same UTC value,
+    the indexed lookup matches only the corresponding UTC index entry and returns
+    only a single row.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于映射到相同UTC值的两个不同会话时区值，索引查找仅匹配相应的UTC索引条目，并仅返回一行。
+- en: In the preceding discussion, the data set stored in `tstable` happens to consist
+    of distinct UTC values. In such cases, all index-using queries of the form shown
+    match at most one index entry.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在前面的讨论中，存储在`tstable`中的数据集恰好由不同的UTC值组成。在这种情况下，所示形式的所有使用索引的查询最多匹配一个索引条目。
+- en: If the index is not `UNIQUE`, it is possible for the table (and the index) to
+    store multiple instances of a given UTC value. For example, the `ts` column might
+    contain multiple instances of the UTC value `'2018-10-28 00:30:00'`. In this case,
+    the index-using query would return each of them (converted to the MET value `'2018-10-28
+    02:30:00'` in the result set). It remains true that index-using queries match
+    the converted search value to a single value in the UTC index entries, rather
+    than matching multiple UTC values that convert to the search value in the session
+    time zone.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果索引不是`UNIQUE`，则表（和索引）可能存储给定UTC值的多个实例。例如，`ts`列可能包含多个UTC值为`'2018-10-28 00:30:00'`的实例。在这种情况下，使用索引的查询将返回每个实例（在结果集中转换为MET值`'2018-10-28
+    02:30:00'`）。索引使用的查询仍然匹配将转换的搜索值与UTC索引条目中的单个值匹配，而不是匹配多个UTC值，这些值在会话时区中转换为搜索值。
+- en: 'If it is important to return all `ts` values that match in the session time
+    zone, the workaround is to suppress use of the index with an `IGNORE INDEX` hint:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果重要的是返回所有在会话时区匹配的`ts`值，则解决方法是使用`IGNORE INDEX`提示来抑制索引的使用：
+- en: '[PRE5]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: The same lack of one-to-one mapping for time zone conversions in both directions
+    occurs in other contexts as well, such as conversions performed with the [`FROM_UNIXTIME()`](date-and-time-functions.html#function_from-unixtime)
+    and [`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp)
+    functions. See [Section 14.7, “Date and Time Functions”](date-and-time-functions.html
+    "14.7 Date and Time Functions").
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在其他情况下，例如使用[`FROM_UNIXTIME()`](date-and-time-functions.html#function_from-unixtime)和[`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp)函数执行的转换中，同样存在双向时区转换的一对多映射问题。请参阅[第14.7节，“日期和时间函数”](date-and-time-functions.html
+    "14.7 日期和时间函数")。

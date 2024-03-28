@@ -1,0 +1,292 @@
+- en: 17.16.2 Monitoring InnoDB Mutex Waits Using Performance Schema
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.16.2 使用性能模式监视InnoDB互斥锁等待
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/monitor-innodb-mutex-waits-performance-schema.html](https://dev.mysql.com/doc/refman/8.0/en/monitor-innodb-mutex-waits-performance-schema.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/monitor-innodb-mutex-waits-performance-schema.html](https://dev.mysql.com/doc/refman/8.0/en/monitor-innodb-mutex-waits-performance-schema.html)
+- en: A mutex is a synchronization mechanism used in the code to enforce that only
+    one thread at a given time can have access to a common resource. When two or more
+    threads executing in the server need to access the same resource, the threads
+    compete against each other. The first thread to obtain a lock on the mutex causes
+    the other threads to wait until the lock is released.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 互斥锁是代码中使用的一种同步机制，用于强制只有一个线程可以同时访问共享资源。当服务器中的两个或多个线程需要访问同一资源时，这些线程会相互竞争。第一个获得互斥锁的线程会导致其他线程等待，直到锁被释放。
+- en: For `InnoDB` mutexes that are instrumented, mutex waits can be monitored using
+    [Performance Schema](performance-schema.html "Chapter 29 MySQL Performance Schema").
+    Wait event data collected in Performance Schema tables can help identify mutexes
+    with the most waits or the greatest total wait time, for example.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于被检测的`InnoDB`互斥锁，可以使用[性能模式](performance-schema.html "Chapter 29 MySQL Performance
+    Schema")来监视互斥锁等待。在性能模式表中收集的等待事件数据可以帮助识别具有最多等待或最长总等待时间的互斥锁，例如。
+- en: The following example demonstrates how to enable `InnoDB` mutex wait instruments,
+    how to enable associated consumers, and how to query wait event data.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了如何启用`InnoDB`互斥锁等待工具，如何启用相关的消费者，以及如何查询等待事件数据。
+- en: To view available `InnoDB` mutex wait instruments, query the Performance Schema
+    [`setup_instruments`](performance-schema-setup-instruments-table.html "29.12.2.3 The
+    setup_instruments Table") table. All `InnoDB` mutex wait instruments are disabled
+    by default.
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要查看可用的`InnoDB`互斥锁等待工具，查询性能模式[`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table")表。所有`InnoDB`互斥锁等待工具默认情况下是禁用的。
+- en: '[PRE0]'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Some `InnoDB` mutex instances are created at server startup and are only instrumented
+    if the associated instrument is also enabled at server startup. To ensure that
+    all `InnoDB` mutex instances are instrumented and enabled, add the following `performance-schema-instrument`
+    rule to your MySQL configuration file:'
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 一些`InnoDB`互斥锁实例是在服务器启动时创建的，只有在服务器启动时还启用了相关的工具时才会被检测。为了确保所有`InnoDB`互斥锁实例都被检测和启用，将以下`performance-schema-instrument`规则添加到您的MySQL配置文件中：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'If you do not require wait event data for all `InnoDB` mutexes, you can disable
+    specific instruments by adding additional `performance-schema-instrument` rules
+    to your MySQL configuration file. For example, to disable `InnoDB` mutex wait
+    event instruments related to full-text search, add the following rule:'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您不需要所有`InnoDB`互斥锁的等待事件数据，可以通过向MySQL配置文件添加额外的`performance-schema-instrument`规则来禁用特定工具。例如，要禁用与全文搜索相关的`InnoDB`互斥锁等待事件工具，添加以下规则：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Note
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Rules with a longer prefix such as `wait/synch/mutex/innodb/fts%` take precedence
+    over rules with shorter prefixes such as `wait/synch/mutex/innodb/%`.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 前缀较长的规则（例如`wait/synch/mutex/innodb/fts%`）优先于前缀较短的规则（例如`wait/synch/mutex/innodb/%`）。
+- en: After adding the `performance-schema-instrument` rules to your configuration
+    file, restart the server. All the `InnoDB` mutexes except for those related to
+    full text search are enabled. To verify, query the [`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table") table. The `ENABLED` and `TIMED` columns
+    should be set to `YES` for the instruments that you enabled.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在将`performance-schema-instrument`规则添加到配置文件后，重新启动服务器。除了与全文搜索相关的`InnoDB`互斥锁之外，所有互斥锁都已启用。要验证，请查询[`setup_instruments`](performance-schema-setup-instruments-table.html
+    "29.12.2.3 The setup_instruments Table")表。对于您启用的工具，`ENABLED`和`TIMED`列应设置为`YES`。
+- en: '[PRE3]'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Enable wait event consumers by updating the [`setup_consumers`](performance-schema-setup-consumers-table.html
+    "29.12.2.2 The setup_consumers Table") table. Wait event consumers are disabled
+    by default.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过更新[`setup_consumers`](performance-schema-setup-consumers-table.html "29.12.2.2 The
+    setup_consumers Table")表来启用等待事件消费者。等待事件消费者默认情况下是禁用的。
+- en: '[PRE4]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: You can verify that wait event consumers are enabled by querying the [`setup_consumers`](performance-schema-setup-consumers-table.html
+    "29.12.2.2 The setup_consumers Table") table. The [`events_waits_current`](performance-schema-events-waits-current-table.html
+    "29.12.4.1 The events_waits_current Table"), [`events_waits_history`](performance-schema-events-waits-history-table.html
+    "29.12.4.2 The events_waits_history Table"), and [`events_waits_history_long`](performance-schema-events-waits-history-long-table.html
+    "29.12.4.3 The events_waits_history_long Table") consumers should be enabled.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以通过查询[`setup_consumers`](performance-schema-setup-consumers-table.html "29.12.2.2 The
+    setup_consumers Table")表来验证等待事件消费者是否已启用。[`events_waits_current`](performance-schema-events-waits-current-table.html
+    "29.12.4.1 The events_waits_current Table")、[`events_waits_history`](performance-schema-events-waits-history-table.html
+    "29.12.4.2 The events_waits_history Table")和[`events_waits_history_long`](performance-schema-events-waits-history-long-table.html
+    "29.12.4.3 The events_waits_history_long Table")消费者应该已启用。
+- en: '[PRE5]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Once instruments and consumers are enabled, run the workload that you want to
+    monitor. In this example, the [**mysqlslap**](mysqlslap.html "6.5.8 mysqlslap
+    — A Load Emulation Client") load emulation client is used to simulate a workload.
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 一旦仪器和消费者已启用，请运行您想要监视的工作负载。在本示例中，使用[**mysqlslap**](mysqlslap.html "6.5.8 mysqlslap
+    — A Load Emulation Client")负载仿真客户端来模拟工作负载。
+- en: '[PRE6]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Query the wait event data. In this example, wait event data is queried from
+    the [`events_waits_summary_global_by_event_name`](performance-schema-wait-summary-tables.html
+    "29.12.20.1 Wait Event Summary Tables") table which aggregates data found in the
+    [`events_waits_current`](performance-schema-events-waits-current-table.html "29.12.4.1 The
+    events_waits_current Table"), [`events_waits_history`](performance-schema-events-waits-history-table.html
+    "29.12.4.2 The events_waits_history Table"), and [`events_waits_history_long`](performance-schema-events-waits-history-long-table.html
+    "29.12.4.3 The events_waits_history_long Table") tables. Data is summarized by
+    event name (`EVENT_NAME`), which is the name of the instrument that produced the
+    event. Summarized data includes:'
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 查询等待事件数据。在本示例中，等待事件数据是从[`events_waits_summary_global_by_event_name`](performance-schema-wait-summary-tables.html
+    "29.12.20.1 Wait Event Summary Tables")表中查询的，该表汇总了[`events_waits_current`](performance-schema-events-waits-current-table.html
+    "29.12.4.1 The events_waits_current Table")、[`events_waits_history`](performance-schema-events-waits-history-table.html
+    "29.12.4.2 The events_waits_history Table")和[`events_waits_history_long`](performance-schema-events-waits-history-long-table.html
+    "29.12.4.3 The events_waits_history_long Table")表中的数据。数据按事件名称（`EVENT_NAME`）进行汇总，这是产生事件的仪器的名称。汇总的数据包括：
+- en: '`COUNT_STAR`'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_STAR`'
+- en: The number of summarized wait events.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 总结的等待事件数量。
+- en: '`SUM_TIMER_WAIT`'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUM_TIMER_WAIT`'
+- en: The total wait time of the summarized timed wait events.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 总结的定时等待事件的总等待时间。
+- en: '`MIN_TIMER_WAIT`'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MIN_TIMER_WAIT`'
+- en: The minimum wait time of the summarized timed wait events.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 总结的定时等待事件的最小等待时间。
+- en: '`AVG_TIMER_WAIT`'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`AVG_TIMER_WAIT`'
+- en: The average wait time of the summarized timed wait events.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 总结的定时等待事件的平均等待时间。
+- en: '`MAX_TIMER_WAIT`'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MAX_TIMER_WAIT`'
+- en: The maximum wait time of the summarized timed wait events.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 总结的定时等待事件的最大等待时间。
+- en: The following query returns the instrument name (`EVENT_NAME`), the number of
+    wait events (`COUNT_STAR`), and the total wait time for the events for that instrument
+    (`SUM_TIMER_WAIT`). Because waits are timed in picoseconds (trillionths of a second)
+    by default, wait times are divided by 1000000000 to show wait times in milliseconds.
+    Data is presented in descending order, by the number of summarized wait events
+    (`COUNT_STAR`). You can adjust the `ORDER BY` clause to order the data by total
+    wait time.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以下查询返回仪器名称（`EVENT_NAME`）、等待事件数量（`COUNT_STAR`）以及该仪器事件的总等待时间（`SUM_TIMER_WAIT`）。由于默认情况下等待时间以皮秒（万亿分之一秒）计时，等待时间除以1000000000以显示以毫秒为单位的等待时间。数据按照总结的等待事件数量（`COUNT_STAR`）降序呈现。您可以调整`ORDER
+    BY`子句以按照总等待时间对数据进行排序。
+- en: '[PRE7]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: Note
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The preceding result set includes wait event data produced during the startup
+    process. To exclude this data, you can truncate the [`events_waits_summary_global_by_event_name`](performance-schema-wait-summary-tables.html
+    "29.12.20.1 Wait Event Summary Tables") table immediately after startup and before
+    running your workload. However, the truncate operation itself may produce a negligible
+    amount wait event data.
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 前面的结果集包括在启动过程中产生的等待事件数据。为了排除这些数据，您可以在启动后立即截断[`events_waits_summary_global_by_event_name`](performance-schema-wait-summary-tables.html
+    "29.12.20.1 Wait Event Summary Tables")表，然后再运行您的工作负载。但是，��断操作本身可能会产生微不足道的等待事件数据。
+- en: '[PRE8]'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'

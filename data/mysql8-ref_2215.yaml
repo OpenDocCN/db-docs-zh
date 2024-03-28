@@ -1,0 +1,566 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/sys-statement-performance-analyzer.html](https://dev.mysql.com/doc/refman/8.0/en/sys-statement-performance-analyzer.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/sys-statement-performance-analyzer.html](https://dev.mysql.com/doc/refman/8.0/en/sys-statement-performance-analyzer.html)
+- en: 30.4.4.25 The statement_performance_analyzer() Procedure
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 30.4.4.25 `statement_performance_analyzer()`过程
+- en: Creates a report of the statements running on the server. The views are calculated
+    based on the overall and/or delta activity.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建一个报告，显示服务器上正在运行的语句。视图是基于整体和/或增量活动计算的。
+- en: This procedure disables binary logging during its execution by manipulating
+    the session value of the [`sql_log_bin`](replication-options-binary-log.html#sysvar_sql_log_bin)
+    system variable. That is a restricted operation, so the procedure requires privileges
+    sufficient to set restricted session variables. See [Section 7.1.9.1, “System
+    Variable Privileges”](system-variable-privileges.html "7.1.9.1 System Variable
+    Privileges").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在执行此过程期间，通过操纵[`sql_log_bin`](replication-options-binary-log.html#sysvar_sql_log_bin)系统变量的会话值来禁用二进制日志记录。这是一个受限制的操作，因此该过程需要具有足够权限以设置受限制会话变量的权限。请参阅[第7.1.9.1节，“系统变量权限”](system-variable-privileges.html
+    "7.1.9.1 系统变量权限")。
+- en: Parameters
+  id: totrans-4
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 参数
+- en: '`in_action ENUM(''snapshot'', ''overall'', ''delta'', ''create_tmp'', ''create_table'',
+    ''save'', ''cleanup'')`: The action to take. These values are permitted:'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`in_action ENUM(''snapshot'', ''overall'', ''delta'', ''create_tmp'', ''create_table'',
+    ''save'', ''cleanup'')`: 执行的操作。允许使用以下数值：'
+- en: '`snapshot`: Store a snapshot. The default is to make a snapshot of the current
+    content of the Performance Schema [`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables") table. By setting `in_table`, this can
+    be overwritten to copy the content of the specified table. The snapshot is stored
+    in the [`sys`](sys-schema.html "Chapter 30 MySQL sys Schema") schema `tmp_digests`
+    temporary table.'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`snapshot`: 存储一个快照。默认情况下，会对性能模式[`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 语句摘要表")表的当前内容进行快照。通过设置`in_table`，可以覆盖为复制指定表的内容。快照存储在[`sys`](sys-schema.html
+    "第30章 MySQL sys模式")模式下的`tmp_digests`临时表中。'
+- en: '`overall`: Generate an analysis based on the content of the table specified
+    by `in_table`. For the overall analysis, `in_table` can be [`NOW()`](date-and-time-functions.html#function_now)
+    to use a fresh snapshot. This overwrites an existing snapshot. Use `NULL` for
+    `in_table` to use the existing snapshot. If `in_table` is `NULL` and no snapshot
+    exists, a new snapshot is created. The `in_views` parameter and the `statement_performance_analyzer.limit`
+    configuration option affect the operation of this procedure.'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`overall`: 基于由`in_table`指定的表的内容生成分析。对于整体分析，`in_table`可以是[`NOW()`](date-and-time-functions.html#function_now)以使用最新快照。这会覆盖现有快照。对于`in_table`为`NULL`的情况，使用现有快照。如果`in_table`为`NULL`且不存在快照，则会创建一个新的快照。`in_views`参数和`statement_performance_analyzer.limit`配置选项会影响此过程的操作。'
+- en: '`delta`: Generate a delta analysis. The delta is calculated between the reference
+    table specified by `in_table` and the snapshot, which must exist. This action
+    uses the [`sys`](sys-schema.html "Chapter 30 MySQL sys Schema") schema `tmp_digests_delta`
+    temporary table. The `in_views` parameter and the `statement_performance_analyzer.limit`
+    configuration option affect the operation of this procedure.'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`delta`: 生成增量分析。增量是在由`in_table`指定的参考表和必须存在的快照之间计算的。此操作使用[`sys`](sys-schema.html
+    "第30章 MySQL sys模式")模式下的`tmp_digests_delta`临时表。`in_views`参数和`statement_performance_analyzer.limit`配置选项会影响此过程的操作。'
+- en: '`create_table`: Create a regular table suitable for storing the snapshot for
+    later use (for example, for calculating deltas).'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`create_table`: 创建一个适合存储快照以供以后使用的常规表（例如，用于计算增量）。'
+- en: '`create_tmp`: Create a temporary table suitable for storing the snapshot for
+    later use (for example, for calculating deltas).'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`create_tmp`: 创建一个适合存储快照以供以后使用的临时表（例如，用于计算增量）。'
+- en: '`save`: Save the snapshot in the table specified by `in_table`. The table must
+    exist and have the correct structure. If no snapshot exists, a new snapshot is
+    created.'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`save`: 将快照保存在由`in_table`指定的表中。表必须存在并具有正确的结构。如果不存在快照，则会创建一个新的快照。'
+- en: '`cleanup`: Remove the temporary tables used for the snapshot and delta.'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`cleanup`: 删除用于快照和增量的临时表。'
+- en: '`in_table VARCHAR(129)`: The table parameter used for some of the actions specified
+    by the `in_action` parameter. Use the format *`db_name.tbl_name`* or *`tbl_name`*
+    without using any backtick ([PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`in_table VARCHAR(129)`: 用于由 `in_action` 参数指定的某些操作的表参数。使用格式 *`db_name.tbl_name`*
+    或 *`tbl_name`*，不使用任何反引号 ([PRE0]'
+- en: mysql> CALL sys.statement_performance_analyzer('create_tmp', 'mydb.tmp_digests_ini',
+    NULL);
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('create_tmp', 'mydb.tmp_digests_ini',
+    NULL);
+- en: Query OK, 0 rows affected (0.08 sec)
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (0.08 秒)
+- en: mysql> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('snapshot', NULL, NULL);
+- en: Query OK, 0 rows affected (0.02 sec)
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (0.02 秒)
+- en: mysql> CALL sys.statement_performance_analyzer('save', 'mydb.tmp_digests_ini',
+    NULL);
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('save', 'mydb.tmp_digests_ini',
+    NULL);
+- en: Query OK, 0 rows affected (0.00 sec)
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (0.00 秒)
+- en: mysql> DO SLEEP(60);
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 休眠60秒;
+- en: Query OK, 0 rows affected (1 min 0.00 sec)
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (1 分 0.00 秒)
+- en: mysql> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('snapshot', NULL, NULL);
+- en: Query OK, 0 rows affected (0.02 sec)
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (0.02 秒)
+- en: mysql> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile');
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile');
+- en: +-----------------------------------------+
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: '| Next Output                             |'
+  id: totrans-26
+  prefs: []
+  type: TYPE_TB
+  zh: '| 下一个输出                             |'
+- en: +-----------------------------------------+
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: '| Queries with Runtime in 95th Percentile |'
+  id: totrans-28
+  prefs: []
+  type: TYPE_TB
+  zh: '| 运行时间在第95百分位数的查询 |'
+- en: +-----------------------------------------+
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: 1 row in set (0.05 sec)
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 1 行受影响 (0.05 秒)
+- en: '...'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '...'
+- en: mysql> CALL sys.statement_performance_analyzer('delta', 'mydb.tmp_digests_ini',
+    'with_runtimes_in_95th_percentile');
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('delta', 'mydb.tmp_digests_ini',
+    'with_runtimes_in_95th_percentile');
+- en: +-----------------------------------------+
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: '| Next Output                             |'
+  id: totrans-34
+  prefs: []
+  type: TYPE_TB
+  zh: '| 下一个输出                             |'
+- en: +-----------------------------------------+
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: '| Queries with Runtime in 95th Percentile |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| 运行时间在第95百分位数的查询 |'
+- en: +-----------------------------------------+
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: 1 row in set (0.03 sec)
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 1 行受影响 (0.03 秒)
+- en: '...'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '...'
+- en: '[PRE1]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: mysql> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('snapshot', NULL, NULL);
+- en: Query OK, 0 rows affected (0.01 sec)
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (0.01 秒)
+- en: mysql> SET @sys.statement_performance_analyzer.limit = 10;
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 设�� @sys.statement_performance_analyzer.limit = 10;
+- en: Query OK, 0 rows affected (0.00 sec)
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (0.00 秒)
+- en: mysql> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile,with_full_table_scans');
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile,with_full_table_scans');
+- en: +-----------------------------------------+
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: '| Next Output                             |'
+  id: totrans-47
+  prefs: []
+  type: TYPE_TB
+  zh: '| 下一个输出                             |'
+- en: +-----------------------------------------+
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: '| Queries with Runtime in 95th Percentile |'
+  id: totrans-49
+  prefs: []
+  type: TYPE_TB
+  zh: '| 运行时间在第95百分位数的查询 |'
+- en: +-----------------------------------------+
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-----------------------------------------+
+- en: 1 row in set (0.01 sec)
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 1 行受影响 (0.01 秒)
+- en: '...'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '...'
+- en: +-------------------------------------+
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-------------------------------------+
+- en: '| Next Output                         |'
+  id: totrans-54
+  prefs: []
+  type: TYPE_TB
+  zh: '| 下一个输出                         |'
+- en: +-------------------------------------+
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-------------------------------------+
+- en: '| Top 10 Queries with Full Table Scan |'
+  id: totrans-56
+  prefs: []
+  type: TYPE_TB
+  zh: '| 具有全表扫描的前10个查询 |'
+- en: +-------------------------------------+
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-------------------------------------+
+- en: 1 row in set (0.09 sec)
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 1 行受影响 (0.09 秒)
+- en: '...'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '...'
+- en: '[PRE2]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: mysql> CREATE OR REPLACE VIEW mydb.my_statements AS
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 创建或替换视图 mydb.my_statements AS
+- en: SELECT sys.format_statement(DIGEST_TEXT) AS query,
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: SELECT sys.format_statement(DIGEST_TEXT) AS query,
+- en: SCHEMA_NAME AS db,
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: SCHEMA_NAME AS db,
+- en: COUNT_STAR AS exec_count,
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: COUNT_STAR AS exec_count,
+- en: sys.format_time(SUM_TIMER_WAIT) AS total_latency,
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: sys.format_time(SUM_TIMER_WAIT) AS total_latency,
+- en: sys.format_time(AVG_TIMER_WAIT) AS avg_latency,
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: sys.format_time(AVG_TIMER_WAIT) AS avg_latency,
+- en: ROUND(IFNULL(SUM_ROWS_SENT / NULLIF(COUNT_STAR, 0), 0)) AS rows_sent_avg,
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: ROUND(IFNULL(SUM_ROWS_SENT / NULLIF(COUNT_STAR, 0), 0)) AS rows_sent_avg,
+- en: ROUND(IFNULL(SUM_ROWS_EXAMINED / NULLIF(COUNT_STAR, 0), 0)) AS rows_examined_avg,
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: ROUND(IFNULL(SUM_ROWS_EXAMINED / NULLIF(COUNT_STAR, 0), 0)) AS rows_examined_avg,
+- en: ROUND(IFNULL(SUM_ROWS_AFFECTED / NULLIF(COUNT_STAR, 0), 0)) AS rows_affected_avg,
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: ROUND(IFNULL(SUM_ROWS_AFFECTED / NULLIF(COUNT_STAR, 0), 0)) AS rows_affected_avg,
+- en: DIGEST AS digest
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: DIGEST AS digest
+- en: FROM performance_schema.events_statements_summary_by_digest
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: FROM performance_schema.events_statements_summary_by_digest
+- en: ORDER BY SUM_TIMER_WAIT DESC;
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 按 SUM_TIMER_WAIT 降序排列;
+- en: Query OK, 0 rows affected (0.10 sec)
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询成功，0 行受影响 (0.10 秒)
+- en: mysql> CALL sys.statement_performance_analyzer('create_table', 'mydb.digests_prev',
+    NULL);
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: mysql> 调用 sys.statement_performance_analyzer('create_table', 'mydb.digests_prev',
+    NULL);
+- en: Query OK, 0 rows affected (0.10 sec)
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Query OK, 0 rows affected (0.10 sec)
+- en: $> watch -n 60 "mysql sys --table -e \"
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: $> watch -n 60 "mysql sys --table -e \"
+- en: SET @sys.statement_performance_analyzer.view = 'mydb.my_statements';
+  id: totrans-77
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: SET @sys.statement_performance_analyzer.view = 'mydb.my_statements';
+- en: SET @sys.statement_performance_analyzer.limit = 10;
+  id: totrans-78
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: SET @sys.statement_performance_analyzer.limit = 10;
+- en: CALL statement_performance_analyzer('snapshot', NULL, NULL);
+  id: totrans-79
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: CALL statement_performance_analyzer('snapshot', NULL, NULL);
+- en: CALL statement_performance_analyzer('delta', 'mydb.digests_prev', 'custom');
+  id: totrans-80
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: CALL statement_performance_analyzer('delta', 'mydb.digests_prev', 'custom');
+- en: CALL statement_performance_analyzer('save', 'mydb.digests_prev', NULL);
+  id: totrans-81
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: CALL statement_performance_analyzer('save', 'mydb.digests_prev', NULL);
+- en: \""
+  id: totrans-82
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: \""
+- en: 'Every 60.0s: mysql sys --table -e "        ...  Mon Dec 22 10:58:51 2014'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '每隔 60.0 秒: mysql sys --table -e "        ...  Mon Dec 22 10:58:51 2014'
+- en: +----------------------------------+
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +----------------------------------+
+- en: '| Next Output                      |'
+  id: totrans-85
+  prefs: []
+  type: TYPE_TB
+  zh: '| 下一个输出                      |'
+- en: +----------------------------------+
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +----------------------------------+
+- en: '| Top 10 Queries Using Custom View |'
+  id: totrans-87
+  prefs: []
+  type: TYPE_TB
+  zh: '| 前 10 个使用自定义视图的查询 |'
+- en: +----------------------------------+
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +----------------------------------+
+- en: +-------------------+-------+------------+---------------+-------------+---------------+-------------------+-------------------+----------------------------------+
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-------------------+-------+------------+---------------+-------------+---------------+-------------------+-------------------+----------------------------------+
+- en: '| query             | db    | exec_count | total_latency | avg_latency | rows_sent_avg
+    | rows_examined_avg | rows_affected_avg | digest                           |'
+  id: totrans-90
+  prefs: []
+  type: TYPE_TB
+  zh: '| 查询             | 数据库    | 执行次数 | 总延迟 | 平均延迟 | 平均发送行数 | 平均检查行数 | 平均影响行数 |
+    摘要                           |'
+- en: +-------------------+-------+------------+---------------+-------------+---------------+-------------------+-------------------+----------------------------------+
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: +-------------------+-------+------------+---------------+-------------+---------------+-------------------+-------------------+----------------------------------+
+- en: '...'
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '...'
+- en: '```'
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '```'

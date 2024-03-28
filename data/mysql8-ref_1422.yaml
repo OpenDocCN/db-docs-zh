@@ -1,0 +1,229 @@
+- en: 19.4.10 Semisynchronous Replication
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.4.10 半同步复制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-semisync.html](https://dev.mysql.com/doc/refman/8.0/en/replication-semisync.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-semisync.html](https://dev.mysql.com/doc/refman/8.0/en/replication-semisync.html)
+- en: '[19.4.10.1 Installing Semisynchronous Replication](replication-semisync-installation.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.4.10.1 安装半同步复制](replication-semisync-installation.html)'
+- en: '[19.4.10.2 Configuring Semisynchronous Replication](replication-semisync-interface.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.4.10.2 配置半同步复制](replication-semisync-interface.html)'
+- en: '[19.4.10.3 Semisynchronous Replication Monitoring](replication-semisync-monitoring.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.4.10.3 半同步复制监视](replication-semisync-monitoring.html)'
+- en: In addition to the built-in asynchronous replication, MySQL 8.0 supports an
+    interface to semisynchronous replication that is implemented by plugins. This
+    section discusses what semisynchronous replication is and how it works. The following
+    sections cover the administrative interface to semisynchronous replication and
+    how to install, configure, and monitor it.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了内置的异步复制外，MySQL 8.0 还支持由插件实现的半同步复制接口。本节讨论了什么是半同步复制以及它是如何工作的。接下来的章节将涵盖半同步复制的管理接口以及如何安装、配置和监视它。
+- en: MySQL replication by default is asynchronous. The source writes events to its
+    binary log and replicas request them when they are ready. The source does not
+    know whether or when a replica has retrieved and processed the transactions, and
+    there is no guarantee that any event ever reaches any replica. With asynchronous
+    replication, if the source crashes, transactions that it has committed might not
+    have been transmitted to any replica. Failover from source to replica in this
+    case might result in failover to a server that is missing transactions relative
+    to the source.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 默认情况下是异步复制。源将事件写入其二进制日志，副本在准备好时请求这些事件。源不知道副本是否何时检索和处理事务，并且不能保证任何事件是否会到达任何副本。使用异步复制时，如果源崩溃，它已经提交的事务可能尚未传输至任何副本。在这种情况下，从源切换到副本可能导致切换到相对于源缺少事务的服务器。
+- en: With fully synchronous replication, when a source commits a transaction, all
+    replicas have also committed the transaction before the source returns to the
+    session that performed the transaction. Fully synchronous replication means failover
+    from the source to any replica is possible at any time. The drawback of fully
+    synchronous replication is that there might be a lot of delay to complete a transaction.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用完全同步复制时，当源提交事务时，所有副本在源返回执行事务的会话之前也已经提交了该事务。完全同步复制意味着可以随时从源切换到任何副本。完全同步复制的缺点是可能会有很多延迟来完成一个事务。
+- en: Semisynchronous replication falls between asynchronous and fully synchronous
+    replication. The source waits until at least one replica has received and logged
+    the events (the required number of replicas is configurable), and then commits
+    the transaction. The source does not wait for all replicas to acknowledge receipt,
+    and it requires only an acknowledgement from the replicas, not that the events
+    have been fully executed and committed on the replica side. Semisynchronous replication
+    therefore guarantees that if the source crashes, all the transactions that it
+    has committed have been transmitted to at least one replica.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 半同步复制介于异步和完全同步复制之间。源会等待至少一个副本接收并记录事件（所需副本数量可配置），然后提交事务。源不会等待所有副本确认接收，并且只需要副本的确认，而不需要事件在副本端完全执行和提交。因此，半同步复制保证了如果源崩溃，它已经提交的所有事务都已传输至至少一个副本。
+- en: Compared to asynchronous replication, semisynchronous replication provides improved
+    data integrity, because when a commit returns successfully, it is known that the
+    data exists in at least two places. Until a semisynchronous source receives acknowledgment
+    from the required number of replicas, the transaction is on hold and not committed.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与异步复制相比，半同步复制提供了改进的数据完整性，因为当提交成功返回时，可以知道数据至少存在于两个地方。在半同步源接收到所需数量的副本的确认之前，事务会被暂停并且不会被提交。
+- en: Compared to fully synchronous replication, semisynchronous replication is faster,
+    because it can be configured to balance your requirements for data integrity (the
+    number of replicas acknowledging receipt of the transaction) with the speed of
+    commits, which are slower due to the need to wait for replicas.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与完全同步复制相比，半同步复制更快，因为它可以配置以平衡数据完整性要求（确认接收事务的副本数量）与提交速度之间的要求，由于需要等待副本，提交速度较慢。
+- en: Important
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: With semisynchronous replication, if the source crashes and a failover to a
+    replica is carried out, the failed source should not be reused as the replication
+    source, and should be discarded. It could have transactions that were not acknowledged
+    by any replica, which were therefore not committed before the failover.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用半同步复制，如果源崩溃并进行故障转移到副本，则失败的源不应重新用作复制源，并应丢弃。它可能有一些事务尚未被任何副本确认，因此在故障转移之前未提交。
+- en: If your goal is to implement a fault-tolerant replication topology where all
+    the servers receive the same transactions in the same order, and a server that
+    crashes can rejoin the group and be brought up to date automatically, you can
+    use Group Replication to achieve this. For information, see [Chapter 20, *Group
+    Replication*](group-replication.html "Chapter 20 Group Replication").
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的目标是实现一个容错的复制拓扑结构，其中所有服务器以相同顺序接收相同的事务，并且崩溃的服务器可以重新加入组并自动更新，您可以使用组复制来实现这一目标。有关详细信息，请参见[第20章，*组复制*](group-replication.html
+    "第20章 组复制")。
+- en: The performance impact of semisynchronous replication compared to asynchronous
+    replication is the tradeoff for increased data integrity. The amount of slowdown
+    is at least the TCP/IP roundtrip time to send the commit to the replica and wait
+    for the acknowledgment of receipt by the replica. This means that semisynchronous
+    replication works best for close servers communicating over fast networks, and
+    worst for distant servers communicating over slow networks. Semisynchronous replication
+    also places a rate limit on busy sessions by constraining the speed at which binary
+    log events can be sent from source to replica. When one user is too busy, this
+    slows it down, which can be useful in some deployment situations.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与异步复制相比，半同步复制的性能影响是为了增加数据完整性而进行的权衡。减速的量至少是将提交发送到副本并等待副本确认接收的TCP/IP往返时间。这意味着半同步复制最适合在快速网络上通信的近距离服务器，并且对于在慢速网络上通信的远程服务器最不利。半同步复制还通过限制二进制日志事件从源到副本发送的速度来对繁忙会话进行速率限制。当一个用户太忙时，这会减慢速度，在某些部署情况下可能会很有用。
+- en: 'Semisynchronous replication between a source and its replicas operates as follows:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 源和其副本之间的半同步复制操作如下：
+- en: A replica indicates whether it is semisynchronous-capable when it connects to
+    the source.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当副本连接到源时，副本指示其是否支持半同步。
+- en: If semisynchronous replication is enabled on the source side and there is at
+    least one semisynchronous replica, a thread that performs a transaction commit
+    on the source blocks and waits until at least one semisynchronous replica acknowledges
+    that it has received all events for the transaction, or until a timeout occurs.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在源端启用了半同步复制并且至少有一个半同步副本，则在源上执行事务提交的线程将被阻塞，并等待至少一个半同步副本确认已接收到该事务的所有事件，或者直到超时发生。
+- en: The replica acknowledges receipt of a transaction's events only after the events
+    have been written to its relay log and flushed to disk.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 副本仅在将事件写入其中继日志并刷新到磁盘后才确认接收到事务的事件。
+- en: If a timeout occurs without any replica having acknowledged the transaction,
+    the source reverts to asynchronous replication. When at least one semisynchronous
+    replica catches up, the source returns to semisynchronous replication.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果超时发生而没有任何副本确认事务，则源将恢复为异步复制。当至少一个半同步副本赶上时，源将恢复为半同步复制。
+- en: Semisynchronous replication must be enabled on both the source and replica sides.
+    If semisynchronous replication is disabled on the source, or enabled on the source
+    but on no replicas, the source uses asynchronous replication.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须在源端和副本端启用半同步复制。如果在源端禁用了半同步复制，或者在源端启用了半同步复制但没有在任何副本上启用，则源将使用异步复制。
+- en: While the source is blocking (waiting for acknowledgment from a replica), it
+    does not return to the session that performed the transaction. When the block
+    ends, the source returns to the session, which then can proceed to execute other
+    statements. At this point, the transaction has committed on the source side, and
+    receipt of its events has been acknowledged by at least one replica. The number
+    of replica acknowledgments the source must receive per transaction before returning
+    to the session is configurable, and defaults to one acknowledgement (see [Section 19.4.10.2,
+    “Configuring Semisynchronous Replication”](replication-semisync-interface.html
+    "19.4.10.2 Configuring Semisynchronous Replication")).
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当源正在阻塞（等待来自副本的确认）时，它不会返回到执行事务的会话。当阻塞结束时，源会返回到会话，然后可以继续执行其他语句。此时，在源端事务已经提交，并且至少一个副本已经确认接收到其事件。源在返回到会话之前必须接收每个事务的副本确认数量是可配置的，默认为一个确认（参见[Section 19.4.10.2,
+    “Configuring Semisynchronous Replication”](replication-semisync-interface.html
+    "19.4.10.2 Configuring Semisynchronous Replication")）。
+- en: Blocking also occurs after rollbacks that are written to the binary log, which
+    occurs when a transaction that modifies nontransactional tables is rolled back.
+    The rolled-back transaction is logged even though it has no effect for transactional
+    tables because the modifications to the nontransactional tables cannot be rolled
+    back and must be sent to replicas.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 阻塞也会发生在写入二进制日志的回滚之后，这种情况发生在回滚修改非事务表的事务时。即使对于事务表来说回滚的事务没有影响，但对于非事务表的修改无法回滚，必须发送到副本中，因此回滚的事务会被记录。
+- en: For statements that do not occur in transactional context (that is, when no
+    transaction has been started with [`START TRANSACTION`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements") or [`SET autocommit = 0`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment")), autocommit is enabled and each
+    statement commits implicitly. With semisynchronous replication, the source blocks
+    for each such statement, just as it does for explicit transaction commits.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于不在事务上下文中发生的语句（也就是说，没有使用[`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements")或[`SET autocommit = 0`](set-variable.html "15.7.6.1 SET
+    Syntax for Variable Assignment")启动事务时），自动提交被启用，每个语句都会隐式提交。在半同步复制中，源会为每个这样的语句阻塞，就像为显式事务提交一样。
+- en: By default, the source waits for replica acknowledgment of the transaction receipt
+    after syncing the binary log to disk, but before committing the transaction to
+    the storage engine. As an alternative, you can configure the source so that the
+    source waits for replica acknowledgment after committing the transaction to the
+    storage engine, using the [`rpl_semi_sync_source_wait_point`](replication-options-source.html#sysvar_rpl_semi_sync_source_wait_point)
+    or [`rpl_semi_sync_master_wait_point`](replication-options-source.html#sysvar_rpl_semi_sync_master_wait_point)
+    system variable. This setting affects the replication characteristics and the
+    data that clients can see on the source. For more information, see [Section 19.4.10.2,
+    “Configuring Semisynchronous Replication”](replication-semisync-interface.html
+    "19.4.10.2 Configuring Semisynchronous Replication").
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，源在将二进制日志同步到磁盘后等待副本确认事务接收，但在将事务提交到存储引擎之前。作为替代方案，您可以配置源，使其在将事务提交到存储引擎后等待副本确认，使用[`rpl_semi_sync_source_wait_point`](replication-options-source.html#sysvar_rpl_semi_sync_source_wait_point)或[`rpl_semi_sync_master_wait_point`](replication-options-source.html#sysvar_rpl_semi_sync_master_wait_point)系统变量。此设置会影响复制特性和客户端在源端可以看到的数据。有关更多信息，请参见[Section 19.4.10.2,
+    “Configuring Semisynchronous Replication”](replication-semisync-interface.html
+    "19.4.10.2 Configuring Semisynchronous Replication")。
+- en: From MySQL 8.0.23, you can improve the performance of semisynchronous replication
+    by enabling the system variables [`replication_sender_observe_commit_only`](replication-options-replica.html#sysvar_replication_sender_observe_commit_only),
+    which limits callbacks, and [`replication_optimize_for_static_plugin_config`](replication-options-replica.html#sysvar_replication_optimize_for_static_plugin_config),
+    which adds shared locks and avoids unnecessary lock acquisitions. These settings
+    help as the number of replicas increases, because contention for locks can slow
+    down performance. Semisynchronous replication source servers can also get performance
+    benefits from enabling these system variables, because they use the same locking
+    mechanisms as the replicas.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.23开始，您可以通过启用系统变量[`replication_sender_observe_commit_only`](replication-options-replica.html#sysvar_replication_sender_observe_commit_only)和[`replication_optimize_for_static_plugin_config`](replication-options-replica.html#sysvar_replication_optimize_for_static_plugin_config)来提高半同步复制的性能，前者限制回调，后者添加共享锁并避免不必要的锁获取。这些设置在副本数量增加时非常有帮助，因为锁争用可能会降低性能。半同步复制源服务器还可以通过启用这些系统变量获得性能优势，因为它们使用与副本相同的锁定机制。

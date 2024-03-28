@@ -1,0 +1,1580 @@
+- en: 8.2.3 Grant Tables
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.2.3 授权表
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/grant-tables.html](https://dev.mysql.com/doc/refman/8.0/en/grant-tables.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/grant-tables.html](https://dev.mysql.com/doc/refman/8.0/en/grant-tables.html)
+- en: The `mysql` system database includes several grant tables that contain information
+    about user accounts and the privileges held by them. This section describes those
+    tables. For information about other tables in the system database, see [Section 7.3,
+    “The mysql System Schema”](system-schema.html "7.3 The mysql System Schema").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mysql`系统数据库包含几个授权表，其中包含有关用户账户和其持有的权限的信息。本节描述了这些表。有关系统数据库中其他表的信息，请参阅[第7.3节，“mysql系统模式”](system-schema.html
+    "7.3 mysql系统模式")。'
+- en: The discussion here describes the underlying structure of the grant tables and
+    how the server uses their contents when interacting with clients. However, normally
+    you do not modify the grant tables directly. Modifications occur indirectly when
+    you use account-management statements such as [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement"), [`GRANT`](grant.html "15.7.1.6 GRANT Statement"),
+    and [`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement") to set up accounts and
+    control the privileges available to each one. See [Section 15.7.1, “Account Management
+    Statements”](account-management-statements.html "15.7.1 Account Management Statements").
+    When you use such statements to perform account manipulations, the server modifies
+    the grant tables on your behalf.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处讨论了授权表的基本结构以及服务器在与客户端交互时如何使用其内容。然而，通常情况下不直接修改授权表。当您使用诸如[`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER语句"), [`GRANT`](grant.html "15.7.1.6 GRANT语句"), 和 [`REVOKE`](revoke.html
+    "15.7.1.8 REVOKE语句")等账户管理语句设置账户和控制每个账户可用权限时，修改是间接发生的。请参阅[第15.7.1节，“账户管理语句”](account-management-statements.html
+    "15.7.1 账户管理语句")。当您使用这些语句执行账户操作时，服务器会代表您修改授权表。
+- en: Note
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Direct modification of grant tables using statements such as [`INSERT`](insert.html
+    "15.2.7 INSERT Statement"), [`UPDATE`](update.html "15.2.17 UPDATE Statement"),
+    or [`DELETE`](delete.html "15.2.2 DELETE Statement") is discouraged and done at
+    your own risk. The server is free to ignore rows that become malformed as a result
+    of such modifications.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不鼓励直接使用诸如[`INSERT`](insert.html "15.2.7 INSERT语句"), [`UPDATE`](update.html "15.2.17 UPDATE语句"),
+    或 [`DELETE`](delete.html "15.2.2 DELETE语句")等语句直接修改授权表，这样做风险自负。服务器可以忽略由于这些修改导致的格式错误的行。
+- en: For any operation that modifies a grant table, the server checks whether the
+    table has the expected structure and produces an error if not. To update the tables
+    to the expected structure, perform the MySQL upgrade procedure. See [Chapter 3,
+    *Upgrading MySQL*](upgrading.html "Chapter 3 Upgrading MySQL").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于任何修改授权表的操作，服务器会检查表是否具有预期的结构，如果不是，则会产生错误。要将表更新为预期的结构，请执行MySQL升级过程。请参阅[第3章，“*升级MySQL*”](upgrading.html
+    "第3章 升级MySQL")。
+- en: '[Grant Table Overview](grant-tables.html#grant-tables-overview "Grant Table
+    Overview")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[授权表概述](grant-tables.html#grant-tables-overview "授权表概述")'
+- en: '[The user and db Grant Tables](grant-tables.html#grant-tables-user-db "The
+    user and db Grant Tables")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[用户和数据库授权表](grant-tables.html#grant-tables-user-db "用户和数据库授权表")'
+- en: '[The tables_priv and columns_priv Grant Tables](grant-tables.html#grant-tables-tables-priv-columns-priv
+    "The tables_priv and columns_priv Grant Tables")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[tables_priv和columns_priv授权表](grant-tables.html#grant-tables-tables-priv-columns-priv
+    "tables_priv和columns_priv授权表")'
+- en: '[The procs_priv Grant Table](grant-tables.html#grant-tables-procs-priv "The
+    procs_priv Grant Table")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[procs_priv授权表](grant-tables.html#grant-tables-procs-priv "procs_priv授权表")'
+- en: '[The proxies_priv Grant Table](grant-tables.html#grant-tables-proxies-priv
+    "The proxies_priv Grant Table")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[proxies_priv授权表](grant-tables.html#grant-tables-proxies-priv "proxies_priv授权表")'
+- en: '[The global_grants Grant Table](grant-tables.html#grant-tables-global-grants
+    "The global_grants Grant Table")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[全局授权表](grant-tables.html#grant-tables-global-grants "全局授权表")'
+- en: '[The default_roles Grant Table](grant-tables.html#grant-tables-default-roles
+    "The default_roles Grant Table")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[默认角色授权表](grant-tables.html#grant-tables-default-roles "默认角色授权表")'
+- en: '[The role_edges Grant Table](grant-tables.html#grant-tables-role-edges "The
+    role_edges Grant Table")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[角色边缘授权表](grant-tables.html#grant-tables-role-edges "角色边缘授权表")'
+- en: '[The password_history Grant Table](grant-tables.html#grant-tables-password-history
+    "The password_history Grant Table")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[密码历史授权表](grant-tables.html#grant-tables-password-history "密码历史授权表")'
+- en: '[Grant Table Scope Column Properties](grant-tables.html#grant-tables-scope-column-properties
+    "Grant Table Scope Column Properties")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[授予表范围列属性](grant-tables.html#grant-tables-scope-column-properties "授予表范围列属性")'
+- en: '[Grant Table Privilege Column Properties](grant-tables.html#grant-tables-privilege-column-properties
+    "Grant Table Privilege Column Properties")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[授予表权限列属性](grant-tables.html#grant-tables-privilege-column-properties "授予表权限列属性")'
+- en: '[Grant Table Concurrency](grant-tables.html#grant-tables-concurrency "Grant
+    Table Concurrency")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[授予表并发性](grant-tables.html#grant-tables-concurrency "授予表并发性")'
+- en: Grant Table Overview
+  id: totrans-19
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 授予表概述
+- en: 'These `mysql` database tables contain grant information:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些`mysql`数据库表包含授予信息：
+- en: '[`user`](grant-tables.html#grant-tables-user-db "The user and db Grant Tables"):
+    User accounts, static global privileges, and other nonprivilege columns.'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`user`](grant-tables.html#grant-tables-user-db "user和db授予表"): 用户账户，静态全局权限和其他非权限列。'
+- en: '[`global_grants`](grant-tables.html#grant-tables-global-grants "The global_grants
+    Grant Table"): Dynamic global privileges.'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`global_grants`](grant-tables.html#grant-tables-global-grants "global_grants授予表"):
+    动态全局权限。'
+- en: '[`db`](grant-tables.html#grant-tables-user-db "The user and db Grant Tables"):
+    Database-level privileges.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`db`](grant-tables.html#grant-tables-user-db "user和db授予表"): 数据库级权限。'
+- en: '[`tables_priv`](grant-tables.html#grant-tables-tables-priv-columns-priv "The
+    tables_priv and columns_priv Grant Tables"): Table-level privileges.'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`tables_priv`](grant-tables.html#grant-tables-tables-priv-columns-priv "tables_priv和columns_priv授予表"):
+    表级权限。'
+- en: '[`columns_priv`](grant-tables.html#grant-tables-tables-priv-columns-priv "The
+    tables_priv and columns_priv Grant Tables"): Column-level privileges.'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`columns_priv`](grant-tables.html#grant-tables-tables-priv-columns-priv "tables_priv和columns_priv授予表"):
+    列级权限。'
+- en: '[`procs_priv`](grant-tables.html#grant-tables-procs-priv "The procs_priv Grant
+    Table"): Stored procedure and function privileges.'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`procs_priv`](grant-tables.html#grant-tables-procs-priv "procs_priv授予表"):
+    存储过程和函数权限。'
+- en: '[`proxies_priv`](grant-tables.html#grant-tables-proxies-priv "The proxies_priv
+    Grant Table"): Proxy-user privileges.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`proxies_priv`](grant-tables.html#grant-tables-proxies-priv "proxies_priv授予表"):
+    代理用户权限。'
+- en: '[`default_roles`](grant-tables.html#grant-tables-default-roles "The default_roles
+    Grant Table"): Default user roles.'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`default_roles`](grant-tables.html#grant-tables-default-roles "default_roles授予表"):
+    默认用户角色。'
+- en: '[`role_edges`](grant-tables.html#grant-tables-role-edges "The role_edges Grant
+    Table"): Edges for role subgraphs.'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`role_edges`](grant-tables.html#grant-tables-role-edges "role_edges授予表"):
+    角色子图的边缘。'
+- en: '[`password_history`](grant-tables.html#grant-tables-password-history "The password_history
+    Grant Table"): Password change history.'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`password_history`](grant-tables.html#grant-tables-password-history "password_history授予表"):
+    密码更改历史。'
+- en: For information about the differences between static and dynamic global privileges,
+    see [Static Versus Dynamic Privileges](privileges-provided.html#static-dynamic-privileges
+    "Static Versus Dynamic Privileges").)
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关静态和动态全局权限之间的区别，请参阅[静态与动态权限](privileges-provided.html#static-dynamic-privileges
+    "静态与动态权限")。
+- en: In MySQL 8.0, grant tables use the `InnoDB` storage engine and are transactional.
+    Before MySQL 8.0, grant tables used the `MyISAM` storage engine and were nontransactional.
+    This change of grant table storage engine enables an accompanying change to the
+    behavior of account-management statements such as [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement") or [`GRANT`](grant.html "15.7.1.6 GRANT Statement").
+    Previously, an account-management statement that named multiple users could succeed
+    for some users and fail for others. Now, each statement is transactional and either
+    succeeds for all named users or rolls back and has no effect if any error occurs.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0中，授予表使用`InnoDB`存储引擎并且是事务性的。在MySQL 8.0之前，授予表使用`MyISAM`存储引擎并且是非事务性的。授予表存储引擎的更改使得伴随的账户管理语句的行为也发生了变化，例如[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")或[`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement")。以前，命名多个用户的账户管理语句可能对某些用户成功，对其他用户失败。现在，每个语句都是事务性的，要么对所有命名用户成功，要么回滚并且如果出现任何错误则不起作用。
+- en: 'Each grant table contains scope columns and privilege columns:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个授予表包含范围列和权限列：
+- en: Scope columns determine the scope of each row in the tables; that is, the context
+    in which the row applies. For example, a `user` table row with `Host` and `User`
+    values of `'h1.example.net'` and `'bob'` applies to authenticating connections
+    made to the server from the host `h1.example.net` by a client that specifies a
+    user name of `bob`. Similarly, a `db` table row with `Host`, `User`, and `Db`
+    column values of `'h1.example.net'`, `'bob'` and `'reports'` applies when `bob`
+    connects from the host `h1.example.net` to access the `reports` database. The
+    `tables_priv` and `columns_priv` tables contain scope columns indicating tables
+    or table/column combinations to which each row applies. The `procs_priv` scope
+    columns indicate the stored routine to which each row applies.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 范围列确定表中每行的范围；也就是说，行适用的上下文。例如，具有`Host`和`User`值为`'h1.example.net'`和`'bob'`的`user`表行适用于由指定用户名称为`bob`的客户端从主机`h1.example.net`进行的身份验证连接。类似地，具有`Host`，`User`和`Db`列值为`'h1.example.net'`，`'bob'`和`'reports'`的`db`表行适用于`bob`从主机`h1.example.net`连接以访问`reports`数据库。`tables_priv`和`columns_priv`表包含指示每行适用于哪些表或表/列组合的范围列。`procs_priv`范围列指示每行适用于的存储过程。
+- en: 'Privilege columns indicate which privileges a table row grants; that is, which
+    operations it permits to be performed. The server combines the information in
+    the various grant tables to form a complete description of a user''s privileges.
+    [Section 8.2.7, “Access Control, Stage 2: Request Verification”](request-access.html
+    "8.2.7 Access Control, Stage 2: Request Verification"), describes the rules for
+    this.'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '特权列指示表行授予哪些特权；也就是说，它允许执行哪些操作。服务器将各种授权表中的信息组合起来，形成用户特权的完整描述。[第8.2.7节，“访问控制，第2阶段：请求验证”](request-access.html
+    "8.2.7 Access Control, Stage 2: Request Verification")描述了这方面的规则。'
+- en: In addition, a grant table may contain columns used for purposes other than
+    scope or privilege assessment.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，授权表可能包含用于除范围或特权评估之外的其他目的的列。
+- en: 'The server uses the grant tables in the following manner:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用授权表的方式如下：
+- en: The `user` table scope columns determine whether to reject or permit incoming
+    connections. For permitted connections, any privileges granted in the `user` table
+    indicate the user's static global privileges. Any privileges granted in this table
+    apply to *all* databases on the server.
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`user`表的范围列确定是否拒绝或允许传入连接。对于允许的连接，在`user`表中授予的任何特权表示用户的静态全局特权。在此表中授予的任何特权都适用于*所有*服务器上的数据库。'
+- en: Caution
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Because any static global privilege is considered a privilege for all databases,
+    any static global privilege enables a user to see all database names with [`SHOW
+    DATABASES`](show-databases.html "15.7.7.14 SHOW DATABASES Statement") or by examining
+    the [`SCHEMATA`](information-schema-schemata-table.html "28.3.31 The INFORMATION_SCHEMA
+    SCHEMATA Table") table of `INFORMATION_SCHEMA`, except databases that have been
+    restricted at the database level by partial revokes.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为任何静态全局特权都被视为所有数据库的特权，任何静态全局特权都使用户能够通过[`SHOW DATABASES`](show-databases.html
+    "15.7.7.14 SHOW DATABASES Statement")或通过检查`INFORMATION_SCHEMA`的[`SCHEMATA`](information-schema-schemata-table.html
+    "28.3.31 The INFORMATION_SCHEMA SCHEMATA Table")表来查看所有数据库名称，除了在数据库级别通过部分撤销限制的数据库。
+- en: The `global_grants` table lists current assignments of dynamic global privileges
+    to user accounts. For each row, the scope columns determine which user has the
+    privilege named in the privilege column.
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`global_grants`表列出了对用户帐户分配的动态全局特权。对于每行，范围列确定具有特权列中命名的特权的用户。'
+- en: The `db` table scope columns determine which users can access which databases
+    from which hosts. The privilege columns determine the permitted operations. A
+    privilege granted at the database level applies to the database and to all objects
+    in the database, such as tables and stored programs.
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db`表的范围列确定哪些用户可以从哪些主机访问哪些数据库。特权列确定允许的操作。在数据库级别授予的特权适用于数据库及其所有对象，如表和存储程序。'
+- en: 'The `tables_priv` and `columns_priv` tables are similar to the `db` table,
+    but are more fine-grained: They apply at the table and column levels rather than
+    at the database level. A privilege granted at the table level applies to the table
+    and to all its columns. A privilege granted at the column level applies only to
+    a specific column.'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`tables_priv`和`columns_priv`表类似于`db`表，但更加精细：它们适用于表和列级别，而不是数据库级别。在表级别授予的特权适用于表及其所有列。在列级别授予的特权仅适用于特定列。'
+- en: The `procs_priv` table applies to stored routines (stored procedures and functions).
+    A privilege granted at the routine level applies only to a single procedure or
+    function.
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`procs_priv` 表适用于存储例程（存储过程和函数）。在例程级别授予的权限仅适用于单个过程或函数。'
+- en: The `proxies_priv` table indicates which users can act as proxies for other
+    users and whether a user can grant the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege to other users.
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`proxies_priv` 表指示哪些用户可以代表其他用户行事，以及用户是否可以向其他用户授予 [`PROXY`](privileges-provided.html#priv_proxy)
+    权限。'
+- en: The `default_roles` and `role_edges` tables contain information about role relationships.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`default_roles` 和 `role_edges` 表包含有关角色关系的信息。'
+- en: The `password_history` table retains previously chosen passwords to enable restrictions
+    on password reuse. See [Section 8.2.15, “Password Management”](password-management.html
+    "8.2.15 Password Management").
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`password_history` 表保留先前选择的密码，以启用对密码重用的限制。请参阅 [第8.2.15节，“密码管理”](password-management.html
+    "8.2.15 密码管理")。'
+- en: The server reads the contents of the grant tables into memory when it starts.
+    You can tell it to reload the tables by issuing a [`FLUSH PRIVILEGES`](flush.html#flush-privileges)
+    statement or executing a [**mysqladmin flush-privileges**](mysqladmin.html "6.5.2 mysqladmin
+    — A MySQL Server Administration Program") or [**mysqladmin reload**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") command. Changes to
+    the grant tables take effect as indicated in [Section 8.2.13, “When Privilege
+    Changes Take Effect”](privilege-changes.html "8.2.13 When Privilege Changes Take
+    Effect").
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器在启动时将授予表的内容读入内存。您可以通过发出 [`FLUSH PRIVILEGES`](flush.html#flush-privileges)
+    语句或执行 [**mysqladmin flush-privileges**](mysqladmin.html "6.5.2 mysqladmin — A
+    MySQL Server Administration Program") 或 [**mysqladmin reload**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") 命令来告诉它重新加载表。对授权表的更改将按照
+    [第8.2.13节，“权限更改生效时间”](privilege-changes.html "8.2.13 权限更改生效时间") 中指示的方式生效。
+- en: 'When you modify an account, it is a good idea to verify that your changes have
+    the intended effect. To check the privileges for a given account, use the [`SHOW
+    GRANTS`](show-grants.html "15.7.7.21 SHOW GRANTS Statement") statement. For example,
+    to determine the privileges that are granted to an account with user name and
+    host name values of `bob` and `pc84.example.com`, use this statement:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您修改帐户时，最好验证您的更改是否产生预期效果。要检查给定帐户的权限，请使用 [`SHOW GRANTS`](show-grants.html "15.7.7.21 SHOW
+    GRANTS Statement") 语句。例如，要确定授予具有用户名和主机名值为 `bob` 和 `pc84.example.com` 的帐户的权限，请使用此语句：
+- en: '[PRE0]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To display nonprivilege properties of an account, use [`SHOW CREATE USER`](show-create-user.html
+    "15.7.7.12 SHOW CREATE USER Statement"):'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要显示帐户的非权限属性，请使用 [`SHOW CREATE USER`](show-create-user.html "15.7.7.12 SHOW CREATE
+    USER Statement")：
+- en: '[PRE1]'
+  id: totrans-52
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The user and db Grant Tables
+  id: totrans-53
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 用户和数据库授权表
+- en: The server uses the `user` and `db` tables in the `mysql` database at both the
+    first and second stages of access control (see [Section 8.2, “Access Control and
+    Account Management”](access-control.html "8.2 Access Control and Account Management")).
+    The columns in the `user` and `db` tables are shown here.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器在访问控制的第一和第二阶段都使用 `mysql` 数据库中的 `user` 和 `db` 表（参见 [第8.2节，“访问控制和账户管理”](access-control.html
+    "8.2 访问控制和账户管理")）。这里显示了 `user` 和 `db` 表中的列。
+- en: '**Table 8.4 user and db Table Columns**'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.4 user 和 db 表列**'
+- en: '| Table Name | `user` | `db` |'
+  id: totrans-56
+  prefs: []
+  type: TYPE_TB
+  zh: 表名 | `user` | `db` |
+- en: '| **Scope columns** | `Host` | `Host` |'
+  id: totrans-57
+  prefs: []
+  type: TYPE_TB
+  zh: '| **范围列** | `Host` | `Host` |'
+- en: '|  | `User` | `Db` |'
+  id: totrans-58
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `User` | `Db` |'
+- en: '|  |  | `User` |'
+  id: totrans-59
+  prefs: []
+  type: TYPE_TB
+  zh: '|  |  | `User` |'
+- en: '| **Privilege columns** | `Select_priv` | `Select_priv` |'
+  id: totrans-60
+  prefs: []
+  type: TYPE_TB
+  zh: '| **权限列** | `Select_priv` | `Select_priv` |'
+- en: '|  | `Insert_priv` | `Insert_priv` |'
+  id: totrans-61
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Insert_priv` | `Insert_priv` |'
+- en: '|  | `Update_priv` | `Update_priv` |'
+  id: totrans-62
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Update_priv` | `Update_priv` |'
+- en: '|  | `Delete_priv` | `Delete_priv` |'
+  id: totrans-63
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Delete_priv` | `Delete_priv` |'
+- en: '|  | `Index_priv` | `Index_priv` |'
+  id: totrans-64
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Index_priv` | `Index_priv` |'
+- en: '|  | `Alter_priv` | `Alter_priv` |'
+  id: totrans-65
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Alter_priv` | `Alter_priv` |'
+- en: '|  | `Create_priv` | `Create_priv` |'
+  id: totrans-66
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Create_priv` | `Create_priv` |'
+- en: '|  | `Drop_priv` | `Drop_priv` |'
+  id: totrans-67
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Drop_priv` | `Drop_priv` |'
+- en: '|  | `Grant_priv` | `Grant_priv` |'
+  id: totrans-68
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Grant_priv` | `Grant_priv` |'
+- en: '|  | `Create_view_priv` | `Create_view_priv` |'
+  id: totrans-69
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Create_view_priv` | `Create_view_priv` |'
+- en: '|  | `Show_view_priv` | `Show_view_priv` |'
+  id: totrans-70
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Show_view_priv` | `Show_view_priv` |'
+- en: '|  | `Create_routine_priv` | `Create_routine_priv` |'
+  id: totrans-71
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Create_routine_priv` | `Create_routine_priv` |'
+- en: '|  | `Alter_routine_priv` | `Alter_routine_priv` |'
+  id: totrans-72
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Alter_routine_priv` | `Alter_routine_priv` |'
+- en: '|  | `Execute_priv` | `Execute_priv` |'
+  id: totrans-73
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Execute_priv` | `Execute_priv` |'
+- en: '|  | `Trigger_priv` | `Trigger_priv` |'
+  id: totrans-74
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Trigger_priv` | `Trigger_priv` |'
+- en: '|  | `Event_priv` | `Event_priv` |'
+  id: totrans-75
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Event_priv` | `Event_priv` |'
+- en: '|  | `Create_tmp_table_priv` | `Create_tmp_table_priv` |'
+  id: totrans-76
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Create_tmp_table_priv` | `Create_tmp_table_priv` |'
+- en: '|  | `Lock_tables_priv` | `Lock_tables_priv` |'
+  id: totrans-77
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Lock_tables_priv` | `Lock_tables_priv` |'
+- en: '|  | `References_priv` | `References_priv` |'
+  id: totrans-78
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `References_priv` | `References_priv` |'
+- en: '|  | `Reload_priv` |  |'
+  id: totrans-79
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Reload_priv` |  |'
+- en: '|  | `Shutdown_priv` |  |'
+  id: totrans-80
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Shutdown_priv` |  |'
+- en: '|  | `Process_priv` |  |'
+  id: totrans-81
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Process_priv` |  |'
+- en: '|  | `File_priv` |  |'
+  id: totrans-82
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `File_priv` |  |'
+- en: '|  | `Show_db_priv` |  |'
+  id: totrans-83
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Show_db_priv` |  |'
+- en: '|  | `Super_priv` |  |'
+  id: totrans-84
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Super_priv` |  |'
+- en: '|  | `Repl_slave_priv` |  |'
+  id: totrans-85
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Repl_slave_priv` |  |'
+- en: '|  | `Repl_client_priv` |  |'
+  id: totrans-86
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Repl_client_priv` |  |'
+- en: '|  | `Create_user_priv` |  |'
+  id: totrans-87
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Create_user_priv` |  |'
+- en: '|  | `Create_tablespace_priv` |  |'
+  id: totrans-88
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Create_tablespace_priv` |  |'
+- en: '|  | `Create_role_priv` |  |'
+  id: totrans-89
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Create_role_priv` |  |'
+- en: '|  | `Drop_role_priv` |  |'
+  id: totrans-90
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Drop_role_priv` |  |'
+- en: '| **Security columns** | `ssl_type` |  |'
+  id: totrans-91
+  prefs: []
+  type: TYPE_TB
+  zh: '| **安全列** | `ssl_type` |  |'
+- en: '|  | `ssl_cipher` |  |'
+  id: totrans-92
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `ssl_cipher` |  |'
+- en: '|  | `x509_issuer` |  |'
+  id: totrans-93
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `x509_issuer` |  |'
+- en: '|  | `x509_subject` |  |'
+  id: totrans-94
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `x509_subject` |  |'
+- en: '|  | `plugin` |  |'
+  id: totrans-95
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `plugin` |  |'
+- en: '|  | `authentication_string` |  |'
+  id: totrans-96
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `authentication_string` |  |'
+- en: '|  | `password_expired` |  |'
+  id: totrans-97
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `password_expired` |  |'
+- en: '|  | `password_last_changed` |  |'
+  id: totrans-98
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `password_last_changed` |  |'
+- en: '|  | `password_lifetime` |  |'
+  id: totrans-99
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `password_lifetime` |  |'
+- en: '|  | `account_locked` |  |'
+  id: totrans-100
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `account_locked` |  |'
+- en: '|  | `Password_reuse_history` |  |'
+  id: totrans-101
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Password_reuse_history` |  |'
+- en: '|  | `Password_reuse_time` |  |'
+  id: totrans-102
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Password_reuse_time` |  |'
+- en: '|  | `Password_require_current` |  |'
+  id: totrans-103
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `Password_require_current` |  |'
+- en: '|  | `User_attributes` |  |'
+  id: totrans-104
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `User_attributes` |  |'
+- en: '| **Resource control columns** | `max_questions` |  |'
+  id: totrans-105
+  prefs: []
+  type: TYPE_TB
+  zh: '| **资源控制列** | `max_questions` |  |'
+- en: '|  | `max_updates` |  |'
+  id: totrans-106
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `max_updates` |  |'
+- en: '|  | `max_connections` |  |'
+  id: totrans-107
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `max_connections` |  |'
+- en: '|  | `max_user_connections` |  |'
+  id: totrans-108
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `max_user_connections` |  |'
+- en: '| Table Name | `user` | `db` |'
+  id: totrans-109
+  prefs: []
+  type: TYPE_TB
+  zh: 表名 | `user` | `db` |
+- en: The `user` table `plugin` and `authentication_string` columns store authentication
+    plugin and credential information.
+  id: totrans-110
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`user`表的`plugin`和`authentication_string`列存储身份验证插件和凭据信息。'
+- en: The server uses the plugin named in the `plugin` column of an account row to
+    authenticate connection attempts for the account.
+  id: totrans-111
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用帐户行的`plugin`列中命名的插件来验证帐户的连接尝试。
+- en: 'The `plugin` column must be nonempty. At startup, and at runtime when [`FLUSH
+    PRIVILEGES`](flush.html#flush-privileges) is executed, the server checks `user`
+    table rows. For any row with an empty `plugin` column, the server writes a warning
+    to the error log of this form:'
+  id: totrans-112
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`plugin`列必须非空。在启动时，以及在执行[`FLUSH PRIVILEGES`](flush.html#flush-privileges)时，服务器会检查`user`表行。对于任何`plugin`列为空的行，服务器会向错误日志写入以下警告：'
+- en: '[PRE2]'
+  id: totrans-113
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: To assign a plugin to an account that is missing one, use the [`ALTER USER`](alter-user.html
+    "15.7.1.1 ALTER USER Statement") statement.
+  id: totrans-114
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为缺少插件的帐户分配插件，请使用[`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER Statement")语句。
+- en: The `password_expired` column permits DBAs to expire account passwords and require
+    users to reset their password. The default `password_expired` value is `'N'`,
+    but can be set to `'Y'` with the [`ALTER USER`](alter-user.html "15.7.1.1 ALTER
+    USER Statement") statement. After an account's password has been expired, all
+    operations performed by the account in subsequent connections to the server result
+    in an error until the user issues an [`ALTER USER`](alter-user.html "15.7.1.1 ALTER
+    USER Statement") statement to establish a new account password.
+  id: totrans-115
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`password_expired`列允许DBA过期帐户密码并要求用户重置密码。默认的`password_expired`值为`''N''`，但可以使用[`ALTER
+    USER`](alter-user.html "15.7.1.1 ALTER USER Statement")语句设置为`''Y''`。帐户密码过期后，在后续连接到服务器时，帐户执行的所有操作都会导致错误，直到用户发出[`ALTER
+    USER`](alter-user.html "15.7.1.1 ALTER USER Statement")语句以建立新的帐户密码。'
+- en: Note
+  id: totrans-116
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Although it is possible to “reset” an expired password by setting it to its
+    current value, it is preferable, as a matter of good policy, to choose a different
+    password. DBAs can enforce non-reuse by establishing an appropriate password-reuse
+    policy. See [Password Reuse Policy](password-management.html#password-reuse-policy
+    "Password Reuse Policy").
+  id: totrans-117
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管可以通过将过期密码设置为当前值来“重置”过期密码，但最好根据良好的政策选择不同的密码。DBA可以通过建立适当的密码重用策略来强制不重用。请参阅[密码重用策略](password-management.html#password-reuse-policy
+    "Password Reuse Policy")。
+- en: '`password_last_changed` is a `TIMESTAMP` column indicating when the password
+    was last changed. The value is non-`NULL` only for accounts that use a MySQL built-in
+    authentication plugin (`mysql_native_password`, `sha256_password`, or `caching_sha2_password`).
+    The value is `NULL` for other accounts, such as those authenticated using an external
+    authentication system.'
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`password_last_changed`是一个`TIMESTAMP`列，指示密码上次更改的时间。该值仅对使用MySQL内置身份验证插件（`mysql_native_password`、`sha256_password`或`caching_sha2_password`）的帐户为非`NULL`。对于其他帐户，如使用外部身份验证系统进行身份验证的帐户，该值为`NULL`。'
+- en: '`password_last_changed` is updated by the [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement"), [`ALTER USER`](alter-user.html "15.7.1.1 ALTER
+    USER Statement"), and [`SET PASSWORD`](set-password.html "15.7.1.10 SET PASSWORD
+    Statement") statements, and by [`GRANT`](grant.html "15.7.1.6 GRANT Statement")
+    statements that create an account or change an account password.'
+  id: totrans-119
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`password_last_changed` 由 [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER 语句")、[`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER 语句") 和 [`SET PASSWORD`](set-password.html
+    "15.7.1.10 SET PASSWORD 语句") 语句以及创建帐户或更改帐户密码的 [`GRANT`](grant.html "15.7.1.6 GRANT
+    语句") 语句更新。'
+- en: '`password_lifetime` indicates the account password lifetime, in days. If the
+    password is past its lifetime (assessed using the `password_last_changed` column),
+    the server considers the password expired when clients connect using the account.
+    A value of *`N`* greater than zero means that the password must be changed every
+    *`N`* days. A value of 0 disables automatic password expiration. If the value
+    is `NULL` (the default), the global expiration policy applies, as defined by the
+    [`default_password_lifetime`](server-system-variables.html#sysvar_default_password_lifetime)
+    system variable.'
+  id: totrans-120
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`password_lifetime` 指示帐户密码的生命周期，以天为单位。如果密码已超过其生命周期（使用 `password_last_changed`
+    列进行评估），当客户端使用该帐户连接时，服务器将视密码为已过期。大于零的 *`N`* 值表示密码必须每 *`N`* 天更改一次。值为 0 禁用自动密码过期。如果值为
+    `NULL`（默认值），则全局过期策略适用，由 [`default_password_lifetime`](server-system-variables.html#sysvar_default_password_lifetime)
+    系统变量定义。'
+- en: '`account_locked` indicates whether the account is locked (see [Section 8.2.20,
+    “Account Locking”](account-locking.html "8.2.20 Account Locking")).'
+  id: totrans-121
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`account_locked` 指示帐户是否被锁定（参见[第 8.2.20 节，“帐户锁定”](account-locking.html "8.2.20 帐户锁定")）。'
+- en: '`Password_reuse_history` is the value of the `PASSWORD HISTORY` option for
+    the account, or `NULL` for the default history.'
+  id: totrans-122
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Password_reuse_history` 是帐户的 `PASSWORD HISTORY` 选项的值，或者对于默认历史记录为 `NULL`。'
+- en: '`Password_reuse_time` is the value of the `PASSWORD REUSE INTERVAL` option
+    for the account, or `NULL` for the default interval.'
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Password_reuse_time` 是帐户的 `PASSWORD REUSE INTERVAL` 选项的值，或者对于默认间隔为 `NULL`。'
+- en: '`Password_require_current` (added in MySQL 8.0.13) corresponds to the value
+    of the `PASSWORD REQUIRE` option for the account, as shown by the following table.'
+  id: totrans-124
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Password_require_current`（MySQL 8.0.13 中新增）对应于帐户的 `PASSWORD REQUIRE` 选项的值，如下表所示。'
+- en: '**Table 8.5 Permitted Password_require_current Values**'
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.5 允许的 Password_require_current 值**'
+- en: '| Password_require_current Value | Corresponding PASSWORD REQUIRE Option |'
+  id: totrans-126
+  prefs: []
+  type: TYPE_TB
+  zh: '| Password_require_current 值 | 对应的 PASSWORD REQUIRE 选项 |'
+- en: '| `''Y''` | `PASSWORD REQUIRE CURRENT` |'
+  id: totrans-127
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''Y''` | `PASSWORD REQUIRE CURRENT` |'
+- en: '| `''N''` | `PASSWORD REQUIRE CURRENT OPTIONAL` |'
+  id: totrans-128
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''N''` | `PASSWORD REQUIRE CURRENT OPTIONAL` |'
+- en: '| `NULL` | `PASSWORD REQUIRE CURRENT DEFAULT` |'
+  id: totrans-129
+  prefs: []
+  type: TYPE_TB
+  zh: '| `NULL` | `PASSWORD REQUIRE CURRENT DEFAULT` |'
+- en: '`User_attributes` (added in MySQL 8.0.14) is a JSON-format column that stores
+    account attributes not stored in other columns. As of MySQL 8.0.21, the `INFORMATION_SCHEMA`
+    exposes these attributes through the [`USER_ATTRIBUTES`](information-schema-user-attributes-table.html
+    "28.3.46 The INFORMATION_SCHEMA USER_ATTRIBUTES Table") table.'
+  id: totrans-130
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`User_attributes`（MySQL 8.0.14 中新增）是一个以 JSON 格式存储帐户属性的列，这些属性未存储在其他列中。截至 MySQL
+    8.0.21，`INFORMATION_SCHEMA` 通过 [`USER_ATTRIBUTES`](information-schema-user-attributes-table.html
+    "28.3.46 INFORMATION_SCHEMA USER_ATTRIBUTES 表") 表公开这些属性。'
+- en: 'The `User_attributes` column may contain these attributes:'
+  id: totrans-131
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`User_attributes` 列可能包含这些属性：'
+- en: '`additional_password`: The secondary password, if any. See [Dual Password Support](password-management.html#dual-passwords
+    "Dual Password Support").'
+  id: totrans-132
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`additional_password`：次要密码，如果有的话。请参阅[双密码支持](password-management.html#dual-passwords
+    "双密码支持")。'
+- en: '`Restrictions`: Restriction lists, if any. Restrictions are added by partial-revoke
+    operations. The attribute value is an array of elements that each have `Database`
+    and `Restrictions` keys indicating the name of a restricted database and the applicable
+    restrictions on it (see [Section 8.2.12, “Privilege Restriction Using Partial
+    Revokes”](partial-revokes.html "8.2.12 Privilege Restriction Using Partial Revokes")).'
+  id: totrans-133
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Restrictions`：限制列表，如果有的话。限制是通过部分撤销操作添加的。属性值是一个元素数组，每个元素都有 `Database` 和 `Restrictions`
+    键，指示受限数据库的名称和适用于其上的限制（参见[第 8.2.12 节，“使用部分撤销进行权限限制”](partial-revokes.html "8.2.12 使用部分撤销进行权限限制")）。'
+- en: '`Password_locking`: The conditions for failed-login tracking and temporary
+    account locking, if any (see [Failed-Login Tracking and Temporary Account Locking](password-management.html#failed-login-tracking
+    "Failed-Login Tracking and Temporary Account Locking")). The `Password_locking`
+    attribute is updated according to the `FAILED_LOGIN_ATTEMPTS` and `PASSWORD_LOCK_TIME`
+    options of the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    and [`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER Statement") statements.
+    The attribute value is a hash with `failed_login_attempts` and `password_lock_time_days`
+    keys indicating the value of such options as have been specified for the account.
+    If a key is missing, its value is implicitly 0\. If a key value is implicitly
+    or explicitly 0, the corresponding capability is disabled. This attribute was
+    added in MySQL 8.0.19.'
+  id: totrans-134
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Password_locking`: 如果有的话，是关于失败登录跟踪和临时账户锁定的条件（参见[失败登录跟踪和临时账户锁定](password-management.html#failed-login-tracking
+    "失败登录跟踪和临时账户锁定")）。`Password_locking`属性根据[`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER语句")和[`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER语句")语句的`FAILED_LOGIN_ATTEMPTS`和`PASSWORD_LOCK_TIME`选项进行更新。该属性值是一个哈希，其中包含`failed_login_attempts`和`password_lock_time_days`键，指示为该账户指定的选项值。如果某个键缺失，则其值隐式为0。如果键值隐式或显式为0，则相应的功能被禁用。此属性在MySQL
+    8.0.19中添加。'
+- en: '`multi_factor_authentication`: Rows in the `mysql.user` system table have a
+    `plugin` column that indicates an authentication plugin. For single-factor authentication,
+    that plugin is the only authentication factor. For two-factor or three-factor
+    forms of multifactor authentication, that plugin corresponds to the first authentication
+    factor, but additional information must be stored for the second and third factors.
+    The `multi_factor_authentication` attribute holds this information. This attribute
+    was added in MySQL 8.0.27.'
+  id: totrans-135
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`multi_factor_authentication`: `mysql.user`系统表中的行具有一个`plugin`列，指示认证插件。对于单因素认证，该插件是唯一的认证因素。对于多因素认证的两因素或三因素形式，该插件对应于第一个认证因素，但必须为第二和第三因素存储额外信息。`multi_factor_authentication`属性保存了这些信息。此属性在MySQL
+    8.0.27中添加。'
+- en: 'The `multi_factor_authentication` value is an array, where each array element
+    is a hash that describes an authentication factor using these attributes:'
+  id: totrans-136
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`multi_factor_authentication`值是一个数组，其中每个数组元素都是一个哈希，描述了使用以下属性描述的认证因素：'
+- en: '`plugin`: The name of the authentication plugin.'
+  id: totrans-137
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`plugin`: 认证插件的名称。'
+- en: '`authentication_string`: The authentication string value.'
+  id: totrans-138
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`authentication_string`: 认证字符串的值。'
+- en: '`passwordless`: A flag that denotes whether the user is meant to be used without
+    a password (with a security token as the only authentication method).'
+  id: totrans-139
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`passwordless`: 一个标志，表示用户是否可以在没有密码的情况下使用（仅使用安全令牌作为唯一的认证方法）。'
+- en: '`requires_registration`: a flag that defines whether the user account has registered
+    a security token.'
+  id: totrans-140
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`requires_registration`: 一个定义用户账户是否已注册安全令牌的标志。'
+- en: The first and second array elements describe multifactor authentication factors
+    2 and 3.
+  id: totrans-141
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 第一个和第二个数组元素描述了多因素认证因素2和3。
+- en: If no attributes apply, `User_attributes` is `NULL`.
+  id: totrans-142
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果没有属性适用，则`User_attributes`为`NULL`。
+- en: 'Example: An account that has a secondary password and partially revoked database
+    privileges has `additional_password` and `Restrictions` attributes in the column
+    value:'
+  id: totrans-143
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例子：一个具有次要密码和部分撤销数据库权限的账户在列值中具有`additional_password`和`Restrictions`属性：
+- en: '[PRE3]'
+  id: totrans-144
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'To determine which attributes are present, use the [`JSON_KEYS()`](json-search-functions.html#function_json-keys)
+    function:'
+  id: totrans-145
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要确定存在哪些属性，请使用[`JSON_KEYS()`](json-search-functions.html#function_json-keys)函数：
+- en: '[PRE4]'
+  id: totrans-146
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'To extract a particular attribute, such as `Restrictions`, do this:'
+  id: totrans-147
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要提取特定属性，例如`Restrictions`，请执行以下操作：
+- en: '[PRE5]'
+  id: totrans-148
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Here is an example of the kind of information stored for `multi_factor_authentication`:'
+  id: totrans-149
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是存储在`multi_factor_authentication`中的信息示例：
+- en: '[PRE6]'
+  id: totrans-150
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The tables_priv and columns_priv Grant Tables
+  id: totrans-151
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: tables_priv和columns_priv授权表
+- en: During the second stage of access control, the server performs request verification
+    to ensure that each client has sufficient privileges for each request that it
+    issues. In addition to the `user` and `db` grant tables, the server may also consult
+    the `tables_priv` and `columns_priv` tables for requests that involve tables.
+    The latter tables provide finer privilege control at the table and column levels.
+    They have the columns shown in the following table.
+  id: totrans-152
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在访问控制的第二阶段，服务器执行请求验证，以确保每个客户端对其发出的每个请求都具有足够的权限。除了`user`和`db`授权表外，服务器还可能在涉及表的请求中查阅`tables_priv`和`columns_priv`表。后者在表和列级别提供更精细的权限控制。它们具有以下表中显示的列。
+- en: '**Table 8.6 tables_priv and columns_priv Table Columns**'
+  id: totrans-153
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.6 tables_priv 和 columns_priv 表列**'
+- en: '| Table Name | `tables_priv` | `columns_priv` |'
+  id: totrans-154
+  prefs: []
+  type: TYPE_TB
+  zh: '| 表名 | `tables_priv` | `columns_priv` |'
+- en: '| **Scope columns** | `Host` | `Host` |'
+  id: totrans-155
+  prefs: []
+  type: TYPE_TB
+  zh: '| **范围列** | `主机` | `主机` |'
+- en: '|  | `Db` | `Db` |'
+  id: totrans-156
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `数据库` | `数据库` |'
+- en: '|  | `User` | `User` |'
+  id: totrans-157
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `用户` | `用户` |'
+- en: '|  | `Table_name` | `Table_name` |'
+  id: totrans-158
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `表名` | `表名` |'
+- en: '|  |  | `Column_name` |'
+  id: totrans-159
+  prefs: []
+  type: TYPE_TB
+  zh: '|  |  | `列名` |'
+- en: '| **Privilege columns** | `Table_priv` | `Column_priv` |'
+  id: totrans-160
+  prefs: []
+  type: TYPE_TB
+  zh: '| **权限列** | `表权限` | `列权限` |'
+- en: '|  | `Column_priv` |  |'
+  id: totrans-161
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `列权限` |  |'
+- en: '| **Other columns** | `Timestamp` | `Timestamp` |'
+  id: totrans-162
+  prefs: []
+  type: TYPE_TB
+  zh: '| **其他列** | `时间戳` | `时间戳` |'
+- en: '|  | `Grantor` |  |'
+  id: totrans-163
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `授权者` |  |'
+- en: The `Timestamp` and `Grantor` columns are set to the current timestamp and the
+    [`CURRENT_USER`](information-functions.html#function_current-user) value, respectively,
+    but are otherwise unused.
+  id: totrans-164
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`时间戳` 和 `授权者` 列分别设置为当前时间戳和[`CURRENT_USER`](information-functions.html#function_current-user)值，但其他情况下未使用。'
+- en: The procs_priv Grant Table
+  id: totrans-165
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: procs_priv 授权表
+- en: For verification of requests that involve stored routines, the server may consult
+    the `procs_priv` table, which has the columns shown in the following table.
+  id: totrans-166
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了验证涉及存储例程的请求，服务器可能会查阅`procs_priv`表，该表具有以下表中显示的列。
+- en: '**Table 8.7 procs_priv Table Columns**'
+  id: totrans-167
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.7 procs_priv 表列**'
+- en: '| Table Name | `procs_priv` |'
+  id: totrans-168
+  prefs: []
+  type: TYPE_TB
+  zh: '| 表名 | `procs_priv` |'
+- en: '| **Scope columns** | `Host` |'
+  id: totrans-169
+  prefs: []
+  type: TYPE_TB
+  zh: '| **范围列** | `主机` |'
+- en: '|  | `Db` |'
+  id: totrans-170
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `数据库` |'
+- en: '|  | `User` |'
+  id: totrans-171
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `用户` |'
+- en: '|  | `Routine_name` |'
+  id: totrans-172
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `例程名` |'
+- en: '|  | `Routine_type` |'
+  id: totrans-173
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `例程类型` |'
+- en: '| **Privilege columns** | `Proc_priv` |'
+  id: totrans-174
+  prefs: []
+  type: TYPE_TB
+  zh: '| **权限列** | `Proc权限` |'
+- en: '| **Other columns** | `Timestamp` |'
+  id: totrans-175
+  prefs: []
+  type: TYPE_TB
+  zh: '| **其他列** | `时间戳` |'
+- en: '|  | `Grantor` |'
+  id: totrans-176
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `授权者` |'
+- en: The `Routine_type` column is an [`ENUM`](enum.html "13.3.5 The ENUM Type") column
+    with values of `'FUNCTION'` or `'PROCEDURE'` to indicate the type of routine the
+    row refers to. This column enables privileges to be granted separately for a function
+    and a procedure with the same name.
+  id: totrans-177
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`例程类型` 列是一个具有值 `''FUNCTION''` 或 `''PROCEDURE''` 的[`ENUM`](enum.html "13.3.5 ENUM类型")列，用于指示行所指的例程类型。该列使得可以分别为具有相同名称的函数和过程授予权限。'
+- en: The `Timestamp` and `Grantor` columns are unused.
+  id: totrans-178
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`时间戳` 和 `授权者` 列未使用。'
+- en: The proxies_priv Grant Table
+  id: totrans-179
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: proxies_priv 授权表
+- en: 'The `proxies_priv` table records information about proxy accounts. It has these
+    columns:'
+  id: totrans-180
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`proxies_priv` 表记录有关代理账户的信息。它具有以下列：'
+- en: '`Host`, `User`: The proxy account; that is, the account that has the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for the proxied account.'
+  id: totrans-181
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`主机`，`用户`：代理账户；即具有被代理账户的[`PROXY`](privileges-provided.html#priv_proxy)权限的账户。'
+- en: '`Proxied_host`, `Proxied_user`: The proxied account.'
+  id: totrans-182
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`被代理主机`，`被代理用户`：被代理账户。'
+- en: '`Grantor`, `Timestamp`: Unused.'
+  id: totrans-183
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`授权者`，`时间戳`：未使用。'
+- en: '`With_grant`: Whether the proxy account can grant the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege to other accounts.'
+  id: totrans-184
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`With_grant`：代理账户是否可以将[`PROXY`](privileges-provided.html#priv_proxy)权限授予其他账户。'
+- en: For an account to be able to grant the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege to other accounts, it must have a row in the `proxies_priv` table with
+    `With_grant` set to 1 and `Proxied_host` and `Proxied_user` set to indicate the
+    account or accounts for which the privilege can be granted. For example, the `'root'@'localhost'`
+    account created during MySQL installation has a row in the `proxies_priv` table
+    that enables granting the [`PROXY`](privileges-provided.html#priv_proxy) privilege
+    for `''@''`, that is, for all users and all hosts. This enables `root` to set
+    up proxy users, as well as to delegate to other accounts the authority to set
+    up proxy users. See [Section 8.2.19, “Proxy Users”](proxy-users.html "8.2.19 Proxy
+    Users").
+  id: totrans-185
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使账户能够向其他账户授予[`PROXY`](privileges-provided.html#priv_proxy)特权，必须在`proxies_priv`表中具有一行，其中`With_grant`设置为1，`Proxied_host`和`Proxied_user`设置为指示可以授予特权的账户或账户。例如，在
+    MySQL 安装期间创建的`'root'@'localhost'`账户在`proxies_priv`表中有一行，该行允许为`''@''`，即所有用户和所有主机，授予[`PROXY`](privileges-provided.html#priv_proxy)特权。这使得`root`能够设置代理用户，以及委派给其他账户权限设置代理用户的权限。参见[Section 8.2.19,
+    “Proxy Users”](proxy-users.html "8.2.19 Proxy Users")。
+- en: The global_grants Grant Table
+  id: totrans-186
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 全局授权授权表
+- en: 'The `global_grants` table lists current assignments of dynamic global privileges
+    to user accounts. The table has these columns:'
+  id: totrans-187
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`global_grants`表列出了动态全局特权当前分配给用户账户的情况。该表包含以下列：'
+- en: '`USER`, `HOST`: The user name and host name of the account to which the privilege
+    is granted.'
+  id: totrans-188
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`用户`，`主机`：被授予权限的账户的用户名和主机名。'
+- en: '`PRIV`: The privilege name.'
+  id: totrans-189
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`权限`：权限名称。'
+- en: '`WITH_GRANT_OPTION`: Whether the account can grant the privilege to other accounts.'
+  id: totrans-190
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`WITH_GRANT_OPTION`：账户是��可以向其他账户授予特权。'
+- en: The default_roles Grant Table
+  id: totrans-191
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 默认角色授权表
+- en: 'The `default_roles` table lists default user roles. It has these columns:'
+  id: totrans-192
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`default_roles`表列出了默认用户角色。它包含以下列：'
+- en: '`HOST`, `USER`: The account or role to which the default role applies.'
+  id: totrans-193
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`主机`，`用户`：应用默认角色的账户或角色。'
+- en: '`DEFAULT_ROLE_HOST`, `DEFAULT_ROLE_USER`: The default role.'
+  id: totrans-194
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DEFAULT_ROLE_HOST`，`DEFAULT_ROLE_USER`：默认角色。'
+- en: The role_edges Grant Table
+  id: totrans-195
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 角色边缘授权表
+- en: 'The `role_edges` table lists edges for role subgraphs. It has these columns:'
+  id: totrans-196
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`role_edges`表列出了角色子图的边缘。它包含以下列：'
+- en: '`FROM_HOST`, `FROM_USER`: The account that is granted a role.'
+  id: totrans-197
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FROM_HOST`，`FROM_USER`：被授予角色的账户。'
+- en: '`TO_HOST`, `TO_USER`: The role that is granted to the account.'
+  id: totrans-198
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`TO_HOST`，`TO_USER`：授予给账户的角色。'
+- en: '`WITH_ADMIN_OPTION`: Whether the account can grant the role to and revoke it
+    from other accounts by using `WITH ADMIN OPTION`.'
+  id: totrans-199
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`WITH_ADMIN_OPTION`：账户是否可以通过使用`WITH ADMIN OPTION`向其他账户授予角色和撤销角色。'
+- en: The password_history Grant Table
+  id: totrans-200
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 密码历史授权表
+- en: 'The `password_history` table contains information about password changes. It
+    has these columns:'
+  id: totrans-201
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`password_history`表包含有关密码更改的信息。它包含以下列：'
+- en: '`Host`, `User`: The account for which the password change occurred.'
+  id: totrans-202
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`主机`，`用户`：密码更改发生的账户。'
+- en: '`Password_timestamp`: The time when the password change occurred.'
+  id: totrans-203
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`密码时间戳`：密码更改发生的时间。'
+- en: '`Password`: The new password hash value.'
+  id: totrans-204
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`密码`：新密码哈希值。'
+- en: The `password_history` table accumulates a sufficient number of nonempty passwords
+    per account to enable MySQL to perform checks against both the account password
+    history length and reuse interval. Automatic pruning of entries that are outside
+    both limits occurs when password-change attempts occur.
+  id: totrans-205
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`password_history`表累积每个账户的足够数量的非空密码，以使 MySQL 能够执行针对账户密码历史长度和重用间隔的检查。当密码更改尝试发生时，会自动修剪超出这两个限制的条目。'
+- en: Note
+  id: totrans-206
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The empty password does not count in the password history and is subject to
+    reuse at any time.
+  id: totrans-207
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 空密码不计入密码历史记录，并可随时重新使用。
+- en: If an account is renamed, its entries are renamed to match. If an account is
+    dropped or its authentication plugin is changed, its entries are removed.
+  id: totrans-208
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果账户被重命名，其条目也将被重命名以匹配。如果账户被删除或其认证插件被更改，其条目将被移除。
+- en: Grant Table Scope Column Properties
+  id: totrans-209
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 授权表范围列属性
+- en: Scope columns in the grant tables contain strings. The default value for each
+    is the empty string. The following table shows the number of characters permitted
+    in each column.
+  id: totrans-210
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 授权表中的范围列包含字符串。每个的默认值为空字符串。以下表显示了每个列中允许的字符数。
+- en: '**Table 8.8 Grant Table Scope Column Lengths**'
+  id: totrans-211
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.8 授权表范围列长度**'
+- en: '| Column Name | Maximum Permitted Characters |'
+  id: totrans-212
+  prefs: []
+  type: TYPE_TB
+  zh: '| 列名 | 最大允许字符数 |'
+- en: '| `Host`, `Proxied_host` | 255 (60 prior to MySQL 8.0.17) |'
+  id: totrans-213
+  prefs: []
+  type: TYPE_TB
+  zh: '| `主机`，`代理主机` | 255（在 MySQL 8.0.17 之前为 60） |'
+- en: '| `User`, `Proxied_user` | 32 |'
+  id: totrans-214
+  prefs: []
+  type: TYPE_TB
+  zh: '| `用户`，`代理用户` | 32 |'
+- en: '| `Db` | 64 |'
+  id: totrans-215
+  prefs: []
+  type: TYPE_TB
+  zh: '| `数据库` | 64 |'
+- en: '| `Table_name` | 64 |'
+  id: totrans-216
+  prefs: []
+  type: TYPE_TB
+  zh: '| `表名` | 64 |'
+- en: '| `Column_name` | 64 |'
+  id: totrans-217
+  prefs: []
+  type: TYPE_TB
+  zh: '| `Column_name` | 64 |'
+- en: '| `Routine_name` | 64 |'
+  id: totrans-218
+  prefs: []
+  type: TYPE_TB
+  zh: '| `Routine_name` | 64 |'
+- en: '`Host` and `Proxied_host` values are converted to lowercase before being stored
+    in the grant tables.'
+  id: totrans-219
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Host` 和 `Proxied_host` 的值在存储在授权表中之前会被转换为小写。'
+- en: For access-checking purposes, comparisons of `User`, `Proxied_user`, `authentication_string`,
+    `Db`, and `Table_name` values are case-sensitive. Comparisons of `Host`, `Proxied_host`,
+    `Column_name`, and `Routine_name` values are not case-sensitive.
+  id: totrans-220
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了访问检查目的，`User`、`Proxied_user`、`authentication_string`、`Db` 和 `Table_name` 的值的比较是区分大小写的。`Host`、`Proxied_host`、`Column_name`
+    和 `Routine_name` 的值的比较是不区分大小写的。
+- en: Grant Table Privilege Column Properties
+  id: totrans-221
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 授权表权限列属性
+- en: The `user` and `db` tables list each privilege in a separate column that is
+    declared as `ENUM('N','Y') DEFAULT 'N'`. In other words, each privilege can be
+    disabled or enabled, with the default being disabled.
+  id: totrans-222
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`user` 和 `db` 表中列出了每个权限在一个单独的列中声明为 `ENUM(''N'',''Y'') DEFAULT ''N''`。换句话说，每个权限可以被禁用或启用，默认情况下为禁用。'
+- en: The `tables_priv`, `columns_priv`, and `procs_priv` tables declare the privilege
+    columns as [`SET`](set.html "13.3.6 The SET Type") columns. Values in these columns
+    can contain any combination of the privileges controlled by the table. Only those
+    privileges listed in the column value are enabled.
+  id: totrans-223
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`tables_priv`、`columns_priv` 和 `procs_priv` 表将权限列声明为 [`SET`](set.html "13.3.6 The
+    SET Type") 列。这些列中的值可以包含由表控制的任何权限的任意组合。只有列值中列出的权限才会被启用。'
+- en: '**Table 8.9 Set-Type Privilege Column Values**'
+  id: totrans-224
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.9 Set-Type Privilege Column Values**'
+- en: '| Table Name | Column Name | Possible Set Elements |'
+  id: totrans-225
+  prefs: []
+  type: TYPE_TB
+  zh: '| 表名 | 列名 | 可能的集合元素 |'
+- en: '| `tables_priv` | `Table_priv` | `''Select'', ''Insert'', ''Update'', ''Delete'',
+    ''Create'', ''Drop'', ''Grant'', ''References'', ''Index'', ''Alter'', ''Create
+    View'', ''Show view'', ''Trigger''` |'
+  id: totrans-226
+  prefs: []
+  type: TYPE_TB
+  zh: '| `tables_priv` | `Table_priv` | `''Select'', ''Insert'', ''Update'', ''Delete'',
+    ''Create'', ''Drop'', ''Grant'', ''References'', ''Index'', ''Alter'', ''Create
+    View'', ''Show view'', ''Trigger''` |'
+- en: '| `tables_priv` | `Column_priv` | `''Select'', ''Insert'', ''Update'', ''References''`
+    |'
+  id: totrans-227
+  prefs: []
+  type: TYPE_TB
+  zh: '| `tables_priv` | `Column_priv` | `''Select'', ''Insert'', ''Update'', ''References''`
+    |'
+- en: '| `columns_priv` | `Column_priv` | `''Select'', ''Insert'', ''Update'', ''References''`
+    |'
+  id: totrans-228
+  prefs: []
+  type: TYPE_TB
+  zh: '| `columns_priv` | `Column_priv` | `''Select'', ''Insert'', ''Update'', ''References''`
+    |'
+- en: '| `procs_priv` | `Proc_priv` | `''Execute'', ''Alter Routine'', ''Grant''`
+    |'
+  id: totrans-229
+  prefs: []
+  type: TYPE_TB
+  zh: '| `procs_priv` | `Proc_priv` | `''Execute'', ''Alter Routine'', ''Grant''`
+    |'
+- en: Only the `user` and `global_grants` tables specify administrative privileges,
+    such as [`RELOAD`](privileges-provided.html#priv_reload), [`SHUTDOWN`](privileges-provided.html#priv_shutdown),
+    and [`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin).
+    Administrative operations are operations on the server itself and are not database-specific,
+    so there is no reason to list these privileges in the other grant tables. Consequently,
+    the server need consult only the `user` and `global_grants` tables to determine
+    whether a user can perform an administrative operation.
+  id: totrans-230
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有 `user` 和 `global_grants` 表指定了管理权限，例如 [`RELOAD`](privileges-provided.html#priv_reload)、[`SHUTDOWN`](privileges-provided.html#priv_shutdown)
+    和 [`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)。管理操作是对服务器本身的操作，不是特定于数据库的，因此没有理由在其他授权表中列出这些权限。因此，服务器只需要查看
+    `user` 和 `global_grants` 表来确定用户是否可以执行管理操作。
+- en: The [`FILE`](privileges-provided.html#priv_file) privilege also is specified
+    only in the `user` table. It is not an administrative privilege as such, but a
+    user's ability to read or write files on the server host is independent of the
+    database being accessed.
+  id: totrans-231
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`FILE`](privileges-provided.html#priv_file) 权限也仅在 `user` 表中指定。它不是一种管理权限，而是用户在服务器主机上读取或写入文件的能力与所访问的数据库无关。'
+- en: Grant Table Concurrency
+  id: totrans-232
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 授权表并发性
+- en: 'As of MySQL 8.0.22, to permit concurrent DML and DDL operations on MySQL grant
+    tables, read operations that previously acquired row locks on MySQL grant tables
+    are executed as non-locking reads. Operations that are performed as non-locking
+    reads on MySQL grant tables include:'
+  id: totrans-233
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.22 开始，为了允许在 MySQL 授权表上进行并发的 DML 和 DDL 操作，以前在 MySQL 授权表上获取行锁的读操作将作为非锁定读取执行。在
+    MySQL 授权表上执行为非锁定读取的操作包括：
+- en: '[`SELECT`](select.html "15.2.13 SELECT Statement") statements and other read-only
+    statements that read data from grant tables through join lists and subqueries,
+    including [`SELECT ... FOR SHARE`](innodb-locking-reads.html "17.7.2.4 Locking
+    Reads") statements, using any transaction isolation level.'
+  id: totrans-234
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过联接列表和子查询从授权表中读取数据的 [`SELECT`](select.html "15.2.13 SELECT Statement") 语句和其他只读语句，包括使用任何事务隔离级别的
+    [`SELECT ... FOR SHARE`](innodb-locking-reads.html "17.7.2.4 Locking Reads") 语句。
+- en: DML operations that read data from grant tables (through join lists or subqueries)
+    but do not modify them, using any transaction isolation level.
+  id: totrans-235
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从授权表中读取数据的DML操作（通过连接列表或子查询）但不修改它们，在任何事务隔离级别下使用。
+- en: Statements that no longer acquire row locks when reading data from grant tables
+    report a warning if executed while using statement-based replication.
+  id: totrans-236
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从授权表中读取数据时不再获取行锁的语句，在使用基于语句的复制时执行会报告警告。
+- en: When using -[`binlog_format=mixed`](replication-options-binary-log.html#sysvar_binlog_format),
+    DML operations that read data from grant tables are written to the binary log
+    as row events to make the operations safe for mixed-mode replication.
+  id: totrans-237
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用 -[`binlog_format=mixed`](replication-options-binary-log.html#sysvar_binlog_format)
+    时，从授权表中读取数据的DML操作会被写入二进制日志作为行事件，以使操作对混合模式复制安全。
+- en: '[`SELECT ... FOR SHARE`](innodb-locking-reads.html "17.7.2.4 Locking Reads")
+    statements that read data from grant tables report a warning. With the `FOR SHARE`
+    clause, read locks are not supported on grant tables.'
+  id: totrans-238
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SELECT ... FOR SHARE`](innodb-locking-reads.html "17.7.2.4 锁定读取") 语句从授权表中读取数据时会报告警告。使用`FOR
+    SHARE`子句时，不支持在授权表上进行读取锁定。'
+- en: DML operations that read data from grant tables and are executed using the `SERIALIZABLE`
+    isolation level report a warning. Read locks that would normally be acquired when
+    using the `SERIALIZABLE` isolation level are not supported on grant tables.
+  id: totrans-239
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从授权表中读取数据并使用`SERIALIZABLE`隔离级别执行的DML操作会报告警告。在使用`SERIALIZABLE`隔离级别时通常会获取的读取锁在授权表上不受支持。

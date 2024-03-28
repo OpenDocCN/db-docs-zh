@@ -1,0 +1,225 @@
+- en: 18.8.3 FEDERATED Storage Engine Notes and Tips
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 18.8.3 FEDERATED存储引擎注意事项和提示
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/federated-usagenotes.html](https://dev.mysql.com/doc/refman/8.0/en/federated-usagenotes.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/federated-usagenotes.html](https://dev.mysql.com/doc/refman/8.0/en/federated-usagenotes.html)
+- en: 'You should be aware of the following points when using the `FEDERATED` storage
+    engine:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用`FEDERATED`存储引擎时，应注意以下几点：
+- en: '`FEDERATED` tables may be replicated to other replicas, but you must ensure
+    that the replica servers are able to use the user/password combination that is
+    defined in the `CONNECTION` string (or the row in the `mysql.servers` table) to
+    connect to the remote server.'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FEDERATED`表可以被复制到其他副本，但必须确保副本服务器能够使用在`CONNECTION`字符串（或`mysql.servers`表中的行）中定义的用户/密码组合连接到远程服务器。'
+- en: 'The following items indicate features that the `FEDERATED` storage engine does
+    and does not support:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下项目指示了`FEDERATED`存储引擎支持和不支持的功能：
+- en: The remote server must be a MySQL server.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 远程服务器必须是一个MySQL服务器。
+- en: The remote table that a `FEDERATED` table points to *must* exist before you
+    try to access the table through the `FEDERATED` table.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FEDERATED`表指向的远程表在通过`FEDERATED`表访问之前*必须*存在。'
+- en: It is possible for one `FEDERATED` table to point to another, but you must be
+    careful not to create a loop.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个`FEDERATED`表可以指向另一个表，但必须小心不要创建循环。
+- en: A `FEDERATED` table does not support indexes in the usual sense; because access
+    to the table data is handled remotely, it is actually the remote table that makes
+    use of indexes. This means that, for a query that cannot use any indexes and so
+    requires a full table scan, the server fetches all rows from the remote table
+    and filters them locally. This occurs regardless of any `WHERE` or `LIMIT` used
+    with this [`SELECT`](select.html "15.2.13 SELECT Statement") statement; these
+    clauses are applied locally to the returned rows.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FEDERATED`表不支持通常意义上的索引；因为对表数据的访问是远程处理的，实际上是远程表利用索引。这意味着，对于无法使用任何索引并因此需要完整表扫描的查询，服务器会从远程表中获取所有行并在本地进行过滤。这将发生无论此[`SELECT`](select.html
+    "15.2.13 SELECT语句")语句中使用的任何`WHERE`或`LIMIT`；这些子句在本地应用于返回的行。'
+- en: Queries that fail to use indexes can thus cause poor performance and network
+    overload. In addition, since returned rows must be stored in memory, such a query
+    can also lead to the local server swapping, or even hanging.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 未能使用索引的查询可能导致性能不佳和网络负载过重。此外，由于返回的行必须存储在内存中，这样的查询也可能导致本地服务器交换，甚至挂起。
+- en: 'Care should be taken when creating a `FEDERATED` table since the index definition
+    from an equivalent `MyISAM` or other table may not be supported. For example,
+    creating a `FEDERATED` table fails if the table uses an index prefix on any [`VARCHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types"), [`TEXT`](blob.html "13.3.4 The BLOB and
+    TEXT Types") or [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") columns.
+    The following definition using `MyISAM` is valid:'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在创建`FEDERATED`表时应当小心，因为来自等效`MyISAM`或其他表的索引定义可能不被支持。例如，如果表在任何[`VARCHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")、[`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")或[`BLOB`](blob.html
+    "13.3.4 BLOB和TEXT类型")列上使用索引前缀，则创建`FEDERATED`表将失败。以下使用`MyISAM`的定义是有效的：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The key prefix in this example is incompatible with the `FEDERATED` engine,
+    and the equivalent statement fails:'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此示例中的键前缀与`FEDERATED`引擎不兼容，等效语句将失败：
+- en: '[PRE1]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If possible, you should try to separate the column and index definition when
+    creating tables on both the remote server and the local server to avoid these
+    index issues.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果可能的话，在远程服务器和本地服务器创建表时，应尽量分开列和索引定义，以避免这些索引问题。
+- en: Internally, the implementation uses [`SELECT`](select.html "15.2.13 SELECT Statement"),
+    [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement"), and [`DELETE`](delete.html "15.2.2 DELETE Statement"), but not [`HANDLER`](handler.html
+    "15.2.5 HANDLER Statement").
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在内部，实现使用[`SELECT`](select.html "15.2.13 SELECT语句")、[`INSERT`](insert.html "15.2.7 INSERT语句")、[`UPDATE`](update.html
+    "15.2.17 UPDATE语句")和[`DELETE`](delete.html "15.2.2 DELETE语句")，但不使用[`HANDLER`](handler.html
+    "15.2.5 HANDLER语句")。
+- en: The `FEDERATED` storage engine supports [`SELECT`](select.html "15.2.13 SELECT
+    Statement"), [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement"), [`DELETE`](delete.html "15.2.2 DELETE Statement"),
+    [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement"), and
+    indexes. It does not support [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement"), or any Data Definition Language statements that directly affect the
+    structure of the table, other than [`DROP TABLE`](drop-table.html "15.1.32 DROP
+    TABLE Statement"). The current implementation does not use prepared statements.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FEDERATED`存储引擎支持[`SELECT`](select.html "15.2.13 SELECT Statement")、[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")、[`UPDATE`](update.html "15.2.17 UPDATE Statement")、[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")、[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE
+    TABLE Statement")和索引。它不支持[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement")或任何直接影响表结构的数据定义语言语句，除了[`DROP TABLE`](drop-table.html "15.1.32 DROP
+    TABLE Statement")。当前的实现不使用预处理语句。'
+- en: '`FEDERATED` accepts [`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html
+    "15.2.7.2 INSERT ... ON DUPLICATE KEY UPDATE Statement") statements, but if a
+    duplicate-key violation occurs, the statement fails with an error.'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FEDERATED`接受[`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html
+    "15.2.7.2 INSERT ... ON DUPLICATE KEY UPDATE Statement")语句，但如果发生重复键违规，该语句将失败并显示错误。'
+- en: Transactions are not supported.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不支持事务。
+- en: '`FEDERATED` performs bulk-insert handling such that multiple rows are sent
+    to the remote table in a batch, which improves performance. Also, if the remote
+    table is transactional, it enables the remote storage engine to perform statement
+    rollback properly should an error occur. This capability has the following limitations:'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FEDERATED`执行批量插入处理，使多行以批量方式发送到远程表，从而提高性能。此外，如果远程表是事务性的，它可以使远程存储引擎在发生错误时正确执行语句回滚。此功能具有以下限制：'
+- en: The size of the insert cannot exceed the maximum packet size between servers.
+    If the insert exceeds this size, it is broken into multiple packets and the rollback
+    problem can occur.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 插入的大小不能超过服务器之间的最大数据包大小。如果插入超过此大小，它将被分成多个数据包，可能会出现回滚问题。
+- en: Bulk-insert handling does not occur for [`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html
+    "15.2.7.2 INSERT ... ON DUPLICATE KEY UPDATE Statement").
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不会对[`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html "15.2.7.2 INSERT
+    ... ON DUPLICATE KEY UPDATE Statement")进行批量插入处理。
+- en: There is no way for the `FEDERATED` engine to know if the remote table has changed.
+    The reason for this is that this table must work like a data file that would never
+    be written to by anything other than the database system. The integrity of the
+    data in the local table could be breached if there was any change to the remote
+    database.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FEDERATED`引擎无法知道远程表是否发生了更改。原因是该表必须像数据文件一样工作，除了数据库系统之外不会被任何其他东西写入。如果远程数据库发生任何更改，本地表中的数据完整性可能会受到破坏。'
+- en: When using a `CONNECTION` string, you cannot use an '@' character in the password.
+    You can get round this limitation by using the [`CREATE SERVER`](create-server.html
+    "15.1.18 CREATE SERVER Statement") statement to create a server connection.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用`CONNECTION`字符串时，密码中不能使用'@'字符。您可以通过使用[`CREATE SERVER`](create-server.html
+    "15.1.18 CREATE SERVER Statement")语句创建服务器连接来绕过此限制。
+- en: The [`insert_id`](server-system-variables.html#sysvar_insert_id) and [`timestamp`](server-system-variables.html#sysvar_timestamp)
+    options are not propagated to the data provider.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`insert_id`](server-system-variables.html#sysvar_insert_id)和[`timestamp`](server-system-variables.html#sysvar_timestamp)选项不会传播到数据提供程序。'
+- en: Any [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") statement
+    issued against a `FEDERATED` table drops only the local table, not the remote
+    table.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对`FEDERATED`表执行的任何[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句仅删除本地表，而不是远程表。
+- en: User-defined partitioning is not supported for `FEDERATED` tables.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不支持对`FEDERATED`表进行用户定义的分区。

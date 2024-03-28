@@ -1,0 +1,122 @@
+- en: 10.2.4 Optimizing Performance Schema Queries
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.2.4 优化性能模式查询
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-optimization.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-optimization.html)
+- en: Applications that monitor databases may make frequent use of Performance Schema
+    tables. To write queries for these tables most efficiently, take advantage of
+    their indexes. For example, include a `WHERE` clause that restricts retrieved
+    rows based on comparison to specific values in an indexed column.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 监视数据库的应用程序可能经常使用性能模式表。为了最有效地为这些表编写查询，请利用它们的索引。例如，包括一个`WHERE`子句，根据索引列中的特定值进行检索行的限制。
+- en: Most Performance Schema tables have indexes. Tables that do not are those that
+    normally contain few rows or are unlikely to be queried frequently. Performance
+    Schema indexes give the optimizer access to execution plans other than full table
+    scans. These indexes also improve performance for related objects, such as [`sys`](sys-schema.html
+    "Chapter 30 MySQL sys Schema") schema views that use those tables.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 大多数性能模式表都有索引。不具有索引的表通常包含少量行或不太可能经常查询。性能模式索引使优化器可以访问除全表扫描之外的执行计划。这些索引还提高了相关对象的性能，例如使用这些表的[`sys`](sys-schema.html
+    "Chapter 30 MySQL sys Schema")模式视图。
+- en: 'To see whether a given Performance Schema table has indexes and what they are,
+    use [`SHOW INDEX`](show-index.html "15.7.7.22 SHOW INDEX Statement") or [`SHOW
+    CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE TABLE Statement"):'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看给定性能模式表是否具有索引以及它们是什么，请使用[`SHOW INDEX`](show-index.html "15.7.7.22 SHOW INDEX
+    Statement")或[`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE
+    TABLE Statement")：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To see the execution plan for a Performance Schema query and whether it uses
+    any indexes, use [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement"):'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看性能模式查询的执行计划以及是否使用任何索引，请使用[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output indicates that
+    the optimizer uses the [`accounts`](performance-schema-accounts-table.html "29.12.8.1 The
+    accounts Table") table `ACCOUNT` index that comprises the `USER` and `HOST` columns.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出表明优化器使用包含`USER`和`HOST`列的`ACCOUNT`索引的[`accounts`](performance-schema-accounts-table.html
+    "29.12.8.1 The accounts Table")表。'
+- en: 'Performance Schema indexes are virtual: They are a construct of the Performance
+    Schema storage engine and use no memory or disk storage. The Performance Schema
+    reports index information to the optimizer so that it can construct efficient
+    execution plans. The Performance Schema in turn uses optimizer information about
+    what to look for (for example, a particular key value), so that it can perform
+    efficient lookups without building actual index structures. This implementation
+    provides two important benefits:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 性能模式索引是虚拟的：它们是性能模式存储引擎的构造，不使用内存或磁盘存储。性能模式向优化器报告索引信息，以便它可以构建高效的执行计划。性能模式反过来使用优化器关于要查找的信息（例如，特定键值），以便它可以执行高效的查找而不构建实际的索引结构。这种实现提供了两个重要的好处：
+- en: It entirely avoids the maintenance cost normally incurred for tables that undergo
+    frequent updates.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它完全避免了通常发生在经常更新的表上的维护成本。
+- en: It reduces at an early stage of query execution the amount of data retrieved.
+    For conditions on the indexed columns, the Performance Schema efficiently returns
+    only table rows that satisfy the query conditions. Without an index, the Performance
+    Schema would return all rows in the table, requiring that the optimizer later
+    evaluate the conditions against each row to produce the final result.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它在查询执行的早期阶段减少了检索的数据量。对于索引列上的条件，性能模式有效地只返回满足查询条件的表行。没有索引，性能模式将返回表中的所有行，要求优化器稍后评估每行的条件以生成最终结果。
+- en: Performance Schema indexes are predefined and cannot be dropped, added, or altered.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 性能模式索引是预定义的，不能删除、添加或更改。
+- en: 'Performance Schema indexes are similar to hash indexes. For example:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 性能模式索引类似于哈希索引。例如：
+- en: They are used only for equality comparisons that use the `=` or `<=>` operators.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它们仅用于使用`=`或`<=>`运算符进行相等比较。
+- en: They are unordered. If a query result must have specific row ordering characteristics,
+    include an `ORDER BY` clause.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它们是无序的。如果查询结果必须具有特定的行排序特性，请包含`ORDER BY`子句。
+- en: For additional information about hash indexes, see [Section 10.3.9, “Comparison
+    of B-Tree and Hash Indexes”](index-btree-hash.html "10.3.9 Comparison of B-Tree
+    and Hash Indexes").
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于哈希索引的更多信息，请参见[第10.3.9节，“B-Tree和哈希索引的比较”](index-btree-hash.html "10.3.9 Comparison
+    of B-Tree and Hash Indexes")。

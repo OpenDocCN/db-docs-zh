@@ -1,0 +1,245 @@
+- en: 17.6.6 Undo Logs
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.6.6 撤销日志
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-undo-logs.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-undo-logs.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-undo-logs.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-undo-logs.html)
+- en: An undo log is a collection of undo log records associated with a single read-write
+    transaction. An undo log record contains information about how to undo the latest
+    change by a transaction to a [clustered index](glossary.html#glos_clustered_index
+    "clustered index") record. If another transaction needs to see the original data
+    as part of a consistent read operation, the unmodified data is retrieved from
+    undo log records. Undo logs exist within [undo log segments](glossary.html#glos_undo_log_segment
+    "undo log segment"), which are contained within [rollback segments](glossary.html#glos_rollback_segment
+    "rollback segment"). Rollback segments reside in [undo tablespaces](glossary.html#glos_undo_tablespace
+    "undo tablespace") and in the [global temporary tablespace](glossary.html#glos_global_temporary_tablespace
+    "global temporary tablespace").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 撤销日志是与单个读写事务关联的撤销日志记录集合。撤销日志记录包含有关如何撤消事务对[聚簇索引](glossary.html#glos_clustered_index
+    "聚簇索引")记录的最新更改的信息。如果另一个事务需要在一致性读操作的一部分中查看原始数据，则从撤销日志记录中检索未修改的数据。撤销日志存在于[撤销日志段](glossary.html#glos_undo_log_segment
+    "撤销日志段")中，这些段包含在[回滚段](glossary.html#glos_rollback_segment "回滚段")中。回滚段驻留在[撤销表空间](glossary.html#glos_undo_tablespace
+    "撤销表空间")和[全局临时表空间](glossary.html#glos_global_temporary_tablespace "全局临时表空间")中。
+- en: Undo logs that reside in the global temporary tablespace are used for transactions
+    that modify data in user-defined temporary tables. These undo logs are not redo-logged,
+    as they are not required for crash recovery. They are used only for rollback while
+    the server is running. This type of undo log benefits performance by avoiding
+    redo logging I/O.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 驻留在全局临时表空间中的撤销日志用于修改用户定义临时表中的数据的事务。这些撤销日志不会被重做记录，因为它们不需要用于崩溃恢复。它们仅在服务器运行时用于回滚。这种类型的撤销日志通过避免重做日志I/O来提高性能。
+- en: For information about data-at-rest encryption for undo logs, see [Undo Log Encryption](innodb-data-encryption.html#innodb-data-encryption-undo-log
+    "Undo Log Encryption").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关撤销日志的数据静态加密信息，请参阅[撤销日志加密](innodb-data-encryption.html#innodb-data-encryption-undo-log
+    "撤销日志加密")。
+- en: Each undo tablespace and the global temporary tablespace individually support
+    a maximum of 128 rollback segments. The [`innodb_rollback_segments`](innodb-parameters.html#sysvar_innodb_rollback_segments)
+    variable defines the number of rollback segments.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个撤销表空间和全局临时表空间分别支持最多128个回滚段。[`innodb_rollback_segments`](innodb-parameters.html#sysvar_innodb_rollback_segments)变量定义了回滚段的数量。
+- en: The number of transactions that a rollback segment supports depends on the number
+    of undo slots in the rollback segment and the number of undo logs required by
+    each transaction. The number of undo slots in a rollback segment differs according
+    to `InnoDB` page size.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 回滚段支持的事务数量取决于回滚段中的撤销槽数量以及每个事务所需的撤销日志数量。回滚段中的撤销槽数量根据`InnoDB`页面大小而异。
+- en: '| InnoDB Page Size | Number of Undo Slots in a Rollback Segment (InnoDB Page
+    Size / 16) |'
+  id: totrans-7
+  prefs: []
+  type: TYPE_TB
+  zh: '| InnoDB页面大小 | 回滚段中的撤销槽数量（InnoDB页面大小 / 16） |'
+- en: '| `4096 (4KB)` | `256` |'
+  id: totrans-8
+  prefs: []
+  type: TYPE_TB
+  zh: '| `4096 (4KB)` | `256` |'
+- en: '| `8192 (8KB)` | `512` |'
+  id: totrans-9
+  prefs: []
+  type: TYPE_TB
+  zh: '| `8192 (8KB)` | `512` |'
+- en: '| `16384 (16KB)` | `1024` |'
+  id: totrans-10
+  prefs: []
+  type: TYPE_TB
+  zh: '| `16384 (16KB)` | `1024` |'
+- en: '| `32768 (32KB)` | `2048` |'
+  id: totrans-11
+  prefs: []
+  type: TYPE_TB
+  zh: '| `32768 (32KB)` | `2048` |'
+- en: '| `65536 (64KB)` | `4096` |'
+  id: totrans-12
+  prefs: []
+  type: TYPE_TB
+  zh: '| `65536 (64KB)` | `4096` |'
+- en: 'A transaction is assigned up to four undo logs, one for each of the following
+    operation types:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个事务分配最多四个撤销日志，分别用于以下每种操作类型：
+- en: '[`INSERT`](insert.html "15.2.7 INSERT Statement") operations on user-defined
+    tables'
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 用户定义表上的[`INSERT`](insert.html "15.2.7 INSERT Statement")操作
+- en: '[`UPDATE`](update.html "15.2.17 UPDATE Statement") and [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") operations on user-defined tables'
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 用户定义表上的[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")操作
+- en: '[`INSERT`](insert.html "15.2.7 INSERT Statement") operations on user-defined
+    temporary tables'
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 用户定义临时表上的[`INSERT`](insert.html "15.2.7 INSERT Statement")操作
+- en: '[`UPDATE`](update.html "15.2.17 UPDATE Statement") and [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") operations on user-defined temporary tables'
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 用户定义临时表上的[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")操作
+- en: Undo logs are assigned as needed. For example, a transaction that performs [`INSERT`](insert.html
+    "15.2.7 INSERT Statement"), [`UPDATE`](update.html "15.2.17 UPDATE Statement"),
+    and [`DELETE`](delete.html "15.2.2 DELETE Statement") operations on regular and
+    temporary tables requires a full assignment of four undo logs. A transaction that
+    performs only [`INSERT`](insert.html "15.2.7 INSERT Statement") operations on
+    regular tables requires a single undo log.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 撤销日志根据需要分配。例如，对常规表和临时表执行[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")操作的事务需要完整分配四个撤销日志。只对常规表执行[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")操作的事务需要一个撤销日志。
+- en: A transaction that performs operations on regular tables is assigned undo logs
+    from an assigned undo tablespace rollback segment. A transaction that performs
+    operations on temporary tables is assigned undo logs from an assigned global temporary
+    tablespace rollback segment.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在常规表上执行操作的事务从分配的撤销表空间回滚段中分配撤销日志。在临时表上执行操作的事务从分配的全局临时表空间回滚段中分配撤销日志。
+- en: An undo log assigned to a transaction remains attached to the transaction for
+    its duration. For example, an undo log assigned to a transaction for an [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") operation on a regular table is used for all [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") operations on regular tables performed by that transaction.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个分配给事务的撤销日志将一直附加到该事务，直到其结束。例如，分配给常规表上的[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")操作的事务的撤销日志将用于该事务执行的所有常规表上的[`INSERT`](insert.html "15.2.7 INSERT Statement")操作。
+- en: Given the factors described above, the following formulas can be used to estimate
+    the number of concurrent read-write transactions that `InnoDB` is capable of supporting.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 鉴于上述因素，可以使用以下公式来估计`InnoDB`能够支持的并发读写事务数量。
+- en: Note
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: It is possible to encounter a concurrent transaction limit error before reaching
+    the number of concurrent read-write transactions that `InnoDB` is capable of supporting.
+    This occurs when a rollback segment assigned to a transaction runs out of undo
+    slots. In such cases, try rerunning the transaction.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在达到`InnoDB`能够支持的并发读写事务数量之前，可能会遇到并发事务限制错误。当分配给事务的回滚段用完撤销槽时会发生这种情况。在这种情况下，请尝试重新运行事务。
+- en: When transactions perform operations on temporary tables, the number of concurrent
+    read-write transactions that `InnoDB` is capable of supporting is constrained
+    by the number of rollback segments allocated to the global temporary tablespace,
+    which is 128 by default.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当事务在临时表上执行操作时，`InnoDB`能够支持的并发读写事务数量受限于分配给全局临时表空间的回滚段数量，默认为128。
+- en: 'If each transaction performs either an [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") **or** an [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") operation, the number of concurrent read-write transactions
+    that `InnoDB` is capable of supporting is:'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果每个事务执行[`INSERT`](insert.html "15.2.7 INSERT Statement") **或** [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")或[`DELETE`](delete.html "15.2.2 DELETE Statement")操作，`InnoDB`能够支持的并发读写事务数量为：
+- en: '[PRE0]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'If each transaction performs an [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    **and** an [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") operation, the number of concurrent read-write transactions
+    that `InnoDB` is capable of supporting is:'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果每个事务执行[`INSERT`](insert.html "15.2.7 INSERT Statement") **和** [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")或[`DELETE`](delete.html "15.2.2 DELETE Statement")操作，`InnoDB`能够支持的并发读写事务数量为：
+- en: '[PRE1]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'If each transaction performs an [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    operation on a temporary table, the number of concurrent read-write transactions
+    that `InnoDB` is capable of supporting is:'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果每个事务在临时表上执行[`INSERT`](insert.html "15.2.7 INSERT Statement")操作，`InnoDB`能够支持的并发读写事务数量为：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'If each transaction performs an [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    **and** an [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") operation on a temporary table, the number of concurrent
+    read-write transactions that `InnoDB` is capable of supporting is:'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果每个事务在临时表上执行[`INSERT`](insert.html "15.2.7 INSERT Statement") **和** [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")或[`DELETE`](delete.html "15.2.2 DELETE Statement")操作，`InnoDB`能够支持的并发读写事务数量为：
+- en: '[PRE3]'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'

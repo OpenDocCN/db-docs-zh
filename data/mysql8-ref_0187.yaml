@@ -1,0 +1,2411 @@
+- en: 6.5.3 mysqlcheck — A Table Maintenance Program
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 6.5.3 mysqlcheck — A Table Maintenance Program
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysqlcheck.html](https://dev.mysql.com/doc/refman/8.0/en/mysqlcheck.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysqlcheck.html](https://dev.mysql.com/doc/refman/8.0/en/mysqlcheck.html)
+- en: 'The [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance
+    Program") client performs table maintenance: It checks, repairs, optimizes, or
+    analyzes tables.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")客户端执行表维护：检查、修复、优化或分析表。'
+- en: Each table is locked and therefore unavailable to other sessions while it is
+    being processed, although for check operations, the table is locked with a `READ`
+    lock only (see [Section 15.3.6, “LOCK TABLES and UNLOCK TABLES Statements”](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"), for more information about
+    `READ` and `WRITE` locks). Table maintenance operations can be time-consuming,
+    particularly for large tables. If you use the [`--databases`](mysqlcheck.html#option_mysqlcheck_databases)
+    or [`--all-databases`](mysqlcheck.html#option_mysqlcheck_all-databases) option
+    to process all tables in one or more databases, an invocation of [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") might take a long time. (This
+    is also true for the MySQL upgrade procedure if it determines that table checking
+    is needed because it processes tables the same way.)
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个表在处理过程中被锁定，因此在处理过程中对其他会话不可用，尽管对于检查操作，表仅使用`READ`锁定（请参阅[第15.3.6节“LOCK TABLES和UNLOCK
+    TABLES语句”](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")，了解有关`READ`和`WRITE`锁定的更多信息）。表维护操作可能耗时，特别是对于大表。如果使用[`--databases`](mysqlcheck.html#option_mysqlcheck_databases)或[`--all-databases`](mysqlcheck.html#option_mysqlcheck_all-databases)选项来处理一个或多个数据库中的所有表，那么调用[**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program")可能需要很长时间。（如果MySQL升级过程确定需要进行表检查，因为它以相同方式处理表，这也适用。）
+- en: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    must be used when the [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    server is running, which means that you do not have to stop the server to perform
+    table maintenance.'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    必须在[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")服务器运行时使用，这意味着您无需停止服务器即可执行表维护。'
+- en: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    uses the SQL statements [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE
+    Statement"), [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement"),
+    [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement"), and
+    [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement") in
+    a convenient way for the user. It determines which statements to use for the operation
+    you want to perform, and then sends the statements to the server to be executed.
+    For details about which storage engines each statement works with, see the descriptions
+    for those statements in [Section 15.7.3, “Table Maintenance Statements”](table-maintenance-statements.html
+    "15.7.3 Table Maintenance Statements").'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    使用SQL语句[`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement")、[`REPAIR
+    TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")、[`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement")和[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE
+    TABLE Statement")以一种方便用户的方式进行操作。它确定要执行的操作所需的语句，然后将这些语句发送到服务器执行。有关每个语句适用的存储引擎的详细信息，请参阅[第15.7.3节“表维护语句”](table-maintenance-statements.html
+    "15.7.3 Table Maintenance Statements")中这些语句的描述。'
+- en: 'All storage engines do not necessarily support all four maintenance operations.
+    In such cases, an error message is displayed. For example, if `test.t` is an `MEMORY`
+    table, an attempt to check it produces this result:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 并非所有存储引擎都必然支持所有四种维护操作。在这种情况下，会显示错误消息。例如，如果`test.t`是一个`MEMORY`表，尝试检查它会产生这样的结果：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: If [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance
+    Program") is unable to repair a table, see [Section 3.14, “Rebuilding or Repairing
+    Tables or Indexes”](rebuilding-tables.html "3.14 Rebuilding or Repairing Tables
+    or Indexes") for manual table repair strategies. This is the case, for example,
+    for `InnoDB` tables, which can be checked with [`CHECK TABLE`](check-table.html
+    "15.7.3.2 CHECK TABLE Statement"), but not repaired with [`REPAIR TABLE`](repair-table.html
+    "15.7.3.5 REPAIR TABLE Statement").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")无法修复表格，请参阅[第3.14节，“重建或修复表格或索引”](rebuilding-tables.html
+    "3.14 重建或修复表格或索引")以获取手动表格修复策略。例如，对于`InnoDB`表格，可以使用[`CHECK TABLE`](check-table.html
+    "15.7.3.2 CHECK TABLE Statement")进行检查，但无法使用[`REPAIR TABLE`](repair-table.html
+    "15.7.3.5 REPAIR TABLE Statement")进行修复。
+- en: Caution
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: It is best to make a backup of a table before performing a table repair operation;
+    under some circumstances the operation might cause data loss. Possible causes
+    include but are not limited to file system errors.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在执行表格修复操作之前最好备份表格；在某些情况下，该操作可能导致数据丢失。可能的原因包括但不限于文件系统错误。
+- en: 'There are three general ways to invoke [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck
+    — A Table Maintenance Program"):'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有三种常见的调用[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance
+    Program")的方法：
+- en: '[PRE1]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If you do not name any tables following *`db_name`* or if you use the [`--databases`](mysqlcheck.html#option_mysqlcheck_databases)
+    or [`--all-databases`](mysqlcheck.html#option_mysqlcheck_all-databases) option,
+    entire databases are checked.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在*`db_name`*后没有命名任何表格，或者使用[`--databases`](mysqlcheck.html#option_mysqlcheck_databases)或[`--all-databases`](mysqlcheck.html#option_mysqlcheck_all-databases)选项，则会检查整个数据库。
+- en: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    has a special feature compared to other client programs. The default behavior
+    of checking tables ([`--check`](mysqlcheck.html#option_mysqlcheck_check)) can
+    be changed by renaming the binary. If you want to have a tool that repairs tables
+    by default, you should just make a copy of [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck
+    — A Table Maintenance Program") named **mysqlrepair**, or make a symbolic link
+    to [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    named **mysqlrepair**. If you invoke **mysqlrepair**, it repairs tables.'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与其他客户端程序相比，[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance
+    Program")具有特殊功能。检查表格的默认行为（[`--check`](mysqlcheck.html#option_mysqlcheck_check)）可以通过重命名二进制文件来更改。如果您希望默认情况下修复表格的工具，只需复制一个名为**mysqlrepair**的[**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program")副本，或者创建一个指向名为**mysqlrepair**的[**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program")的符号链接。如果调用**mysqlrepair**，它会修复表格。
+- en: The names shown in the following table can be used to change [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") default behavior.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下表中显示的名称可用于更改[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance
+    Program")的默认行为。
+- en: '| Command | Meaning |'
+  id: totrans-16
+  prefs: []
+  type: TYPE_TB
+  zh: '| 命令 | 含义 |'
+- en: '| **mysqlrepair** | The default option is [`--repair`](mysqlcheck.html#option_mysqlcheck_repair)
+    |'
+  id: totrans-17
+  prefs: []
+  type: TYPE_TB
+  zh: '| **mysqlrepair** | 默认选项是[`--repair`](mysqlcheck.html#option_mysqlcheck_repair)
+    |'
+- en: '| **mysqlanalyze** | The default option is [`--analyze`](mysqlcheck.html#option_mysqlcheck_analyze)
+    |'
+  id: totrans-18
+  prefs: []
+  type: TYPE_TB
+  zh: '| **mysqlanalyze** | 默认选项是[`--analyze`](mysqlcheck.html#option_mysqlcheck_analyze)
+    |'
+- en: '| **mysqloptimize** | The default option is [`--optimize`](mysqlcheck.html#option_mysqlcheck_optimize)
+    |'
+  id: totrans-19
+  prefs: []
+  type: TYPE_TB
+  zh: '| **mysqloptimize** | 默认选项是[`--optimize`](mysqlcheck.html#option_mysqlcheck_optimize)
+    |'
+- en: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    supports the following options, which can be specified on the command line or
+    in the `[mysqlcheck]` and `[client]` groups of an option file. For information
+    about option files used by MySQL programs, see [Section 6.2.2.2, “Using Option
+    Files”](option-files.html "6.2.2.2 Using Option Files").'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")支持以下选项，可以在命令行或选项文件的`[mysqlcheck]`和`[client]`组中指定。有关MySQL程序使用的选项文件的信息，请参阅[第6.2.2.2节，“使用选项文件”](option-files.html
+    "6.2.2.2 使用选项文件")。'
+- en: '**Table 6.14 mysqlcheck Options**'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表格 6.14 mysqlcheck 选项**'
+- en: '| Option Name | Description | Introduced | Deprecated |'
+  id: totrans-22
+  prefs: []
+  type: TYPE_TB
+  zh: '| 选项名称 | 描述 | 引入 | 废弃 |'
+- en: '| [--all-databases](mysqlcheck.html#option_mysqlcheck_all-databases) | Check
+    all tables in all databases |  |  |'
+  id: totrans-23
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--all-databases](mysqlcheck.html#option_mysqlcheck_all-databases) | 检查所有数据库中的所有表
+    |  |  |'
+- en: '| [--all-in-1](mysqlcheck.html#option_mysqlcheck_all-in-1) | Execute a single
+    statement for each database that names all the tables from that database |  |  |'
+  id: totrans-24
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--all-in-1](mysqlcheck.html#option_mysqlcheck_all-in-1) | 为每个命名了该数据库中所有表格的数据库执行单个语句
+    |  |  |'
+- en: '| [--analyze](mysqlcheck.html#option_mysqlcheck_analyze) | Analyze the tables
+    |  |  |'
+  id: totrans-25
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--analyze](mysqlcheck.html#option_mysqlcheck_analyze) | 分析表 |  |  |'
+- en: '| [--auto-repair](mysqlcheck.html#option_mysqlcheck_auto-repair) | If a checked
+    table is corrupted, automatically fix it |  |  |'
+  id: totrans-26
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--auto-repair](mysqlcheck.html#option_mysqlcheck_auto-repair) | 如果���查的表损坏，自动修复
+    |  |  |'
+- en: '| [--bind-address](mysqlcheck.html#option_mysqlcheck_bind-address) | Use specified
+    network interface to connect to MySQL Server |  |  |'
+  id: totrans-27
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--bind-address](mysqlcheck.html#option_mysqlcheck_bind-address) | 使用指定的网络接口连接到MySQL服务器
+    |  |  |'
+- en: '| [--character-sets-dir](mysqlcheck.html#option_mysqlcheck_character-sets-dir)
+    | Directory where character sets are installed |  |  |'
+  id: totrans-28
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--character-sets-dir](mysqlcheck.html#option_mysqlcheck_character-sets-dir)
+    | 安装字符集的目录 |  |  |'
+- en: '| [--check](mysqlcheck.html#option_mysqlcheck_check) | Check the tables for
+    errors |  |  |'
+  id: totrans-29
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--check](mysqlcheck.html#option_mysqlcheck_check) | 检查表中的错误 |  |  |'
+- en: '| [--check-only-changed](mysqlcheck.html#option_mysqlcheck_check-only-changed)
+    | Check only tables that have changed since the last check |  |  |'
+  id: totrans-30
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--check-only-changed](mysqlcheck.html#option_mysqlcheck_check-only-changed)
+    | 仅检查自上次检查以来发生变化的表 |  |  |'
+- en: '| [--check-upgrade](mysqlcheck.html#option_mysqlcheck_check-upgrade) | Invoke
+    CHECK TABLE with the FOR UPGRADE option |  |  |'
+  id: totrans-31
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--check-upgrade](mysqlcheck.html#option_mysqlcheck_check-upgrade) | 使用FOR
+    UPGRADE选项调用CHECK TABLE |  |  |'
+- en: '| [--compress](mysqlcheck.html#option_mysqlcheck_compress) | Compress all information
+    sent between client and server |  | 8.0.18 |'
+  id: totrans-32
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--compress](mysqlcheck.html#option_mysqlcheck_compress) | 在客户端和服务器之间发送的所有信息进行压缩
+    |  | 8.0.18 |'
+- en: '| [--compression-algorithms](mysqlcheck.html#option_mysqlcheck_compression-algorithms)
+    | Permitted compression algorithms for connections to server | 8.0.18 |  |'
+  id: totrans-33
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--compression-algorithms](mysqlcheck.html#option_mysqlcheck_compression-algorithms)
+    | 与服务器连接时允许的压缩算法 | 8.0.18 |  |'
+- en: '| [--databases](mysqlcheck.html#option_mysqlcheck_databases) | Interpret all
+    arguments as database names |  |  |'
+  id: totrans-34
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--databases](mysqlcheck.html#option_mysqlcheck_databases) | 将所有参数解释为数据库名称
+    |  |  |'
+- en: '| [--debug](mysqlcheck.html#option_mysqlcheck_debug) | Write debugging log
+    |  |  |'
+  id: totrans-35
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--debug](mysqlcheck.html#option_mysqlcheck_debug) | 写调试日志 |  |  |'
+- en: '| [--debug-check](mysqlcheck.html#option_mysqlcheck_debug-check) | Print debugging
+    information when program exits |  |  |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--debug-check](mysqlcheck.html#option_mysqlcheck_debug-check) | 程序退出时打印调试信息
+    |  |  |'
+- en: '| [--debug-info](mysqlcheck.html#option_mysqlcheck_debug-info) | Print debugging
+    information, memory, and CPU statistics when program exits |  |  |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--debug-info](mysqlcheck.html#option_mysqlcheck_debug-info) | 程序退出时打印调试信息、内存和CPU统计信息
+    |  |  |'
+- en: '| [--default-auth](mysqlcheck.html#option_mysqlcheck_default-auth) | Authentication
+    plugin to use |  |  |'
+  id: totrans-38
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--default-auth](mysqlcheck.html#option_mysqlcheck_default-auth) | 要使用的认证插件
+    |  |  |'
+- en: '| [--default-character-set](mysqlcheck.html#option_mysqlcheck_default-character-set)
+    | Specify default character set |  |  |'
+  id: totrans-39
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--default-character-set](mysqlcheck.html#option_mysqlcheck_default-character-set)
+    | 指定默认字符集 |  |  |'
+- en: '| [--defaults-extra-file](mysqlcheck.html#option_mysqlcheck_defaults-extra-file)
+    | Read named option file in addition to usual option files |  |  |'
+  id: totrans-40
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--defaults-extra-file](mysqlcheck.html#option_mysqlcheck_defaults-extra-file)
+    | 除了通常的选项文件外，读取指定的选项文件 |  |  |'
+- en: '| [--defaults-file](mysqlcheck.html#option_mysqlcheck_defaults-file) | Read
+    only named option file |  |  |'
+  id: totrans-41
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--defaults-file](mysqlcheck.html#option_mysqlcheck_defaults-file) | 仅读取指定的选项文件
+    |  |  |'
+- en: '| [--defaults-group-suffix](mysqlcheck.html#option_mysqlcheck_defaults-group-suffix)
+    | Option group suffix value |  |  |'
+  id: totrans-42
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--defaults-group-suffix](mysqlcheck.html#option_mysqlcheck_defaults-group-suffix)
+    | 选项组后缀值 |  |  |'
+- en: '| [--enable-cleartext-plugin](mysqlcheck.html#option_mysqlcheck_enable-cleartext-plugin)
+    | Enable cleartext authentication plugin |  |  |'
+  id: totrans-43
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--enable-cleartext-plugin](mysqlcheck.html#option_mysqlcheck_enable-cleartext-plugin)
+    | 启用明文认证插件 |  |  |'
+- en: '| [--extended](mysqlcheck.html#option_mysqlcheck_extended) | Check and repair
+    tables |  |  |'
+  id: totrans-44
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--extended](mysqlcheck.html#option_mysqlcheck_extended) | 检查和修复表 |  |  |'
+- en: '| [--fast](mysqlcheck.html#option_mysqlcheck_fast) | Check only tables that
+    have not been closed properly |  |  |'
+  id: totrans-45
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--fast](mysqlcheck.html#option_mysqlcheck_fast) | 仅检查未正确关闭的表 |  |  |'
+- en: '| [--force](mysqlcheck.html#option_mysqlcheck_force) | Continue even if an
+    SQL error occurs |  |  |'
+  id: totrans-46
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--force](mysqlcheck.html#option_mysqlcheck_force) | 即使发生SQL错误也继续 |  |  |'
+- en: '| [--get-server-public-key](mysqlcheck.html#option_mysqlcheck_get-server-public-key)
+    | Request RSA public key from server |  |  |'
+  id: totrans-47
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--get-server-public-key](mysqlcheck.html#option_mysqlcheck_get-server-public-key)
+    | 从服务器请求RSA公钥 |  |  |'
+- en: '| [--help](mysqlcheck.html#option_mysqlcheck_help) | Display help message and
+    exit |  |  |'
+  id: totrans-48
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--help](mysqlcheck.html#option_mysqlcheck_help) | 显示帮助信息并退出 |  |  |'
+- en: '| [--host](mysqlcheck.html#option_mysqlcheck_host) | Host on which MySQL server
+    is located |  |  |'
+  id: totrans-49
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--host](mysqlcheck.html#option_mysqlcheck_host) | MySQL服务器所在的主机 |  |  |'
+- en: '| [--login-path](mysqlcheck.html#option_mysqlcheck_login-path) | Read login
+    path options from .mylogin.cnf |  |  |'
+  id: totrans-50
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--login-path](mysqlcheck.html#option_mysqlcheck_login-path) | 从.mylogin.cnf文件中读取登录路径选项
+    |  |  |'
+- en: '| [--medium-check](mysqlcheck.html#option_mysqlcheck_medium-check) | Do a check
+    that is faster than an --extended operation |  |  |'
+  id: totrans-51
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--medium-check](mysqlcheck.html#option_mysqlcheck_medium-check) | 执行比--extended操作更快的检查
+    |  |  |'
+- en: '| [--no-defaults](mysqlcheck.html#option_mysqlcheck_no-defaults) | Read no
+    option files |  |  |'
+  id: totrans-52
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--no-defaults](mysqlcheck.html#option_mysqlcheck_no-defaults) | 不读取任何选项文件
+    |  |  |'
+- en: '| [--optimize](mysqlcheck.html#option_mysqlcheck_optimize) | Optimize the tables
+    |  |  |'
+  id: totrans-53
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--optimize](mysqlcheck.html#option_mysqlcheck_optimize) | 优��表 |  |  |'
+- en: '| [--password](mysqlcheck.html#option_mysqlcheck_password) | Password to use
+    when connecting to server |  |  |'
+  id: totrans-54
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--password](mysqlcheck.html#option_mysqlcheck_password) | 连接到服务器时使用的密码 |  |  |'
+- en: '| [--password1](mysqlcheck.html#option_mysqlcheck_password1) | First multifactor
+    authentication password to use when connecting to server | 8.0.27 |  |'
+  id: totrans-55
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--password1](mysqlcheck.html#option_mysqlcheck_password1) | 连接到服务器时使用的第一个多因素身份验证密码
+    | 8.0.27 |  |'
+- en: '| [--password2](mysqlcheck.html#option_mysqlcheck_password2) | Second multifactor
+    authentication password to use when connecting to server | 8.0.27 |  |'
+  id: totrans-56
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--password2](mysqlcheck.html#option_mysqlcheck_password2) | 连接到服务器时使用的第二个多因素身份验证密码
+    | 8.0.27 |  |'
+- en: '| [--password3](mysqlcheck.html#option_mysqlcheck_password3) | Third multifactor
+    authentication password to use when connecting to server | 8.0.27 |  |'
+  id: totrans-57
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--password3](mysqlcheck.html#option_mysqlcheck_password3) | 连接到服务器时使用的第三个多因素身份验证密码
+    | 8.0.27 |  |'
+- en: '| [--pipe](mysqlcheck.html#option_mysqlcheck_pipe) | Connect to server using
+    named pipe (Windows only) |  |  |'
+  id: totrans-58
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--pipe](mysqlcheck.html#option_mysqlcheck_pipe) | 使用命名管道连接到服务器（仅限Windows）
+    |  |  |'
+- en: '| [--plugin-dir](mysqlcheck.html#option_mysqlcheck_plugin-dir) | Directory
+    where plugins are installed |  |  |'
+  id: totrans-59
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--plugin-dir](mysqlcheck.html#option_mysqlcheck_plugin-dir) | 安装插件的目录 |  |  |'
+- en: '| [--port](mysqlcheck.html#option_mysqlcheck_port) | TCP/IP port number for
+    connection |  |  |'
+  id: totrans-60
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--port](mysqlcheck.html#option_mysqlcheck_port) | 连接的TCP/IP端口号 |  |  |'
+- en: '| [--print-defaults](mysqlcheck.html#option_mysqlcheck_print-defaults) | Print
+    default options |  |  |'
+  id: totrans-61
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--print-defaults](mysqlcheck.html#option_mysqlcheck_print-defaults) | 打印默认选项
+    |  |  |'
+- en: '| [--protocol](mysqlcheck.html#option_mysqlcheck_protocol) | Transport protocol
+    to use |  |  |'
+  id: totrans-62
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--protocol](mysqlcheck.html#option_mysqlcheck_protocol) | 要使用的传输协议 |  |  |'
+- en: '| [--quick](mysqlcheck.html#option_mysqlcheck_quick) | The fastest method of
+    checking |  |  |'
+  id: totrans-63
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--quick](mysqlcheck.html#option_mysqlcheck_quick) | 检查的最快方法 |  |  |'
+- en: '| [--repair](mysqlcheck.html#option_mysqlcheck_repair) | Perform a repair that
+    can fix almost anything except unique keys that are not unique |  |  |'
+  id: totrans-64
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--repair](mysqlcheck.html#option_mysqlcheck_repair) | 执行修复操作，可以修复几乎所有问题，除了不唯一的唯一键
+    |  |  |'
+- en: '| [--server-public-key-path](mysqlcheck.html#option_mysqlcheck_server-public-key-path)
+    | Path name to file containing RSA public key |  |  |'
+  id: totrans-65
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--server-public-key-path](mysqlcheck.html#option_mysqlcheck_server-public-key-path)
+    | 包含RSA公钥的文件路径名 |  |  |'
+- en: '| [--shared-memory-base-name](mysqlcheck.html#option_mysqlcheck_shared-memory-base-name)
+    | Shared-memory name for shared-memory connections (Windows only) |  |  |'
+  id: totrans-66
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--shared-memory-base-name](mysqlcheck.html#option_mysqlcheck_shared-memory-base-name)
+    | 共享内存连接的共享内存名称（仅限Windows） |  |  |'
+- en: '| [--silent](mysqlcheck.html#option_mysqlcheck_silent) | Silent mode |  |  |'
+  id: totrans-67
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--silent](mysqlcheck.html#option_mysqlcheck_silent) | 静默模式 |  |  |'
+- en: '| [--skip-database](mysqlcheck.html#option_mysqlcheck_skip-database) | Omit
+    this database from performed operations |  |  |'
+  id: totrans-68
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--skip-database](mysqlcheck.html#option_mysqlcheck_skip-database) | 在执行操作时跳过此数据库
+    |  |  |'
+- en: '| [--socket](mysqlcheck.html#option_mysqlcheck_socket) | Unix socket file or
+    Windows named pipe to use |  |  |'
+  id: totrans-69
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--socket](mysqlcheck.html#option_mysqlcheck_socket) | 要使用的Unix套接字文件或Windows命名管道
+    |  |  |'
+- en: '| [--ssl-ca](mysqlcheck.html#option_mysqlcheck_ssl) | File that contains list
+    of trusted SSL Certificate Authorities |  |  |'
+  id: totrans-70
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-ca](mysqlcheck.html#option_mysqlcheck_ssl) | 包含受信任SSL证书颁发机构列表的文件 |  |  |'
+- en: '| [--ssl-capath](mysqlcheck.html#option_mysqlcheck_ssl) | Directory that contains
+    trusted SSL Certificate Authority certificate files |  |  |'
+  id: totrans-71
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-capath](mysqlcheck.html#option_mysqlcheck_ssl) | 包含受信任SSL证书颁发机构证书文件的目录
+    |  |  |'
+- en: '| [--ssl-cert](mysqlcheck.html#option_mysqlcheck_ssl) | File that contains
+    X.509 certificate |  |  |'
+  id: totrans-72
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-cert](mysqlcheck.html#option_mysqlcheck_ssl) | 包含X.509证书的文件 |  |  |'
+- en: '| [--ssl-cipher](mysqlcheck.html#option_mysqlcheck_ssl) | Permissible ciphers
+    for connection encryption |  |  |'
+  id: totrans-73
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-cipher](mysqlcheck.html#option_mysqlcheck_ssl) | 连接加密的允许密码 |  |  |'
+- en: '| [--ssl-crl](mysqlcheck.html#option_mysqlcheck_ssl) | File that contains certificate
+    revocation lists |  |  |'
+  id: totrans-74
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-crl](mysqlcheck.html#option_mysqlcheck_ssl) | 包含证书吊销列表的文件 |  |  |'
+- en: '| [--ssl-crlpath](mysqlcheck.html#option_mysqlcheck_ssl) | Directory that contains
+    certificate revocation-list files |  |  |'
+  id: totrans-75
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-crlpath](mysqlcheck.html#option_mysqlcheck_ssl) | 包含证书吊销列表文件的目录 |  |  |'
+- en: '| [--ssl-fips-mode](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode) | Whether
+    to enable FIPS mode on client side |  | 8.0.34 |'
+  id: totrans-76
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-fips-mode](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode) | 是否在客户端启用
+    FIPS 模式 |  | 8.0.34 |'
+- en: '| [--ssl-key](mysqlcheck.html#option_mysqlcheck_ssl) | File that contains X.509
+    key |  |  |'
+  id: totrans-77
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-key](mysqlcheck.html#option_mysqlcheck_ssl) | 包含 X.509 密钥的文件 |  |  |'
+- en: '| [--ssl-mode](mysqlcheck.html#option_mysqlcheck_ssl) | Desired security state
+    of connection to server |  |  |'
+  id: totrans-78
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-mode](mysqlcheck.html#option_mysqlcheck_ssl) | 与服务器连接的期望安全状态 |  |  |'
+- en: '| [--ssl-session-data](mysqlcheck.html#option_mysqlcheck_ssl) | File that contains
+    SSL session data | 8.0.29 |  |'
+  id: totrans-79
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-session-data](mysqlcheck.html#option_mysqlcheck_ssl) | 包含 SSL 会话数据的文件
+    | 8.0.29 |  |'
+- en: '| [--ssl-session-data-continue-on-failed-reuse](mysqlcheck.html#option_mysqlcheck_ssl)
+    | Whether to establish connections if session reuse fails | 8.0.29 |  |'
+  id: totrans-80
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--ssl-session-data-continue-on-failed-reuse](mysqlcheck.html#option_mysqlcheck_ssl)
+    | 如果会话重用失败是否建立连接 | 8.0.29 |  |'
+- en: '| [--tables](mysqlcheck.html#option_mysqlcheck_tables) | Overrides the --databases
+    or -B option |  |  |'
+  id: totrans-81
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--tables](mysqlcheck.html#option_mysqlcheck_tables) | 覆盖 --databases 或 -B
+    选项 |  |  |'
+- en: '| [--tls-ciphersuites](mysqlcheck.html#option_mysqlcheck_tls-ciphersuites)
+    | Permissible TLSv1.3 ciphersuites for encrypted connections | 8.0.16 |  |'
+  id: totrans-82
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--tls-ciphersuites](mysqlcheck.html#option_mysqlcheck_tls-ciphersuites)
+    | 用于加密连接的允许的 TLSv1.3 密码套件 | 8.0.16 |  |'
+- en: '| [--tls-version](mysqlcheck.html#option_mysqlcheck_tls-version) | Permissible
+    TLS protocols for encrypted connections |  |  |'
+  id: totrans-83
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--tls-version](mysqlcheck.html#option_mysqlcheck_tls-version) | 用于加密连接的允许的
+    TLS 协议 |  |  |'
+- en: '| [--use-frm](mysqlcheck.html#option_mysqlcheck_use-frm) | For repair operations
+    on MyISAM tables |  |  |'
+  id: totrans-84
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--use-frm](mysqlcheck.html#option_mysqlcheck_use-frm) | 用于对 MyISAM 表进行修复操作
+    |  |  |'
+- en: '| [--user](mysqlcheck.html#option_mysqlcheck_user) | MySQL user name to use
+    when connecting to server |  |  |'
+  id: totrans-85
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--user](mysqlcheck.html#option_mysqlcheck_user) | 连接到服务器时要使用的 MySQL 用户名
+    |  |  |'
+- en: '| [--verbose](mysqlcheck.html#option_mysqlcheck_verbose) | Verbose mode |  |  |'
+  id: totrans-86
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--verbose](mysqlcheck.html#option_mysqlcheck_verbose) | 详细模式 |  |  |'
+- en: '| [--version](mysqlcheck.html#option_mysqlcheck_version) | Display version
+    information and exit |  |  |'
+  id: totrans-87
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--version](mysqlcheck.html#option_mysqlcheck_version) | 显示版本信息并退出 |  |  |'
+- en: '| [--write-binlog](mysqlcheck.html#option_mysqlcheck_write-binlog) | Log ANALYZE,
+    OPTIMIZE, REPAIR statements to binary log. --skip-write-binlog adds NO_WRITE_TO_BINLOG
+    to these statements |  |  |'
+  id: totrans-88
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--write-binlog](mysqlcheck.html#option_mysqlcheck_write-binlog) | 将 ANALYZE、OPTIMIZE、REPAIR
+    语句记录到二进制日志。--skip-write-binlog 将 NO_WRITE_TO_BINLOG 添加到这些语句中 |  |  |'
+- en: '| [--zstd-compression-level](mysqlcheck.html#option_mysqlcheck_zstd-compression-level)
+    | Compression level for connections to server that use zstd compression | 8.0.18
+    |  |'
+  id: totrans-89
+  prefs: []
+  type: TYPE_TB
+  zh: '| [--zstd-compression-level](mysqlcheck.html#option_mysqlcheck_zstd-compression-level)
+    | 用于使用 zstd 压缩连接到服务器的压缩级别 | 8.0.18 |  |'
+- en: '| Option Name | Description | Introduced | Deprecated |'
+  id: totrans-90
+  prefs: []
+  type: TYPE_TB
+  zh: '| 选项名称 | 描述 | 引入 | 废弃 |'
+- en: '[`--help`](mysqlcheck.html#option_mysqlcheck_help), `-?`'
+  id: totrans-91
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--help`](mysqlcheck.html#option_mysqlcheck_help), `-?`'
+- en: '| Command-Line Format | `--help` |'
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--help` |'
+- en: Display a help message and exit.
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 显示帮助信息并退出。
+- en: '[`--all-databases`](mysqlcheck.html#option_mysqlcheck_all-databases), `-A`'
+  id: totrans-94
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--all-databases`](mysqlcheck.html#option_mysqlcheck_all-databases), `-A`'
+- en: '| Command-Line Format | `--all-databases` |'
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--all-databases` |'
+- en: Check all tables in all databases. This is the same as using the [`--databases`](mysqlcheck.html#option_mysqlcheck_databases)
+    option and naming all the databases on the command line, except that the `INFORMATION_SCHEMA`
+    and `performance_schema` databases are not checked. They can be checked by explicitly
+    naming them with the [`--databases`](mysqlcheck.html#option_mysqlcheck_databases)
+    option.
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 检查所有数据库中的所有表。这与使用 [`--databases`](mysqlcheck.html#option_mysqlcheck_databases)
+    选项并在命令行上命名所有数据库相同，只是不会检查 `INFORMATION_SCHEMA` 和 `performance_schema` 数据库。可以通过显式使用
+    [`--databases`](mysqlcheck.html#option_mysqlcheck_databases) 选项来检查它们。
+- en: '[`--all-in-1`](mysqlcheck.html#option_mysqlcheck_all-in-1), `-1`'
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--all-in-1`](mysqlcheck.html#option_mysqlcheck_all-in-1), `-1`'
+- en: '| Command-Line Format | `--all-in-1` |'
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--all-in-1` |'
+- en: Instead of issuing a statement for each table, execute a single statement for
+    each database that names all the tables from that database to be processed.
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与为每个表发出语句不同，执行一个单独的语句，其中包含要处理的来自该数据库的所有表的名称。
+- en: '[`--analyze`](mysqlcheck.html#option_mysqlcheck_analyze), `-a`'
+  id: totrans-100
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--analyze`](mysqlcheck.html#option_mysqlcheck_analyze), `-a`'
+- en: '| Command-Line Format | `--analyze` |'
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--analyze` |'
+- en: Analyze the tables.
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 分析表格。
+- en: '[`--auto-repair`](mysqlcheck.html#option_mysqlcheck_auto-repair)'
+  id: totrans-103
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--auto-repair`](mysqlcheck.html#option_mysqlcheck_auto-repair)'
+- en: '| Command-Line Format | `--auto-repair` |'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--auto-repair` |'
+- en: If a checked table is corrupted, automatically fix it. Any necessary repairs
+    are done after all tables have been checked.
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果检查的表损坏，将自动修复。所有必要的修复将在所有表检查完成后进行。
+- en: '[`--bind-address=*`ip_address`*`](mysqlcheck.html#option_mysqlcheck_bind-address)'
+  id: totrans-106
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--bind-address=*`ip_address`*`](mysqlcheck.html#option_mysqlcheck_bind-address)'
+- en: '| Command-Line Format | `--bind-address=ip_address` |'
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--bind-address=ip_address` |'
+- en: On a computer having multiple network interfaces, use this option to select
+    which interface to use for connecting to the MySQL server.
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在具有多个网络接口的计算机上，使用此选项选择连接到MySQL服务器的接口。
+- en: '[`--character-sets-dir=*`dir_name`*`](mysqlcheck.html#option_mysqlcheck_character-sets-dir)'
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--character-sets-dir=*`dir_name`*`](mysqlcheck.html#option_mysqlcheck_character-sets-dir)'
+- en: '| Command-Line Format | `--character-sets-dir=dir_name` |'
+  id: totrans-110
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--character-sets-dir=dir_name` |'
+- en: '| Type | Directory name |'
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 目录名称 |'
+- en: The directory where character sets are installed. See [Section 12.15, “Character
+    Set Configuration”](charset-configuration.html "12.15 Character Set Configuration").
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 安装字符集的目录。请参阅[第12.15节，“字符集配置”](charset-configuration.html "12.15 字符集配置")。
+- en: '[`--check`](mysqlcheck.html#option_mysqlcheck_check), `-c`'
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--check`](mysqlcheck.html#option_mysqlcheck_check), `-c`'
+- en: '| Command-Line Format | `--check` |'
+  id: totrans-114
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--check` |'
+- en: Check the tables for errors. This is the default operation.
+  id: totrans-115
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 检查表格是否有错误。这是默认操作。
+- en: '[`--check-only-changed`](mysqlcheck.html#option_mysqlcheck_check-only-changed),
+    `-C`'
+  id: totrans-116
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--check-only-changed`](mysqlcheck.html#option_mysqlcheck_check-only-changed),
+    `-C`'
+- en: '| Command-Line Format | `--check-only-changed` |'
+  id: totrans-117
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--check-only-changed` |'
+- en: Check only tables that have changed since the last check or that have not been
+    closed properly.
+  id: totrans-118
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 仅检查自上次检查以来发生更改或未正确关闭的表。
+- en: '[`--check-upgrade`](mysqlcheck.html#option_mysqlcheck_check-upgrade), `-g`'
+  id: totrans-119
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--check-upgrade`](mysqlcheck.html#option_mysqlcheck_check-upgrade), `-g`'
+- en: '| Command-Line Format | `--check-upgrade` |'
+  id: totrans-120
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--check-upgrade` |'
+- en: Invoke [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement") with
+    the `FOR UPGRADE` option to check tables for incompatibilities with the current
+    version of the server.
+  id: totrans-121
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用`FOR UPGRADE`选项调用[`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement")以检查表格与当前服务器版本的不兼容性。
+- en: '[`--compress`](mysqlcheck.html#option_mysqlcheck_compress)'
+  id: totrans-122
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--compress`](mysqlcheck.html#option_mysqlcheck_compress)'
+- en: '| Command-Line Format | `--compress[={OFF&#124;ON}]` |'
+  id: totrans-123
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--compress[={OFF&#124;ON}]` |'
+- en: '| Deprecated | 8.0.18 |'
+  id: totrans-124
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 弃用 | 8.0.18 |'
+- en: '| Type | Boolean |'
+  id: totrans-125
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-126
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Compress all information sent between the client and the server if possible.
+    See [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 Connection Compression Control").
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 尽可能压缩客户端和服务器之间发送的所有信息。请参阅[第6.2.8节，“连接压缩控制”](connection-compression-control.html
+    "6.2.8 连接压缩控制")。
+- en: As of MySQL 8.0.18, this option is deprecated. Expect it to be removed in a
+    future version of MySQL. See [Configuring Legacy Connection Compression](connection-compression-control.html#connection-compression-legacy-configuration
+    "Configuring Legacy Connection Compression").
+  id: totrans-128
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.18开始，此选项已被弃用。预计在未来的MySQL版本中将其移除。请参阅[配置传统连接压缩](connection-compression-control.html#connection-compression-legacy-configuration
+    "配置传统连接压缩")。
+- en: '[`--compression-algorithms=*`value`*`](mysqlcheck.html#option_mysqlcheck_compression-algorithms)'
+  id: totrans-129
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--compression-algorithms=*`value`*`](mysqlcheck.html#option_mysqlcheck_compression-algorithms)'
+- en: '| Command-Line Format | `--compression-algorithms=value` |'
+  id: totrans-130
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--compression-algorithms=value` |'
+- en: '| Introduced | 8.0.18 |'
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入 | 8.0.18 |'
+- en: '| Type | Set |'
+  id: totrans-132
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 集合 |'
+- en: '| Default Value | `uncompressed` |'
+  id: totrans-133
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `uncompressed` |'
+- en: '| Valid Values | `zlib``zstd``uncompressed` |'
+  id: totrans-134
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 有效值 | `zlib``zstd``uncompressed` |'
+- en: The permitted compression algorithms for connections to the server. The available
+    algorithms are the same as for the [`protocol_compression_algorithms`](server-system-variables.html#sysvar_protocol_compression_algorithms)
+    system variable. The default value is `uncompressed`.
+  id: totrans-135
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 连接到服务器的允许压缩算法。可用的算法与[`protocol_compression_algorithms`](server-system-variables.html#sysvar_protocol_compression_algorithms)系统变量相同。默认值为`uncompressed`。
+- en: For more information, see [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 Connection Compression Control").
+  id: totrans-136
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关更多信息，请参阅[第6.2.8节，“连接压缩控制”](connection-compression-control.html "6.2.8 连接压缩控制")。
+- en: This option was added in MySQL 8.0.18.
+  id: totrans-137
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项在MySQL 8.0.18中添加。
+- en: '[`--databases`](mysqlcheck.html#option_mysqlcheck_databases), `-B`'
+  id: totrans-138
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--databases`](mysqlcheck.html#option_mysqlcheck_databases), `-B`'
+- en: '| Command-Line Format | `--databases` |'
+  id: totrans-139
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--databases` |'
+- en: Process all tables in the named databases. Normally, [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") treats the first name argument
+    on the command line as a database name and any following names as table names.
+    With this option, it treats all name arguments as database names.
+  id: totrans-140
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 处理命名数据库中的所有表。通常，[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table
+    Maintenance Program")将命令行上的第一个名称参数视为数据库名称，任何后续名称视为表名���。使用此选项，它将所有名称参数视为数据库名称。
+- en: '[`--debug[=*`debug_options`*]`](mysqlcheck.html#option_mysqlcheck_debug), `-#
+    [*`debug_options`*]`'
+  id: totrans-141
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--debug[=*`debug_options`*]`](mysqlcheck.html#option_mysqlcheck_debug), `-#
+    [*`debug_options`*]`'
+- en: '| Command-Line Format | `--debug[=debug_options]` |'
+  id: totrans-142
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--debug[=debug_options]` |'
+- en: '| Type | String |'
+  id: totrans-143
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `d:t:o` |'
+  id: totrans-144
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `d:t:o` |'
+- en: Write a debugging log. A typical *`debug_options`* string is `d:t:o,*`file_name`*`.
+    The default is `d:t:o`.
+  id: totrans-145
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 写入调试日志。典型的*`debug_options`*字符串是`d:t:o,*`file_name`*`。默认值为`d:t:o`。
+- en: This option is available only if MySQL was built using [`WITH_DEBUG`](source-configuration-options.html#option_cmake_with_debug).
+    MySQL release binaries provided by Oracle are *not* built using this option.
+  id: totrans-146
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项仅在使用[`WITH_DEBUG`](source-configuration-options.html#option_cmake_with_debug)构建MySQL时可用。由Oracle提供的MySQL发布二进制文件*不*使用此选项构建。
+- en: '[`--debug-check`](mysqlcheck.html#option_mysqlcheck_debug-check)'
+  id: totrans-147
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--debug-check`](mysqlcheck.html#option_mysqlcheck_debug-check)'
+- en: '| Command-Line Format | `--debug-check` |'
+  id: totrans-148
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--debug-check` |'
+- en: '| Type | Boolean |'
+  id: totrans-149
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `FALSE` |'
+  id: totrans-150
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `FALSE` |'
+- en: Print some debugging information when the program exits.
+  id: totrans-151
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在程序退出时打印一些调试信息。
+- en: This option is available only if MySQL was built using [`WITH_DEBUG`](source-configuration-options.html#option_cmake_with_debug).
+    MySQL release binaries provided by Oracle are *not* built using this option.
+  id: totrans-152
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项仅在使用[`WITH_DEBUG`](source-configuration-options.html#option_cmake_with_debug)构建MySQL时可用。由Oracle提供的MySQL发布二进制文件*不*使用此选项构建。
+- en: '[`--debug-info`](mysqlcheck.html#option_mysqlcheck_debug-info)'
+  id: totrans-153
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--debug-info`](mysqlcheck.html#option_mysqlcheck_debug-info)'
+- en: '| Command-Line Format | `--debug-info` |'
+  id: totrans-154
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--debug-info` |'
+- en: '| Type | Boolean |'
+  id: totrans-155
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `FALSE` |'
+  id: totrans-156
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `FALSE` |'
+- en: Print debugging information and memory and CPU usage statistics when the program
+    exits.
+  id: totrans-157
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在程序退出时打印调试信息以及内存和CPU使用统计信息。
+- en: This option is available only if MySQL was built using [`WITH_DEBUG`](source-configuration-options.html#option_cmake_with_debug).
+    MySQL release binaries provided by Oracle are *not* built using this option.
+  id: totrans-158
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项仅在使用[`WITH_DEBUG`](source-configuration-options.html#option_cmake_with_debug)构建MySQL时可用。由Oracle提供的MySQL发布二进制文件*不*使用此选项构建。
+- en: '[`--default-character-set=*`charset_name`*`](mysqlcheck.html#option_mysqlcheck_default-character-set)'
+  id: totrans-159
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--default-character-set=*`charset_name`*`](mysqlcheck.html#option_mysqlcheck_default-character-set)'
+- en: '| Command-Line Format | `--default-character-set=charset_name` |'
+  id: totrans-160
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--default-character-set=charset_name` |'
+- en: '| Type | String |'
+  id: totrans-161
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: Use *`charset_name`* as the default character set. See [Section 12.15, “Character
+    Set Configuration”](charset-configuration.html "12.15 Character Set Configuration").
+  id: totrans-162
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用*`charset_name`*作为默认字符集。参见[第12.15节，“字符集配置”](charset-configuration.html "12.15 字符集配置")。
+- en: '[`--defaults-extra-file=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_defaults-extra-file)'
+  id: totrans-163
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--defaults-extra-file=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_defaults-extra-file)'
+- en: '| Command-Line Format | `--defaults-extra-file=file_name` |'
+  id: totrans-164
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--defaults-extra-file=file_name` |'
+- en: '| Type | File name |'
+  id: totrans-165
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 文件名 |'
+- en: Read this option file after the global option file but (on Unix) before the
+    user option file. If the file does not exist or is otherwise inaccessible, an
+    error occurs. If *`file_name`* is not an absolute path name, it is interpreted
+    relative to the current directory.
+  id: totrans-166
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在全局选项文件之后但（在Unix上）在用户选项文件之前读取此选项文件。如果文件不存在或无法访问，则会出现错误。如果*`file_name`*不是绝对路径名，则将其解释为相对于当前目录的路径。
+- en: For additional information about this and other option-file options, see [Section 6.2.2.3,
+    “Command-Line Options that Affect Option-File Handling”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling").
+  id: totrans-167
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关此选项和其他选项文件选项的更多信息，请参见[第6.2.2.3节，“影响选项文件处理的命令行选项”](option-file-options.html
+    "6.2.2.3 影响选项文件处理的命令行选项")。
+- en: '[`--defaults-file=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_defaults-file)'
+  id: totrans-168
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--defaults-file=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_defaults-file)'
+- en: '| Command-Line Format | `--defaults-file=file_name` |'
+  id: totrans-169
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--defaults-file=file_name` |'
+- en: '| Type | File name |'
+  id: totrans-170
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 文件名 |'
+- en: Use only the given option file. If the file does not exist or is otherwise inaccessible,
+    an error occurs. If *`file_name`* is not an absolute path name, it is interpreted
+    relative to the current directory.
+  id: totrans-171
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 仅使用给定的选项文件。如果文件不存在或无法访问，将出现错误。如果*`file_name`*不是绝对路径名，则将其解释为相对于当前目录。
+- en: 'Exception: Even with [`--defaults-file`](option-file-options.html#option_general_defaults-file),
+    client programs read `.mylogin.cnf`.'
+  id: totrans-172
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例外：即使使用[`--defaults-file`](option-file-options.html#option_general_defaults-file)，客户端程序也会读取`.mylogin.cnf`。
+- en: For additional information about this and other option-file options, see [Section 6.2.2.3,
+    “Command-Line Options that Affect Option-File Handling”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling").
+  id: totrans-173
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关此选项和其他选项文件选项的其他信息，请参阅[第6.2.2.3节，“影响选项文件处理的命令行选项”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling")。
+- en: '[`--defaults-group-suffix=*`str`*`](mysqlcheck.html#option_mysqlcheck_defaults-group-suffix)'
+  id: totrans-174
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--defaults-group-suffix=*`str`*`](mysqlcheck.html#option_mysqlcheck_defaults-group-suffix)'
+- en: '| Command-Line Format | `--defaults-group-suffix=str` |'
+  id: totrans-175
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--defaults-group-suffix=str` |'
+- en: '| Type | String |'
+  id: totrans-176
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: Read not only the usual option groups, but also groups with the usual names
+    and a suffix of *`str`*. For example, [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck
+    — A Table Maintenance Program") normally reads the `[client]` and `[mysqlcheck]`
+    groups. If this option is given as [`--defaults-group-suffix=_other`](mysqlcheck.html#option_mysqlcheck_defaults-group-suffix),
+    [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    also reads the `[client_other]` and `[mysqlcheck_other]` groups.
+  id: totrans-177
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不仅读取通常的选项组，还读取具有通常名称和后缀为*`str`*的组。例如，[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck
+    — A Table Maintenance Program")通常会读取`[client]`和`[mysqlcheck]`组。如果此选项给定为[`--defaults-group-suffix=_other`](mysqlcheck.html#option_mysqlcheck_defaults-group-suffix)，[**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program")还会读取`[client_other]`和`[mysqlcheck_other]`组。
+- en: For additional information about this and other option-file options, see [Section 6.2.2.3,
+    “Command-Line Options that Affect Option-File Handling”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling").
+  id: totrans-178
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关此选项和其他选项文件选项的其他信息，请参阅[第6.2.2.3节，“影响选项文件处理的命令行选项”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling")。
+- en: '[`--extended`](mysqlcheck.html#option_mysqlcheck_extended), `-e`'
+  id: totrans-179
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--extended`](mysqlcheck.html#option_mysqlcheck_extended)，`-e`'
+- en: '| Command-Line Format | `--extended` |'
+  id: totrans-180
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--extended` |'
+- en: If you are using this option to check tables, it ensures that they are 100%
+    consistent but takes a long time.
+  id: totrans-181
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您正在使用此选项来检查表格，它会确保它们是100%一致的，但需要很长时间。
+- en: If you are using this option to repair tables, it runs an extended repair that
+    may not only take a long time to execute, but may produce a lot of garbage rows
+    also!
+  id: totrans-182
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您正在使用此选项来修复表格，它会运行一个可能不仅执行时间长，而且可能产生大量垃圾行的扩展修复！
+- en: '[`--default-auth=*`plugin`*`](mysqlcheck.html#option_mysqlcheck_default-auth)'
+  id: totrans-183
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--default-auth=*`plugin`*`](mysqlcheck.html#option_mysqlcheck_default-auth)'
+- en: '| Command-Line Format | `--default-auth=plugin` |'
+  id: totrans-184
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--default-auth=plugin` |'
+- en: '| Type | String |'
+  id: totrans-185
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: A hint about which client-side authentication plugin to use. See [Section 8.2.17,
+    “Pluggable Authentication”](pluggable-authentication.html "8.2.17 Pluggable Authentication").
+  id: totrans-186
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 关于要使用的客户端端身份验证插件的提示。请参阅[第8.2.17节，“可插拔认证”](pluggable-authentication.html "8.2.17 Pluggable
+    Authentication")。
+- en: '[`--enable-cleartext-plugin`](mysqlcheck.html#option_mysqlcheck_enable-cleartext-plugin)'
+  id: totrans-187
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--enable-cleartext-plugin`](mysqlcheck.html#option_mysqlcheck_enable-cleartext-plugin)'
+- en: '| Command-Line Format | `--enable-cleartext-plugin` |'
+  id: totrans-188
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--enable-cleartext-plugin` |'
+- en: '| Type | Boolean |'
+  id: totrans-189
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `FALSE` |'
+  id: totrans-190
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `FALSE` |'
+- en: Enable the `mysql_clear_password` cleartext authentication plugin. (See [Section 8.4.1.4,
+    “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication").)
+  id: totrans-191
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启用`mysql_clear_password`明文身份验证插件。（请参阅[第8.4.1.4节，“客户端明文插拔式身份验证”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication")。）
+- en: '[`--fast`](mysqlcheck.html#option_mysqlcheck_fast), `-F`'
+  id: totrans-192
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--fast`](mysqlcheck.html#option_mysqlcheck_fast)，`-F`'
+- en: '| Command-Line Format | `--fast` |'
+  id: totrans-193
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--fast` |'
+- en: Check only tables that have not been closed properly.
+  id: totrans-194
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 仅检查未正确关闭的表格。
+- en: '[`--force`](mysqlcheck.html#option_mysqlcheck_force), `-f`'
+  id: totrans-195
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--force`](mysqlcheck.html#option_mysqlcheck_force)，`-f`'
+- en: '| Command-Line Format | `--force` |'
+  id: totrans-196
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--force` |'
+- en: Continue even if an SQL error occurs.
+  id: totrans-197
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 即使发生SQL错误，也要继续。
+- en: '[`--get-server-public-key`](mysqlcheck.html#option_mysqlcheck_get-server-public-key)'
+  id: totrans-198
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--get-server-public-key`](mysqlcheck.html#option_mysqlcheck_get-server-public-key)'
+- en: '| Command-Line Format | `--get-server-public-key` |'
+  id: totrans-199
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--get-server-public-key` |'
+- en: '| Type | Boolean |'
+  id: totrans-200
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: Request from the server the public key required for RSA key pair-based password
+    exchange. This option applies to clients that authenticate with the `caching_sha2_password`
+    authentication plugin. For that plugin, the server does not send the public key
+    unless requested. This option is ignored for accounts that do not authenticate
+    with that plugin. It is also ignored if RSA-based password exchange is not used,
+    as is the case when the client connects to the server using a secure connection.
+  id: totrans-201
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从服务器请求用于RSA密钥对密码交换所需的公钥。此选项适用于使用`caching_sha2_password`身份验证插件进行身份验证的客户端。对于该插件，除非请求，否则服务器不会发送公钥。对于不使用该插件进行身份验证的帐户，此选项将被忽略。如果不使用基于RSA的密码交换，例如客户端使用安全连接连接到服务器时，此选项也将被忽略。
+- en: If [`--server-public-key-path=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_server-public-key-path)
+    is given and specifies a valid public key file, it takes precedence over [`--get-server-public-key`](mysqlcheck.html#option_mysqlcheck_get-server-public-key).
+  id: totrans-202
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果给定[`--server-public-key-path=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_server-public-key-path)并指定有效的公钥文件，则它优先于[`--get-server-public-key`](mysqlcheck.html#option_mysqlcheck_get-server-public-key)。
+- en: For information about the `caching_sha2_password` plugin, see [Section 8.4.1.2,
+    “Caching SHA-2 Pluggable Authentication”](caching-sha2-pluggable-authentication.html
+    "8.4.1.2 Caching SHA-2 Pluggable Authentication").
+  id: totrans-203
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关`caching_sha2_password`插件的信息，请参见[第8.4.1.2节，“Caching SHA-2 Pluggable Authentication”](caching-sha2-pluggable-authentication.html
+    "8.4.1.2 Caching SHA-2 Pluggable Authentication")。
+- en: '[`--host=*`host_name`*`](mysqlcheck.html#option_mysqlcheck_host), `-h *`host_name`*`'
+  id: totrans-204
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--host=*`host_name`*`](mysqlcheck.html#option_mysqlcheck_host), `-h *`host_name`*`'
+- en: '| Command-Line Format | `--host=host_name` |'
+  id: totrans-205
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--host=host_name` |'
+- en: '| Type | String |'
+  id: totrans-206
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `localhost` |'
+  id: totrans-207
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `localhost` |'
+- en: Connect to the MySQL server on the given host.
+  id: totrans-208
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 连接到给定主机上的MySQL服务器。
+- en: '[`--login-path=*`name`*`](mysqlcheck.html#option_mysqlcheck_login-path)'
+  id: totrans-209
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--login-path=*`name`*`](mysqlcheck.html#option_mysqlcheck_login-path)'
+- en: '| Command-Line Format | `--login-path=name` |'
+  id: totrans-210
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--login-path=name` |'
+- en: '| Type | String |'
+  id: totrans-211
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: Read options from the named login path in the `.mylogin.cnf` login path file.
+    A “login path” is an option group containing options that specify which MySQL
+    server to connect to and which account to authenticate as. To create or modify
+    a login path file, use the [**mysql_config_editor**](mysql-config-editor.html
+    "6.6.7 mysql_config_editor — MySQL Configuration Utility") utility. See [Section 6.6.7,
+    “mysql_config_editor — MySQL Configuration Utility”](mysql-config-editor.html
+    "6.6.7 mysql_config_editor — MySQL Configuration Utility").
+  id: totrans-212
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从`.mylogin.cnf`登录路径文件中的指定登录路径中读取选项。 “登录路径”是一个包含指定要连接到哪个MySQL服务器以及要作为哪个帐户进行身份验证的选项的选项组。要创建或修改登录路径文件，请使用[**mysql_config_editor**](mysql-config-editor.html
+    "6.6.7 mysql_config_editor — MySQL Configuration Utility")实用程序。请参见[第6.6.7节，“mysql_config_editor
+    — MySQL Configuration Utility”](mysql-config-editor.html "6.6.7 mysql_config_editor
+    — MySQL Configuration Utility")。
+- en: For additional information about this and other option-file options, see [Section 6.2.2.3,
+    “Command-Line Options that Affect Option-File Handling”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling").
+  id: totrans-213
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关此选项和其他选项文件选项的更多信息，请参见[第6.2.2.3节，“影响选项文件处理的命令行选项”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling")。
+- en: '[`--medium-check`](mysqlcheck.html#option_mysqlcheck_medium-check), `-m`'
+  id: totrans-214
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--medium-check`](mysqlcheck.html#option_mysqlcheck_medium-check), `-m`'
+- en: '| Command-Line Format | `--medium-check` |'
+  id: totrans-215
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--medium-check` |'
+- en: Do a check that is faster than an [`--extended`](mysqlcheck.html#option_mysqlcheck_extended)
+    operation. This finds only 99.99% of all errors, which should be good enough in
+    most cases.
+  id: totrans-216
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 进行比[`--extended`](mysqlcheck.html#option_mysqlcheck_extended)操作更快的检查。这只能找到所有错误的99.99%，在大多数情况下应该足够好。
+- en: '[`--no-defaults`](mysqlcheck.html#option_mysqlcheck_no-defaults)'
+  id: totrans-217
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--no-defaults`](mysqlcheck.html#option_mysqlcheck_no-defaults)'
+- en: '| Command-Line Format | `--no-defaults` |'
+  id: totrans-218
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--no-defaults` |'
+- en: Do not read any option files. If program startup fails due to reading unknown
+    options from an option file, [`--no-defaults`](mysqlcheck.html#option_mysqlcheck_no-defaults)
+    can be used to prevent them from being read.
+  id: totrans-219
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不要读取任何选项文件。如果程序启动失败是因为从选项文件中读取了未知选项，可以使用[`--no-defaults`](mysqlcheck.html#option_mysqlcheck_no-defaults)来防止它们被读取。
+- en: The exception is that the `.mylogin.cnf` file is read in all cases, if it exists.
+    This permits passwords to be specified in a safer way than on the command line
+    even when [`--no-defaults`](mysqlcheck.html#option_mysqlcheck_no-defaults) is
+    used. To create `.mylogin.cnf`, use the [**mysql_config_editor**](mysql-config-editor.html
+    "6.6.7 mysql_config_editor — MySQL Configuration Utility") utility. See [Section 6.6.7,
+    “mysql_config_editor — MySQL Configuration Utility”](mysql-config-editor.html
+    "6.6.7 mysql_config_editor — MySQL Configuration Utility").
+  id: totrans-220
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例外情况是，如果存在`.mylogin.cnf`文件，则在所有情况下都会读取该文件。这允许以比在命令行上更安全的方式指定密码，即使使用[`--no-defaults`](mysqlcheck.html#option_mysqlcheck_no-defaults)。要创建`.mylogin.cnf`，请使用[**mysql_config_editor**](mysql-config-editor.html
+    "6.6.7 mysql_config_editor — MySQL配置实用程序")实用程序。参见[第6.6.7节，“mysql_config_editor
+    — MySQL配置实用程序”](mysql-config-editor.html "6.6.7 mysql_config_editor — MySQL配置实用程序")。
+- en: For additional information about this and other option-file options, see [Section 6.2.2.3,
+    “Command-Line Options that Affect Option-File Handling”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling").
+  id: totrans-221
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关此选项文件选项和其他选项的更多信息，请参见[第6.2.2.3节，“影响选项文件处理的命令行选项”](option-file-options.html
+    "6.2.2.3 影响选项文件处理的命令行选项")。
+- en: '[`--optimize`](mysqlcheck.html#option_mysqlcheck_optimize), `-o`'
+  id: totrans-222
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--optimize`](mysqlcheck.html#option_mysqlcheck_optimize), `-o`'
+- en: '| Command-Line Format | `--optimize` |'
+  id: totrans-223
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--optimize` |'
+- en: Optimize the tables.
+  id: totrans-224
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 优化表格。
+- en: '[`--password[=*`password`*]`](mysqlcheck.html#option_mysqlcheck_password),
+    `-p[*`password`*]`'
+  id: totrans-225
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--password[=*`password`*]`](mysqlcheck.html#option_mysqlcheck_password),
+    `-p[*`password`*]`'
+- en: '| Command-Line Format | `--password[=password]` |'
+  id: totrans-226
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--password[=password]` |'
+- en: '| Type | String |'
+  id: totrans-227
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: The password of the MySQL account used for connecting to the server. The password
+    value is optional. If not given, [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck
+    — A Table Maintenance Program") prompts for one. If given, there must be *no space*
+    between [`--password=`](mysqlcheck.html#option_mysqlcheck_password) or `-p` and
+    the password following it. If no password option is specified, the default is
+    to send no password.
+  id: totrans-228
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于连接到服务器的MySQL帐户的密码。密码值是可选的。如果未提供，[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck
+    — 一个表维护程序")会提示输入密码。如果提供了密码，则[`--password=`](mysqlcheck.html#option_mysqlcheck_password)或`-p`后面必须*没有空格*。如果未指定���码选项，则默认不发送密码。
+- en: Specifying a password on the command line should be considered insecure. To
+    avoid giving the password on the command line, use an option file. See [Section 8.1.2.1,
+    “End-User Guidelines for Password Security”](password-security-user.html "8.1.2.1 End-User
+    Guidelines for Password Security").
+  id: totrans-229
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在命令行上指定密码应被视为不安全。为了避免在命令行上输入密码，请使用一个选项文件。参见[第8.1.2.1节，“密码安全的最终用户指南”](password-security-user.html
+    "8.1.2.1 密码安全的最终用户指南")。
+- en: To explicitly specify that there is no password and that [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") should not prompt for one, use
+    the [`--skip-password`](mysqlcheck.html#option_mysqlcheck_password) option.
+  id: totrans-230
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要明确指定没有密码，并且[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — 一个表维护程序")不应提示密码，请使用[`--skip-password`](mysqlcheck.html#option_mysqlcheck_password)选项。
+- en: '[`--password1[=*`pass_val`*]`](mysqlcheck.html#option_mysqlcheck_password1)'
+  id: totrans-231
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--password1[=*`pass_val`*]`](mysqlcheck.html#option_mysqlcheck_password1)'
+- en: The password for multifactor authentication factor 1 of the MySQL account used
+    for connecting to the server. The password value is optional. If not given, [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") prompts for one. If given, there
+    must be *no space* between [`--password1=`](mysqlcheck.html#option_mysqlcheck_password1)
+    and the password following it. If no password option is specified, the default
+    is to send no password.
+  id: totrans-232
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于连接到服务器的MySQL帐户的多因素认证因子1的密码。密码值是可选的。如果未提供，[**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — 一个表维护程序")会提示输入密码。如果提供了密码，则[`--password1=`](mysqlcheck.html#option_mysqlcheck_password1)后面必须*没有空格*。如果未指定密码选项，则默认不发送密码。
+- en: Specifying a password on the command line should be considered insecure. To
+    avoid giving the password on the command line, use an option file. See [Section 8.1.2.1,
+    “End-User Guidelines for Password Security”](password-security-user.html "8.1.2.1 End-User
+    Guidelines for Password Security").
+  id: totrans-233
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在命令行上指定密码应被视为不安全。为了避免在命令行上输入密码，请使用一个选项文件。参见[第8.1.2.1节，“密码安全的最终用户指南”](password-security-user.html
+    "8.1.2.1 密码安全的最终用户指南")。
+- en: To explicitly specify that there is no password and that [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") should not prompt for one, use
+    the [`--skip-password1`](mysqlcheck.html#option_mysqlcheck_password1) option.
+  id: totrans-234
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要明确指定没有密码，并且[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance
+    Program")不应提示输入密码，请使用[`--skip-password1`](mysqlcheck.html#option_mysqlcheck_password1)选项。
+- en: '[`--password1`](mysqlcheck.html#option_mysqlcheck_password1) and [`--password`](mysqlcheck.html#option_mysqlcheck_password)
+    are synonymous, as are [`--skip-password1`](mysqlcheck.html#option_mysqlcheck_password1)
+    and [`--skip-password`](mysqlcheck.html#option_mysqlcheck_password).'
+  id: totrans-235
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`--password1`](mysqlcheck.html#option_mysqlcheck_password1)和[`--password`](mysqlcheck.html#option_mysqlcheck_password)是同义词，[`--skip-password1`](mysqlcheck.html#option_mysqlcheck_password1)和[`--skip-password`](mysqlcheck.html#option_mysqlcheck_password)也是同义词。'
+- en: '[`--password2[=*`pass_val`*]`](mysqlcheck.html#option_mysqlcheck_password2)'
+  id: totrans-236
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--password2[=*`pass_val`*]`](mysqlcheck.html#option_mysqlcheck_password2)'
+- en: The password for multifactor authentication factor 2 of the MySQL account used
+    for connecting to the server. The semantics of this option are similar to the
+    semantics for [`--password1`](mysqlcheck.html#option_mysqlcheck_password1); see
+    the description of that option for details.
+  id: totrans-237
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于连接到服务器的MySQL帐户的多因素认证因子2的密码。此选项的语义类似于[`--password1`](mysqlcheck.html#option_mysqlcheck_password1)的语义；有关详细信息，请参阅该选项的描述。
+- en: '[`--password3[=*`pass_val`*]`](mysqlcheck.html#option_mysqlcheck_password3)'
+  id: totrans-238
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--password3[=*`pass_val`*]`](mysqlcheck.html#option_mysqlcheck_password3)'
+- en: The password for multifactor authentication factor 3 of the MySQL account used
+    for connecting to the server. The semantics of this option are similar to the
+    semantics for [`--password1`](mysqlcheck.html#option_mysqlcheck_password1); see
+    the description of that option for details.
+  id: totrans-239
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于连接到服务器的MySQL帐户的多因素认证因子3的密码。此选项的语义类似于[`--password1`](mysqlcheck.html#option_mysqlcheck_password1)的语义；有关详细信息，请参阅该选项的描述。
+- en: '[`--pipe`](mysqlcheck.html#option_mysqlcheck_pipe), `-W`'
+  id: totrans-240
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--pipe`](mysqlcheck.html#option_mysqlcheck_pipe), `-W`'
+- en: '| Command-Line Format | `--pipe` |'
+  id: totrans-241
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--pipe` |'
+- en: '| Type | String |'
+  id: totrans-242
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: On Windows, connect to the server using a named pipe. This option applies only
+    if the server was started with the [`named_pipe`](server-system-variables.html#sysvar_named_pipe)
+    system variable enabled to support named-pipe connections. In addition, the user
+    making the connection must be a member of the Windows group specified by the [`named_pipe_full_access_group`](server-system-variables.html#sysvar_named_pipe_full_access_group)
+    system variable.
+  id: totrans-243
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在Windows上，使用命名管道连接到服务器。此选项仅在服务器启动时启用了[`named_pipe`](server-system-variables.html#sysvar_named_pipe)系统变量以支持命名管道连接时适用。此外，进行连接的用户必须是由[`named_pipe_full_access_group`](server-system-variables.html#sysvar_named_pipe_full_access_group)系统变量指定的Windows组的成员。
+- en: '[`--plugin-dir=*`dir_name`*`](mysqlcheck.html#option_mysqlcheck_plugin-dir)'
+  id: totrans-244
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--plugin-dir=*`dir_name`*`](mysqlcheck.html#option_mysqlcheck_plugin-dir)'
+- en: '| Command-Line Format | `--plugin-dir=dir_name` |'
+  id: totrans-245
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--plugin-dir=dir_name` |'
+- en: '| Type | Directory name |'
+  id: totrans-246
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 目录名称 |'
+- en: The directory in which to look for plugins. Specify this option if the [`--default-auth`](mysqlcheck.html#option_mysqlcheck_default-auth)
+    option is used to specify an authentication plugin but [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") does not find it. See [Section 8.2.17,
+    “Pluggable Authentication”](pluggable-authentication.html "8.2.17 Pluggable Authentication").
+  id: totrans-247
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查找插件的目录。如果使用[`--default-auth`](mysqlcheck.html#option_mysqlcheck_default-auth)选项指定身份验证插件但[**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program")找不到它，请指定此选项。请参阅[第8.2.17节，“可插拔认证”](pluggable-authentication.html
+    "8.2.17 Pluggable Authentication")。
+- en: '[`--port=*`port_num`*`](mysqlcheck.html#option_mysqlcheck_port), `-P *`port_num`*`'
+  id: totrans-248
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--port=*`port_num`*`](mysqlcheck.html#option_mysqlcheck_port), `-P *`port_num`*`'
+- en: '| Command-Line Format | `--port=port_num` |'
+  id: totrans-249
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--port=port_num` |'
+- en: '| Type | Numeric |'
+  id: totrans-250
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 数字 |'
+- en: '| Default Value | `3306` |'
+  id: totrans-251
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `3306` |'
+- en: For TCP/IP connections, the port number to use.
+  id: totrans-252
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于TCP/IP连接，要使用的端口号。
+- en: '[`--print-defaults`](mysqlcheck.html#option_mysqlcheck_print-defaults)'
+  id: totrans-253
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--print-defaults`](mysqlcheck.html#option_mysqlcheck_print-defaults)'
+- en: '| Command-Line Format | `--print-defaults` |'
+  id: totrans-254
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--print-defaults` |'
+- en: Print the program name and all options that it gets from option files.
+  id: totrans-255
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 打印程序名称以及从选项文件获取的所有选项。
+- en: For additional information about this and other option-file options, see [Section 6.2.2.3,
+    “Command-Line Options that Affect Option-File Handling”](option-file-options.html
+    "6.2.2.3 Command-Line Options that Affect Option-File Handling").
+  id: totrans-256
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关此选项和其他选项文件选项的更多信息，请参见[第6.2.2.3节，“影响选项文件处理的命令行选项”](option-file-options.html
+    "6.2.2.3 影响选项文件处理的命令行选项")。
+- en: '[`--protocol={TCP|SOCKET|PIPE|MEMORY}`](mysqlcheck.html#option_mysqlcheck_protocol)'
+  id: totrans-257
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--protocol={TCP|SOCKET|PIPE|MEMORY}`](mysqlcheck.html#option_mysqlcheck_protocol)'
+- en: '| Command-Line Format | `--protocol=type` |'
+  id: totrans-258
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--protocol=type` |'
+- en: '| Type | String |'
+  id: totrans-259
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[see text]` |'
+  id: totrans-260
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[见文本]` |'
+- en: '| Valid Values | `TCP``SOCKET``PIPE``MEMORY` |'
+  id: totrans-261
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 有效值 | `TCP``SOCKET``PIPE``MEMORY` |'
+- en: The transport protocol to use for connecting to the server. It is useful when
+    the other connection parameters normally result in use of a protocol other than
+    the one you want. For details on the permissible values, see [Section 6.2.7, “Connection
+    Transport Protocols”](transport-protocols.html "6.2.7 Connection Transport Protocols").
+  id: totrans-262
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于连接到服务器的传输协议。当其他连接参数通常导致使用不希望使用的协议时，这很有用。有关允许值的详细信息，请参见[第6.2.7节，“连接传输协议”](transport-protocols.html
+    "6.2.7 连接传输协议")。
+- en: '[`--quick`](mysqlcheck.html#option_mysqlcheck_quick), `-q`'
+  id: totrans-263
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--quick`](mysqlcheck.html#option_mysqlcheck_quick), `-q`'
+- en: '| Command-Line Format | `--quick` |'
+  id: totrans-264
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--quick` |'
+- en: If you are using this option to check tables, it prevents the check from scanning
+    the rows to check for incorrect links. This is the fastest check method.
+  id: totrans-265
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您使用此选项来检查表格，则可以防止检查扫描行以检查不正确的链接。这是最快的检查方法。
+- en: If you are using this option to repair tables, it tries to repair only the index
+    tree. This is the fastest repair method.
+  id: totrans-266
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您使用此选项来修复表格，则尝试仅修复索引树。这是最快的修复方法。
+- en: '[`--repair`](mysqlcheck.html#option_mysqlcheck_repair), `-r`'
+  id: totrans-267
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--repair`](mysqlcheck.html#option_mysqlcheck_repair), `-r`'
+- en: '| Command-Line Format | `--repair` |'
+  id: totrans-268
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--repair` |'
+- en: Perform a repair that can fix almost anything except unique keys that are not
+    unique.
+  id: totrans-269
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 执行一个修复操作，可以修复几乎所有问题，除了不唯一的唯一键。
+- en: '[`--server-public-key-path=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_server-public-key-path)'
+  id: totrans-270
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--server-public-key-path=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_server-public-key-path)'
+- en: '| Command-Line Format | `--server-public-key-path=file_name` |'
+  id: totrans-271
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--server-public-key-path=file_name` |'
+- en: '| Type | File name |'
+  id: totrans-272
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 文件名 |'
+- en: The path name to a file in PEM format containing a client-side copy of the public
+    key required by the server for RSA key pair-based password exchange. This option
+    applies to clients that authenticate with the `sha256_password` or `caching_sha2_password`
+    authentication plugin. This option is ignored for accounts that do not authenticate
+    with one of those plugins. It is also ignored if RSA-based password exchange is
+    not used, as is the case when the client connects to the server using a secure
+    connection.
+  id: totrans-273
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以PEM格式的文件路径名，其中包含服务器所需的用于RSA密钥对密码交换的客户端端公钥的副本。此选项适用于使用`sha256_password`或`caching_sha2_password`身份验证插件进行身份验证的客户端。对于不使用这些插件进行身份验证的帐户，此选项将被忽略。如果不使用基于RSA的密码交换，例如客户端使用安全连接连接到服务器时，此选项也将被忽略。
+- en: If [`--server-public-key-path=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_server-public-key-path)
+    is given and specifies a valid public key file, it takes precedence over [`--get-server-public-key`](mysqlcheck.html#option_mysqlcheck_get-server-public-key).
+  id: totrans-274
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果给定[`--server-public-key-path=*`file_name`*`](mysqlcheck.html#option_mysqlcheck_server-public-key-path)并指定有效的公钥文件，则它优先于[`--get-server-public-key`](mysqlcheck.html#option_mysqlcheck_get-server-public-key)。
+- en: For `sha256_password`, this option applies only if MySQL was built using OpenSSL.
+  id: totrans-275
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于`sha256_password`，此选项仅在MySQL使用OpenSSL构建时适用。
+- en: For information about the `sha256_password` and `caching_sha2_password` plugins,
+    see [Section 8.4.1.3, “SHA-256 Pluggable Authentication”](sha256-pluggable-authentication.html
+    "8.4.1.3 SHA-256 Pluggable Authentication"), and [Section 8.4.1.2, “Caching SHA-2
+    Pluggable Authentication”](caching-sha2-pluggable-authentication.html "8.4.1.2 Caching
+    SHA-2 Pluggable Authentication").
+  id: totrans-276
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关`sha256_password`和`caching_sha2_password`插件的信息，请参见[第8.4.1.3节，“SHA-256可插拔认证”](sha256-pluggable-authentication.html
+    "8.4.1.3 SHA-256可插拔认证")和[第8.4.1.2节，“缓存SHA-2可插拔认证”](caching-sha2-pluggable-authentication.html
+    "8.4.1.2 缓存SHA-2可插拔认证")。
+- en: '[`--shared-memory-base-name=*`name`*`](mysqlcheck.html#option_mysqlcheck_shared-memory-base-name)'
+  id: totrans-277
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--shared-memory-base-name=*`name`*`](mysqlcheck.html#option_mysqlcheck_shared-memory-base-name)'
+- en: '| Command-Line Format | `--shared-memory-base-name=name` |'
+  id: totrans-278
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--shared-memory-base-name=name` |'
+- en: '| Platform Specific | Windows |'
+  id: totrans-279
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 特定平台 | Windows |'
+- en: On Windows, the shared-memory name to use for connections made using shared
+    memory to a local server. The default value is `MYSQL`. The shared-memory name
+    is case-sensitive.
+  id: totrans-280
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 Windows 上，用于通过共享内存连接到本地服务器的共享内存名称。默认值为 `MYSQL`。共享内存名称区分大小写。
+- en: This option applies only if the server was started with the [`shared_memory`](server-system-variables.html#sysvar_shared_memory)
+    system variable enabled to support shared-memory connections.
+  id: totrans-281
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项仅在服务器启用了 [`shared_memory`](server-system-variables.html#sysvar_shared_memory)
+    系统变量以支持共享内存连接时适用。
+- en: '[`--silent`](mysqlcheck.html#option_mysqlcheck_silent), `-s`'
+  id: totrans-282
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--silent`](mysqlcheck.html#option_mysqlcheck_silent), `-s`'
+- en: '| Command-Line Format | `--silent` |'
+  id: totrans-283
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--silent` |'
+- en: Silent mode. Print only error messages.
+  id: totrans-284
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 静默模式。仅打印错误消息。
+- en: '[`--skip-database=*`db_name`*`](mysqlcheck.html#option_mysqlcheck_skip-database)'
+  id: totrans-285
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--skip-database=*`db_name`*`](mysqlcheck.html#option_mysqlcheck_skip-database)'
+- en: '| Command-Line Format | `--skip-database=db_name` |'
+  id: totrans-286
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--skip-database=db_name` |'
+- en: Do not include the named database (case-sensitive) in the operations performed
+    by [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program").
+  id: totrans-287
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table Maintenance Program")
+    执行的操作中不包括命名数据库（区分大小写）。
+- en: '[`--socket=*`path`*`](mysqlcheck.html#option_mysqlcheck_socket), `-S *`path`*`'
+  id: totrans-288
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--socket=*`path`*`](mysqlcheck.html#option_mysqlcheck_socket), `-S *`path`*`'
+- en: '| Command-Line Format | `--socket={file_name&#124;pipe_name}` |'
+  id: totrans-289
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--socket={file_name&#124;pipe_name}` |'
+- en: '| Type | String |'
+  id: totrans-290
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: For connections to `localhost`, the Unix socket file to use, or, on Windows,
+    the name of the named pipe to use.
+  id: totrans-291
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于连接到 `localhost` 的连接，要使用的 Unix 套接字文件，或者在 Windows 上要使用的命名管道的名称。
+- en: On Windows, this option applies only if the server was started with the [`named_pipe`](server-system-variables.html#sysvar_named_pipe)
+    system variable enabled to support named-pipe connections. In addition, the user
+    making the connection must be a member of the Windows group specified by the [`named_pipe_full_access_group`](server-system-variables.html#sysvar_named_pipe_full_access_group)
+    system variable.
+  id: totrans-292
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 Windows 上，此选项仅在服务器启用了 [`named_pipe`](server-system-variables.html#sysvar_named_pipe)
+    系统变量以支持命名管道连接时适用。此外，进行连接的用户必须是由 [`named_pipe_full_access_group`](server-system-variables.html#sysvar_named_pipe_full_access_group)
+    系统变量指定的 Windows 组的成员。
+- en: '`--ssl*`'
+  id: totrans-293
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`--ssl*`'
+- en: Options that begin with `--ssl` specify whether to connect to the server using
+    encryption and indicate where to find SSL keys and certificates. See [Command
+    Options for Encrypted Connections](connection-options.html#encrypted-connection-options
+    "Command Options for Encrypted Connections").
+  id: totrans-294
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以 `--ssl` 开头的选项指定是否使用加密连接到服务器，并指示 SSL 密钥和证书的位置。参见 [加密连接的命令选项](connection-options.html#encrypted-connection-options
+    "Command Options for Encrypted Connections")。
+- en: '[`--ssl-fips-mode={OFF|ON|STRICT}`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)'
+  id: totrans-295
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--ssl-fips-mode={OFF|ON|STRICT}`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)'
+- en: '| Command-Line Format | `--ssl-fips-mode={OFF&#124;ON&#124;STRICT}` |'
+  id: totrans-296
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--ssl-fips-mode={OFF&#124;ON&#124;STRICT}` |'
+- en: '| Deprecated | 8.0.34 |'
+  id: totrans-297
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 已弃用 | 8.0.34 |'
+- en: '| Type | Enumeration |'
+  id: totrans-298
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 枚举 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-299
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: '| Valid Values | `OFF``ON``STRICT` |'
+  id: totrans-300
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 有效数值 | `OFF``ON``STRICT` |'
+- en: Controls whether to enable FIPS mode on the client side. The [`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)
+    option differs from other `--ssl-*`xxx`*` options in that it is not used to establish
+    encrypted connections, but rather to affect which cryptographic operations to
+    permit. See [Section 8.8, “FIPS Support”](fips-mode.html "8.8 FIPS Support").
+  id: totrans-301
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 控制是否在客户端启用 FIPS 模式。[`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)
+    选项与其他 `--ssl-*`xxx`*` 选项不同，它不用于建立加密连接，而是影响允许哪些加密操作。参见 [第 8.8 节，“FIPS 支持”](fips-mode.html
+    "8.8 FIPS Support")。
+- en: 'These [`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)
+    values are permitted:'
+  id: totrans-302
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 允许使用以下 [`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)
+    值：
+- en: '`OFF`: Disable FIPS mode.'
+  id: totrans-303
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OFF`: 禁用 FIPS 模式。'
+- en: '`ON`: Enable FIPS mode.'
+  id: totrans-304
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ON`: 启用 FIPS 模式。'
+- en: '`STRICT`: Enable “strict” FIPS mode.'
+  id: totrans-305
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STRICT`: 启用“严格” FIPS 模式。'
+- en: Note
+  id: totrans-306
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If the OpenSSL FIPS Object Module is not available, the only permitted value
+    for [`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode) is `OFF`.
+    In this case, setting [`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)
+    to `ON` or `STRICT` causes the client to produce a warning at startup and to operate
+    in non-FIPS mode.
+  id: totrans-307
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果 OpenSSL FIPS Object 模块不可用，则 [`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)
+    的唯一允许值是 `OFF`。在这种情况下，将 [`--ssl-fips-mode`](mysqlcheck.html#option_mysqlcheck_ssl-fips-mode)
+    设置为 `ON` 或 `STRICT` 会导致客户端在启动时产生警告并在非 FIPS 模式下运行。
+- en: As of MySQL 8.0.34, this option is deprecated. Expect it to be removed in a
+    future version of MySQL.
+  id: totrans-308
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.34，此选项已被弃用。预计将在未来的MySQL版本中移除。
+- en: '[`--tables`](mysqlcheck.html#option_mysqlcheck_tables)'
+  id: totrans-309
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--tables`](mysqlcheck.html#option_mysqlcheck_tables)'
+- en: '| Command-Line Format | `--tables` |'
+  id: totrans-310
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--tables` |'
+- en: Override the [`--databases`](mysqlcheck.html#option_mysqlcheck_databases) or
+    `-B` option. All name arguments following the option are regarded as table names.
+  id: totrans-311
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 覆盖[`--databases`](mysqlcheck.html#option_mysqlcheck_databases)或`-B`选项。选项后面的所有名称参数都被视为表名。
+- en: '[`--tls-ciphersuites=*`ciphersuite_list`*`](mysqlcheck.html#option_mysqlcheck_tls-ciphersuites)'
+  id: totrans-312
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--tls-ciphersuites=*`ciphersuite_list`*`](mysqlcheck.html#option_mysqlcheck_tls-ciphersuites)'
+- en: '| Command-Line Format | `--tls-ciphersuites=ciphersuite_list` |'
+  id: totrans-313
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--tls-ciphersuites=ciphersuite_list` |'
+- en: '| Introduced | 8.0.16 |'
+  id: totrans-314
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入 | 8.0.16 |'
+- en: '| Type | String |'
+  id: totrans-315
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: The permissible ciphersuites for encrypted connections that use TLSv1.3\. The
+    value is a list of one or more colon-separated ciphersuite names. The ciphersuites
+    that can be named for this option depend on the SSL library used to compile MySQL.
+    For details, see [Section 8.3.2, “Encrypted Connection TLS Protocols and Ciphers”](encrypted-connection-protocols-ciphers.html
+    "8.3.2 Encrypted Connection TLS Protocols and Ciphers").
+  id: totrans-316
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于使用TLSv1.3的加密连接的可允许的密码套件。该值是一个或多个以冒号分隔的密码套件名称列表。可以为此选项命名的密码套件取决于用于编译MySQL的SSL库。有关详细信息，请参见[第8.3.2节，“加密连接TLS协议和密码”](encrypted-connection-protocols-ciphers.html
+    "8.3.2 加密连接TLS协议和密码")。
+- en: This option was added in MySQL 8.0.16.
+  id: totrans-317
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项是在MySQL 8.0.16中添加的。
+- en: '[`--tls-version=*`protocol_list`*`](mysqlcheck.html#option_mysqlcheck_tls-version)'
+  id: totrans-318
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--tls-version=*`protocol_list`*`](mysqlcheck.html#option_mysqlcheck_tls-version)'
+- en: '| Command-Line Format | `--tls-version=protocol_list` |'
+  id: totrans-319
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--tls-version=protocol_list` |'
+- en: '| Type | String |'
+  id: totrans-320
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value (≥ 8.0.16) | `TLSv1,TLSv1.1,TLSv1.2,TLSv1.3` (OpenSSL 1.1.1
+    or higher)`TLSv1,TLSv1.1,TLSv1.2` (otherwise) |'
+  id: totrans-321
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值（≥ 8.0.16） | `TLSv1,TLSv1.1,TLSv1.2,TLSv1.3`（OpenSSL 1.1.1或更高版本）`TLSv1,TLSv1.1,TLSv1.2`（否则）
+    |'
+- en: '| Default Value (≤ 8.0.15) | `TLSv1,TLSv1.1,TLSv1.2` |'
+  id: totrans-322
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值（≤ 8.0.15） | `TLSv1,TLSv1.1,TLSv1.2` |'
+- en: The permissible TLS protocols for encrypted connections. The value is a list
+    of one or more comma-separated protocol names. The protocols that can be named
+    for this option depend on the SSL library used to compile MySQL. For details,
+    see [Section 8.3.2, “Encrypted Connection TLS Protocols and Ciphers”](encrypted-connection-protocols-ciphers.html
+    "8.3.2 Encrypted Connection TLS Protocols and Ciphers").
+  id: totrans-323
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于加密连接的可允许的TLS协议。该值是一个或多个逗号分隔的协议名称列表。可以为此选项命名的协议取决于用于编译MySQL的SSL库。有关详细信息，请参见[第8.3.2节，“加密连接TLS协议和密码”](encrypted-connection-protocols-ciphers.html
+    "8.3.2 加密连接TLS协议和密码")。
+- en: '[`--use-frm`](mysqlcheck.html#option_mysqlcheck_use-frm)'
+  id: totrans-324
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--use-frm`](mysqlcheck.html#option_mysqlcheck_use-frm)'
+- en: '| Command-Line Format | `--use-frm` |'
+  id: totrans-325
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--use-frm` |'
+- en: For repair operations on `MyISAM` tables, get the table structure from the data
+    dictionary so that the table can be repaired even if the `.MYI` header is corrupted.
+  id: totrans-326
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于`MyISAM`表的修复操作，从数据字典获取表结构，以便即使`.MYI`头文件损坏，也可以修复表。
+- en: '[`--user=*`user_name`*`](mysqlcheck.html#option_mysqlcheck_user), `-u *`user_name`*`'
+  id: totrans-327
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--user=*`user_name`*`](mysqlcheck.html#option_mysqlcheck_user)，`-u *`user_name`*`'
+- en: '| Command-Line Format | `--user=user_name,` |'
+  id: totrans-328
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--user=user_name,` |'
+- en: '| Type | String |'
+  id: totrans-329
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: The user name of the MySQL account to use for connecting to the server.
+  id: totrans-330
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于连接到服务器的MySQL帐户的用户名。
+- en: '[`--verbose`](mysqlcheck.html#option_mysqlcheck_verbose), `-v`'
+  id: totrans-331
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--verbose`](mysqlcheck.html#option_mysqlcheck_verbose)，`-v`'
+- en: '| Command-Line Format | `--verbose` |'
+  id: totrans-332
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--verbose` |'
+- en: Verbose mode. Print information about the various stages of program operation.
+  id: totrans-333
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 详细模式。打印有关程序操作各个阶段的信息。
+- en: '[`--version`](mysqlcheck.html#option_mysqlcheck_version), `-V`'
+  id: totrans-334
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--version`](mysqlcheck.html#option_mysqlcheck_version)，`-V`'
+- en: '| Command-Line Format | `--version` |'
+  id: totrans-335
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--version` |'
+- en: Display version information and exit.
+  id: totrans-336
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 显示版本信息并退出。
+- en: '[`--write-binlog`](mysqlcheck.html#option_mysqlcheck_write-binlog)'
+  id: totrans-337
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--write-binlog`](mysqlcheck.html#option_mysqlcheck_write-binlog)'
+- en: '| Command-Line Format | `--write-binlog` |'
+  id: totrans-338
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--write-binlog` |'
+- en: This option is enabled by default, so that [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement"), [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE
+    TABLE Statement"), and [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE
+    Statement") statements generated by [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck
+    — A Table Maintenance Program") are written to the binary log. Use [`--skip-write-binlog`](mysqlcheck.html#option_mysqlcheck_write-binlog)
+    to cause `NO_WRITE_TO_BINLOG` to be added to the statements so that they are not
+    logged. Use the [`--skip-write-binlog`](mysqlcheck.html#option_mysqlcheck_write-binlog)
+    when these statements should not be sent to replicas or run when using the binary
+    logs for recovery from backup.
+  id: totrans-339
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认情况下启用此选项，因此由 [**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table
+    Maintenance Program") 生成的 [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement")、[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE
+    Statement") 和 [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")
+    语句将被写入二进制日志。使用 [`--skip-write-binlog`](mysqlcheck.html#option_mysqlcheck_write-binlog)
+    可以添加 `NO_WRITE_TO_BINLOG` 到语句中，以便不记录这些语句。当这些语句不应发送到副本或在使用二进制日志从备份中恢复时运行时，请使用 [`--skip-write-binlog`](mysqlcheck.html#option_mysqlcheck_write-binlog)。
+- en: '[`--zstd-compression-level=*`level`*`](mysqlcheck.html#option_mysqlcheck_zstd-compression-level)'
+  id: totrans-340
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--zstd-compression-level=*`level`*`](mysqlcheck.html#option_mysqlcheck_zstd-compression-level)'
+- en: '| Command-Line Format | `--zstd-compression-level=#` |'
+  id: totrans-341
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--zstd-compression-level=#` |'
+- en: '| Introduced | 8.0.18 |'
+  id: totrans-342
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.18 |'
+- en: '| Type | Integer |'
+  id: totrans-343
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 整数 |'
+- en: The compression level to use for connections to the server that use the `zstd`
+    compression algorithm. The permitted levels are from 1 to 22, with larger values
+    indicating increasing levels of compression. The default `zstd` compression level
+    is 3\. The compression level setting has no effect on connections that do not
+    use `zstd` compression.
+  id: totrans-344
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于使用 `zstd` 压缩算法连接到服务器的压缩级别。允许的级别从 1 到 22，较大的值表示较高级别的压缩。默认的 `zstd` 压缩级别为 3。压缩级别设置对不使用
+    `zstd` 压缩的连接没有影响。
+- en: For more information, see [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 Connection Compression Control").
+  id: totrans-345
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关更多信息，请参见 [第 6.2.8 节，“连接压缩控制”](connection-compression-control.html "6.2.8 Connection
+    Compression Control")。
+- en: This option was added in MySQL 8.0.18.
+  id: totrans-346
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项是在 MySQL 8.0.18 中添加的。

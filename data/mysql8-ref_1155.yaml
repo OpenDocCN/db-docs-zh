@@ -1,0 +1,75 @@
+- en: 17.5.3 Adaptive Hash Index
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.5.3 自适应哈希索引
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-adaptive-hash.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-adaptive-hash.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-adaptive-hash.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-adaptive-hash.html)
+- en: The adaptive hash index enables `InnoDB` to perform more like an in-memory database
+    on systems with appropriate combinations of workload and sufficient memory for
+    the buffer pool without sacrificing transactional features or reliability. The
+    adaptive hash index is enabled by the [`innodb_adaptive_hash_index`](innodb-parameters.html#sysvar_innodb_adaptive_hash_index)
+    variable, or turned off at server startup by `--skip-innodb-adaptive-hash-index`.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 自适应哈希索引使`InnoDB`能够在具有适当的工作负载组合和足够内存用于缓冲池的系统上更像是内存数据库，而不会牺牲事务特性或可靠性。自适应哈希索引由[`innodb_adaptive_hash_index`](innodb-parameters.html#sysvar_innodb_adaptive_hash_index)变量启用，或者在服务器启动时通过`--skip-innodb-adaptive-hash-index`关闭。
+- en: Based on the observed pattern of searches, a hash index is built using a prefix
+    of the index key. The prefix can be any length, and it may be that only some values
+    in the B-tree appear in the hash index. Hash indexes are built on demand for the
+    pages of the index that are accessed often.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据搜索的观察模式，使用索引键的前缀构建哈希索引。前缀可以是任意长度，可能只有B树中的某些值出现在哈希索引中。哈希索引是按需为经常访问的索引页面构建的。
+- en: If a table fits almost entirely in main memory, a hash index speeds up queries
+    by enabling direct lookup of any element, turning the index value into a sort
+    of pointer. `InnoDB` has a mechanism that monitors index searches. If `InnoDB`
+    notices that queries could benefit from building a hash index, it does so automatically.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果表几乎完全适合主内存，哈希索引通过启用任何元素的直接查找来加快查询速度，将索引值转换为一种指针。`InnoDB`具有监视索引搜索的机制。如果`InnoDB`注意到查询可以从构建哈希索引中受益，它会自动执行。
+- en: With some workloads, the speedup from hash index lookups greatly outweighs the
+    extra work to monitor index lookups and maintain the hash index structure. Access
+    to the adaptive hash index can sometimes become a source of contention under heavy
+    workloads, such as multiple concurrent joins. Queries with `LIKE` operators and
+    `%` wildcards also tend not to benefit. For workloads that do not benefit from
+    the adaptive hash index, turning it off reduces unnecessary performance overhead.
+    Because it is difficult to predict in advance whether the adaptive hash index
+    is appropriate for a particular system and workload, consider running benchmarks
+    with it enabled and disabled.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于某些工作负载，哈希索引查找的加速远远超过监视索引查找和维护哈希索引结构的额外工作。在重型工作负载下，例如多个并发连接时，对自适应哈希索引的访问有时可能成为争用的来源。带有`LIKE`运算符和`%`通配符的查询也往往不会受益。对于不受自适应哈希索引益处的工作负载，关闭它可以减少不必要的性能开销。由于很难预测自适应哈希索引是否适合特定系统和工作负载，考虑在启用和禁用时运行基准测试。
+- en: The adaptive hash index feature is partitioned. Each index is bound to a specific
+    partition, and each partition is protected by a separate latch. Partitioning is
+    controlled by the [`innodb_adaptive_hash_index_parts`](innodb-parameters.html#sysvar_innodb_adaptive_hash_index_parts)
+    variable. The [`innodb_adaptive_hash_index_parts`](innodb-parameters.html#sysvar_innodb_adaptive_hash_index_parts)
+    variable is set to 8 by default. The maximum setting is 512.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 自适应哈希索引功能是分区的。每个索引绑定到特定分区，并且每个分区由单独的锁保护。分区由[`innodb_adaptive_hash_index_parts`](innodb-parameters.html#sysvar_innodb_adaptive_hash_index_parts)变量控制。[`innodb_adaptive_hash_index_parts`](innodb-parameters.html#sysvar_innodb_adaptive_hash_index_parts)变量默认设置为8。最大设置为512。
+- en: You can monitor adaptive hash index use and contention in the `SEMAPHORES` section
+    of [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")
+    output. If there are numerous threads waiting on rw-latches created in `btr0sea.c`,
+    consider increasing the number of adaptive hash index partitions or disabling
+    the adaptive hash index.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在[`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")输出的`SEMAPHORES`部分监视自适应哈希索引的使用和争用。如果有大量线程在`btr0sea.c`中创建的rw-latches上等待，请考虑增加自适应哈希索引分区的数量或禁用自适应哈希索引。
+- en: For information about the performance characteristics of hash indexes, see [Section 10.3.9,
+    “Comparison of B-Tree and Hash Indexes”](index-btree-hash.html "10.3.9 Comparison
+    of B-Tree and Hash Indexes").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关哈希索引性能特征的信息，请参见[第10.3.9节，“B-Tree和哈希索引的比较”](index-btree-hash.html "10.3.9 B-Tree和哈希索引的比较")。

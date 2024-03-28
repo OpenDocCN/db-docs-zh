@@ -1,0 +1,824 @@
+- en: 15.3.6 LOCK TABLES and UNLOCK TABLES Statements
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 15.3.6 `LOCK TABLES` 和 `UNLOCK TABLES` 语句
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/lock-tables.html](https://dev.mysql.com/doc/refman/8.0/en/lock-tables.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/lock-tables.html](https://dev.mysql.com/doc/refman/8.0/en/lock-tables.html)
+- en: '[PRE0]'
+  id: totrans-2
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: MySQL enables client sessions to acquire table locks explicitly for the purpose
+    of cooperating with other sessions for access to tables, or to prevent other sessions
+    from modifying tables during periods when a session requires exclusive access
+    to them. A session can acquire or release locks only for itself. One session cannot
+    acquire locks for another session or release locks held by another session.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 允许客户端会话明确为协作访问表的其他会话或在会话需要独占访问表时阻止其他会话修改表而获取表锁。一个会话只能为自己获取或释放锁。一个会话不能为另一个会话获取锁或释放另一个会话持有的锁。
+- en: Locks may be used to emulate transactions or to get more speed when updating
+    tables. This is explained in more detail in [Table-Locking Restrictions and Conditions](lock-tables.html#lock-tables-restrictions
+    "Table-Locking Restrictions and Conditions").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁可以用于模拟事务或在更新表时获得更快的速度。这在 [Table-Locking Restrictions and Conditions](lock-tables.html#lock-tables-restrictions
+    "Table-Locking Restrictions and Conditions") 中有更详细的解释。
+- en: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    explicitly acquires table locks for the current client session. Table locks can
+    be acquired for base tables or views. You must have the [`LOCK TABLES`](privileges-provided.html#priv_lock-tables)
+    privilege, and the [`SELECT`](privileges-provided.html#priv_select) privilege
+    for each object to be locked.'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    明确为当前客户端会话获取表锁。表锁可以用于基表或视图。你必须拥有 [`LOCK TABLES`](privileges-provided.html#priv_lock-tables)
+    权限，并且对每个要锁定的对象都必须拥有 [`SELECT`](privileges-provided.html#priv_select) 权限。'
+- en: For view locking, [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements") adds all base tables used in the view to the set of tables
+    to be locked and locks them automatically. For tables underlying any view being
+    locked, [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") checks that the view definer (for `SQL SECURITY DEFINER` views) or
+    invoker (for all views) has the proper privileges on the tables.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于视图锁定，[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") 会将视图中使用的所有基表添加到要锁定的表集合中，并自动锁定它们。对于任何被锁定视图下的表，[`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") 会检查视图定义者（对于 `SQL SECURITY DEFINER`
+    视图）或调用者（对于所有视图）对表具有适当的权限。
+- en: If you lock a table explicitly with [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements"), any tables used in triggers are also locked
+    implicitly, as described in [LOCK TABLES and Triggers](lock-tables.html#lock-tables-and-triggers
+    "LOCK TABLES and Triggers").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你使用 [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") 明确锁定一个表，那么任何触发器中使用的表也会隐式锁定，如 [LOCK TABLES and Triggers](lock-tables.html#lock-tables-and-triggers
+    "LOCK TABLES and Triggers") 中所述。
+- en: If you lock a table explicitly with [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements"), any tables related by a foreign key constraint
+    are opened and locked implicitly. For foreign key checks, a shared read-only lock
+    ([`LOCK TABLES READ`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"))
+    is taken on related tables. For cascading updates, a shared-nothing write lock
+    ([`LOCK TABLES WRITE`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")) is taken on related tables that are involved in the operation.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你使用 [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") 明确锁定一个表，那么任何通过外键约束相关的表会被隐式打开并锁定。对于外键检查，相关表会被采取共享只读锁（[`LOCK TABLES
+    READ`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")）。对于级联更新，涉及操作的相关表会被采取共享无写锁（[`LOCK
+    TABLES WRITE`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")）。
+- en: '[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    explicitly releases any table locks held by the current session. [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") implicitly releases any table
+    locks held by the current session before acquiring new locks.'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    明确释放当前会话持有的任何表锁。在获取新锁之前，[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and
+    UNLOCK TABLES Statements") 会隐式释放当前会话持有的任何表锁。'
+- en: Another use for [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements") is to release the global read lock acquired with the [`FLUSH
+    TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock) statement, which
+    enables you to lock all tables in all databases. See [Section 15.7.8.3, “FLUSH
+    Statement”](flush.html "15.7.8.3 FLUSH Statement"). (This is a very convenient
+    way to get backups if you have a file system such as Veritas that can take snapshots
+    in time.)
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")的另一个用途是释放使用[`FLUSH
+    TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock)语句获取的全局读锁，该语句使您可以锁定所有数据库中的所有表。请参见[第15.7.8.3节，“FLUSH语句”](flush.html
+    "15.7.8.3 FLUSH语句")。（如果您有可以在某个时间点进行快照的文件系统（如Veritas），这是一个非常方便的备份方式。）'
+- en: '`LOCK TABLE` is a synonym for `LOCK TABLES`; `UNLOCK TABLE` is a synonym for
+    `UNLOCK TABLES`.'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`LOCK TABLE`是`LOCK TABLES`的同义词；`UNLOCK TABLE`是`UNLOCK TABLES`的同义词。'
+- en: A table lock protects only against inappropriate reads or writes by other sessions.
+    A session holding a `WRITE` lock can perform table-level operations such as [`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") or [`TRUNCATE TABLE`](truncate-table.html
+    "15.1.37 TRUNCATE TABLE Statement"). For sessions holding a `READ` lock, [`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") and [`TRUNCATE TABLE`](truncate-table.html
+    "15.1.37 TRUNCATE TABLE Statement") operations are not permitted.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表锁仅防止其他会话进行不当读取或写入。持有`WRITE`锁的会话可以执行诸如[`DROP TABLE`](drop-table.html "15.1.32 DROP
+    TABLE Statement")或[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE
+    Statement")等表级操作。对于持有`READ`锁的会话，不允许执行[`DROP TABLE`](drop-table.html "15.1.32 DROP
+    TABLE Statement")和[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE
+    Statement")操作。
+- en: The following discussion applies only to non-`TEMPORARY` tables. [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") is permitted (but ignored)
+    for a `TEMPORARY` table. The table can be accessed freely by the session within
+    which it was created, regardless of what other locking may be in effect. No lock
+    is necessary because no other session can see the table.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论仅适用于非`TEMPORARY`表。对于`TEMPORARY`表，允许（但会被忽略）使用[`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")。该表可以在创建它的会话中自由访问，而不受其他锁定的影响。不需要锁定，因为没有其他会话可以看到该表。
+- en: '[Table Lock Acquisition](lock-tables.html#table-lock-acquisition "Table Lock
+    Acquisition")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[表锁定获取](lock-tables.html#table-lock-acquisition "表锁定获取")'
+- en: '[Table Lock Release](lock-tables.html#table-lock-release "Table Lock Release")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[表锁定释放](lock-tables.html#table-lock-release "表锁定释放")'
+- en: '[Interaction of Table Locking and Transactions](lock-tables.html#lock-tables-and-transactions
+    "Interaction of Table Locking and Transactions")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[表锁定和事务的交互](lock-tables.html#lock-tables-and-transactions "表锁定和事务的交互")'
+- en: '[LOCK TABLES and Triggers](lock-tables.html#lock-tables-and-triggers "LOCK
+    TABLES and Triggers")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LOCK TABLES和触发器](lock-tables.html#lock-tables-and-triggers "LOCK TABLES和触发器")'
+- en: '[Table-Locking Restrictions and Conditions](lock-tables.html#lock-tables-restrictions
+    "Table-Locking Restrictions and Conditions")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[表锁定的限制和条件](lock-tables.html#lock-tables-restrictions "表锁定的限制和条件")'
+- en: Table Lock Acquisition
+  id: totrans-19
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 表锁定获取
+- en: To acquire table locks within the current session, use the [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") statement, which acquires metadata
+    locks (see [Section 10.11.4, “Metadata Locking”](metadata-locking.html "10.11.4 Metadata
+    Locking")).
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在当前会话中获取表锁，请使用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements")语句，该语句获取元数据锁（参见[第10.11.4节，“元数据锁定”](metadata-locking.html "10.11.4 元数据锁定")）。
+- en: 'The following lock types are available:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可用的锁类型如下：
+- en: '`READ [LOCAL]` lock:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`READ [LOCAL]`锁：'
+- en: The session that holds the lock can read the table (but not write it).
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 拥有锁的会话可以读取表（但不能写入）。
+- en: Multiple sessions can acquire a `READ` lock for the table at the same time.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 多个会话可以同时为表获取`READ`锁。
+- en: Other sessions can read the table without explicitly acquiring a `READ` lock.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 其他会话可以在不显式获取`READ`锁的情况下读取表。
+- en: The `LOCAL` modifier enables nonconflicting [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statements (concurrent inserts) by other sessions to execute while
+    the lock is held. (See [Section 10.11.3, “Concurrent Inserts”](concurrent-inserts.html
+    "10.11.3 Concurrent Inserts").) However, `READ LOCAL` cannot be used if you are
+    going to manipulate the database using processes external to the server while
+    you hold the lock. For `InnoDB` tables, `READ LOCAL` is the same as `READ`.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LOCAL` 修饰符允许其他会话在持有锁的情况下执行非冲突的 [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    语句（并发插入）。但是，如果在持有锁的同时使用外部进程操作数据库，则不能使用 `READ LOCAL`。对于 `InnoDB` 表，`READ LOCAL`
+    与 `READ` 相同。'
+- en: '`[LOW_PRIORITY] WRITE` lock:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`[LOW_PRIORITY] WRITE` 锁：'
+- en: The session that holds the lock can read and write the table.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 持有锁的会话可以读取和写入表。
+- en: Only the session that holds the lock can access the table. No other session
+    can access it until the lock is released.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只有持有锁的会话才能访问表。在锁被释放之前，其他会话无法访问它。
+- en: Lock requests for the table by other sessions block while the `WRITE` lock is
+    held.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当持有 `WRITE` 锁时，其他会话对表的锁请求将被阻塞。
+- en: The `LOW_PRIORITY` modifier has no effect. In previous versions of MySQL, it
+    affected locking behavior, but this is no longer true. It is now deprecated and
+    its use produces a warning. Use `WRITE` without `LOW_PRIORITY` instead.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LOW_PRIORITY` 修饰符没有影响。在 MySQL 的早期版本中，它会影响锁定行为，但现在不再有效。它现在已被弃用，使用 `WRITE` 而不带
+    `LOW_PRIORITY` 会产生警告。'
+- en: '`WRITE` locks normally have higher priority than `READ` locks to ensure that
+    updates are processed as soon as possible. This means that if one session obtains
+    a `READ` lock and then another session requests a `WRITE` lock, subsequent `READ`
+    lock requests wait until the session that requested the `WRITE` lock has obtained
+    the lock and released it. (An exception to this policy can occur for small values
+    of the [`max_write_lock_count`](server-system-variables.html#sysvar_max_write_lock_count)
+    system variable; see [Section 10.11.4, “Metadata Locking”](metadata-locking.html
+    "10.11.4 Metadata Locking").)'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`WRITE` 锁通常比 `READ` 锁具有更高的优先级，以确保更新尽快处理。这意味着如果一个会话获取了 `READ` 锁，然后另一个会话请求 `WRITE`
+    锁，后续的 `READ` 锁请求将等待，直到请求 `WRITE` 锁的会话获取并释放锁。（对于 [`max_write_lock_count`](server-system-variables.html#sysvar_max_write_lock_count)
+    系统变量的小值，可能会有例外情况；请参见 [Section 10.11.4, “Metadata Locking”](metadata-locking.html
+    "10.11.4 Metadata Locking").）'
+- en: If the [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") statement must wait due to locks held by other sessions on any of
+    the tables, it blocks until all locks can be acquired.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果由于其他会话在任何表上持有的锁而导致 [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and
+    UNLOCK TABLES Statements") 语句必须等待，它将阻塞直到所有锁都可以被获取。
+- en: 'A session that requires locks must acquire all the locks that it needs in a
+    single [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") statement. While the locks thus obtained are held, the session can
+    access only the locked tables. For example, in the following sequence of statements,
+    an error occurs for the attempt to access `t2` because it was not locked in the
+    [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    statement:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 需要锁定表的会话必须在单个 [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements") 语句中获取所有需要的锁。在持有这些锁的情况下，会话只能访问被锁定的表。例如，在以下语句序列中，尝试访问 `t2` 会导致错误，因为它在
+    [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    语句中未被锁定：
+- en: '[PRE1]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Tables in the `INFORMATION_SCHEMA` database are an exception. They can be accessed
+    without being locked explicitly even while a session holds table locks obtained
+    with [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements").
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`INFORMATION_SCHEMA` 数据库中的表是一个例外。即使一个会话持有使用 [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") 获取的表锁，也可以在不显式锁定的情况下访问它们。'
+- en: 'You cannot refer to a locked table multiple times in a single query using the
+    same name. Use aliases instead, and obtain a separate lock for the table and each
+    alias:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不能在单个查询中多次引用具有相同名称的锁定表。请改用别名，并为表和每个别名获取单独的锁：
+- en: '[PRE2]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The error occurs for the first [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    because there are two references to the same name for a locked table. The second
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") succeeds because the references
+    to the table use different names.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一个[`INSERT`](insert.html "15.2.7 INSERT Statement")出现错误是因为对于一个被锁定的表有两个相同名称的引用。第二个[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")成功是因为对表的引用使用了不同的名称。
+- en: 'If your statements refer to a table by means of an alias, you must lock the
+    table using that same alias. It does not work to lock the table without specifying
+    the alias:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的语句通过别名引用表，那么必须使用相同的别名锁定表。不能不指定别名而锁定表：
+- en: '[PRE3]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Conversely, if you lock a table using an alias, you must refer to it in your
+    statements using that alias:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 相反，如果您使用别名锁定表，那么在语句中必须使用该别名引用它：
+- en: '[PRE4]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Table Lock Release
+  id: totrans-44
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 表锁定释放
+- en: When the table locks held by a session are released, they are all released at
+    the same time. A session can release its locks explicitly, or locks may be released
+    implicitly under certain conditions.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当会话持有的表锁被释放时，它们会同时被释放。一个会话可以显式释放其锁，或者在某些条件下锁可能会隐式释放。
+- en: A session can release its locks explicitly with [`UNLOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements").
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个会话可以通过[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")显式释放其锁。
+- en: If a session issues a [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and
+    UNLOCK TABLES Statements") statement to acquire a lock while already holding locks,
+    its existing locks are released implicitly before the new locks are granted.
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个会话在已经持有锁的情况下发出[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements")语句以获取锁，那么在授予新锁之前，现有的锁会被隐式释放。
+- en: If a session begins a transaction (for example, with [`START TRANSACTION`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")), an implicit [`UNLOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") is
+    performed, which causes existing locks to be released. (For additional information
+    about the interaction between table locking and transactions, see [Interaction
+    of Table Locking and Transactions](lock-tables.html#lock-tables-and-transactions
+    "Interaction of Table Locking and Transactions").)
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个会话开始一个事务（例如，使用[`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements")），会执行一个隐式的[`UNLOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")，导致现有的锁被释放。（有关表锁定和事务之间的交互的更多信息，请参阅[表锁定和事务的交互](lock-tables.html#lock-tables-and-transactions
+    "Interaction of Table Locking and Transactions").）
+- en: If the connection for a client session terminates, whether normally or abnormally,
+    the server implicitly releases all table locks held by the session (transactional
+    and nontransactional). If the client reconnects, the locks are no longer in effect.
+    In addition, if the client had an active transaction, the server rolls back the
+    transaction upon disconnect, and if reconnect occurs, the new session begins with
+    autocommit enabled. For this reason, clients may wish to disable auto-reconnect.
+    With auto-reconnect in effect, the client is not notified if reconnect occurs
+    but any table locks or current transaction are lost. With auto-reconnect disabled,
+    if the connection drops, an error occurs for the next statement issued. The client
+    can detect the error and take appropriate action such as reacquiring the locks
+    or redoing the transaction. See [Automatic Reconnection Control](/doc/c-api/8.0/en/c-api-auto-reconnect.html).
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果客户端会话的连接终止，无论是正常还是异常，服务器会隐式释放会话持有的所有表锁（事务性和非事务性）。如果客户端重新连接，那么这些锁将不再生效。此外，如果客户端有一个活动事务，在断开连接时服务器会回滚该事务，如果重新连接发生，则新会话将以自动提交启用的方式开始。因此，客户端可能希望禁用自动重新连接。启用自动重新连接时，如果重新连接发生，客户端不会收到通知，但任何表锁或当前事务都会丢失。禁用自动重新连接时，如果连接断开，下一个发出的语句将出现错误。客户端可以检测错误并采取适当的措施，如重新获取锁或重做事务。请参阅[自动重新连接控制](/doc/c-api/8.0/en/c-api-auto-reconnect.html)。
+- en: Note
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you use [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    on a locked table, it may become unlocked. For example, if you attempt a second
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") operation, the
+    result may be an error `Table '*`tbl_name`*' was not locked with LOCK TABLES`.
+    To handle this, lock the table again prior to the second alteration. See also
+    [Section B.3.6.1, “Problems with ALTER TABLE”](alter-table-problems.html "B.3.6.1 Problems
+    with ALTER TABLE").
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你在一个被锁定的表上使用 [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")，它可能会变为未锁定状态。例如，如果你尝试第二次
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 操作，结果可能是一个错误
+    `Table '*`tbl_name`*' was not locked with LOCK TABLES`。为了处理这个问题，在第二次修改之前再次锁定表。另请参阅
+    [Section B.3.6.1, “ALTER TABLE存在的问题”](alter-table-problems.html "B.3.6.1 Problems
+    with ALTER TABLE")。
+- en: Interaction of Table Locking and Transactions
+  id: totrans-52
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 表锁定和事务的交互
+- en: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    and [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    interact with the use of transactions as follows:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    和 [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    与事务的使用交互如下：'
+- en: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    is not transaction-safe and implicitly commits any active transaction before attempting
+    to lock the tables.'
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    不是事务安全的，并在尝试锁定表之前隐式提交任何活动事务。'
+- en: '[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    implicitly commits any active transaction, but only if [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") has been used to acquire table
+    locks. For example, in the following set of statements, [`UNLOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") releases the global read lock
+    but does not commit the transaction because no table locks are in effect:'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    隐式提交任何活动事务，但仅在使用 [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements") 获取表锁时。例如，在以下一组语句中，[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements") 释放全局读锁但不提交事务，因为没有表锁生效：'
+- en: '[PRE5]'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Beginning a transaction (for example, with [`START TRANSACTION`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")) implicitly commits
+    any current transaction and releases existing table locks.
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 开始一个事务（例如，使用 [`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements")）隐式提交任何当前事务并释放现有的表锁。
+- en: '[`FLUSH TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock) acquires
+    a global read lock and not table locks, so it is not subject to the same behavior
+    as [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    and [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    with respect to table locking and implicit commits. For example, [`START TRANSACTION`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") does not release
+    the global read lock. See [Section 15.7.8.3, “FLUSH Statement”](flush.html "15.7.8.3 FLUSH
+    Statement").'
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`FLUSH TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock) 获取全局读锁而不是表锁，因此它不受
+    [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    和 [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    关于表锁定和隐式提交的相同行为影响。例如，[`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") 不会释放全局读锁。请参见 [Section 15.7.8.3, “FLUSH语句”](flush.html
+    "15.7.8.3 FLUSH Statement")。'
+- en: Other statements that implicitly cause transactions to be committed do not release
+    existing table locks. For a list of such statements, see [Section 15.3.3, “Statements
+    That Cause an Implicit Commit”](implicit-commit.html "15.3.3 Statements That Cause
+    an Implicit Commit").
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 其他隐式导致事务提交的语句不会释放现有的表锁。有关此类语句的列表，请参见 [Section 15.3.3, “导致隐式提交的语句”](implicit-commit.html
+    "15.3.3 Statements That Cause an Implicit Commit")。
+- en: 'The correct way to use [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES
+    and UNLOCK TABLES Statements") and [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements") with transactional tables, such as `InnoDB`
+    tables, is to begin a transaction with `SET autocommit = 0` (not [`START TRANSACTION`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")) followed by [`LOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"),
+    and to not call [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements") until you commit the transaction explicitly. For example,
+    if you need to write to table `t1` and read from table `t2`, you can do this:'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用事务表（如`InnoDB`表）的正确方法是使用`SET autocommit = 0`（而不是[`START TRANSACTION`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")）开始事务，然后使用[`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")，直到显式提交事务之前不要调用[`UNLOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")。例如，如果你需要向表`t1`写入并从表`t2`读取，你可以这样做：
+- en: '[PRE6]'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: When you call [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements"), `InnoDB` internally takes its own table lock, and MySQL takes
+    its own table lock. `InnoDB` releases its internal table lock at the next commit,
+    but for MySQL to release its table lock, you have to call [`UNLOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"). You should not have [`autocommit
+    = 1`](server-system-variables.html#sysvar_autocommit), because then `InnoDB` releases
+    its internal table lock immediately after the call of [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"), and deadlocks can very easily
+    happen. `InnoDB` does not acquire the internal table lock at all if [`autocommit
+    = 1`](server-system-variables.html#sysvar_autocommit), to help old applications
+    avoid unnecessary deadlocks.
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当你调用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")时，`InnoDB`内部会获取自己的表锁，而MySQL会获取自己的表锁。`InnoDB`在下一次提交时释放其内部表锁，但要释放MySQL的表锁，你必须调用[`UNLOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")。你不应该设置[`autocommit
+    = 1`](server-system-variables.html#sysvar_autocommit)，因为这样`InnoDB`会在调用[`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")后立即释放其内部表锁，很容易发生死锁。如果设置[`autocommit
+    = 1`](server-system-variables.html#sysvar_autocommit)，`InnoDB`根本不会获取内部表锁，以帮助旧应用程序避免不必要的死锁。
+- en: '[`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")
+    does not release table locks.'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")不会释放表锁。'
+- en: LOCK TABLES and Triggers
+  id: totrans-64
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 表锁和触发器
+- en: 'If you lock a table explicitly with [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements"), any tables used in triggers are also locked
+    implicitly:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")显式锁定一个表，那么触发器中使用的任何表也会隐式锁定：
+- en: The locks are taken as the same time as those acquired explicitly with the [`LOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") statement.
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这些锁与使用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")语句显式获取的锁同时获取。
+- en: The lock on a table used in a trigger depends on whether the table is used only
+    for reading. If so, a read lock suffices. Otherwise, a write lock is used.
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 触发器中使用的表的锁取决于表是否仅用于读取。如果是，那么读取锁就足够了。否则，会使用写入锁。
+- en: If a table is locked explicitly for reading with [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"), but needs to be locked for
+    writing because it might be modified within a trigger, a write lock is taken rather
+    than a read lock. (That is, an implicit write lock needed due to the table's appearance
+    within a trigger causes an explicit read lock request for the table to be converted
+    to a write lock request.)
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个表被使用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")显式锁定以供读取，但由于可能在触发器中被修改而需要写入锁定，那么会获取写入锁定而不是读取锁定。（也就是说，由于表在触发器中的出现导致对表的显式读取锁请求被转换为写入锁请求。）
+- en: 'Suppose that you lock two tables, `t1` and `t2`, using this statement:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设你使用这个语句锁定了两个表，`t1`和`t2`：
+- en: '[PRE7]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'If `t1` or `t2` have any triggers, tables used within the triggers are also
+    locked. Suppose that `t1` has a trigger defined like this:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`t1`或`t2`有任何触发器，触发器中使用的表也会被锁定。假设`t1`有一个定义如下的触发器：
+- en: '[PRE8]'
+  id: totrans-72
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'The result of the [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and
+    UNLOCK TABLES Statements") statement is that `t1` and `t2` are locked because
+    they appear in the statement, and `t3` and `t4` are locked because they are used
+    within the trigger:'
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")语句的结果是，`t1`和`t2`被锁定，因为它们出现在语句中，而`t3`和`t4`被锁定，因为它们在触发器中使用：'
+- en: '`t1` is locked for writing per the `WRITE` lock request.'
+  id: totrans-74
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 根据`WRITE`锁请求，`t1`被锁定为写入。
+- en: '`t2` is locked for writing, even though the request is for a `READ` lock. This
+    occurs because `t2` is inserted into within the trigger, so the `READ` request
+    is converted to a `WRITE` request.'
+  id: totrans-75
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 即使请求是读取锁，`t2`也被锁定为写入。这是因为在触发器内插入了`t2`，所以读取请求被转换为写入请求。
+- en: '`t3` is locked for reading because it is only read from within the trigger.'
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 因为只在触发器内部读取，所以`t3`被锁定为只读。
+- en: '`t4` is locked for writing because it might be updated within the trigger.'
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 因为可能在触发器内更新，所以`t4`被锁定为写入。
+- en: Table-Locking Restrictions and Conditions
+  id: totrans-78
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 表锁定的限制和条件
+- en: You can safely use [`KILL`](kill.html "15.7.8.4 KILL Statement") to terminate
+    a session that is waiting for a table lock. See [Section 15.7.8.4, “KILL Statement”](kill.html
+    "15.7.8.4 KILL Statement").
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以安全地使用[`KILL`](kill.html "15.7.8.4 KILL Statement")来终止等待表锁定的会话。请参阅[第15.7.8.4节，“KILL语句”](kill.html
+    "15.7.8.4 KILL Statement")。
+- en: '[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    and [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    cannot be used within stored programs.'
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不能在存储程序中使用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")和[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK
+    TABLES Statements")。
+- en: Tables in the `performance_schema` database cannot be locked with [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements"), except the `setup_*`xxx`*`
+    tables.
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不能使用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")锁定`performance_schema`数据库中的表，除了`setup_*`xxx`*`表。
+- en: The scope of a lock generated by `LOCK TABLES` is a single MySQL server. It
+    is not compatible with NDB Cluster, which has no way of enforcing an SQL-level
+    lock across multiple instances of [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server"). You can enforce locking in an API application instead. See [Section 25.2.7.10,
+    “Limitations Relating to Multiple NDB Cluster Nodes”](mysql-cluster-limitations-multiple-nodes.html
+    "25.2.7.10 Limitations Relating to Multiple NDB Cluster Nodes"), for more information.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由`LOCK TABLES`生成的锁的范围是单个MySQL服务器。它与NDB Cluster不兼容，NDB Cluster无法跨多个[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")实例强制执行SQL级别的锁。您可以在API应用程序中强制执行锁定。有关更多信息，请参阅[第25.2.7.10节，“与多个NDB
+    Cluster节点相关的限制”](mysql-cluster-limitations-multiple-nodes.html "25.2.7.10 Limitations
+    Relating to Multiple NDB Cluster Nodes")。
+- en: 'The following statements are prohibited while a [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") statement is in effect: [`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement"), [`CREATE TABLE ...
+    LIKE`](create-table.html "15.1.20 CREATE TABLE Statement"), [`CREATE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement"), [`DROP VIEW`](drop-view.html "15.1.35 DROP VIEW
+    Statement"), and DDL statements on stored functions and procedures and events.'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")语句生效期间，禁止以下语句：[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")，[`CREATE TABLE ...
+    LIKE`](create-table.html "15.1.20 CREATE TABLE Statement")，[`CREATE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement")，[`DROP VIEW`](drop-view.html "15.1.35 DROP VIEW
+    Statement")以及对存储函数、存储过程和事件的DDL语句。
+- en: 'For some operations, system tables in the `mysql` database must be accessed.
+    For example, the [`HELP`](help.html "15.8.3 HELP Statement") statement requires
+    the contents of the server-side help tables, and [`CONVERT_TZ()`](date-and-time-functions.html#function_convert-tz)
+    might need to read the time zone tables. The server implicitly locks the system
+    tables for reading as necessary so that you need not lock them explicitly. These
+    tables are treated as just described:'
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于一些操作，必须访问`mysql`数据库中的系统表。例如，[`HELP`](help.html "15.8.3 HELP Statement")语句需要服务器端帮助表的内容，而[`CONVERT_TZ()`](date-and-time-functions.html#function_convert-tz)可能需要读取时区表。服务器会根据需要隐式锁定系统表以进行读取，因此您无需显式锁定它们。这些表被视为刚刚描述的方式：
+- en: '[PRE9]'
+  id: totrans-85
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: If you want to explicitly place a `WRITE` lock on any of those tables with a
+    [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    statement, the table must be the only one locked; no other table can be locked
+    with the same statement.
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您想要在任何表格上明确放置一个`WRITE`锁定，并使用[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements")语句，那么该表格必须是唯一被锁定的；没有其他表格可以与相同语句一起被锁定。
+- en: 'Normally, you do not need to lock tables, because all single [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") statements are atomic; no other session can interfere
+    with any other currently executing SQL statement. However, there are a few cases
+    when locking tables may provide an advantage:'
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常情况下，您不需要锁定表格，因为所有单个[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句都是原子的；没有其他会话可以干扰任何其他当前执行的SQL语句。然而，在一些情况下，锁定表格可能会带来优势：
+- en: If you are going to run many operations on a set of `MyISAM` tables, it is much
+    faster to lock the tables you are going to use. Locking `MyISAM` tables speeds
+    up inserting, updating, or deleting on them because MySQL does not flush the key
+    cache for the locked tables until [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements") is called. Normally, the key cache is flushed
+    after each SQL statement.
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您将在一组`MyISAM`表上运行许多操作，锁定您将要使用的表格会更快。锁定`MyISAM`表格会加快在其上插入、更新或删除的速度，因为MySQL在调用[`UNLOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")之前不会刷新被锁定表格的键缓存。通常情况下，每个SQL语句后都会刷新键缓存。
+- en: The downside to locking the tables is that no session can update a `READ`-locked
+    table (including the one holding the lock) and no session can access a `WRITE`-locked
+    table other than the one holding the lock.
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 锁定表格的缺点是，没有会话可以更新一个`READ`-锁定的表格（包括持有锁的表格），也没有会话可以访问一个`WRITE`-锁定的表格，除了持有锁的表格。
+- en: 'If you are using tables for a nontransactional storage engine, you must use
+    [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    if you want to ensure that no other session modifies the tables between a [`SELECT`](select.html
+    "15.2.13 SELECT Statement") and an [`UPDATE`](update.html "15.2.17 UPDATE Statement").
+    The example shown here requires [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements") to execute safely:'
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您正在使用非事务性存储引擎来创建表格，如果您希望确保在[`SELECT`](select.html "15.2.13 SELECT Statement")和[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")之间没有其他会话修改表格，您必须使用[`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")。这里展示的示例需要使用[`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")来安全执行：
+- en: '[PRE10]'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: Without [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements"), it is possible that another session might insert a new row in the
+    `trans` table between execution of the [`SELECT`](select.html "15.2.13 SELECT
+    Statement") and [`UPDATE`](update.html "15.2.17 UPDATE Statement") statements.
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 没有[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")，可能会导致另一个会话在执行[`SELECT`](select.html
+    "15.2.13 SELECT Statement")和[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句之间插入新行到`trans`表中。
+- en: You can avoid using [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and
+    UNLOCK TABLES Statements") in many cases by using relative updates (`UPDATE customer
+    SET *`value`*=*`value`*+*`new_value`*`) or the [`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id)
+    function.
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在许多情况下，您可以通过使用相对更新（`UPDATE customer SET *`value`*=*`value`*+*`new_value`*`）或[`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id)函数来避免使用[`LOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")。
+- en: You can also avoid locking tables in some cases by using the user-level advisory
+    lock functions [`GET_LOCK()`](locking-functions.html#function_get-lock) and [`RELEASE_LOCK()`](locking-functions.html#function_release-lock).
+    These locks are saved in a hash table in the server and implemented with `pthread_mutex_lock()`
+    and `pthread_mutex_unlock()` for high speed. See [Section 14.14, “Locking Functions”](locking-functions.html
+    "14.14 Locking Functions").
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些情况下，您也可以通过使用用户级别的咨询锁函数[`GET_LOCK()`](locking-functions.html#function_get-lock)和[`RELEASE_LOCK()`](locking-functions.html#function_release-lock)来避免锁定表格。这些锁保存在服务器的哈希表中，并且使用`pthread_mutex_lock()`和`pthread_mutex_unlock()`实现高速。请参见[第14.14节，“锁定函数”](locking-functions.html
+    "14.14 Locking Functions")。
+- en: See [Section 10.11.1, “Internal Locking Methods”](internal-locking.html "10.11.1 Internal
+    Locking Methods"), for more information on locking policy.
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关锁定策略的更多信息，请参见[第10.11.1节，“内部锁定方法”](internal-locking.html "10.11.1 Internal
+    Locking Methods")。

@@ -1,0 +1,239 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-read-only.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-read-only.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-read-only.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-read-only.html)
+- en: 19.4.1.3 Backing Up a Source or Replica by Making It Read Only
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.4.1.3 通过将其设置为只读来备份源或复制品
+- en: 'It is possible to back up either source or replica servers in a replication
+    setup by acquiring a global read lock and manipulating the [`read_only`](server-system-variables.html#sysvar_read_only)
+    system variable to change the read-only state of the server to be backed up:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以通过获取全局读锁并操作 [`read_only`](server-system-variables.html#sysvar_read_only) 系统变量来改变要备份服务器的只读状态，从而备份复制设置中的源或复制服务器：
+- en: Make the server read-only, so that it processes only retrievals and blocks updates.
+  id: totrans-3
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将服务器设置为只读，以便仅处理检索并阻止更新。
+- en: Perform the backup.
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行备份。
+- en: Change the server back to its normal read/write state.
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将服务器改回正常的读写状态。
+- en: Note
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The instructions in this section place the server to be backed up in a state
+    that is safe for backup methods that get the data from the server, such as [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") (see [Section 6.5.4, “mysqldump
+    — A Database Backup Program”](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program")). You should not attempt to use these instructions to make a binary
+    backup by copying files directly because the server may still have modified data
+    cached in memory and not flushed to disk.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节中的说明将要备份的服务器置于安全状态，以便备份方法从服务器获取数据，例如 [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program")（参见 [第 6.5.4 节，“mysqldump — 数据库备份程序”](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")）。您不应尝试使用这些说明通过直接复制文件来进行二进制备份，因为服务器可能仍然在内存中缓存修改的数据，尚未刷新到磁盘。
+- en: 'The following instructions describe how to do this for a source and for a replica.
+    For both scenarios discussed here, suppose that you have the following replication
+    setup:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节中的说明描述了如何为源和复制品执行此操作。对于这里讨论的两种场景，假设您有以下复制设置：
+- en: A source server S1
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个源服务器 S1
+- en: A replica server R1 that has S1 as its source
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个复制服务器 R1，其源为 S1
+- en: A client C1 connected to S1
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个连接到 S1 的客户端 C1
+- en: A client C2 connected to R1
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个连接到 R1 的客户端 C2
+- en: In either scenario, the statements to acquire the global read lock and manipulate
+    the [`read_only`](server-system-variables.html#sysvar_read_only) variable are
+    performed on the server to be backed up and do not propagate to any replicas of
+    that server.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在任一场景中，获取全局读锁并操作 [`read_only`](server-system-variables.html#sysvar_read_only)
+    变量的语句是在要备份的服务器上执行的，不会传播到该服务器的任何副本。
+- en: '**Scenario 1: Backup with a Read-Only Source**'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**场景 1：只读源备份**'
+- en: 'Put the source S1 in a read-only state by executing these statements on it:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过在源 S1 上执行以下语句，将源 S1 置于只读状态：
+- en: '[PRE0]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'While S1 is in a read-only state, the following properties are true:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当 S1 处于只读状态时，以下属性为真：
+- en: Requests for updates sent by C1 to S1 block because the server is in read-only
+    mode.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由 C1 发送到 S1 的更新请求被阻塞，因为服务器处于只读模式。
+- en: Requests for query results sent by C1 to S1 succeed.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由 C1 发送到 S1 的查询结果请求成功。
+- en: Making a backup on S1 is safe.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 S1 上进行备份是安全的。
+- en: Making a backup on R1 is not safe. This server is still running, and might be
+    processing the binary log or update requests coming from client C2.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 R1 上进行备份是不安全的。该服务器仍在运行，并且可能正在处理二进制日志或来自客户端 C2 的更新请求。
+- en: While S1 is read only, perform the backup. For example, you can use [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program").
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当 S1 处于只读状态时，执行备份。例如，您可以使用 [**mysqldump**](mysqldump.html "6.5.4 mysqldump —
+    A Database Backup Program")。
+- en: 'After the backup operation on S1 completes, restore S1 to its normal operational
+    state by executing these statements:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 S1 上的备份操作完成后，通过执行以下语句将 S1 恢复到正常运行状态：
+- en: '[PRE1]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Although performing the backup on S1 is safe (as far as the backup is concerned),
+    it is not optimal for performance because clients of S1 are blocked from executing
+    updates.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管在 S1 上执行备份是安全的（就备份而言），但对性能来说并不是最佳选择，因为 S1 的客户端被阻止执行更新操作。
+- en: This strategy applies to backing up a source in a replication setup, but can
+    also be used for a single server in a nonreplication setting.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种策略适用于在复制设置中备份源，但也可以用于非复制设置中的单个服务器。
+- en: '**Scenario 2: Backup with a Read-Only Replica**'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**场景 2：只读复制备份**'
+- en: 'Put the replica R1 in a read-only state by executing these statements on it:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过在复制 R1 上执行以下语句，将复制 R1 置于只读状态：
+- en: '[PRE2]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'While R1 is in a read-only state, the following properties are true:'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当 R1 处于只读状态时，以下属性为真：
+- en: The source S1 continues to operate, so making a backup on the source is not
+    safe.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 源 S1 仍在运行，因此在源上进行备份是不安全的。
+- en: The replica R1 is stopped, so making a backup on the replica R1 is safe.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 副本 R1 已停止，因此在副本 R1 上进行备份是安全的。
+- en: 'These properties provide the basis for a popular backup scenario: Having one
+    replica busy performing a backup for a while is not a problem because it does
+    not affect the entire network, and the system is still running during the backup.
+    In particular, clients can still perform updates on the source server, which remains
+    unaffected by backup activity on the replica.'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些属性为一种常见的备份场景提供了基础：让一个副本在一段时间内忙于执行备份不会造成问题，因为它不会影响整个网络，而且系统在备份期间仍在运行。特别是，客户端仍然可以在源服务器上执行更新操作，而备份副本上的备份活动不会对源服务器产生影响。
+- en: While R1 is read only, perform the backup. For example, you can use [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program").
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当 R1 处于只读状态时，执行备份操作。例如，您可以使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program")。
+- en: 'After the backup operation on R1 completes, restore R1 to its normal operational
+    state by executing these statements:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 完成 R1 上的备份操作后，通过执行以下语句将 R1 恢复到正常运行状态：
+- en: '[PRE3]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: After the replica is restored to normal operation, it again synchronizes to
+    the source by catching up with any outstanding updates from the source's binary
+    log.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将副本恢复到正常运行状态后，它会通过追赶源的二进制日志中的任何未完成更新再次与源进行同步。

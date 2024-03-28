@@ -1,0 +1,748 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-persistent-stats.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-persistent-stats.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-persistent-stats.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-persistent-stats.html)
+- en: 17.8.10.1 Configuring Persistent Optimizer Statistics Parameters
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.8.10.1 配置持久性优化器统计参数
+- en: The persistent optimizer statistics feature improves [plan stability](glossary.html#glos_plan_stability
+    "plan stability") by storing statistics to disk and making them persistent across
+    server restarts so that the [optimizer](glossary.html#glos_optimizer "optimizer")
+    is more likely to make consistent choices each time for a given query.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 持久性优化器统计功能通过将统计数据存储到磁盘并使其在服务器重新启动时持久化，从而改善了[计划稳定性](glossary.html#glos_plan_stability
+    "plan stability")，使得[优化器](glossary.html#glos_optimizer "optimizer")更有可能为给定查询每次做出一致的选择。
+- en: Optimizer statistics are persisted to disk when [`innodb_stats_persistent=ON`](innodb-parameters.html#sysvar_innodb_stats_persistent)
+    or when individual tables are defined with [`STATS_PERSISTENT=1`](create-table.html
+    "15.1.20 CREATE TABLE Statement"). [`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent)
+    is enabled by default.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当[`innodb_stats_persistent=ON`](innodb-parameters.html#sysvar_innodb_stats_persistent)或当单独的表被定义为[`STATS_PERSISTENT=1`](create-table.html
+    "15.1.20 CREATE TABLE Statement")时，优化器统计数据会持久化到磁盘。[`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent)默认启用。
+- en: Formerly, optimizer statistics were cleared when restarting the server and after
+    some other types of operations, and recomputed on the next table access. Consequently,
+    different estimates could be produced when recalculating statistics leading to
+    different choices in query execution plans and variation in query performance.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以前，当重新启动服务器和执行其他某些类型的操作时，优化器统计数据会被清除，并在下一次访问表时重新计算。因此，在重新计算统计数据时可能会产生不同的估计值，导致查询执行计划中的不同选择和查询性能的变化。
+- en: Persistent statistics are stored in the `mysql.innodb_table_stats` and `mysql.innodb_index_stats`
+    tables. See [Section 17.8.10.1.5, “InnoDB Persistent Statistics Tables”](innodb-persistent-stats.html#innodb-persistent-stats-tables
+    "17.8.10.1.5 InnoDB Persistent Statistics Tables").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 持久性统计数据存储在`mysql.innodb_table_stats`和`mysql.innodb_index_stats`表中。请参阅[第17.8.10.1.5节，“InnoDB持久性统计表”](innodb-persistent-stats.html#innodb-persistent-stats-tables
+    "17.8.10.1.5 InnoDB Persistent Statistics Tables")。
+- en: If you prefer not to persist optimizer statistics to disk, see [Section 17.8.10.2,
+    “Configuring Non-Persistent Optimizer Statistics Parameters”](innodb-statistics-estimation.html
+    "17.8.10.2 Configuring Non-Persistent Optimizer Statistics Parameters")
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您不希望将优化器统计数据持久化到磁盘，请参阅[第17.8.10.2节，“配置非持久性优化器统计参数”](innodb-statistics-estimation.html
+    "17.8.10.2 Configuring Non-Persistent Optimizer Statistics Parameters")
+- en: 17.8.10.1.1 Configuring Automatic Statistics Calculation for Persistent Optimizer
+    Statistics
+  id: totrans-7
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 17.8.10.1.1 配置持久性优化器统计的自动计算
+- en: The [`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)
+    variable, which is enabled by default, controls whether statistics are calculated
+    automatically when a table undergoes changes to more than 10% of its rows. You
+    can also configure automatic statistics recalculation for individual tables by
+    specifying the `STATS_AUTO_RECALC` clause when creating or altering a table.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认启用的[`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)变量控制当表的行数变化超过10%时是否自动计算统计数据。您还可以通过在创建或更改表时指定`STATS_AUTO_RECALC`子句来为单独的表配置自动统计数据重新计算。
+- en: Because of the asynchronous nature of automatic statistics recalculation, which
+    occurs in the background, statistics may not be recalculated instantly after running
+    a DML operation that affects more than 10% of a table, even when [`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)
+    is enabled. Statistics recalculation can be delayed by few seconds in some cases.
+    If up-to-date statistics are required immediately, run [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement") to initiate a synchronous (foreground) recalculation
+    of statistics.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于自动统计重新计算的异步性质，即使启用了[`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)，在运行影响表超过10%的DML操作后，统计数据可能不会立即重新计算。在某些情况下，统计数据重新计算可能会延迟几秒钟。如果需要立即更新的统计数据，请运行[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")来启动同步（前台）重新计算统计数据。
+- en: If [`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)
+    is disabled, you can ensure the accuracy of optimizer statistics by executing
+    the [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement") statement
+    after making substantial changes to indexed columns. You might also consider adding
+    [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement") to setup
+    scripts that you run after loading data, and running [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement") on a schedule at times of low activity.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果禁用了[`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)，您可以通过在对索引列进行重大更改后执行[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")语句来确保优化器统计的准确性。您还可以考虑将[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")添加到在加载数据后运行的设置脚本中，并在低活动时间定期运行[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")。
+- en: When an index is added to an existing table, or when a column is added or dropped,
+    index statistics are calculated and added to the `innodb_index_stats` table regardless
+    of the value of [`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc).
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当向现有表添加索引或添加或删除列时，无论[`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)的值如何，都会计算索引统计信息并将其添加到`innodb_index_stats`表中。
+- en: 17.8.10.1.2 Configuring Optimizer Statistics Parameters for Individual Tables
+  id: totrans-12
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 17.8.10.1.2 为单个表配置优化器统计参数
+- en: '[`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent),
+    [`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc),
+    and [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    are global variables. To override these system-wide settings and configure optimizer
+    statistics parameters for individual tables, you can define `STATS_PERSISTENT`,
+    `STATS_AUTO_RECALC`, and `STATS_SAMPLE_PAGES` clauses in [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") or [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") statements.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent)，[`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)，和[`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)是全局变量。要覆盖这些系统范围的设置，并为单个表配置优化器统计参数，您可以在[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")或[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")语句中定义`STATS_PERSISTENT`，`STATS_AUTO_RECALC`和`STATS_SAMPLE_PAGES`子句。'
+- en: '`STATS_PERSISTENT` specifies whether to enable [persistent statistics](glossary.html#glos_persistent_statistics
+    "persistent statistics") for an `InnoDB` table. The value `DEFAULT` causes the
+    persistent statistics setting for the table to be determined by the [`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent)
+    setting. A value of `1` enables persistent statistics for the table, while a value
+    of `0` disables the feature. After enabling persistent statistics for an individual
+    table, use [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")
+    to calculate statistics after table data is loaded.'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STATS_PERSISTENT`指定是否为`InnoDB`表启用[持久统计信息](glossary.html#glos_persistent_statistics
+    "persistent statistics")。值`DEFAULT`导致表的持久统计设置由[`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent)设置确定。值为`1`时，为表启用持久统计信息，值为`0`时禁用该功能。在为单个表启用持久统计信息后，使用[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")在加载表数据后计算统计信息。'
+- en: '`STATS_AUTO_RECALC` specifies whether to automatically recalculate [persistent
+    statistics](glossary.html#glos_persistent_statistics "persistent statistics").
+    The value `DEFAULT` causes the persistent statistics setting for the table to
+    be determined by the [`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)
+    setting. A value of `1` causes statistics to be recalculated when 10% of table
+    data has changed. A value `0` prevents automatic recalculation for the table.
+    When using a value of 0, use [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement") to recalculate statistics after making substantial changes to
+    the table.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STATS_AUTO_RECALC`指定是否自动重新计算[持久统计信息](glossary.html#glos_persistent_statistics
+    "persistent statistics")。值`DEFAULT`导致表的持久统计设置由[`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)设置确定。值为`1`时，当表数据变化了10%时重新计算统计信息。值为`0`时，阻止对表进行自动重新计算。当使用值为0时，使用[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")在对表进行重大更改后重新计算统计信息。'
+- en: '`STATS_SAMPLE_PAGES` specifies the number of index pages to sample when cardinality
+    and other statistics are calculated for an indexed column, by an [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement") operation, for example.'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STATS_SAMPLE_PAGES` 指定了在对索引列进行统计计算时，通过 [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement") 操作采样的索引页面数量，例如。'
+- en: 'All three clauses are specified in the following [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") example:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有三个子句在以下 [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    示例中指定：
+- en: '[PRE0]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 17.8.10.1.3 Configuring the Number of Sampled Pages for InnoDB Optimizer Statistics
+  id: totrans-19
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 17.8.10.1.3 配置 InnoDB 优化器统计信息的采样页面数
+- en: The optimizer uses estimated [statistics](glossary.html#glos_statistics "statistics")
+    about key distributions to choose the indexes for an execution plan, based on
+    the relative [selectivity](glossary.html#glos_selectivity "selectivity") of the
+    index. Operations such as [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement") cause `InnoDB` to sample random pages from each index on a table
+    to estimate the [cardinality](glossary.html#glos_cardinality "cardinality") of
+    the index. This sampling technique is known as a [random dive](glossary.html#glos_random_dive
+    "random dive").
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器使用关于键分布的估计 [统计信息](glossary.html#glos_statistics "statistics") 来选择执行计划的索引，基于索引的相对
+    [选择性](glossary.html#glos_selectivity "selectivity")。诸如 [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement") 等操作会导致 `InnoDB` 从表中的每个索引中随机采样页面，以估算索引的 [基数](glossary.html#glos_cardinality
+    "cardinality")。这种采样技术被称为 [随机潜水](glossary.html#glos_random_dive "random dive")。
+- en: 'The [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    controls the number of sampled pages. You can adjust the setting at runtime to
+    manage the quality of statistics estimates used by the optimizer. The default
+    value is 20. Consider modifying the setting when encountering the following issues:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    控制了采样页面的数量。您可以在运行时调整此设置以管理优化器使用的统计估算的质量。默认值为 20。在遇到以下问题时考虑修改此设置：'
+- en: '*Statistics are not accurate enough and the optimizer chooses suboptimal plans*,
+    as shown in [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output. You can
+    check the accuracy of statistics by comparing the actual cardinality of an index
+    (determined by running [`SELECT DISTINCT`](select.html "15.2.13 SELECT Statement")
+    on the index columns) with the estimates in the `mysql.innodb_index_stats` table.'
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*统计数据不够准确且优化器选择了次优执行计划*，如 [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")
+    输出所示。您可以通过比较索引的实际基数（通过在索引列上运行 [`SELECT DISTINCT`](select.html "15.2.13 SELECT
+    Statement") 确定）与 `mysql.innodb_index_stats` 表中的估算值来检查统计数据的准确性。'
+- en: If it is determined that statistics are not accurate enough, the value of [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    should be increased until the statistics estimates are sufficiently accurate.
+    Increasing [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    too much, however, could cause [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement") to run slowly.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果确定统计数据不够准确，则应增加 [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    的值，直到统计估算足够准确。然而，增加 [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    太多可能会导致 [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")
+    运行缓慢。
+- en: '*[`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement") is
+    too slow*. In this case [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    should be decreased until [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement") execution time is acceptable. Decreasing the value too much,
+    however, could lead to the first problem of inaccurate statistics and suboptimal
+    query execution plans.'
+  id: totrans-24
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*[`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement") 运行太慢*。在这种情况下，应将
+    [`innodb_stats_persistent_sample_pages`](innodb-parameters.html#sysvar_innodb_stats_persistent_sample_pages)
+    减少，直到 [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")
+    的执行时间可接受。然而，将值减少太多可能会导致统计不准确和查询执行计划不佳的第一个问题。'
+- en: If a balance cannot be achieved between accurate statistics and [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement") execution time, consider decreasing the number
+    of indexed columns in the table or limiting the number of partitions to reduce
+    [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement") complexity.
+    The number of columns in the table's primary key is also important to consider,
+    as primary key columns are appended to each nonunique index.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果无法在准确统计和[`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")执行时间之间取得平衡，请考虑减少表中索引列的数量或限制分区数量以减少[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")的复杂性。还需要考虑表主键中的列数，因为主键列会附加到每个非唯一索引上。
+- en: For related information, see [Section 17.8.10.3, “Estimating ANALYZE TABLE Complexity
+    for InnoDB Tables”](innodb-analyze-table-complexity.html "17.8.10.3 Estimating
+    ANALYZE TABLE Complexity for InnoDB Tables").
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关相关信息，请参阅[第17.8.10.3节，“InnoDB表的ANALYZE TABLE复杂性估算”](innodb-analyze-table-complexity.html
+    "17.8.10.3 Estimating ANALYZE TABLE Complexity for InnoDB Tables")。
+- en: 17.8.10.1.4 Including Delete-marked Records in Persistent Statistics Calculations
+  id: totrans-27
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 17.8.10.1.4 在持久统计计算中包含已标记删除的记录
+- en: By default, `InnoDB` reads uncommitted data when calculating statistics. In
+    the case of an uncommitted transaction that deletes rows from a table, delete-marked
+    records are excluded when calculating row estimates and index statistics, which
+    can lead to non-optimal execution plans for other transactions that are operating
+    on the table concurrently using a transaction isolation level other than [`READ
+    UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted).
+    To avoid this scenario, [`innodb_stats_include_delete_marked`](innodb-parameters.html#sysvar_innodb_stats_include_delete_marked)
+    can be enabled to ensure that delete-marked records are included when calculating
+    persistent optimizer statistics.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，`InnoDB`在计算统计信息时会读取未提交的数据。在未提交事务删除表中的行的情况下，计算行估计和索引统计时会排除已标记删除的记录，这可能导致使用除[`READ
+    UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted)之外的事务隔离级别并行操作表的其他事务出现非最佳执行计划。为避免这种情况，可以启用[`innodb_stats_include_delete_marked`](innodb-parameters.html#sysvar_innodb_stats_include_delete_marked)以确保在计算持久性优化器统计信息时包含已标记删除的记录。
+- en: When [`innodb_stats_include_delete_marked`](innodb-parameters.html#sysvar_innodb_stats_include_delete_marked)
+    is enabled, [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")
+    considers delete-marked records when recalculating statistics.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当启用[`innodb_stats_include_delete_marked`](innodb-parameters.html#sysvar_innodb_stats_include_delete_marked)时，[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")在重新计算统计信息时会考虑已标记删除的记录。
+- en: '[`innodb_stats_include_delete_marked`](innodb-parameters.html#sysvar_innodb_stats_include_delete_marked)
+    is a global setting that affects all `InnoDB` tables, and it is only applicable
+    to persistent optimizer statistics.'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_stats_include_delete_marked`](innodb-parameters.html#sysvar_innodb_stats_include_delete_marked)是一个影响所有`InnoDB`表的全局设置，仅适用于持久性优化器统计信息。'
+- en: 17.8.10.1.5 InnoDB Persistent Statistics Tables
+  id: totrans-31
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 17.8.10.1.5 InnoDB持久性统计表
+- en: The persistent statistics feature relies on the internally managed tables in
+    the `mysql` database, named `innodb_table_stats` and `innodb_index_stats`. These
+    tables are set up automatically in all install, upgrade, and build-from-source
+    procedures.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 持久性统计功能依赖于`mysql`数据库中的内部管理表，名称为`innodb_table_stats`和`innodb_index_stats`。这些表会在所有安装、升级和源代码构建过程中自动设置。
+- en: '**Table 17.6 Columns of innodb_table_stats**'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表17.6 innodb_table_stats的列**'
+- en: '| Column name | Description |'
+  id: totrans-34
+  prefs: []
+  type: TYPE_TB
+  zh: '| 列名 | 描述 |'
+- en: '| `database_name` | Database name |'
+  id: totrans-35
+  prefs: []
+  type: TYPE_TB
+  zh: '| `database_name` | 数据库名称 |'
+- en: '| `table_name` | Table name, partition name, or subpartition name |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| `table_name` | 表名、分区名或子分区名 |'
+- en: '| `last_update` | A timestamp indicating the last time that `InnoDB` updated
+    this row |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| `last_update` | 指示`InnoDB`上次更新此行的时间戳 |'
+- en: '| `n_rows` | The number of rows in the table |'
+  id: totrans-38
+  prefs: []
+  type: TYPE_TB
+  zh: '| `n_rows` | 表中的行数 |'
+- en: '| `clustered_index_size` | The size of the primary index, in pages |'
+  id: totrans-39
+  prefs: []
+  type: TYPE_TB
+  zh: '| `clustered_index_size` | 主索引的大小，以页为单位 |'
+- en: '| `sum_of_other_index_sizes` | The total size of other (non-primary) indexes,
+    in pages |'
+  id: totrans-40
+  prefs: []
+  type: TYPE_TB
+  zh: '| `sum_of_other_index_sizes` | 其他（非主键）索引的总大小，以页为单位 |'
+- en: '**Table 17.7 Columns of innodb_index_stats**'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表17.7 innodb_index_stats的列**'
+- en: '| Column name | Description |'
+  id: totrans-42
+  prefs: []
+  type: TYPE_TB
+  zh: '| 列名 | 描述 |'
+- en: '| `database_name` | Database name |'
+  id: totrans-43
+  prefs: []
+  type: TYPE_TB
+  zh: '| `database_name` | 数据库名称 |'
+- en: '| `table_name` | Table name, partition name, or subpartition name |'
+  id: totrans-44
+  prefs: []
+  type: TYPE_TB
+  zh: '| `table_name` | 表名、分区名或子分区名 |'
+- en: '| `index_name` | Index name |'
+  id: totrans-45
+  prefs: []
+  type: TYPE_TB
+  zh: '| `index_name` | 索引名称 |'
+- en: '| `last_update` | A timestamp indicating the last time the row was updated
+    |'
+  id: totrans-46
+  prefs: []
+  type: TYPE_TB
+  zh: '| `last_update` | 指示上次更新行的时间戳 |'
+- en: '| `stat_name` | The name of the statistic, whose value is reported in the `stat_value`
+    column |'
+  id: totrans-47
+  prefs: []
+  type: TYPE_TB
+  zh: '| `stat_name` | 统计信息的名称，其值在`stat_value`列中报告 |'
+- en: '| `stat_value` | The value of the statistic that is named in `stat_name` column
+    |'
+  id: totrans-48
+  prefs: []
+  type: TYPE_TB
+  zh: '| `stat_value` | 在`stat_name`列中命名的统计信息的值 |'
+- en: '| `sample_size` | The number of pages sampled for the estimate provided in
+    the `stat_value` column |'
+  id: totrans-49
+  prefs: []
+  type: TYPE_TB
+  zh: '| `sample_size` | 用于`stat_value`列中提供的估计值的页面样本数 |'
+- en: '| `stat_description` | Description of the statistic that is named in the `stat_name`
+    column |'
+  id: totrans-50
+  prefs: []
+  type: TYPE_TB
+  zh: '| `stat_description` | 在`stat_name`列中命名的统计信息的描述 |'
+- en: 'The `innodb_table_stats` and `innodb_index_stats` tables include a `last_update`
+    column that shows when index statistics were last updated:'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`innodb_table_stats`和`innodb_index_stats`表包括一个`last_update`列，显示索引统计信息上次更新的时间：'
+- en: '[PRE1]'
+  id: totrans-52
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '[PRE2]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The `innodb_table_stats` and `innodb_index_stats` tables can be updated manually,
+    which makes it possible to force a specific query optimization plan or test alternative
+    plans without modifying the database. If you manually update statistics, use the
+    `FLUSH TABLE *`tbl_name`*` statement to load the updated statistics.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`innodb_table_stats`和`innodb_index_stats`表可以手动更新，这样可以强制执行特定的查询优化计划或测试替代计划而不修改数据库。如果手动更新统计信息，请使用`FLUSH
+    TABLE *tbl_name*`语句加载更新后的统计信息。'
+- en: Persistent statistics are considered local information, because they relate
+    to the server instance. The `innodb_table_stats` and `innodb_index_stats` tables
+    are therefore not replicated when automatic statistics recalculation takes place.
+    If you run [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")
+    to initiate a synchronous recalculation of statistics, the statement is replicated
+    (unless you suppressed logging for it), and recalculation takes place on replicas.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 持久统计被视为本地信息，因为它们与服务器实例相关。因此，在自动统计信息重新计算时，`innodb_table_stats`和`innodb_index_stats`表不会被复制。如果运行[`ANALYZE
+    TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")来启动统计信息的同步重新计算，该语句会被复制（除非你禁止了它的日志记录），并且重新计算会在副本上进行。
+- en: 17.8.10.1.6 InnoDB Persistent Statistics Tables Example
+  id: totrans-56
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 17.8.10.1.6 InnoDB持久统计表示例
+- en: The `innodb_table_stats` table contains one row for each table. The following
+    example demonstrates the type of data collected.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`innodb_table_stats`表中包含每个表的一行。以下示例演示了收集的数据类型。'
+- en: 'Table `t1` contains a primary index (columns `a`, `b`) secondary index (columns
+    `c`, `d`), and unique index (columns `e`, `f`):'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表`t1`包含一个主索引（列`a`，`b`），一个次要索引（列`c`，`d`），和一个唯一索引（列`e`，`f`）：
+- en: '[PRE3]'
+  id: totrans-59
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'After inserting five rows of sample data, table `t1` appears as follows:'
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插入五行样本数据后，表`t1`如下所示：
+- en: '[PRE4]'
+  id: totrans-61
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'To immediately update statistics, run [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement") (if [`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)
+    is enabled, statistics are updated automatically within a few seconds assuming
+    that the 10% threshold for changed table rows is reached):'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要立即更新统计信息，运行[`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")（如果[`innodb_stats_auto_recalc`](innodb-parameters.html#sysvar_innodb_stats_auto_recalc)已启用，则假定在几秒钟内自动更新统计信息，假设已达到更改表行的10%阈值）：
+- en: '[PRE5]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Table statistics for table `t1` show the last time `InnoDB` updated the table
+    statistics (`2014-03-14 14:36:34`), the number of rows in the table (`5`), the
+    clustered index size (`1` page), and the combined size of the other indexes (`2`
+    pages).
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表`t1`的表统计信息显示了`InnoDB`上次更新表统计信息的时间（`2014-03-14 14:36:34`），表中的行数（`5`），聚集索引大小（`1`页），以及其他索引的组合大小（`2`页）。
+- en: '[PRE6]'
+  id: totrans-65
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'The `innodb_index_stats` table contains multiple rows for each index. Each
+    row in the `innodb_index_stats` table provides data related to a particular index
+    statistic which is named in the `stat_name` column and described in the `stat_description`
+    column. For example:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`innodb_index_stats`表对每个索引包含多行。`innodb_index_stats`表中的每一行提供与`stat_name`列中命名的特定索引统计信息相关的数据，并在`stat_description`列中描述。例如：'
+- en: '[PRE7]'
+  id: totrans-67
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The `stat_name` column shows the following types of statistics:'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`stat_name`列显示以下类型的统计信息：'
+- en: '`size`: Where `stat_name`=`size`, the `stat_value` column displays the total
+    number of pages in the index.'
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`size`：当`stat_name`=`size`时，`stat_value`列显示索引中的总页数。'
+- en: '`n_leaf_pages`: Where `stat_name`=`n_leaf_pages`, the `stat_value` column displays
+    the number of leaf pages in the index.'
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`n_leaf_pages`：当`stat_name`=`n_leaf_pages`时，`stat_value`列显示索引中叶子页的数量。'
+- en: '`n_diff_pfx*`NN`*`: Where `stat_name`=`n_diff_pfx01`, the `stat_value` column
+    displays the number of distinct values in the first column of the index. Where
+    `stat_name`=`n_diff_pfx02`, the `stat_value` column displays the number of distinct
+    values in the first two columns of the index, and so on. Where `stat_name`=`n_diff_pfx*`NN`*`,
+    the `stat_description` column shows a comma separated list of the index columns
+    that are counted.'
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`n_diff_pfx*`NN`*`：当`stat_name`=`n_diff_pfx01`时，`stat_value`列显示索引的第一列中不同值的数量。当`stat_name`=`n_diff_pfx02`时，`stat_value`列显示索引的前两列中不同值的数量，依此类推。当`stat_name`=`n_diff_pfx*`NN`*`时，`stat_description`列显示一个逗号分隔的计数索引列的列表。'
+- en: 'To further illustrate the `n_diff_pfx*`NN`*` statistic, which provides cardinality
+    data, consider once again the `t1` table example that was introduced previously.
+    As shown below, the `t1` table is created with a primary index (columns `a`, `b`),
+    a secondary index (columns `c`, `d`), and a unique index (columns `e`, `f`):'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了进一步说明提供基数数据的`n_diff_pfx*`NN`*`统计信息，再次考虑之前介绍的`t1`表示例。如下所示，`t1`表创建了一个主索引（列`a`、`b`）、一个次要索引（列`c`、`d`）和一个唯一索引（列`e`、`f`）：
+- en: '[PRE8]'
+  id: totrans-73
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'After inserting five rows of sample data, table `t1` appears as follows:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插入五行样本数据后，表`t1`如下所示：
+- en: '[PRE9]'
+  id: totrans-75
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'When you query the `index_name`, `stat_name`, `stat_value`, and `stat_description`,
+    where `stat_name LIKE ''n_diff%''`, the following result set is returned:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当查询`index_name`、`stat_name`、`stat_value`和`stat_description`，其中`stat_name LIKE
+    'n_diff%'`时，将返回以下结果集：
+- en: '[PRE10]'
+  id: totrans-77
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: For the `PRIMARY` index, there are two `n_diff%` rows. The number of rows is
+    equal to the number of columns in the index.
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`PRIMARY`索引，有两个`n_diff%`行。行数等于索引中的列数。
+- en: Note
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: For nonunique indexes, `InnoDB` appends the columns of the primary key.
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于非唯一索引，`InnoDB`会附加主键的列。
+- en: Where `index_name`=`PRIMARY` and `stat_name`=`n_diff_pfx01`, the `stat_value`
+    is `1`, which indicates that there is a single distinct value in the first column
+    of the index (column `a`). The number of distinct values in column `a` is confirmed
+    by viewing the data in column `a` in table `t1`, in which there is a single distinct
+    value (`1`). The counted column (`a`) is shown in the `stat_description` column
+    of the result set.
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当`index_name`=`PRIMARY`且`stat_name`=`n_diff_pfx01`时，`stat_value`为`1`，表示索引的第一列（列`a`）中有一个单独的值。通过查看表`t1`中列`a`中的数据，确认列`a`中的不同值的数量，其中有一个单独的值（`1`）。计数的列（`a`）显示在结果集的`stat_description`列中。
+- en: 'Where `index_name`=`PRIMARY` and `stat_name`=`n_diff_pfx02`, the `stat_value`
+    is `5`, which indicates that there are five distinct values in the two columns
+    of the index (`a,b`). The number of distinct values in columns `a` and `b` is
+    confirmed by viewing the data in columns `a` and `b` in table `t1`, in which there
+    are five distinct values: (`1,1`), (`1,2`), (`1,3`), (`1,4`) and (`1,5`). The
+    counted columns (`a,b`) are shown in the `stat_description` column of the result
+    set.'
+  id: totrans-82
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当`index_name`=`PRIMARY`且`stat_name`=`n_diff_pfx02`时，`stat_value`为`5`，表示索引的两列（`a,b`）中有五个不同的值。通过查看表`t1`中列`a`和`b`中的数据，确认列`a`和`b`中的不同值的数量，其中有五个不同的值：(`1,1`)、(`1,2`)、(`1,3`)、(`1,4`)和(`1,5`)。计数的列（`a,b`）显示在结果集的`stat_description`列中。
+- en: For the secondary index (`i1`), there are four `n_diff%` rows. Only two columns
+    are defined for the secondary index (`c,d`) but there are four `n_diff%` rows
+    for the secondary index because `InnoDB` suffixes all nonunique indexes with the
+    primary key. As a result, there are four `n_diff%` rows instead of two to account
+    for the both the secondary index columns (`c,d`) and the primary key columns (`a,b`).
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于次要索引（`i1`），有四个`n_diff%`行。次要索引（`c,d`）仅定义了两列，但有四个`n_diff%`行，因为`InnoDB`会在所有非唯一索引后缀主键。因此，有四个`n_diff%`行，而不是两个，以考虑次要索引列（`c,d`）和主键列（`a,b`）。
+- en: 'Where `index_name`=`i1` and `stat_name`=`n_diff_pfx01`, the `stat_value` is
+    `1`, which indicates that there is a single distinct value in the first column
+    of the index (column `c`). The number of distinct values in column `c` is confirmed
+    by viewing the data in column `c` in table `t1`, in which there is a single distinct
+    value: (`10`). The counted column (`c`) is shown in the `stat_description` column
+    of the result set.'
+  id: totrans-84
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当`index_name`=`i1`且`stat_name`=`n_diff_pfx01`时，`stat_value`为`1`，表示索引的第一列（列`c`）中有一个单独的值。通过查看表`t1`中列`c`中的数据，确认列`c`中的不同值的数量，其中有一个单独的值：(`10`)。计数的列（`c`）显示在结果集的`stat_description`列中。
+- en: 'Where `index_name`=`i1` and `stat_name`=`n_diff_pfx02`, the `stat_value` is
+    `2`, which indicates that there are two distinct values in the first two columns
+    of the index (`c,d`). The number of distinct values in columns `c` an `d` is confirmed
+    by viewing the data in columns `c` and `d` in table `t1`, in which there are two
+    distinct values: (`10,11`) and (`10,12`). The counted columns (`c,d`) are shown
+    in the `stat_description` column of the result set.'
+  id: totrans-85
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当 `index_name`=`i1` 且 `stat_name`=`n_diff_pfx02` 时，`stat_value` 为 `2`，表示索引（`c,d`）的前两列中有两个不同的值。在表
+    `t1` 中查看列 `c` 和 `d` 的数据，可以确认有两个不同的值：(`10,11`) 和 (`10,12`)。计数的列（`c,d`）显示在结果集的 `stat_description`
+    列中。
+- en: 'Where `index_name`=`i1` and `stat_name`=`n_diff_pfx03`, the `stat_value` is
+    `2`, which indicates that there are two distinct values in the first three columns
+    of the index (`c,d,a`). The number of distinct values in columns `c`, `d`, and
+    `a` is confirmed by viewing the data in column `c`, `d`, and `a` in table `t1`,
+    in which there are two distinct values: (`10,11,1`) and (`10,12,1`). The counted
+    columns (`c,d,a`) are shown in the `stat_description` column of the result set.'
+  id: totrans-86
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当 `index_name`=`i1` 且 `stat_name`=`n_diff_pfx03` 时，`stat_value` 为 `2`，表示索引（`c,d,a`）的前三列中有两个不同的值。在表
+    `t1` 中查看列 `c`、`d` 和 `a` 的数据，可以确认有两个不同的值：(`10,11,1`) 和 (`10,12,1`)。计数的列（`c,d,a`）显示在结果集的
+    `stat_description` 列中。
+- en: 'Where `index_name`=`i1` and `stat_name`=`n_diff_pfx04`, the `stat_value` is
+    `5`, which indicates that there are five distinct values in the four columns of
+    the index (`c,d,a,b`). The number of distinct values in columns `c`, `d`, `a`
+    and `b` is confirmed by viewing the data in columns `c`, `d`, `a`, and `b` in
+    table `t1`, in which there are five distinct values: (`10,11,1,1`), (`10,11,1,2`),
+    (`10,11,1,3`), (`10,12,1,4`), and (`10,12,1,5`). The counted columns (`c,d,a,b`)
+    are shown in the `stat_description` column of the result set.'
+  id: totrans-87
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当 `index_name`=`i1` 且 `stat_name`=`n_diff_pfx04` 时，`stat_value` 为 `5`，表示索引（`c,d,a,b`）的四列中有五个不同的值。在表
+    `t1` 中查看列 `c`、`d`、`a` 和 `b` 的数据，可以确认有五个不同的值：(`10,11,1,1`)、(`10,11,1,2`)、(`10,11,1,3`)、(`10,12,1,4`)
+    和 (`10,12,1,5`)。计数的列（`c,d,a,b`）显示在结果集的 `stat_description` 列中。
+- en: For the unique index (`i2uniq`), there are two `n_diff%` rows.
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于唯一索引（`i2uniq`），有两行 `n_diff%`。
+- en: 'Where `index_name`=`i2uniq` and `stat_name`=`n_diff_pfx01`, the `stat_value`
+    is `2`, which indicates that there are two distinct values in the first column
+    of the index (column `e`). The number of distinct values in column `e` is confirmed
+    by viewing the data in column `e` in table `t1`, in which there are two distinct
+    values: (`100`) and (`200`). The counted column (`e`) is shown in the `stat_description`
+    column of the result set.'
+  id: totrans-89
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当 `index_name`=`i2uniq` 且 `stat_name`=`n_diff_pfx01` 时，`stat_value` 为 `2`，表示索引（列
+    `e`）的第一列中有两个不同的值。在表 `t1` 中查看列 `e` 的数据，可以确认有两个不同的值：(`100`) 和 (`200`)。计数的列（`e`）显示在结果集的
+    `stat_description` 列中。
+- en: 'Where `index_name`=`i2uniq` and `stat_name`=`n_diff_pfx02`, the `stat_value`
+    is `5`, which indicates that there are five distinct values in the two columns
+    of the index (`e,f`). The number of distinct values in columns `e` and `f` is
+    confirmed by viewing the data in columns `e` and `f` in table `t1`, in which there
+    are five distinct values: (`100,101`), (`200,102`), (`100,103`), (`200,104`),
+    and (`100,105`). The counted columns (`e,f`) are shown in the `stat_description`
+    column of the result set.'
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当 `index_name`=`i2uniq` 且 `stat_name`=`n_diff_pfx02` 时，`stat_value` 为 `5`，表示索引（`e,f`）的两列中有五个不同的值。在表
+    `t1` 中查看列 `e` 和 `f` 的数据，可以确认有五个不同的值：(`100,101`)、(`200,102`)、(`100,103`)、(`200,104`)
+    和 (`100,105`)。计数的列（`e,f`）显示在结果集的 `stat_description` 列中。
+- en: 17.8.10.1.7 Retrieving Index Size Using the innodb_index_stats Table
+  id: totrans-91
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 17.8.10.1.7 使用 `innodb_index_stats` 表检索索引大小
+- en: You can retrieve the index size for tables, partitions, or subpartitions can
+    using the `innodb_index_stats` table. In the following example, index sizes are
+    retrieved for table `t1`. For a definition of table `t1` and corresponding index
+    statistics, see [Section 17.8.10.1.6, “InnoDB Persistent Statistics Tables Example”](innodb-persistent-stats.html#innodb-persistent-stats-tables-example
+    "17.8.10.1.6 InnoDB Persistent Statistics Tables Example").
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用 `innodb_index_stats` 表检索表、分区或子分区的索引大小。在下面的示例中，检索了表 `t1` 的索引大小。有关表 `t1`
+    和相应索引统计信息的定义，请参见[第 17.8.10.1.6 节，“InnoDB 持久性统计表示例”](innodb-persistent-stats.html#innodb-persistent-stats-tables-example
+    "17.8.10.1.6 InnoDB Persistent Statistics Tables Example")。
+- en: '[PRE11]'
+  id: totrans-93
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'For partitions or subpartitions, you can use the same query with a modified
+    `WHERE` clause to retrieve index sizes. For example, the following query retrieves
+    index sizes for partitions of table `t1`:'
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于分区或子分区，您可以使用相同的查询，只需修改`WHERE`子句以检索索引大小。例如，以下查询检索表`t1`的分区索引大小：
+- en: '[PRE12]'
+  id: totrans-95
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'

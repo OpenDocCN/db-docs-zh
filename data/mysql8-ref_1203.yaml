@@ -1,0 +1,135 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-midpoint_insertion.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-midpoint_insertion.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-midpoint_insertion.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-midpoint_insertion.html)
+- en: 17.8.3.3 Making the Buffer Pool Scan Resistant
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.8.3.3 使缓冲池具有扫描抵抗力
+- en: Rather than using a strict [LRU](glossary.html#glos_lru "LRU") algorithm, `InnoDB`
+    uses a technique to minimize the amount of data that is brought into the [buffer
+    pool](glossary.html#glos_buffer_pool "buffer pool") and never accessed again.
+    The goal is to make sure that frequently accessed (“hot”) pages remain in the
+    buffer pool, even as [read-ahead](glossary.html#glos_read_ahead "read-ahead")
+    and [full table scans](glossary.html#glos_full_table_scan "full table scan") bring
+    in new blocks that might or might not be accessed afterward.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`不使用严格的[LRU](glossary.html#glos_lru "LRU")算法，而是使用一种技术来最小化带入[缓冲池](glossary.html#glos_buffer_pool
+    "缓冲池")但从未再次访问的数据量。目标是确保频繁访问的（“热”）页面保留在缓冲池中，即使[预读取](glossary.html#glos_read_ahead
+    "预读取")和[全表扫描](glossary.html#glos_full_table_scan "全表扫描")带入可能或可能不会在之后访问的新块。'
+- en: Newly read blocks are inserted into the middle of the LRU list. All newly read
+    pages are inserted at a location that by default is `3/8` from the tail of the
+    LRU list. The pages are moved to the front of the list (the most-recently used
+    end) when they are accessed in the buffer pool for the first time. Thus, pages
+    that are never accessed never make it to the front portion of the LRU list, and
+    “age out” sooner than with a strict LRU approach. This arrangement divides the
+    LRU list into two segments, where the pages downstream of the insertion point
+    are considered “old” and are desirable victims for LRU eviction.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 新读取的块被插入LRU列表的中间。所有新读取的页面默认情况下插入到LRU列表尾部的`3/8`位置。当它们在缓冲池中第一次被访问时，页面被移动到列表的前端（最近使用的端）。因此，从未被访问的页面永远不会进入LRU列表的前部，比严格的LRU方法更快地“老化”。这种安排将LRU列表分为两个部分，插入点后面的页面被视为“旧”，是LRU驱逐的理想受害者。
+- en: For an explanation of the inner workings of the `InnoDB` buffer pool and specifics
+    about the LRU algorithm, see [Section 17.5.1, “Buffer Pool”](innodb-buffer-pool.html
+    "17.5.1 Buffer Pool").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关`InnoDB`缓冲池的内部工作原理和LRU算法的具体信息，请参见[第17.5.1节，“缓冲池”](innodb-buffer-pool.html
+    "17.5.1 缓冲池")。
+- en: You can control the insertion point in the LRU list and choose whether `InnoDB`
+    applies the same optimization to blocks brought into the buffer pool by table
+    or index scans. The configuration parameter [`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)
+    controls the percentage of “old” blocks in the LRU list. The default value of
+    [`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)
+    is `37`, corresponding to the original fixed ratio of 3/8\. The value range is
+    `5` (new pages in the buffer pool age out very quickly) to `95` (only 5% of the
+    buffer pool is reserved for hot pages, making the algorithm close to the familiar
+    LRU strategy).
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以控制LRU列表中的插入点，并选择`InnoDB`是否将相同的优化应用于通过表或索引扫描带入缓冲池的块。配置参数[`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)控制LRU列表中“旧”块的百分比。[`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)的默认值为`37`，对应于原始的固定比率3/8。值范围为`5`（缓冲池中的新页面很快就会老化）到`95`（只有5%的缓冲池用于热页面，使算法接近熟悉的LRU策略）。
+- en: The optimization that keeps the buffer pool from being churned by read-ahead
+    can avoid similar problems due to table or index scans. In these scans, a data
+    page is typically accessed a few times in quick succession and is never touched
+    again. The configuration parameter [`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)
+    specifies the time window (in milliseconds) after the first access to a page during
+    which it can be accessed without being moved to the front (most-recently used
+    end) of the LRU list. The default value of [`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)
+    is `1000`. Increasing this value makes more and more blocks likely to age out
+    faster from the buffer pool.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过优化，可以避免缓冲池由于预读取而产生类似的问题，这可以避免由于表格或索引扫描而导致的问题。在这些扫描中，数据页通常会被快速连续访问几次，然后再也不会被访问。配置参数[`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)指定了在第一次访问页面后的时间窗口（以毫秒为单位），在此期间可以访问该页面而无需将其移动到LRU列表的前端（最近使用的端）。[`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)的默认值为`1000`。增加此值会使更多的块更有可能从缓冲池中更快地过期。
+- en: Both [`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)
+    and [`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)
+    can be specified in the MySQL option file (`my.cnf` or `my.ini`) or changed at
+    runtime with the [`SET GLOBAL`](set-variable.html "15.7.6.1 SET Syntax for Variable
+    Assignment") statement. Changing the value at runtime requires privileges sufficient
+    to set global system variables. See [Section 7.1.9.1, “System Variable Privileges”](system-variable-privileges.html
+    "7.1.9.1 System Variable Privileges").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)和[`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)都可以在MySQL选项文件（`my.cnf`或`my.ini`）中指定，或者使用[`SET
+    GLOBAL`](set-variable.html "15.7.6.1 变量赋值的SET语法")语句在运行时更改。在运行时更改值需要具有足够权限设置全局系统变量。请参见[Section 7.1.9.1，“系统变量权限”](system-variable-privileges.html
+    "7.1.9.1 系统变量权限")。'
+- en: To help you gauge the effect of setting these parameters, the `SHOW ENGINE INNODB
+    STATUS` command reports buffer pool statistics. For details, see [Monitoring the
+    Buffer Pool Using the InnoDB Standard Monitor](innodb-buffer-pool.html#innodb-buffer-pool-monitoring
+    "Monitoring the Buffer Pool Using the InnoDB Standard Monitor").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了帮助您评估设置这些参数的效果，`SHOW ENGINE INNODB STATUS`命令会报告缓冲池的统计信息。详情请参见[使用InnoDB标准监视器监视缓冲池](innodb-buffer-pool.html#innodb-buffer-pool-monitoring
+    "使用InnoDB标准监视器监视缓冲池")。
+- en: Because the effects of these parameters can vary widely based on your hardware
+    configuration, your data, and the details of your workload, always benchmark to
+    verify the effectiveness before changing these settings in any performance-critical
+    or production environment.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于这些参数的效果可能根据硬件配置、数据和工作负载的细节而有很大差异，所以在更改这些设置之前，始终要进行基准测试以验证效果，尤其是在任何性能关键或生产环境中。
+- en: In mixed workloads where most of the activity is OLTP type with periodic batch
+    reporting queries which result in large scans, setting the value of [`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)
+    during the batch runs can help keep the working set of the normal workload in
+    the buffer pool.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在混合工作负载中，大部分活动是OLTP类型，定期批量报告查询导致大规模扫描时，设置[`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)的值可以帮助保持正常工作负载的工作集在缓冲池中。
+- en: When scanning large tables that cannot fit entirely in the buffer pool, setting
+    [`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)
+    to a small value keeps the data that is only read once from consuming a significant
+    portion of the buffer pool. For example, setting `innodb_old_blocks_pct=5` restricts
+    this data that is only read once to 5% of the buffer pool.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当扫描无法完全适应缓冲池的大型表格时，将[`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)设置为一个较小的值，可以避免只读取一次的数据占用缓冲池的大部分空间。例如，设置`innodb_old_blocks_pct=5`将限制只读取一次的数据占缓冲池的5%。
+- en: When scanning small tables that do fit into memory, there is less overhead for
+    moving pages around within the buffer pool, so you can leave [`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)
+    at its default value, or even higher, such as `innodb_old_blocks_pct=50`.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当扫描适应内存的小型表格时，在缓冲池内移动页面的开销较小，因此可以将[`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)保持在默认值，甚至更高，例如`innodb_old_blocks_pct=50`。
+- en: The effect of the [`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)
+    parameter is harder to predict than the [`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)
+    parameter, is relatively small, and varies more with the workload. To arrive at
+    an optimal value, conduct your own benchmarks if the performance improvement from
+    adjusting [`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)
+    is not sufficient.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)参数的影响比[`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)参数更难预测，影响相对较小，并且随着工作负载的变化更大。如果调整[`innodb_old_blocks_pct`](innodb-parameters.html#sysvar_innodb_old_blocks_pct)未能带来性能改善，建议进行自己的基准测试以确定最佳值。'

@@ -1,0 +1,2727 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/ldap-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/ldap-pluggable-authentication.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/ldap-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/ldap-pluggable-authentication.html)
+- en: 8.4.1.7 LDAP Pluggable Authentication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.1.7 LDAP可插拔身份验证
+- en: Note
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: LDAP pluggable authentication is an extension included in MySQL Enterprise Edition,
+    a commercial product. To learn more about commercial products, see [https://www.mysql.com/products/](https://www.mysql.com/products/).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LDAP可插拔身份验证是MySQL企业版中包含的扩展，是一种商业产品。要了解更多关于商业产品的信息，请参见[https://www.mysql.com/products/](https://www.mysql.com/products/)。
+- en: MySQL Enterprise Edition supports an authentication method that enables MySQL
+    Server to use LDAP (Lightweight Directory Access Protocol) to authenticate MySQL
+    users by accessing directory services such as X.500\. MySQL uses LDAP to fetch
+    user, credential, and group information.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL企业版支持一种身份验证方法，使MySQL服务器能够使用LDAP（轻量级目录访问协议）通过访问目录服务（如X.500）对MySQL用户进行身份验证。MySQL使用LDAP获取用户、凭据和组信息。
+- en: 'LDAP pluggable authentication provides these capabilities:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LDAP可插拔身份验证提供以下功能：
+- en: 'External authentication: LDAP authentication enables MySQL Server to accept
+    connections from users defined outside the MySQL grant tables in LDAP directories.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部身份验证：LDAP身份验证使MySQL服务器能够接受来自LDAP目录中定义的用户的连接，而不是在MySQL授权表中定义的用户。
+- en: 'Proxy user support: LDAP authentication can return to MySQL a user name different
+    from the external user name passed by the client program, based on the LDAP groups
+    the external user is a member of. This means that an LDAP plugin can return the
+    MySQL user that defines the privileges the external LDAP-authenticated user should
+    have. For example, an LDAP user named `joe` can connect and have the privileges
+    of a MySQL user named `developer`, if the LDAP group for `joe` is `developer`.'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 代理用户支持：LDAP身份验证可以根据外部用户所属的LDAP组返回一个与客户端程序传递的外部用户名不同的MySQL用户名给MySQL，这意味着LDAP插件可以返回定义外部LDAP身份验证用户应具有的特权的MySQL用户。例如，名为`joe`的LDAP用户可以连接并具有名为`developer`的MySQL用户的特权，如果`joe`的LDAP组是`developer`。
+- en: 'Security: Using TLS, connections to the LDAP server can be secure.'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 安全性：使用TLS，连接到LDAP服务器可以是安全的。
+- en: Server and client plugins are available for simple and SASL-based LDAP authentication.
+    On Microsoft Windows, the server plugin for SASL-based LDAP authentication is
+    not supported, but the client plugin is.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端和客户端插件可用于简单和基于SASL的LDAP身份验证。在Microsoft Windows上，不支持基于SASL的LDAP身份验证的服务器端插件，但支持客户端插件。
+- en: The following tables show the plugin and library file names for simple and SASL-based
+    LDAP authentication. The file name suffix might differ on your system. The files
+    must be located in the directory named by the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    system variable.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格显示了简单和基于SASL的LDAP身份验证的插件和库文件名称。文件名后缀可能在您的系统上有所不同。这些文件必须位于由[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量指定的目录中。
+- en: '**Table 8.22 Plugin and Library Names for Simple LDAP Authentication**'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.22 简单LDAP身份验证的插件和库名称**'
+- en: '| Plugin or File | Plugin or File Name |'
+  id: totrans-12
+  prefs: []
+  type: TYPE_TB
+  zh: '| 插件或文件 | 插件或文件名称 |'
+- en: '| Server-side plugin name | `authentication_ldap_simple` |'
+  id: totrans-13
+  prefs: []
+  type: TYPE_TB
+  zh: '| 服务器端插件名称 | `authentication_ldap_simple` |'
+- en: '| Client-side plugin name | `mysql_clear_password` |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| 客户端插件名称 | `mysql_clear_password` |'
+- en: '| Library file name | `authentication_ldap_simple.so` |'
+  id: totrans-15
+  prefs: []
+  type: TYPE_TB
+  zh: '| 库文件名称 | `authentication_ldap_simple.so` |'
+- en: '**Table 8.23 Plugin and Library Names for SASL-Based LDAP Authentication**'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.23 基于SASL的LDAP身份验证的插件和库名称**'
+- en: '| Plugin or File | Plugin or File Name |'
+  id: totrans-17
+  prefs: []
+  type: TYPE_TB
+  zh: '| 插件或文件 | 插件或文件名称 |'
+- en: '| Server-side plugin name | `authentication_ldap_sasl` |'
+  id: totrans-18
+  prefs: []
+  type: TYPE_TB
+  zh: '| 服务器端插件名称 | `authentication_ldap_sasl` |'
+- en: '| Client-side plugin name | `authentication_ldap_sasl_client` |'
+  id: totrans-19
+  prefs: []
+  type: TYPE_TB
+  zh: '| 客户端插件名称 | `authentication_ldap_sasl_client` |'
+- en: '| Library file names | `authentication_ldap_sasl.so`, `authentication_ldap_sasl_client.so`
+    |'
+  id: totrans-20
+  prefs: []
+  type: TYPE_TB
+  zh: '| 库文件名称 | `authentication_ldap_sasl.so`，`authentication_ldap_sasl_client.so`
+    |'
+- en: The library files include only the `authentication_ldap_*`XXX`*` authentication
+    plugins. The client-side `mysql_clear_password` plugin is built into the `libmysqlclient`
+    client library.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 库文件仅包含`authentication_ldap_*`XXX`*`身份验证插件。客户端`mysql_clear_password`插件内置于`libmysqlclient`客户端库中。
+- en: 'Each server-side LDAP plugin works with a specific client-side plugin:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个服务器端LDAP插件与特定的客户端插件配合使用：
+- en: The server-side `authentication_ldap_simple` plugin performs simple LDAP authentication.
+    For connections by accounts that use this plugin, client programs use the client-side
+    `mysql_clear_password` plugin, which sends the password to the server as cleartext.
+    No password hashing or encryption is used, so a secure connection between the
+    MySQL client and server is recommended to prevent password exposure.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器端的`authentication_ldap_simple`插件执行简单的LDAP认证。对于使用此插件的帐户连接，客户端程序使用客户端的`mysql_clear_password`插件，该插件将密码以明文形式发送到服务器。不使用密码哈希或加密，因此建议在MySQL客户端和服务器之间建立安全连接，以防止密码泄露。
+- en: The server-side `authentication_ldap_sasl` plugin performs SASL-based LDAP authentication.
+    For connections by accounts that use this plugin, client programs use the client-side
+    `authentication_ldap_sasl_client` plugin. The client-side and server-side SASL
+    LDAP plugins use SASL messages for secure transmission of credentials within the
+    LDAP protocol, to avoid sending the cleartext password between the MySQL client
+    and server.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器端的`authentication_ldap_sasl`插件执行基于SASL的LDAP认证。对于使用此插件的帐户连接，客户端程序使用客户端的`authentication_ldap_sasl_client`插件。客户端端和服务器端的SASL
+    LDAP插件使用SASL消息来在LDAP协议中安全传输凭据，以避免在MySQL客户端和服务器之间发送明文密码。
+- en: Note
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On Microsoft Windows, the server plugin for SASL-based LDAP authentication is
+    not supported, but the client plugin is supported. On other platforms, both the
+    server and client plugins are supported.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在Microsoft Windows上，不支持基于SASL的LDAP认证的服务器插件，但支持客户端插件。在其他平台上，服务器和客户端插件都受支持。
+- en: The server-side LDAP authentication plugins are included only in MySQL Enterprise
+    Edition. They are not included in MySQL community distributions. The client-side
+    SASL LDAP plugin is included in all distributions, including community distributions,
+    and, as mentioned previously, the client-side `mysql_clear_password` plugin is
+    built into the `libmysqlclient` client library, which also is included in all
+    distributions. This enables clients from any distribution to connect to a server
+    that has the appropriate server-side plugin loaded.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端的LDAP认证插件仅包含在MySQL企业版中。它们不包含在MySQL社区发行版中。客户端端的SASL LDAP插件包含在所有发行版中，包括社区发行版，并且如前所述，客户端的`mysql_clear_password`插件内置于`libmysqlclient`客户端库中，该库也包含在所有发行版中。这使得来自任何发行版的客户端都可以连接到加载了适当服务器端插件的服务器。
+- en: 'The following sections provide installation and usage information specific
+    to LDAP pluggable authentication:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节提供了特定于LDAP可插拔认证的安装和使用信息：
+- en: '[Prerequisites for LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-prerequisites
+    "Prerequisites for LDAP Pluggable Authentication")'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LDAP可插拔认证的先决条件](ldap-pluggable-authentication.html#ldap-pluggable-authentication-prerequisites
+    "Prerequisites for LDAP Pluggable Authentication")'
+- en: '[How LDAP Authentication of MySQL Users Works](ldap-pluggable-authentication.html#ldap-pluggable-authentication-process
+    "How LDAP Authentication of MySQL Users Works")'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[MySQL用户的LDAP认证工作原理](ldap-pluggable-authentication.html#ldap-pluggable-authentication-process
+    "How LDAP Authentication of MySQL Users Works")'
+- en: '[Installing LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "Installing LDAP Pluggable Authentication")'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[安装LDAP可插拔认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "Installing LDAP Pluggable Authentication")'
+- en: '[Uninstalling LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-uninstallation
+    "Uninstalling LDAP Pluggable Authentication")'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[卸载LDAP可插拔认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-uninstallation
+    "Uninstalling LDAP Pluggable Authentication")'
+- en: '[LDAP Pluggable Authentication and ldap.conf](ldap-pluggable-authentication.html#ldap-pluggable-authentication-ldap-conf
+    "LDAP Pluggable Authentication and ldap.conf")'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LDAP可插拔认证和ldap.conf](ldap-pluggable-authentication.html#ldap-pluggable-authentication-ldap-conf
+    "LDAP Pluggable Authentication and ldap.conf")'
+- en: '[Using LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage
+    "Using LDAP Pluggable Authentication")'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用LDAP可插拔认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage
+    "Using LDAP Pluggable Authentication")'
+- en: '[Simple LDAP Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-simple
+    "Simple LDAP Authentication")'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[简单LDAP认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-simple
+    "Simple LDAP Authentication")'
+- en: '[SASL-Based LDAP Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-sasl
+    "SASL-Based LDAP Authentication")'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[基于SASL的LDAP认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-sasl
+    "SASL-Based LDAP Authentication")'
+- en: '[LDAP Authentication with Proxying](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP Authentication with Proxying")'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[代理LDAP认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "代理LDAP认证")'
+- en: '[LDAP Authentication Group Preference and Mapping Specification](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-group-mapping
+    "LDAP Authentication Group Preference and Mapping Specification")'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LDAP认证组偏好和映射规范](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-group-mapping
+    "LDAP认证组偏好和映射规范")'
+- en: '[LDAP Authentication User DN Suffixes](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-user-dn-suffix
+    "LDAP Authentication User DN Suffixes")'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LDAP认证用户DN后缀](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-user-dn-suffix
+    "LDAP认证用户DN后缀")'
+- en: '[LDAP Authentication Methods](ldap-pluggable-authentication.html#ldap-pluggable-authentication-auth-methods
+    "LDAP Authentication Methods")'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LDAP认证方法](ldap-pluggable-authentication.html#ldap-pluggable-authentication-auth-methods
+    "LDAP认证方法")'
+- en: '[The GSSAPI/Kerberos Authentication Method](ldap-pluggable-authentication.html#ldap-pluggable-authentication-gssapi
+    "The GSSAPI/Kerberos Authentication Method")'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[GSSAPI/Kerberos认证方法](ldap-pluggable-authentication.html#ldap-pluggable-authentication-gssapi
+    "GSSAPI/Kerberos认证方法")'
+- en: '[LDAP Search Referral](ldap-pluggable-authentication.html#ldap-pluggable-authentication-ldap-referral
+    "LDAP Search Referral")'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LDAP搜索引荐](ldap-pluggable-authentication.html#ldap-pluggable-authentication-ldap-referral
+    "LDAP搜索引荐")'
+- en: For general information about pluggable authentication in MySQL, see [Section 8.2.17,
+    “Pluggable Authentication”](pluggable-authentication.html "8.2.17 Pluggable Authentication").
+    For information about the `mysql_clear_password` plugin, see [Section 8.4.1.4,
+    “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication"). For proxy user information,
+    see [Section 8.2.19, “Proxy Users”](proxy-users.html "8.2.19 Proxy Users").
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关MySQL中可插拔认证的一般信息，请参见[第8.2.17节，“可插拔认证”](pluggable-authentication.html "8.2.17 可插拔认证")。有关`mysql_clear_password`插件的信息，请参见[第8.4.1.4节，“客户端明文可插拔认证”](cleartext-pluggable-authentication.html
+    "8.4.1.4 客户端明文可插拔认证")。有关代理用户信息，请参见[第8.2.19节，“代理用户”](proxy-users.html "8.2.19 代理用户")。
+- en: Note
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If your system supports PAM and permits LDAP as a PAM authentication method,
+    another way to use LDAP for MySQL user authentication is to use the server-side
+    `authentication_pam` plugin. See [Section 8.4.1.5, “PAM Pluggable Authentication”](pam-pluggable-authentication.html
+    "8.4.1.5 PAM Pluggable Authentication").
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的系统支持PAM并允许LDAP作为PAM认证方法，另一种使用LDAP进行MySQL用户认证的方法是使用服务器端`authentication_pam`插件。请参见[第8.4.1.5节，“PAM可插拔认证”](pam-pluggable-authentication.html
+    "8.4.1.5 PAM可插拔认证")。
+- en: Prerequisites for LDAP Pluggable Authentication
+  id: totrans-46
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: LDAP可插拔认证的先决条件
+- en: 'To use LDAP pluggable authentication for MySQL, these prerequisites must be
+    satisfied:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为MySQL使用LDAP可插拔认证，必须满足以下先决条件：
+- en: An LDAP server must be available for the LDAP authentication plugins to communicate
+    with.
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须有LDAP服务器可用，以便LDAP认证插件与之通信。
+- en: LDAP users to be authenticated by MySQL must be present in the directory managed
+    by the LDAP server.
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要由MySQL进行认证的LDAP用户必须存在于LDAP服务器管理的目录中。
+- en: An LDAP client library must be available on systems where the server-side `authentication_ldap_sasl`
+    or `authentication_ldap_simple` plugin is used. Currently, supported libraries
+    are the Windows native LDAP library, or the OpenLDAP library on non-Windows systems.
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用服务器端`authentication_ldap_sasl`或`authentication_ldap_simple`插件的系统上必须有LDAP客户端库可用。目前支持的库是Windows本机LDAP库，或非Windows系统上的OpenLDAP库。
+- en: 'To use SASL-based LDAP authentication:'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要使用基于SASL的LDAP认证：
+- en: The LDAP server must be configured to communicate with a SASL server.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: LDAP服务器必须配置为与SASL服务器通信。
+- en: A SASL client library must be available on systems where the client-side `authentication_ldap_sasl_client`
+    plugin is used. Currently, the only supported library is the Cyrus SASL library.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用客户端端`authentication_ldap_sasl_client`插件的系统上必须有SASL客户端库可用。目前，唯一支持的库是Cyrus
+    SASL库。
+- en: To use a particular SASL authentication method, any other services required
+    by that method must be available. For example, to use GSSAPI/Kerberos, a GSSAPI
+    library and Kerberos services must be available.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要使用特定的SASL认证方法，必须提供该方法所需的任何其他服务。例如，要使用GSSAPI/Kerberos，必须提供GSSAPI库和Kerberos服务。
+- en: How LDAP Authentication of MySQL Users Works
+  id: totrans-55
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: MySQL用户的LDAP认证工作原理
+- en: This section provides an overview of how MySQL and LDAP work together to authenticate
+    MySQL users. For examples showing how to set up MySQL accounts to use specific
+    LDAP authentication plugins, see [Using LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage
+    "Using LDAP Pluggable Authentication"). For information about authentication methods
+    available to the LDAP plugins, see [LDAP Authentication Methods](ldap-pluggable-authentication.html#ldap-pluggable-authentication-auth-methods
+    "LDAP Authentication Methods").
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节概述了MySQL和LDAP如何共同工作以对MySQL用户进行认证。有关如何设置MySQL账户以使用特定LDAP认证插件的示例，请参见[使用LDAP可插拔认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage
+    "Using LDAP Pluggable Authentication")。有关LDAP插件可用的认证方法的信息，请参见[LDAP认证方法](ldap-pluggable-authentication.html#ldap-pluggable-authentication-auth-methods
+    "LDAP Authentication Methods")。
+- en: 'The client connects to the MySQL server, providing the MySQL client user name
+    and a password:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端连接到MySQL服务器，提供MySQL客户端用户名和密码：
+- en: For simple LDAP authentication, the client-side and server-side plugins communicate
+    the password as cleartext. A secure connection between the MySQL client and server
+    is recommended to prevent password exposure.
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于简单的LDAP认证，客户端和服务器端插件以明文形式传输密码。建议在MySQL客户端和服务器之间建立安全连接，以防止密码泄露。
+- en: For SASL-based LDAP authentication, the client-side and server-side plugins
+    avoid sending the cleartext password between the MySQL client and server. For
+    example, the plugins might use SASL messages for secure transmission of credentials
+    within the LDAP protocol. For the GSSAPI authentication method, the client-side
+    and server-side plugins communicate securely using Kerberos without using LDAP
+    messages directly.
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于基于SASL的LDAP认证，客户端和服务器端插件避免在MySQL客户端和服务器之间发送明文密码。例如，插件可能使用SASL消息来在LDAP协议内安全传输凭据。对于GSSAPI认证方法，客户端和服务器端插件使用Kerberos进行安全通信，而不直接使用LDAP消息。
+- en: If the client user name and host name match no MySQL account, the connection
+    is rejected.
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果客户端用户名和主机名与任何MySQL账户不匹配，则连接将被拒绝。
+- en: 'If there is a matching MySQL account, authentication against LDAP occurs. The
+    LDAP server looks for an entry matching the user and authenticates the entry against
+    the LDAP password:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果存在匹配的MySQL账户，则进行LDAP认证。LDAP服务器查找与用户匹配的条目，并根据LDAP密码对该条目进行认证：
+- en: If the MySQL account names an LDAP user distinguished name (DN), LDAP authentication
+    uses that value and the LDAP password provided by the client. (To associate an
+    LDAP user DN with a MySQL account, include a `BY` clause that specifies an authentication
+    string in the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    statement that creates the account.)
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果MySQL账户指定了LDAP用户的区分名称（DN），则LDAP认证将使用该值和客户端提供的LDAP密码。（要将LDAP用户DN与MySQL账户关联，包括在创建账户的[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句中指定认证字符串的`BY`子句。）
+- en: If the MySQL account names no LDAP user DN, LDAP authentication uses the user
+    name and LDAP password provided by the client. In this case, the authentication
+    plugin first binds to the LDAP server using the root DN and password as credentials
+    to find the user DN based on the client user name, then authenticates that user
+    DN against the LDAP password. This bind using the root credentials fails if the
+    root DN and password are set to incorrect values, or are empty (not set) and the
+    LDAP server does not permit anonymous connections.
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果MySQL账户名称不是LDAP用户DN，则LDAP认证使用客户端提供的用户名和LDAP密码。在这种情况下，认证插件首先使用根DN和密码作为凭据绑定到LDAP服务器，以根据客户端用户名找到用户DN，然后根据LDAP密码对该用户DN进行认证。如果根凭据的绑定失败，说明根DN和密码设置为不正确的值，或为空（未设置），且LDAP服务器不允许匿名连接。
+- en: If the LDAP server finds no match or multiple matches, authentication fails
+    and the client connection is rejected.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果LDAP服务器找不到匹配项或找到多个匹配项，则认证失败，客户端连接将被拒绝。
+- en: 'If the LDAP server finds a single match, LDAP authentication succeeds (assuming
+    that the password is correct), the LDAP server returns the LDAP entry, and the
+    authentication plugin determines the name of the authenticated user based on that
+    entry:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果LDAP服务器找到单个匹配项，则LDAP认证成功（假设密码正确），LDAP服务器返回LDAP条目，认证插件根据该条目确定经过认证的用户名称：
+- en: If the LDAP entry has a group attribute (by default, the `cn` attribute), the
+    plugin returns its value as the authenticated user name.
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果LDAP条目具有组属性（默认为`cn`属性），插件将其值作为经过认证的用户名返回。
+- en: If the LDAP entry has no group attribute, the authentication plugin returns
+    the client user name as the authenticated user name.
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果LDAP条目没有组属性，认证插件将返回客户端用户名作为经过认证的用户名。
+- en: 'The MySQL server compares the client user name with the authenticated user
+    name to determine whether proxying occurs for the client session:'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器将客户端用户名与经过认证的用户名进行比较，以确定客户端会话是否发生代理：
+- en: 'If the names are the same, no proxying occurs: The MySQL account matching the
+    client user name is used for privilege checking.'
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果名称相同，则不会发生代理：将用于权限检查的与客户端用户名匹配的MySQL帐户。
+- en: 'If the names differ, proxying occurs: MySQL looks for an account matching the
+    authenticated user name. That account becomes the proxied user, which is used
+    for privilege checking. The MySQL account that matched the client user name is
+    treated as the external proxy user.'
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果名称不同，将发生代理：MySQL将寻找与经过认证的用户名匹配的帐户。该帐户将成为代理用户，用于权限检查。与客户端用户名匹配的MySQL帐户将被视为外部代理用户。
+- en: Installing LDAP Pluggable Authentication
+  id: totrans-71
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 安装LDAP可插入认证
+- en: This section describes how to install the server-side LDAP authentication plugins.
+    For general information about installing plugins, see [Section 7.6.1, “Installing
+    and Uninstalling Plugins”](plugin-loading.html "7.6.1 Installing and Uninstalling
+    Plugins").
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何安装服务器端LDAP认证插件。有关安装插件的一般信息，请参见[第7.6.1节，“安装和卸载插件”](plugin-loading.html
+    "7.6.1 安装和卸载插件")。
+- en: To be usable by the server, the plugin library files must be located in the
+    MySQL plugin directory (the directory named by the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    system variable). If necessary, configure the plugin directory location by setting
+    the value of [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir) at
+    server startup.
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要被服务器使用，插件库文件必须位于MySQL插件目录中（由[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量命名的目录）。如有必要，通过在服务器启动时设置[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)的值来配置插件目录位置。
+- en: The server-side plugin library file base names are `authentication_ldap_simple`
+    and `authentication_ldap_sasl`. The file name suffix differs per platform (for
+    example, `.so` for Unix and Unix-like systems, `.dll` for Windows).
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端插件库文件的基本名称为`authentication_ldap_simple`和`authentication_ldap_sasl`。文件名后缀因平台而异（例如，对于Unix和类Unix系统，为`.so`，对于Windows为`.dll`）。
+- en: Note
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On Microsoft Windows, the server plugin for SASL-based LDAP authentication is
+    not supported, but the client plugin is supported. On other platforms, both the
+    server and client plugins are supported.
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在Microsoft Windows上，不支持基于SASL的LDAP认证的服务器插件，但支持客户端插件。在其他平台上，服务器和客户端插件都受支持。
+- en: To load the plugins at server startup, use [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)
+    options to name the library files that contain them. With this plugin-loading
+    method, the options must be given each time the server starts. Also, specify values
+    for any plugin-provided system variables you wish to configure.
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在服务器启动时加载插件，使用[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)选项命名包含插件的库文件。使用此插件加载方法，选项必须在每次服务器启动时给出。还要为您希望配置的任何插件提供的系统变量指定值。
+- en: Each server-side LDAP plugin exposes a set of system variables that enable its
+    operation to be configured. Setting most of these is optional, but you must set
+    the variables that specify the LDAP server host (so the plugin knows where to
+    connect) and base distinguished name for LDAP bind operations (to limit the scope
+    of searches and obtain faster searches). For details about all LDAP system variables,
+    see [Section 8.4.1.13, “Pluggable Authentication System Variables”](pluggable-authentication-system-variables.html
+    "8.4.1.13 Pluggable Authentication System Variables").
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个服务器端LDAP插件都公开一组系统变量，以使其操作可以配置。设置大多数这些变量是可选的，但您必须设置指定LDAP服务器主机（以便插件知道在哪里连接）和LDAP绑定操作的基本区分名称（以限制搜索范围并获得更快的搜索）的变量。有关所有LDAP系统变量的详细信息，请参见[第8.4.1.13节，“可插入认证系统变量”](pluggable-authentication-system-variables.html
+    "8.4.1.13 可插入认证系统变量")。
+- en: 'To load the plugins and set the LDAP server host and base distinguished name
+    for LDAP bind operations, put lines such as these in your `my.cnf` file, adjusting
+    the `.so` suffix for your platform as necessary:'
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要加载插件并设置LDAP服务器主机和LDAP绑定操作的基本区分名称，需要在您的`my.cnf`文件中添加类似以下的行，根据需要调整`.so`后缀以适应您的平台：
+- en: '[PRE0]'
+  id: totrans-80
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: After modifying `my.cnf`, restart the server to cause the new settings to take
+    effect.
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修改`my.cnf`后，重新启动服务器以使新设置生效。
+- en: 'Alternatively, to load the plugins at runtime, use these statements, adjusting
+    the `.so` suffix for your platform as necessary:'
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，要在运行时加载插件，请使用以下语句，根据需要调整您平台的`.so`后缀：
+- en: '[PRE1]'
+  id: totrans-83
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")
+    loads the plugin immediately, and also registers it in the `mysql.plugins` system
+    table to cause the server to load it for each subsequent normal startup without
+    the need for [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add).'
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")立即加载插件，并在`mysql.plugins`系统表中注册它，以使服务器在每次后续正常启动时加载它，而无需[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)。'
+- en: 'After installing the plugins at runtime, the system variables that they expose
+    become available and you can add settings for them to your `my.cnf` file to configure
+    the plugins for subsequent restarts. For example:'
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在运行时安装插件后，它们公开的系统变量变得可用，您可以将其设置添加到您的`my.cnf`文件中，以配置插件以供后续重新启动。例如：
+- en: '[PRE2]'
+  id: totrans-86
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: After modifying `my.cnf`, restart the server to cause the new settings to take
+    effect.
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修改`my.cnf`后，重新启动服务器以使新设置生效。
+- en: 'To set and persist each value at runtime rather than at startup, use these
+    statements:'
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在运行时设置和持久化每个值，而不是在启动时，请使用以下语句：
+- en: '[PRE3]'
+  id: totrans-89
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '[`SET PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    sets a value for the running MySQL instance. It also saves the value, causing
+    it to carry over to subsequent server restarts. To change a value for the running
+    MySQL instance without having it carry over to subsequent restarts, use the `GLOBAL`
+    keyword rather than `PERSIST`. See [Section 15.7.6.1, “SET Syntax for Variable
+    Assignment”](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment").'
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SET PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")为运行中的
+    MySQL 实例设置一个值。它还保存该值，导致其在后续服务器重新启动时保留。要更改运行中的 MySQL 实例的值，而不使其在后续重新启动时保留，请使用`GLOBAL`关键字而不是`PERSIST`。参见[Section 15.7.6.1,
+    “SET Syntax for Variable Assignment”](set-variable.html "15.7.6.1 SET Syntax for
+    Variable Assignment")。'
+- en: 'To verify plugin installation, examine the Information Schema [`PLUGINS`](information-schema-plugins-table.html
+    "28.3.22 The INFORMATION_SCHEMA PLUGINS Table") table or use the [`SHOW PLUGINS`](show-plugins.html
+    "15.7.7.25 SHOW PLUGINS Statement") statement (see [Section 7.6.2, “Obtaining
+    Server Plugin Information”](obtaining-plugin-information.html "7.6.2 Obtaining
+    Server Plugin Information")). For example:'
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要验证插件安装，请检查信息模式[`PLUGINS`](information-schema-plugins-table.html "28.3.22 The
+    INFORMATION_SCHEMA PLUGINS Table")表或使用[`SHOW PLUGINS`](show-plugins.html "15.7.7.25 SHOW
+    PLUGINS Statement")语句（参见[Section 7.6.2, “Obtaining Server Plugin Information”](obtaining-plugin-information.html
+    "7.6.2 Obtaining Server Plugin Information")）。例如：
+- en: '[PRE4]'
+  id: totrans-92
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: If a plugin fails to initialize, check the server error log for diagnostic messages.
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果插件初始化失败，请检查服务器错误日志以获取诊断消息。
+- en: To associate MySQL accounts with an LDAP plugin, see [Using LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage
+    "Using LDAP Pluggable Authentication").
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将 MySQL 帐户与 LDAP 插件关联，请参阅[使用 LDAP 可插拔认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage
+    "Using LDAP Pluggable Authentication")。
+- en: Additional Notes for SELinux
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SELinux 的附加说明
+- en: 'On systems running EL6 or EL that have SELinux enabled, changes to the SELinux
+    policy are required to enable the MySQL LDAP plugins to communicate with the LDAP
+    service:'
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在运行 EL6 或启用 SELinux 的 EL 系统上，需要更改 SELinux 策略以启用 MySQL LDAP 插件与 LDAP 服务通信：
+- en: 'Create a file `mysqlldap.te` with these contents:'
+  id: totrans-97
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个包含以下内容的文件`mysqlldap.te`：
+- en: '[PRE5]'
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Compile the security policy module into a binary representation:'
+  id: totrans-99
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将安全策略模块编译为二进制表示：
+- en: '[PRE6]'
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Create an SELinux policy module package:'
+  id: totrans-101
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个 SELinux 策略模块包：
+- en: '[PRE7]'
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Install the module package:'
+  id: totrans-103
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 安装模块包：
+- en: '[PRE8]'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'When the SELinux policy changes have been made, restart the MySQL server:'
+  id: totrans-105
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当 SELinux 策略更改完成后，重新启动 MySQL 服务器：
+- en: '[PRE9]'
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Uninstalling LDAP Pluggable Authentication
+  id: totrans-107
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 卸载 LDAP 可插拔认证
+- en: 'The method used to uninstall the LDAP authentication plugins depends on how
+    you installed them:'
+  id: totrans-108
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 卸载 LDAP 认证插件的方法取决于您如何安装它们：
+- en: If you installed the plugins at server startup using [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)
+    options, restart the server without those options.
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您在服务器启动时使用[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)选项安装了插件，请在没有这些选项的情况下重新启动服务器。
+- en: 'If you installed the plugins at runtime using [`INSTALL PLUGIN`](install-plugin.html
+    "15.7.4.4 INSTALL PLUGIN Statement"), they remain installed across server restarts.
+    To uninstall them, use [`UNINSTALL PLUGIN`](uninstall-plugin.html "15.7.4.6 UNINSTALL
+    PLUGIN Statement"):'
+  id: totrans-110
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您在运行时使用 [`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN 语句")
+    安装了插件，则它们将在服务器重新启动时保持安装状态。要卸载它们，请使用 [`UNINSTALL PLUGIN`](uninstall-plugin.html
+    "15.7.4.6 UNINSTALL PLUGIN 语句")：
+- en: '[PRE10]'
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: In addition, remove from your `my.cnf` file any startup options that set LDAP
+    plugin-related system variables. If you used [`SET PERSIST`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") to persist LDAP system variables,
+    use [`RESET PERSIST`](reset-persist.html "15.7.8.7 RESET PERSIST Statement") to
+    remove the settings.
+  id: totrans-112
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另外，从您的 `my.cnf` 文件中删除任何设置 LDAP 插件相关系统变量的启动选项。如果您使用 [`SET PERSIST`](set-variable.html
+    "15.7.6.1 变量赋值的 SET 语法") 来持久化 LDAP 系统变量，请使用 [`RESET PERSIST`](reset-persist.html
+    "15.7.8.7 RESET PERSIST 语句") 来删除这些设置。
+- en: LDAP Pluggable Authentication and ldap.conf
+  id: totrans-113
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: LDAP 可插拔认证和 ldap.conf
+- en: 'For installations that use OpenLDAP, the `ldap.conf` file provides global defaults
+    for LDAP clients. Options can be set in this file to affect LDAP clients, including
+    the LDAP authentication plugins. OpenLDAP uses configuration options in this order
+    of precedence:'
+  id: totrans-114
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于使用 OpenLDAP 的安装，`ldap.conf` 文件为 LDAP 客户端提供全局默认值。可以在此文件中设置选项以影响 LDAP 客户端，包括
+    LDAP 认证插件。OpenLDAP 使用以下优先顺序的配置选项：
+- en: Configuration specified by the LDAP client.
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由 LDAP 客户端指定的配置。
+- en: Configuration specified in the `ldap.conf` file. To disable use of this file,
+    set the `LDAPNOINIT` environment variable.
+  id: totrans-116
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 `ldap.conf` 文件中指定的配置。要禁用此文件的使用，请设置 `LDAPNOINIT` 环境变量。
+- en: OpenLDAP library built-in defaults.
+  id: totrans-117
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: OpenLDAP 库内置默认值。
+- en: 'If the library defaults or `ldap.conf` values do not yield appropriate option
+    values, an LDAP authentication plugin may be able to set related variables to
+    affect the LDAP configuration directly. For example, LDAP plugins can override
+    `ldap.conf` for parameters such as these:'
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果库默认值或 `ldap.conf` 值不能产生适当的选项值，则 LDAP 认证插件可能能够设置相关变量以直接影响 LDAP 配置。例如，LDAP 插件可以覆盖
+    `ldap.conf` 中的参数，如：
+- en: 'TLS configuration: System variables are available to enable TLS and control
+    CA configuration, such as [`authentication_ldap_simple_tls`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_tls)
+    and [`authentication_ldap_simple_ca_path`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_ca_path)
+    for simple LDAP authentication, and [`authentication_ldap_sasl_tls`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_tls)
+    and [`authentication_ldap_sasl_ca_path`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_ca_path)
+    for SASL LDAP authentication.'
+  id: totrans-119
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: TLS 配置：系统变量可用于启用 TLS 并控制 CA 配置，例如 [`authentication_ldap_simple_tls`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_tls)
+    和 [`authentication_ldap_simple_ca_path`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_ca_path)
+    用于简单 LDAP 认证，以及 [`authentication_ldap_sasl_tls`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_tls)
+    和 [`authentication_ldap_sasl_ca_path`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_ca_path)
+    用于 SASL LDAP 认证。
+- en: LDAP referral. See [LDAP Search Referral](ldap-pluggable-authentication.html#ldap-pluggable-authentication-ldap-referral
+    "LDAP Search Referral").
+  id: totrans-120
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: LDAP 引荐。请参阅[LDAP 搜索引荐](ldap-pluggable-authentication.html#ldap-pluggable-authentication-ldap-referral
+    "LDAP 搜索引荐")。
+- en: For more information about `ldap.conf` consult the `ldap.conf(5)` man page.
+  id: totrans-121
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 `ldap.conf` 的更多信息，请参阅 `ldap.conf(5)` 手册页。
+- en: Using LDAP Pluggable Authentication
+  id: totrans-122
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用 LDAP 可插拔认证
+- en: This section describes how to enable MySQL accounts to connect to the MySQL
+    server using LDAP pluggable authentication. It is assumed that the server is running
+    with the appropriate server-side plugins enabled, as described in [Installing
+    LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "Installing LDAP Pluggable Authentication"), and that the appropriate client-side
+    plugins are available on the client host.
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何启用 MySQL 帐户使用 LDAP 可插拔认证连接到 MySQL 服务器。假设服务器正在运行，并启用了适当的服务器端插件，如[安装 LDAP
+    可插拔认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "安装 LDAP 可插拔认证")中所述，并且客户端主机上有适当的客户端插件可用。
+- en: This section does not describe LDAP configuration or administration. You are
+    assumed to be familiar with those topics.
+  id: totrans-124
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节不描述 LDAP 配置或管理。假定您已熟悉这些主题。
+- en: 'The two server-side LDAP plugins each work with a specific client-side plugin:'
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个服务器端 LDAP 插件分别与特定的客户端端插件配合使用：
+- en: The server-side `authentication_ldap_simple` plugin performs simple LDAP authentication.
+    For connections by accounts that use this plugin, client programs use the client-side
+    `mysql_clear_password` plugin, which sends the password to the server as cleartext.
+    No password hashing or encryption is used, so a secure connection between the
+    MySQL client and server is recommended to prevent password exposure.
+  id: totrans-126
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器端`authentication_ldap_simple`插件执行简单的LDAP身份验证。 对于使用此插件的帐户的连接，客户端程序使用客户端端`mysql_clear_password`插件，该插件将密码以明文形式发送到服务器。
+    不使用密码哈希或加密，因此建议在MySQL客户端和服务器之间建立安全连接，以防止密码泄露。
+- en: The server-side `authentication_ldap_sasl` plugin performs SASL-based LDAP authentication.
+    For connections by accounts that use this plugin, client programs use the client-side
+    `authentication_ldap_sasl_client` plugin. The client-side and server-side SASL
+    LDAP plugins use SASL messages for secure transmission of credentials within the
+    LDAP protocol, to avoid sending the cleartext password between the MySQL client
+    and server.
+  id: totrans-127
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器端`authentication_ldap_sasl`插件执行基于SASL的LDAP身份验证。 对于使用此插件的帐户的连接，客户端程序使用客户端端`authentication_ldap_sasl_client`插件。
+    客户端端和服务器端SASL LDAP插件使用SASL消息来在LDAP协议中安全传输凭据，以避免在MySQL客户端和服务器之间发送明文密码。
+- en: 'Overall requirements for LDAP authentication of MySQL users:'
+  id: totrans-128
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL用户LDAP身份验证的总体要求：
+- en: There must be an LDAP directory entry for each user to be authenticated.
+  id: totrans-129
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个要进行身份验证的用户必须有一个LDAP目录条目。
+- en: There must be a MySQL user account that specifies a server-side LDAP authentication
+    plugin and optionally names the associated LDAP user distinguished name (DN).
+    (To associate an LDAP user DN with a MySQL account, include a `BY` clause in the
+    [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement that
+    creates the account.) If an account names no LDAP string, LDAP authentication
+    uses the user name specified by the client to find the LDAP entry.
+  id: totrans-130
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须有一个MySQL用户帐户，指定一个服务器端LDAP身份验证插件，并可选择命名相关的LDAP用户专有名称（DN）。 （要将LDAP用户DN与MySQL帐户关联，包括在创建帐户的[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句中包含一个`BY`子句。）如果帐户未命名任何LDAP字符串，则LDAP身份验证将使用客户端指定的用户名查找LDAP条目。
+- en: Client programs connect using the connection method appropriate for the server-side
+    authentication plugin the MySQL account uses. For LDAP authentication, connections
+    require the MySQL user name and LDAP password. In addition, for accounts that
+    use the server-side `authentication_ldap_simple` plugin, invoke client programs
+    with the `--enable-cleartext-plugin` option to enable the client-side `mysql_clear_password`
+    plugin.
+  id: totrans-131
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端程序使用适用于MySQL帐户使用的服务器端身份验证插件的连接方法进行连接。 对于LDAP身份验证，连接需要MySQL用户名和LDAP密码。 此外，对于使用服务器端`authentication_ldap_simple`插件的帐户，使用`--enable-cleartext-plugin`选项调用客户端程序以启用客户端端`mysql_clear_password`插件。
+- en: 'The instructions here assume the following scenario:'
+  id: totrans-132
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处的说明假定以下场景：
+- en: MySQL users `betsy` and `boris` authenticate to the LDAP entries for `betsy_ldap`
+    and `boris_ldap`, respectively. (It is not necessary that the MySQL and LDAP user
+    names differ. The use of different names in this discussion helps clarify whether
+    an operation context is MySQL or LDAP.)
+  id: totrans-133
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL用户`betsy`和`boris`分别对`betsy_ldap`和`boris_ldap`的LDAP条目进行身份验证。（MySQL和LDAP用户名不必不同。
+    在本讨论中使用不同名称有助于澄清操作上下文是MySQL还是LDAP。）
+- en: LDAP entries use the `uid` attribute to specify user names. This may vary depending
+    on LDAP server. Some LDAP servers use the `cn` attribute for user names rather
+    than `uid`. To change the attribute, modify the [`authentication_ldap_simple_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_user_search_attr)
+    or [`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)
+    system variable appropriately.
+  id: totrans-134
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: LDAP条目使用`uid`属性来指定用户名。 这可能会根据LDAP服务器而变化。 一些LDAP服务器使用`cn`属性而不是`uid`来表示用户名。 要更改属性，请适当修改[`authentication_ldap_simple_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_user_search_attr)或[`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)系统变量。
+- en: 'These LDAP entries are available in the directory managed by the LDAP server,
+    to provide distinguished name values that uniquely identify each user:'
+  id: totrans-135
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这些LDAP条目可在LDAP服务器管理的目录中找到，以提供唯一标识每个用户的专有名称值：
+- en: '[PRE11]'
+  id: totrans-136
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statements
+    that create MySQL accounts name an LDAP user in the `BY` clause, to indicate which
+    LDAP entry the MySQL account authenticates against.'
+  id: totrans-137
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 语句创建 MySQL
+    账户时，在 `BY` 子句中指定 LDAP 用户，以指示 MySQL 账户进行身份验证的 LDAP 条目。'
+- en: The instructions for setting up an account that uses LDAP authentication depend
+    on which server-side LDAP plugin is used. The following sections describe several
+    usage scenarios.
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 LDAP 认证设置帐户的说明取决于使用的服务器端 LDAP 插件。 以下各节描述了几种使用场景。
+- en: Simple LDAP Authentication
+  id: totrans-139
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 简单 LDAP 认证
+- en: 'To configure a MySQL account for simple LDAP authentication, the [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement") statement specifies the `authentication_ldap_simple`
+    plugin, and optionally names the LDAP user distinguished name (DN):'
+  id: totrans-140
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为简单 LDAP 认证配置 MySQL 账户，[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER
+    Statement") 语句指定 `authentication_ldap_simple` 插件，并可选择命名 LDAP 用户的区分名称（DN）：
+- en: '[PRE12]'
+  id: totrans-141
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'Suppose that MySQL user `betsy` has this entry in the LDAP directory:'
+  id: totrans-142
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设 MySQL 用户 `betsy` 在 LDAP 目录中有以下条目：
+- en: '[PRE13]'
+  id: totrans-143
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'Then the statement to create the MySQL account for `betsy` looks like this:'
+  id: totrans-144
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后创建 `betsy` 的 MySQL 账户的语句如下：
+- en: '[PRE14]'
+  id: totrans-145
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: The authentication string specified in the `BY` clause does not include the
+    LDAP password. That must be provided by the client user at connect time.
+  id: totrans-146
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 `BY` 子句中指定的认证字符串不包括 LDAP 密码。 客户端用户必须在连接时提供密码。
+- en: 'Clients connect to the MySQL server by providing the MySQL user name and LDAP
+    password, and by enabling the client-side `mysql_clear_password` plugin:'
+  id: totrans-147
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端通过提供 MySQL 用户名和 LDAP 密码连接到 MySQL 服务器，并启用客户端端 `mysql_clear_password` 插件：
+- en: '[PRE15]'
+  id: totrans-148
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Note
+  id: totrans-149
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The client-side `mysql_clear_password` authentication plugin leaves the password
+    untouched, so client programs send it to the MySQL server as cleartext. This enables
+    the password to be passed as is to the LDAP server. A cleartext password is necessary
+    to use the server-side LDAP library without SASL, but may be a security problem
+    in some configurations. These measures minimize the risk:'
+  id: totrans-150
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端端 `mysql_clear_password` 认证插件不会更改密码，因此客户端程序将其作为明文发送到 MySQL 服务器。 这使得密码可以原样传递到
+    LDAP 服务器。 在没有 SASL 的情况下使用服务器端 LDAP 库需要明文密码，但在某些配置中可能存在安全问题。 这些措施最小化了风险：
+- en: To make inadvertent use of the `mysql_clear_password` plugin less likely, MySQL
+    clients must explicitly enable it (for example, with the `--enable-cleartext-plugin`
+    option). See [Section 8.4.1.4, “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication").
+  id: totrans-151
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了减少意外使用 `mysql_clear_password` 插件的可能性，MySQL 客户端必须显式启用它（例如，使用 `--enable-cleartext-plugin`
+    选项）。 请参见 [Section 8.4.1.4, “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication")。
+- en: To avoid password exposure with the `mysql_clear_password` plugin enabled, MySQL
+    clients should connect to the MySQL server using an encrypted connection. See
+    [Section 8.3.1, “Configuring MySQL to Use Encrypted Connections”](using-encrypted-connections.html
+    "8.3.1 Configuring MySQL to Use Encrypted Connections").
+  id: totrans-152
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了避免启用 `mysql_clear_password` 插件时密码暴露，MySQL 客户端应该使用加密连接连接到 MySQL 服务器。 请参见 [Section 8.3.1,
+    “Configuring MySQL to Use Encrypted Connections”](using-encrypted-connections.html
+    "8.3.1 Configuring MySQL to Use Encrypted Connections")。
+- en: 'The authentication process occurs as follows:'
+  id: totrans-153
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证过程如下进行：
+- en: The client-side plugin sends `betsy` and *`betsy_password`* as the client user
+    name and LDAP password to the MySQL server.
+  id: totrans-154
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 客户端插件将 `betsy` 和 *`betsy_password`* 作为客户端用户名和 LDAP 密码发送到 MySQL 服务器。
+- en: The connection attempt matches the `'betsy'@'localhost'` account. The server-side
+    LDAP plugin finds that this account has an authentication string of `'uid=betsy_ldap,ou=People,dc=example,dc=com'`
+    to name the LDAP user DN. The plugin sends this string and the LDAP password to
+    the LDAP server.
+  id: totrans-155
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 连接尝试匹配 `'betsy'@'localhost'` 账户。 服务器端 LDAP 插件发现该账户具有一个认证字符串 `'uid=betsy_ldap,ou=People,dc=example,dc=com'`
+    用于命名 LDAP 用户 DN。 该插件将此字符串和 LDAP 密码发送到 LDAP 服务器。
+- en: The LDAP server finds the LDAP entry for `betsy_ldap` and the password matches,
+    so LDAP authentication succeeds.
+  id: totrans-156
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: LDAP 服务器找到了 `betsy_ldap` 的 LDAP 条目，并且密码匹配，因此 LDAP 认证成功。
+- en: The LDAP entry has no group attribute, so the server-side plugin returns the
+    client user name (`betsy`) as the authenticated user. This is the same user name
+    supplied by the client, so no proxying occurs and the client session uses the
+    `'betsy'@'localhost'` account for privilege checking.
+  id: totrans-157
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: LDAP 条目没有组属性，因此服务器端插件将客户端用户名（`betsy`）作为经过身份验证的用户返回。这与客户端提供的相同用户名，因此不会发生代理，并且客户端会话使用`'betsy'@'localhost'`账户进行权限检查。
+- en: Had the matching LDAP entry contained a group attribute, that attribute value
+    would have been the authenticated user name and, if the value differed from `betsy`,
+    proxying would have occurred. For examples that use the group attribute, see [LDAP
+    Authentication with Proxying](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP Authentication with Proxying").
+  id: totrans-158
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果匹配的 LDAP 条目包含组属性，该属性值将成为经过身份验证的用户名，并且如果该值与`betsy`不同，则将发生代理。有关使用组属性的示例，请参阅[具有代理功能的
+    LDAP 认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP Authentication with Proxying")。
+- en: Had the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement
+    contained no `BY` clause to specify the `betsy_ldap` LDAP distinguished name,
+    authentication attempts would use the user name provided by the client (in this
+    case, `betsy`). In the absence of an LDAP entry for `betsy`, authentication would
+    fail.
+  id: totrans-159
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句中没有包含`BY`子句来指定`betsy_ldap`
+    LDAP 专有名称，认证尝试将使用客户端提供的用户名（在本例中为`betsy`）。在没有`betsy`的 LDAP 条目的情况下，认证将失败。
+- en: SASL-Based LDAP Authentication
+  id: totrans-160
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 基于 SASL 的 LDAP 认证
+- en: 'To configure a MySQL account for SASL LDAP authentication, the [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement") statement specifies the `authentication_ldap_sasl`
+    plugin, and optionally names the LDAP user distinguished name (DN):'
+  id: totrans-161
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为 SASL LDAP 认证配置 MySQL 账户，[`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") 语句指定`authentication_ldap_sasl`插件，并可选择命名 LDAP 用户的专有名称（DN）：
+- en: '[PRE16]'
+  id: totrans-162
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'Suppose that MySQL user `boris` has this entry in the LDAP directory:'
+  id: totrans-163
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设 MySQL 用户`boris`在 LDAP 目录中有以下条目：
+- en: '[PRE17]'
+  id: totrans-164
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: 'Then the statement to create the MySQL account for `boris` looks like this:'
+  id: totrans-165
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后创建`boris`的 MySQL 账户的语句如下：
+- en: '[PRE18]'
+  id: totrans-166
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: The authentication string specified in the `BY` clause does not include the
+    LDAP password. That must be provided by the client user at connect time.
+  id: totrans-167
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`BY`子句中指定的认证字符串不包括 LDAP 密码。这必须由客户端用户在连接时提供。'
+- en: 'Clients connect to the MySQL server by providing the MySQL user name and LDAP
+    password:'
+  id: totrans-168
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端通过提供 MySQL 用户名和 LDAP 密码连接到 MySQL 服务器：
+- en: '[PRE19]'
+  id: totrans-169
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: For the server-side `authentication_ldap_sasl` plugin, clients use the client-side
+    `authentication_ldap_sasl_client` plugin. If a client program does not find the
+    client-side plugin, specify a `--plugin-dir` option that names the directory where
+    the plugin library file is installed.
+  id: totrans-170
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于服务器端的`authentication_ldap_sasl`插件，客户端使用客户端的`authentication_ldap_sasl_client`插件。如果客户端程序找不到客户端插件，请指定一个`--plugin-dir`选项，指定安装插件库文件的目录。
+- en: The authentication process for `boris` is similar to that previously described
+    for `betsy` with simple LDAP authentication, except that the client-side and server-side
+    SASL LDAP plugins use SASL messages for secure transmission of credentials within
+    the LDAP protocol, to avoid sending the cleartext password between the MySQL client
+    and server.
+  id: totrans-171
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`boris`的认证过程与之前描述的`betsy`的简单 LDAP 认证类似，只是客户端和服务器端的 SASL LDAP 插件使用 SASL 消息来在
+    LDAP 协议中安全传输凭据，以避免在 MySQL 客户端和服务器之间发送明文密码。'
+- en: LDAP Authentication with Proxying
+  id: totrans-172
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 具有代理功能的 LDAP 认证
+- en: LDAP authentication plugins support proxying, enabling a user to connect to
+    the MySQL server as one user but assume the privileges of a different user. This
+    section describes basic LDAP plugin proxy support. The LDAP plugins also support
+    specification of group preference and proxy user mapping; see [LDAP Authentication
+    Group Preference and Mapping Specification](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-group-mapping
+    "LDAP Authentication Group Preference and Mapping Specification").
+  id: totrans-173
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LDAP 认证插件支持代理，使用户可以以一个用户连接到 MySQL 服务器，但假定另一个用户的权限。本节描述了基本的 LDAP 插件代理支持。LDAP
+    插件还支持指定组偏好和代理用户映射；请参阅[LDAP 认证组偏好和映射规范](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-group-mapping
+    "LDAP Authentication Group Preference and Mapping Specification")。
+- en: The proxying implementation described here is based on use of LDAP group attribute
+    values to map connecting MySQL users who authenticate using LDAP onto other MySQL
+    accounts that define different sets of privileges. Users do not connect directly
+    through the accounts that define the privileges. Instead, they connect through
+    a default proxy account authenticated with LDAP, such that all external logins
+    are mapped to the proxied MySQL accounts that hold the privileges. Any user who
+    connects using the proxy account is mapped to one of those proxied MySQL accounts,
+    the privileges for which determine the database operations permitted to the external
+    user.
+  id: totrans-174
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处描述的代理实现基于使用LDAP组属性值将通过LDAP进行身份验证的连接MySQL用户映射到定义不同权限集的其他MySQL账户。用户不会直接通过定义权限的账户连接。相反，他们通过使用LDAP进行身份验证的默认代理账户连接，以便将所有外部登录映射到持有权限的代理MySQL账户。通过代理账户连接的任何用户都将映射到其中一个代理MySQL账户，其权限确定了允许外部用户执行的数据库操作。
+- en: 'The instructions here assume the following scenario:'
+  id: totrans-175
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处的说明假定以下场景：
+- en: 'LDAP entries use the `uid` and `cn` attributes to specify user name and group
+    values, respectively. To use different user and group attribute names, set the
+    appropriate plugin-specific system variables:'
+  id: totrans-176
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: LDAP条目使用`uid`和`cn`属性分别指定用户名和组值。要使用不同的用户和组属性名称，请设置适当的插件特定系统变量：
+- en: 'For the `authentication_ldap_simple` plugin: Set [`authentication_ldap_simple_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_user_search_attr)
+    and [`authentication_ldap_simple_group_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_group_search_attr).'
+  id: totrans-177
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`authentication_ldap_simple`插件：设置[`authentication_ldap_simple_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_user_search_attr)和[`authentication_ldap_simple_group_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_group_search_attr)。
+- en: 'For the `authentication_ldap_sasl` plugin: Set [`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)
+    and [`authentication_ldap_sasl_group_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_group_search_attr).'
+  id: totrans-178
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`authentication_ldap_sasl`插件：设置[`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)和[`authentication_ldap_sasl_group_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_group_search_attr)。
+- en: 'These LDAP entries are available in the directory managed by the LDAP server,
+    to provide distinguished name values that uniquely identify each user:'
+  id: totrans-179
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这些LDAP条目可在由LDAP服务器管理的目录中找到，以提供唯一标识每个用户的可区分名称值：
+- en: '[PRE20]'
+  id: totrans-180
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: At connect time, the group attribute values become the authenticated user names,
+    so they name the `accounting` and `front_office` proxied accounts.
+  id: totrans-181
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在连接时，组属性值成为经过身份验证的用户名称，因此它们命名了`accounting`和`front_office`代理账户。
+- en: The examples assume use of SASL LDAP authentication. Make the appropriate adjustments
+    for simple LDAP authentication.
+  id: totrans-182
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 示例假定使用SASL LDAP身份验证。对于简单LDAP身份验证，请进行适当调整。
+- en: 'Create the default proxy MySQL account:'
+  id: totrans-183
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建默认的代理MySQL账户：
+- en: '[PRE21]'
+  id: totrans-184
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: 'The proxy account definition has no `AS ''*`auth_string`*''` clause to name
+    an LDAP user DN. Thus:'
+  id: totrans-185
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 代理账户定义中没有`AS '*`auth_string`*'`子句来命名LDAP用户DN。因此：
+- en: When a client connects, the client user name becomes the LDAP user name to search
+    for.
+  id: totrans-186
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当客户端连接时，客户端用户名将成为要搜索的LDAP用户名。
+- en: The matching LDAP entry is expected to include a group attribute naming the
+    proxied MySQL account that defines the privileges the client should have.
+  id: totrans-187
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 预期匹配的LDAP条目将包括命名定义客户端应具有的权限的代理MySQL账户的组属性。
+- en: Note
+  id: totrans-188
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If your MySQL installation has anonymous users, they might conflict with the
+    default proxy user. For more information about this issue, and ways of dealing
+    with it, see [Default Proxy User and Anonymous User Conflicts](proxy-users.html#proxy-users-conflicts
+    "Default Proxy User and Anonymous User Conflicts").
+  id: totrans-189
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的MySQL安装中存在匿名用户，则可能会与默认代理用户发生冲突。有关此问题的更多信息以及处理方法，请参阅[默认代理用户和匿名用户冲突](proxy-users.html#proxy-users-conflicts
+    "Default Proxy User and Anonymous User Conflicts")。
+- en: 'Create the proxied accounts and grant to each one the privileges it should
+    have:'
+  id: totrans-190
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建代理账户并授予每个账户应具有的权限：
+- en: '[PRE22]'
+  id: totrans-191
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: The proxied accounts use the `mysql_no_login` authentication plugin to prevent
+    clients from using the accounts to log in directly to the MySQL server. Instead,
+    users who authenticate using LDAP are expected to use the default `''@'%'` proxy
+    account. (This assumes that the `mysql_no_login` plugin is installed. For instructions,
+    see [Section 8.4.1.9, “No-Login Pluggable Authentication”](no-login-pluggable-authentication.html
+    "8.4.1.9 No-Login Pluggable Authentication").) For alternative methods of protecting
+    proxied accounts against direct use, see [Preventing Direct Login to Proxied Accounts](proxy-users.html#preventing-proxied-account-direct-login
+    "Preventing Direct Login to Proxied Accounts").
+  id: totrans-192
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 代理帐户使用`mysql_no_login`身份验证插件防止客户端直接使用帐户登录到MySQL服务器。相反，使用LDAP进行身份验证的用户应该使用默认的`''@'%'`代理帐户。（这假定安装了`mysql_no_login`插件。有关说明，请参见[Section 8.4.1.9,
+    “No-Login Pluggable Authentication”](no-login-pluggable-authentication.html "8.4.1.9 No-Login
+    Pluggable Authentication")。）有关保护代理帐户免受直接使用的替代方法，请参见[Preventing Direct Login to
+    Proxied Accounts](proxy-users.html#preventing-proxied-account-direct-login "Preventing
+    Direct Login to Proxied Accounts")。
+- en: 'Grant to the proxy account the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for each proxied account:'
+  id: totrans-193
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为每个代理帐户授予[`PROXY`](privileges-provided.html#priv_proxy)权限：
+- en: '[PRE23]'
+  id: totrans-194
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: Use the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    command-line client to connect to the MySQL server as `basha`.
+  id: totrans-195
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")命令行客户端连接到MySQL服务器作为`basha`。
+- en: '[PRE24]'
+  id: totrans-196
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: 'Authentication occurs as follows:'
+  id: totrans-197
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证过程如下：
+- en: The server authenticates the connection using the default `''@'%'` proxy account,
+    for client user `basha`.
+  id: totrans-198
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器使用默认的`''@'%'`代理帐户对客户端用户`basha`进行连接认证。
+- en: 'The matching LDAP entry is:'
+  id: totrans-199
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 匹配的LDAP条目是：
+- en: '[PRE25]'
+  id: totrans-200
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: The matching LDAP entry has group attribute `cn=accounting`, so `accounting`
+    becomes the authenticated proxied user.
+  id: totrans-201
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 匹配的LDAP条目具有组属性`cn=accounting`，因此`accounting`成为认证的代理用户。
+- en: 'The authenticated user differs from the client user name `basha`, with the
+    result that `basha` is treated as a proxy for `accounting`, and `basha` assumes
+    the privileges of the proxied `accounting` account. The following query returns
+    output as shown:'
+  id: totrans-202
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 认证用户与客户端用户名`basha`不同，导致`basha`被视为`accounting`的代理，并且`basha`承担了代理`accounting`帐户的权限。以下查询返回如下输出：
+- en: '[PRE26]'
+  id: totrans-203
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: This demonstrates that `basha` uses the privileges granted to the proxied `accounting`
+    MySQL account, and that proxying occurs through the default proxy user account.
+  id: totrans-204
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这表明`basha`使用授予代理`accounting` MySQL帐户的权限，并且代理通过默认代理用户帐户进行。
+- en: 'Now connect as `basil` instead:'
+  id: totrans-205
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在改为连接为`basil`：
+- en: '[PRE27]'
+  id: totrans-206
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: 'The authentication process for `basil` is similar to that previously described
+    for `basha`:'
+  id: totrans-207
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`basil`的身份验证过程与先前描述的`basha`类似：
+- en: The server authenticates the connection using the default `''@'%'` proxy account,
+    for client user `basil`.
+  id: totrans-208
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器使用默认的`''@'%'`代理帐户对客户端用户`basil`进行连接认证。
+- en: 'The matching LDAP entry is:'
+  id: totrans-209
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 匹配的LDAP条目是：
+- en: '[PRE28]'
+  id: totrans-210
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE28]'
+- en: The matching LDAP entry has group attribute `cn=front_office`, so `front_office`
+    becomes the authenticated proxied user.
+  id: totrans-211
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 匹配的LDAP条目具有组属性`cn=front_office`，因此`front_office`成为认证的代理用户。
+- en: 'The authenticated user differs from the client user name `basil`, with the
+    result that `basil` is treated as a proxy for `front_office`, and `basil` assumes
+    the privileges of the proxied `front_office` account. The following query returns
+    output as shown:'
+  id: totrans-212
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 认证用户与客户端用户名`basil`不同，导致`basil`被视为`front_office`的代理，并且`basil`承担了代理`front_office`帐户的权限。以下查询返回如下输出：
+- en: '[PRE29]'
+  id: totrans-213
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE29]'
+- en: This demonstrates that `basil` uses the privileges granted to the proxied `front_office`
+    MySQL account, and that proxying occurs through the default proxy user account.
+  id: totrans-214
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这表明`basil`使用授予代理`front_office` MySQL帐户的权限，并且代理通过默认代理用户帐户进行。
+- en: LDAP Authentication Group Preference and Mapping Specification
+  id: totrans-215
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: LDAP认证组首选项和映射规范
+- en: As described in [LDAP Authentication with Proxying](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP Authentication with Proxying"), basic LDAP authentication proxying works
+    by the principle that the plugin uses the first group name returned by the LDAP
+    server as the MySQL proxied user account name. This simple capability does not
+    enable specifying any preference about which group name to use if the LDAP server
+    returns multiple group names, or specifying any name other than the group name
+    as the proxied user name.
+  id: totrans-216
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如[LDAP代理认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP代理认证")中所述，基本的LDAP认证代理工作原理是插件使用LDAP服务器返回的第一个组名作为MySQL代理用户账户名。这种简单的功能不允许指定任何偏好，关于如果LDAP服务器返回多个组名该使用哪个，或者指定任何名称而不是组名作为代理用户名称。
+- en: 'As of MySQL 8.0.14, for MySQL accounts that use LDAP authentication, the authentication
+    string can specify the following information to enable greater proxying flexibility:'
+  id: totrans-217
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.14，对于使用LDAP认证的MySQL账户，认证字符串可以指定以下信息以实现更大的代理灵活性：
+- en: A list of groups in preference order, such that the plugin uses the first group
+    name in the list that matches a group returned by the LDAP server.
+  id: totrans-218
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一组按照偏好顺序排列的组，使得插件使用列表中与LDAP服务器返回的组匹配的第一个组名。
+- en: A mapping from group names to proxied user names, such that a group name when
+    matched can provide a specified name to use as the proxied user. This provides
+    an alternative to using the group name as the proxied user.
+  id: totrans-219
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从组名到代理用户名称的映射，使得匹配的组名可以提供指定的名称作为代理用户使用。这提供了一个替代方案，不使用组名作为代理用户。
+- en: 'Consider the following MySQL proxy account definition:'
+  id: totrans-220
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下MySQL代理账户定义：
+- en: '[PRE30]'
+  id: totrans-221
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE30]'
+- en: The authentication string has a user DN suffix `ou=People,dc=example,dc=com`
+    prefixed by the `+` character. Thus, as described in [LDAP Authentication User
+    DN Suffixes](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-user-dn-suffix
+    "LDAP Authentication User DN Suffixes"), the full user DN is constructed from
+    the user DN suffix as specified, plus the client user name as the `uid` attribute.
+  id: totrans-222
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证字符串有一个以`+`字符为前缀的用户DN后缀`ou=People,dc=example,dc=com`。因此，如[LDAP认证用户DN后缀](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-user-dn-suffix
+    "LDAP认证用户DN后缀")中所述，完整的用户DN是由指定的用户DN后缀加上客户端用户名作为`uid`属性构建而成。
+- en: The remaining part of the authentication string begins with `#`, which signifies
+    the beginning of group preference and mapping information. This part of the authentication
+    string lists group names in the order `grp1`, `grp2`, `grp3`. The LDAP plugin
+    compares that list with the set of group names returned by the LDAP server, looking
+    in list order for a match against the returned names. The plugin uses the first
+    match, or if there is no match, authentication fails.
+  id: totrans-223
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证字符串的剩余部分以`#`开头，表示组偏好和映射信息的开始。认证字符串的这部分按照`grp1`、`grp2`、`grp3`的顺序列出组名。LDAP插件将该列表与LDAP服务器返回的组名集合进行比较，按照列表顺序查找与返回的名称匹配的组。插件使用第一个匹配项，如果没有匹配项，则认证失败。
+- en: Suppose that the LDAP server returns groups `grp3`, `grp2`, and `grp7`. The
+    LDAP plugin uses `grp2` because it is the first group in the authentication string
+    that matches, even though it is not the first group returned by the LDAP server.
+    If the LDAP server returns `grp4`, `grp2`, and `grp1`, the plugin uses `grp1`
+    even though `grp2` also matches. `grp1` has a precedence higher than `grp2` because
+    it is listed earlier in the authentication string.
+  id: totrans-224
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设LDAP服务器返回组`grp3`、`grp2`和`grp7`。LDAP插件使用`grp2`，因为它是认证字符串中第一个匹配的组，即使它不是LDAP服务器返回的第一个组。如果LDAP服务器返回`grp4`、`grp2`和`grp1`，插件使用`grp1`，即使`grp2`也匹配。`grp1`的优先级高于`grp2`，因为它在认证字符串中较早列出。
+- en: 'Assuming that the plugin finds a group name match, it performs mapping from
+    that group name to the MySQL proxied user name, if there is one. For the example
+    proxy account, mapping occurs as follows:'
+  id: totrans-225
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设插件找到组名匹配，它将从该组名映射到MySQL代理用户名称，如果有的话。对于示例代理账户，映射如下进行：
+- en: If the matching group name is `grp1` or `grp3`, those are associated in the
+    authentication string with user names `usera` and `userc`, respectively. The plugin
+    uses the corresponding associated user name as the proxied user name.
+  id: totrans-226
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果匹配的组名是`grp1`或`grp3`，它们在认证字符串中与用户名称`usera`和`userc`相关联。插件使用相应的关联用户名称作为代理用户名称。
+- en: If the matching group name is `grp2`, there is no associated user name in the
+    authentication string. The plugin uses `grp2` as the proxied user name.
+  id: totrans-227
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果匹配的组名是 `grp2`，认证字符串中没有关联的用户名。插件使用 `grp2` 作为代理用户名称。
+- en: If the LDAP server returns a group in DN format, the LDAP plugin parses the
+    group DN to extract the group name from it.
+  id: totrans-228
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 LDAP 服务器以 DN 格式返回组，LDAP 插件会解析组 DN 以从中提取组名。
+- en: 'To specify LDAP group preference and mapping information, these principles
+    apply:'
+  id: totrans-229
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要指定 LDAP 组偏好和映射信息，应遵循以下原则：
+- en: Begin the group preference and mapping part of the authentication string with
+    a `#` prefix character.
+  id: totrans-230
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用 `#` 前缀字符开始认证字符串的组偏好和映射部分。
+- en: 'The group preference and mapping specification is a list of one or more items,
+    separated by commas. Each item has the form `*`group_name`*=*`user_name`*` or
+    *`group_name`*. Items should be listed in group name preference order. For a group
+    name selected by the plugin as a match from set of group names returned by the
+    LDAP server, the two syntaxes differ in effect as follows:'
+  id: totrans-231
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 组偏好和映射规范是由逗号分隔的一个或多个项目的列表。每个项目的形式为 `*`group_name`*=*`user_name`*` 或 *`group_name`*。项目应按组名偏好顺序列出。对于插件从
+    LDAP 服务器返回的组名集合中选择的组名，两种语法在效果上有所不同：
+- en: For an item specified as `*`group_name`*=*`user_name`*` (with a user name),
+    the group name maps to the user name, which is used as the MySQL proxied user
+    name.
+  id: totrans-232
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于指定为 `*`group_name`*=*`user_name`*`（带有用户名）的项目，组名映射到用户名，该用户名用作 MySQL 代理用户名称。
+- en: For an item specified as *`group_name`* (with no user name), the group name
+    is used as the MySQL proxied user name.
+  id: totrans-233
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于指定为 *`group_name`*（没有用户名）的项目，组名用作 MySQL 代理用户名称。
+- en: 'To quote a group or user name that contains special characters such as space,
+    surround it by double quote (`"`) characters. For example, if an item has group
+    and user names of `my group name` and `my user name`, it must be written in a
+    group mapping using quotes:'
+  id: totrans-234
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要引用包含特殊字符（如空格）的组或用户名，用双引号 (`"`) 括起来。例如，如果一个项目的组名和用户名分别为 `my group name` 和 `my
+    user name`，则必须在组映射中使用引号：
+- en: '[PRE31]'
+  id: totrans-235
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE31]'
+- en: 'If an item has group and user names of `my_group_name` and `my_user_name` (which
+    contain no special characters), it may but need not be written using quotes. Any
+    of the following are valid:'
+  id: totrans-236
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果一个项目的组名和用户名分别为 `my_group_name` 和 `my_user_name`（不包含特殊字符），可以但不必使用引号。以下任何一种都是有效的：
+- en: '[PRE32]'
+  id: totrans-237
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE32]'
+- en: To escape a character, precede it by a backslash (`\`). This is useful particularly
+    to include a literal double quote or backslash, which are otherwise not included
+    literally.
+  id: totrans-238
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要转义字符，请在其前面加上反斜杠 (`\`)。这对于包含文字双引号或反斜杠（否则不会被字面包含）特别有用。
+- en: A user DN need not be present in the authentication string, but if present,
+    it must precede the group preference and mapping part. A user DN can be given
+    as a full user DN, or as a user DN suffix with a `+` prefix character. (See [LDAP
+    Authentication User DN Suffixes](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-user-dn-suffix
+    "LDAP Authentication User DN Suffixes").)
+  id: totrans-239
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户 DN 不一定要出现在认证字符串中，但如果出现，必须在组偏好和映射部分之前。用户 DN 可以作为完整用户 DN 给出，也可以作为带有 `+` 前缀字符的用户
+    DN 后缀给出。（参见 [LDAP 认证用户 DN 后缀](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-user-dn-suffix
+    "LDAP 认证用户 DN 后缀").）
+- en: LDAP Authentication User DN Suffixes
+  id: totrans-240
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: LDAP 认证用户 DN 后缀
+- en: 'LDAP authentication plugins permit the authentication string that provides
+    user DN information to begin with a `+` prefix character:'
+  id: totrans-241
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LDAP 认证插件允许提供用户 DN 信息的认证字符串以 `+` 前缀字符开头：
+- en: In the absence of a `+` character, the authentication string value is treated
+    as is without modification.
+  id: totrans-242
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在没有 `+` 字符的情况下，认证字符串值将按原样处理，不做修改。
+- en: If the authentication string begins with `+`, the plugin constructs the full
+    user DN value from the user name sent by the client, together with the DN specified
+    in the authentication string (with the `+` removed). In the constructed DN, the
+    client user name becomes the value of the attribute that specifies LDAP user names.
+    This is `uid` by default; to change the attribute, modify the appropriate system
+    variable ([`authentication_ldap_simple_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_user_search_attr)
+    or [`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)).
+    The authentication string is stored as given in the `mysql.user` system table,
+    with the full user DN constructed on the fly before authentication.
+  id: totrans-243
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果认证字符串以`+`开头，插件将从客户端发送的用户名和认证字符串中指定的DN（去除`+`）构造完整的用户DN值。在构造的DN中，客户端用户名成为指定LDAP用户名的属性值。默认情况下为`uid`；要更改属性，请修改相应的系统变量（[`authentication_ldap_simple_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_user_search_attr)或[`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)）。认证字符串存储在`mysql.user`系统表中，认证之前动态构造完整的用户DN。
+- en: 'This account authentication string does not have `+` at the beginning, so it
+    is taken as the full user DN:'
+  id: totrans-244
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此帐户认证字符串不以`+`开头，因此被视为完整的用户DN：
+- en: '[PRE33]'
+  id: totrans-245
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE33]'
+- en: The client connects with the user name specified in the account (`baldwin`).
+    In this case, that name is not used because the authentication string has no prefix
+    and thus fully specifies the user DN.
+  id: totrans-246
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端使用帐户中指定的用户名（`baldwin`）连接。在这种情况下，该名称未被使用，因为认证字符串没有前缀，因此完全指定了用户DN。
+- en: 'This account authentication string does have `+` at the beginning, so it is
+    taken as just part of the user DN:'
+  id: totrans-247
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此帐户认证字符串以`+`开头，因此被视为用户DN的一部分：
+- en: '[PRE34]'
+  id: totrans-248
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE34]'
+- en: 'The client connects with the user name specified in the account (`accounting`),
+    which in this case is used as the `uid` attribute together with the authentication
+    string to construct the user DN: `uid=accounting,ou=People,dc=example,dc=com`'
+  id: totrans-249
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端使用帐户中指定的用户名（`accounting`）连接，该用户名与认证字符串一起用作构造用户DN的`uid`属性：`uid=accounting,ou=People,dc=example,dc=com`
+- en: 'The accounts in the preceding examples have a nonempty user name, so the client
+    always connects to the MySQL server using the same name as specified in the account
+    definition. If an account has an empty user name, such as the default anonymous
+    `''''@''%''` proxy account described in [LDAP Authentication with Proxying](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP Authentication with Proxying"), clients might connect to the MySQL server
+    with varying user names. But the principle is the same: If the authentication
+    string begins with `+`, the plugin uses the user name sent by the client together
+    with the authentication string to construct the user DN.'
+  id: totrans-250
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前面示例中的帐户具有非空用户名，因此客户端始终使用帐户定义中指定的相同名称连接到MySQL服务器。如果帐户具有空用户名，例如[使用代理进行LDAP认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "使用代理进行LDAP认证")中描述的默认匿名`''@'%'`代理帐户，客户端可能使用不同的用户名连接到MySQL服务器。但原则是相同的：如果认证字符串以`+`开头，插件将使用客户端发送的用户名和认证字符串一起构造用户DN。
+- en: LDAP Authentication Methods
+  id: totrans-251
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: LDAP认证方法
+- en: 'The LDAP authentication plugins use a configurable authentication method. The
+    appropriate system variable and available method choices are plugin-specific:'
+  id: totrans-252
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LDAP认证插件使用可配置的认证方法。适当的系统变量和可用的方法选择是特定于插件的：
+- en: 'For the `authentication_ldap_simple` plugin: Set the [`authentication_ldap_simple_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_auth_method_name)
+    system variable to configure the method. The permitted choices are `SIMPLE` and
+    `AD-FOREST`.'
+  id: totrans-253
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`authentication_ldap_simple`插件：设置[`authentication_ldap_simple_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_auth_method_name)系统变量以配置方法。允许的选择是`SIMPLE`和`AD-FOREST`。
+- en: 'For the `authentication_ldap_sasl` plugin: Set the [`authentication_ldap_sasl_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_auth_method_name)
+    system variable to configure the method. The permitted choices are `SCRAM-SHA-1`,
+    `SCRAM-SHA-256`, and `GSSAPI`. (To determine which SASL LDAP methods are actually
+    available on the host system, check the value of the [`Authentication_ldap_sasl_supported_methods`](server-status-variables.html#statvar_Authentication_ldap_sasl_supported_methods)
+    status variable.)'
+  id: totrans-254
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 `authentication_ldap_sasl` 插件：设置 [`authentication_ldap_sasl_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_auth_method_name)
+    系统变量以配置方法。允许的选择是 `SCRAM-SHA-1`、`SCRAM-SHA-256` 和 `GSSAPI`。（要确定主机系统上实际可用的 SASL
+    LDAP 方法，请检查 [`Authentication_ldap_sasl_supported_methods`](server-status-variables.html#statvar_Authentication_ldap_sasl_supported_methods)
+    状态变量的值。）
+- en: See the system variable descriptions for information about each permitted method.
+    Also, depending on the method, additional configuration may be needed, as described
+    in the following sections.
+  id: totrans-255
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关每种允许方法的信息，请参阅系统变量描述。此外，根据方法的不同，可能需要额外的配置，如下面的部分所述。
+- en: The GSSAPI/Kerberos Authentication Method
+  id: totrans-256
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: GSSAPI/Kerberos 认证方法
+- en: Generic Security Service Application Program Interface (GSSAPI) is a security
+    abstraction interface. Kerberos is an instance of a specific security protocol
+    that can be used through that abstract interface. Using GSSAPI, applications authenticate
+    to Kerberos to obtain service credentials, then use those credentials in turn
+    to enable secure access to other services.
+  id: totrans-257
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通用安全服务应用程序接口（GSSAPI）是一个安全抽象接口。Kerberos 是可以通过该抽象接口使用的特定安全协议的一个实例。使用 GSSAPI，应用程序通过
+    Kerberos 进行身份验证以获取服务凭证，然后再使用这些凭证来实现对其他服务的安全访问。
+- en: One such service is LDAP, which is used by the client-side and server-side SASL
+    LDAP authentication plugins. When the [`authentication_ldap_sasl_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_auth_method_name)
+    system variable is set to `GSSAPI`, these plugins use the GSSAPI/Kerberos authentication
+    method. In this case, the plugins communicate securely using Kerberos without
+    using LDAP messages directly. The server-side plugin then communicates with the
+    LDAP server to interpret LDAP authentication messages and retrieve LDAP groups.
+  id: totrans-258
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其中一种服务是 LDAP，它被客户端和服务器端的 SASL LDAP 认证插件使用。当 [`authentication_ldap_sasl_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_auth_method_name)
+    系统变量设置为 `GSSAPI` 时，这些插件使用 GSSAPI/Kerberos 认证方法。在这种情况下，插件通过 Kerberos 安全通信，而不直接使用
+    LDAP 消息。服务器端插件然后与 LDAP 服务器通信以解释 LDAP 认证消息并检索 LDAP 组。
+- en: GSSAPI/Kerberos is supported as an LDAP authentication method for MySQL servers
+    and clients on Linux. It is useful in Linux environments where applications have
+    access to LDAP through Microsoft Active Directory, which has Kerberos enabled
+    by default.
+  id: totrans-259
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GSSAPI/Kerberos 在 Linux 上作为 MySQL 服务器和客户端的 LDAP 认证方法得到支持。在 Linux 环境中，当应用程序通过默认启用
+    Kerberos 的 Microsoft Active Directory 访问 LDAP 时，这是非常有用的。
+- en: The following discussion provides information about the configuration requirements
+    for using the GSSAPI method. Familiarity is assumed with Kerberos concepts and
+    operation. The following list briefly defines several common Kerberos terms. You
+    may also find the Glossary section of [RFC 4120](https://tools.ietf.org/html/rfc4120)
+    helpful.
+  id: totrans-260
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论提供了使用 GSSAPI 方法的配置要求信息。假定熟悉 Kerberos 概念和操作。以下列表简要定义了几个常见的 Kerberos 术语。您还可以在
+    [RFC 4120](https://tools.ietf.org/html/rfc4120) 的术语表部分找到有用的信息。
+- en: '[Principal](glossary.html#glos_principal "principal"): A named entity, such
+    as a user or server.'
+  id: totrans-261
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[主体](glossary.html#glos_principal "principal")：一个命名实体，比如用户或服务器。'
+- en: '[KDC](glossary.html#glos_key_distribution_center "key distribution center"):
+    The key distribution center, comprising the AS and TGS:'
+  id: totrans-262
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[KDC](glossary.html#glos_key_distribution_center "key distribution center")：密钥分发中心，包括
+    AS 和 TGS：'
+- en: '[AS](glossary.html#glos_authentication_server "authentication server"): The
+    authentication server; provides the initial ticket-granting ticket needed to obtain
+    additional tickets.'
+  id: totrans-263
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[AS](glossary.html#glos_authentication_server "authentication server")：认证服务器；提供获取额外票证所需的初始票证授予票证。'
+- en: '[TGS](glossary.html#glos_ticket_granting_server "ticket-granting server"):
+    The ticket-granting server; provides additional tickets to Kerberos clients that
+    possess a valid TGT.'
+  id: totrans-264
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[TGS](glossary.html#glos_ticket_granting_server "ticket-granting server")：票证授予服务器；为拥有有效
+    TGT 的 Kerberos 客户端提供额外票证。'
+- en: '[TGT](glossary.html#glos_ticket_granting_ticket "ticket-granting ticket"):
+    The ticket-granting ticket; presented to the TGS to obtain service tickets for
+    service access.'
+  id: totrans-265
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[TGT](glossary.html#glos_ticket_granting_ticket "票据授予票据")：票据授予票据；提交给TGS以获取用于服务访问的服务票据。'
+- en: 'LDAP authentication using Kerberos requires both a KDC server and an LDAP server.
+    This requirement can be satisfied in different ways:'
+  id: totrans-266
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用Kerberos进行LDAP身份验证需要KDC服务器和LDAP服务器。可以通过不同方式满足此要求：
+- en: Active Directory includes both servers, with Kerberos authentication enabled
+    by default in the Active Directory LDAP server.
+  id: totrans-267
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Active Directory包括两个服务器，Active Directory LDAP服务器默认启用Kerberos身份验证。
+- en: OpenLDAP provides an LDAP server, but a separate KDC server may be needed, with
+    additional Kerberos setup required.
+  id: totrans-268
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: OpenLDAP提供了一个LDAP服务器，但可能需要一个单独的KDC服务器，并需要额外的Kerberos设置。
+- en: Kerberos must also be available on the client host. A client contacts the AS
+    using a password to obtain a TGT. The client then uses the TGT to obtain access
+    from the TGS to other services, such as LDAP.
+  id: totrans-269
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端主机上也必须可用Kerberos。客户端使用密码联系AS以获取TGT。然后，客户端使用TGT从TGS获取其他服务的访问权限，例如LDAP。
+- en: 'The following sections discuss the configuration steps to use GSSAPI/Kerberos
+    for SASL LDAP authentication in MySQL:'
+  id: totrans-270
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节讨论了在MySQL中使用GSSAPI/Kerberos进行SASL LDAP身份验证的配置步骤：
+- en: '[Verify Kerberos and LDAP Availability](ldap-pluggable-authentication.html#ldap-gssapi-kerberos-setup
+    "Verify Kerberos and LDAP Availability")'
+  id: totrans-271
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[验证Kerberos和LDAP的可用性](ldap-pluggable-authentication.html#ldap-gssapi-kerberos-setup
+    "验证Kerberos和LDAP的可用性")'
+- en: '[Configure the Server-Side SASL LDAP Authentication Plugin for GSSAPI/Kerberos](ldap-pluggable-authentication.html#ldap-gssapi-ldap-setup
+    "Configure the Server-Side SASL LDAP Authentication Plugin for GSSAPI/Kerberos")'
+  id: totrans-272
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[为GSSAPI/Kerberos配置服务器端SASL LDAP身份验证插件](ldap-pluggable-authentication.html#ldap-gssapi-ldap-setup
+    "为GSSAPI/Kerberos配置服务器端SASL LDAP身份验证插件")'
+- en: '[Create a MySQL Account That Uses GSSAPI/Kerberos for LDAP Authentication](ldap-pluggable-authentication.html#ldap-gssapi-mysql-account-setup
+    "Create a MySQL Account That Uses GSSAPI/Kerberos for LDAP Authentication")'
+  id: totrans-273
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建一个使用GSSAPI/Kerberos进行LDAP身份验证的MySQL帐户](ldap-pluggable-authentication.html#ldap-gssapi-mysql-account-setup
+    "创建一个使用GSSAPI/Kerberos进行LDAP身份验证的MySQL帐户")'
+- en: '[Use the MySQL Account to Connect to the MySQL Server](ldap-pluggable-authentication.html#ldap-gssapi-mysql-client-usage
+    "Use the MySQL Account to Connect to the MySQL Server")'
+  id: totrans-274
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用MySQL帐户连接到MySQL服务器](ldap-pluggable-authentication.html#ldap-gssapi-mysql-client-usage
+    "使用MySQL帐户连接到MySQL服务器")'
+- en: '[Client Configuration Parameters for LDAP Authentication](ldap-pluggable-authentication.html#ldap-gssapi-mysql-client-config-parameters
+    "Client Configuration Parameters for LDAP Authentication")'
+  id: totrans-275
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[LDAP身份验证的客户端配置参数](ldap-pluggable-authentication.html#ldap-gssapi-mysql-client-config-parameters
+    "LDAP身份验证的客户端配置参数")'
+- en: Verify Kerberos and LDAP Availability
+  id: totrans-276
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 验证Kerberos和LDAP的可用性
+- en: 'The following example shows how to test availability of Kerberos in Active
+    Directory. The example makes these assumptions:'
+  id: totrans-277
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例显示如何在Active Directory中测试Kerberos的可用性。示例做出以下假设：
+- en: Active Directory is running on the host named `ldap_auth.example.com` with IP
+    address `198.51.100.10`.
+  id: totrans-278
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Active Directory运行在名为`ldap_auth.example.com`的主机上，IP地址为`198.51.100.10`。
+- en: MySQL-related Kerberos authentication and LDAP lookups use the `MYSQL.LOCAL`
+    domain.
+  id: totrans-279
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与MySQL相关的Kerberos身份验证和LDAP查找使用`MYSQL.LOCAL`域。
+- en: A principal named `bredon@MYSQL.LOCAL` is registered with the KDC. (In later
+    discussion, this principal name is also associated with the MySQL account that
+    authenticates to the MySQL server using GSSAPI/Kerberos.)
+  id: totrans-280
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 名为`bredon@MYSQL.LOCAL`的主体已在KDC中注册。（在后续讨论中，此主体名称还与使用GSSAPI/Kerberos对MySQL服务器进行身份验证的MySQL帐户相关联。）
+- en: 'With those assumptions satisfied, follow this procedure:'
+  id: totrans-281
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在满足这些假设的情况下，按照以下步骤操作：
+- en: 'Verify that the Kerberos library is installed and configured correctly in the
+    operating system. For example, to configure a `MYSQL.LOCAL` domain for use during
+    MySQL authentication, the `/etc/krb5.conf` Kerberos configuration file should
+    contain something like this:'
+  id: totrans-282
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证操作系统中Kerberos库是否已安装和配置正确。例如，要为MySQL身份验证期间使用`MYSQL.LOCAL`域，`/etc/krb5.conf`
+    Kerberos配置文件应包含类似于以下内容：
+- en: '[PRE35]'
+  id: totrans-283
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE35]'
+- en: 'You may need to add an entry to `/etc/hosts` for the server host:'
+  id: totrans-284
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 您可能需要为服务器主机在`/etc/hosts`中添加一个条目：
+- en: '[PRE36]'
+  id: totrans-285
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE36]'
+- en: 'Check whether Kerberos authentication works correctly:'
+  id: totrans-286
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查Kerberos身份验证是否正常工作：
+- en: 'Use **kinit** to authenticate to Kerberos:'
+  id: totrans-287
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用**kinit**进行Kerberos身份验证：
+- en: '[PRE37]'
+  id: totrans-288
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE37]'
+- en: The command authenticates for the Kerberos principal named `bredon@MYSQL.LOCAL`.
+    Enter the principal's password when the command prompts for it. The KDC returns
+    a TGT that is cached on the client side for use by other Kerberos-aware applications.
+  id: totrans-289
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 该命令用于验证名为`bredon@MYSQL.LOCAL`的Kerberos主体。当命令提示时，请输入主体的密码。KDC返回一个TGT，该TGT在客户端缓存中供其他支持Kerberos的应用程序使用。
+- en: 'Use **klist** to check whether the TGT was obtained correctly. The output should
+    be similar to this:'
+  id: totrans-290
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用**klist**检查TGT是否正确获取。输出应类似于以下内容：
+- en: '[PRE38]'
+  id: totrans-291
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE38]'
+- en: 'Check whether **ldapsearch** works with the Kerberos TGT using this command,
+    which searches for users in the `MYSQL.LOCAL` domain:'
+  id: totrans-292
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用此命令检查**ldapsearch**是否与Kerberos TGT一起工作，该命令在`MYSQL.LOCAL`域中搜索用户：
+- en: '[PRE39]'
+  id: totrans-293
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE39]'
+- en: Configure the Server-Side SASL LDAP Authentication Plugin for GSSAPI/Kerberos
+  id: totrans-294
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 配置服务器端SASL LDAP认证插件以使用GSSAPI/Kerberos
+- en: 'Assuming that the LDAP server is accessible through Kerberos as just described,
+    configure the server-side SASL LDAP authentication plugin to use the GSSAPI/Kerberos
+    authentication method. (For general LDAP plugin installation information, see
+    [Installing LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "Installing LDAP Pluggable Authentication").) Here is an example of plugin-related
+    settings the server `my.cnf` file might contain:'
+  id: totrans-295
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设LDAP服务器可以通过上述方式访问Kerberos，配置服务器端SASL LDAP认证插件以使用GSSAPI/Kerberos认证方法。（有关一般LDAP插件安装信息，请参阅[安装LDAP可插入认证](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "Installing LDAP Pluggable Authentication")。）以下是服务器`my.cnf`文件可能包含的插件相关设���示例：
+- en: '[PRE40]'
+  id: totrans-296
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE40]'
+- en: 'Those option file settings configure the SASL LDAP plugin as follows:'
+  id: totrans-297
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些选项文件设置配置了SASL LDAP插件如下：
+- en: The [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)
+    option loads the plugin (adjust the `.so` suffix for your platform as necessary).
+    If you loaded the plugin previously using an [`INSTALL PLUGIN`](install-plugin.html
+    "15.7.4.4 INSTALL PLUGIN Statement") statement, this option is unnecessary.
+  id: totrans-298
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)选项加载插件（根据需要调整`.so`后缀以适应您的平台）。如果之前使用[`INSTALL
+    PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")语句加载了插件，则此选项是不必要的。'
+- en: '[`authentication_ldap_sasl_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_auth_method_name)
+    must be set to `GSSAPI` to use GSSAPI/Kerberos as the SASL LDAP authentication
+    method.'
+  id: totrans-299
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_ldap_sasl_auth_method_name`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_auth_method_name)必须设置为`GSSAPI`以使用GSSAPI/Kerberos作为SASL
+    LDAP认证方法。'
+- en: '[`authentication_ldap_sasl_server_host`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_server_host)
+    and [`authentication_ldap_sasl_server_port`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_server_port)
+    indicate the IP address and port number of the Active Directory server host for
+    authentication.'
+  id: totrans-300
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_ldap_sasl_server_host`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_server_host)和[`authentication_ldap_sasl_server_port`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_server_port)指示用于身份验证的Active
+    Directory服务器主机的IP地址和端口号。'
+- en: '[`authentication_ldap_sasl_bind_root_dn`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_bind_root_dn)
+    and [`authentication_ldap_sasl_bind_root_pwd`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_bind_root_pwd)
+    configure the root DN and password for group search capability. This capability
+    is required, but users may not have privileges to search. In such cases, it is
+    necessary to provide root DN information:'
+  id: totrans-301
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_ldap_sasl_bind_root_dn`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_bind_root_dn)和[`authentication_ldap_sasl_bind_root_pwd`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_bind_root_pwd)配置了用于组搜索功能的根DN和密码。此功能是必需的，但用户可能没有搜索权限。在这种情况下，有必要提供根DN信息：'
+- en: In the DN option value, `admin` should be the name of an administrative LDAP
+    account that has privileges to perform user searches.
+  id: totrans-302
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在DN选项值中，`admin`应该是具有执行用户搜索权限的管理LDAP帐户的名称。
+- en: In the password option value, *`password`* should be the `admin` account password.
+  id: totrans-303
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在密码选项值中，*`password`*应该是`admin`帐户的密码。
+- en: '[`authentication_ldap_sasl_bind_base_dn`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_bind_base_dn)
+    indicates the user DN base path, so that searches look for users in the `MYSQL.LOCAL`
+    domain.'
+  id: totrans-304
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_ldap_sasl_bind_base_dn`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_bind_base_dn)指示用户DN基本路径，以便搜索在`MYSQL.LOCAL`域中的用户。'
+- en: '[`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)
+    specifies a standard Active Directory search attribute, `sAMAccountName`. This
+    attribute is used in searches to match logon names; attribute values are not the
+    same as the user DN values.'
+  id: totrans-305
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_ldap_sasl_user_search_attr`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_user_search_attr)
+    指定了一个标准的 Active Directory 搜索属性，`sAMAccountName`。此属性用于搜索以匹配登录名；属性值与用户 DN 值不同。'
+- en: Create a MySQL Account That Uses GSSAPI/Kerberos for LDAP Authentication
+  id: totrans-306
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 创建一个使用 GSSAPI/Kerberos 进行 LDAP 认证的 MySQL 账户
+- en: 'MySQL authentication using the SASL LDAP authentication plugin with the GSSAPI/Kerberos
+    method is based on a user that is a Kerberos principal. The following discussion
+    uses a principal named `bredon@MYSQL.LOCAL` as this user, which must be registered
+    in several places:'
+  id: totrans-307
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 GSSAPI/Kerberos 方法的 SASL LDAP 认证插件进行 MySQL 认证是基于一个作为 Kerberos 主体的用户。以下讨论使用一个名为
+    `bredon@MYSQL.LOCAL` 的主体作为此用户，必须在多个地方注册：
+- en: The Kerberos administrator should register the user name as a Kerberos principal.
+    This name should include a domain name. Clients use the principal name and password
+    to authenticate with Kerberos and obtain a TGT.
+  id: totrans-308
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Kerberos 管理员应该将用户名称注册为 Kerberos 主体。此名称应包括域名。客户端使用主体名称和密码进行 Kerberos 认证并获取 TGT。
+- en: 'The LDAP administrator should register the user name in an LDAP entry. For
+    example:'
+  id: totrans-309
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: LDAP 管理员应在 LDAP 条目中注册用户名称。例如：
+- en: '[PRE41]'
+  id: totrans-310
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE41]'
+- en: Note
+  id: totrans-311
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: In Active Directory (which uses Kerberos as the default authentication method),
+    creating a user creates both the Kerberos principal and the LDAP entry.
+  id: totrans-312
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 Active Directory（默认使用 Kerberos 作为认证方法），创建用户会同时创建 Kerberos 主体和 LDAP 条目。
+- en: The MySQL DBA should create an account that has the Kerberos principal name
+    as the user name and that authenticates using the SASL LDAP plugin.
+  id: totrans-313
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL DBA 应创建一个账户，其用户名称为 Kerberos 主体名称，并使用 SASL LDAP 插件进行认证。
+- en: Assume that the Kerberos principal and LDAP entry have been registered by the
+    appropriate service administrators, and that, as previously described in [Installing
+    LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "Installing LDAP Pluggable Authentication"), and [Configure the Server-Side SASL
+    LDAP Authentication Plugin for GSSAPI/Kerberos](ldap-pluggable-authentication.html#ldap-gssapi-ldap-setup
+    "Configure the Server-Side SASL LDAP Authentication Plugin for GSSAPI/Kerberos"),
+    the MySQL server has been started with appropriate configuration settings for
+    the server-side SASL LDAP plugin. The MySQL DBA then creates a MySQL account that
+    corresponds to the Kerberos principal name, including the domain name.
+  id: totrans-314
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设适当的服务管理员已经注册了 Kerberos 主体和 LDAP 条目，并且，如前面在 [Installing LDAP Pluggable Authentication](ldap-pluggable-authentication.html#ldap-pluggable-authentication-installation
+    "Installing LDAP Pluggable Authentication") 和 [Configure the Server-Side SASL
+    LDAP Authentication Plugin for GSSAPI/Kerberos](ldap-pluggable-authentication.html#ldap-gssapi-ldap-setup
+    "Configure the Server-Side SASL LDAP Authentication Plugin for GSSAPI/Kerberos")
+    中描述的那样，MySQL 服务器已经以适当的配置设置启动了服务器端 SASL LDAP 插件。然后 MySQL DBA 创建一个对应于 Kerberos 主体名称的
+    MySQL 账户，包括域名。
+- en: Note
+  id: totrans-315
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The SASL LDAP plugin uses a constant user DN for Kerberos authentication and
+    ignores any user DN configured from MySQL. This has certain implications:'
+  id: totrans-316
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SASL LDAP 插件对于 Kerberos 认证使用一个固定的用户 DN，并忽略从 MySQL 配置的任何用户 DN。这有一定的影响：
+- en: For any MySQL account that uses GSSAPI/Kerberos authentication, the authentication
+    string in [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") or
+    [`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER Statement") statements should
+    contain no user DN because it has no effect.
+  id: totrans-317
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用 GSSAPI/Kerberos 认证的任何 MySQL 账户，在 [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") 或 [`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER Statement")
+    语句中的认证字符串不应包含用户 DN，因为它没有任何效果。
+- en: Because the authentication string contains no user DN, it should contain group
+    mapping information, to enable the user to be handled as a proxy user that is
+    mapped onto the desired proxied user. For information about proxying with the
+    LDAP authentication plugin, see [LDAP Authentication with Proxying](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP Authentication with Proxying").
+  id: totrans-318
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 因为认证字符串不包含用户 DN，所以应包含组映射信息，以使用户能够作为映射到所需代理用户的代理用户进行处理。有关使用 LDAP 认证插件进行代理的信息，请参阅
+    [LDAP Authentication with Proxying](ldap-pluggable-authentication.html#ldap-pluggable-authentication-usage-proxying
+    "LDAP Authentication with Proxying")。
+- en: The following statements create a proxy user named `bredon@MYSQL.LOCAL` that
+    assumes the privileges of the proxied user named `proxied_krb_usr`. Other GSSAPI/Kerberos
+    users that should have the same privileges can similarly be created as proxy users
+    for the same proxied user.
+  id: totrans-319
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下语句创建一个名为`bredon@MYSQL.LOCAL`的代理用户，该用户假定了被代理用户`proxied_krb_usr`的权限。其他应具有相同权限的
+    GSSAPI/Kerberos 用户可以类似地为同一被代理用户创建代理用户。
+- en: '[PRE42]'
+  id: totrans-320
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE42]'
+- en: 'Observe closely the quoting for the proxy account name in the first [`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement and the [`GRANT
+    PROXY`](grant.html "15.7.1.6 GRANT Statement") statement:'
+  id: totrans-321
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仔细观察第一个[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句和[`GRANT
+    PROXY`](grant.html "15.7.1.6 GRANT Statement")语句中代理账户名称的引用：
+- en: For most MySQL accounts, the user and host are separate parts of the account
+    name, and thus are quoted separately as `'*`user_name`*'@'*`host_name`*'`.
+  id: totrans-322
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于大多数 MySQL 账户，用户和主机是账户名称的独立部分，因此分别引用为`'*`user_name`*'@'*`host_name`*'`。
+- en: 'For LDAP Kerberos authentication, the user part of the account name includes
+    the principal domain, so `''bredon@MYSQL.LOCAL''` is quoted as a single value.
+    Because no host part is given, the full MySQL account name uses the default of
+    `''%''` as the host part: `''bredon@MYSQL.LOCAL''@''%''`'
+  id: totrans-323
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 LDAP Kerberos 认证，账户名称的用户部分包括主体域，因此`'bredon@MYSQL.LOCAL'`被引用为单个值。因为没有给出主机部分，所以完整的
+    MySQL 账户名称使用默认的`'%'`作为主机部分：`'bredon@MYSQL.LOCAL'@'%'`
+- en: Note
+  id: totrans-324
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When creating an account that authenticates using the `authentication_ldap_sasl`
+    SASL LDAP authentication plugin with the GSSAPI/Kerberos authentication method,
+    the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement
+    includes the realm as part of the user name. This differs from creating accounts
+    that use the `authentication_kerberos` Kerberos plugin. For such accounts, the
+    [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement does
+    not include the realm as part of the user name. Instead, specify the realm as
+    the authentication string in the `BY` clause. See [Create a MySQL Account That
+    Uses Kerberos Authentication](kerberos-pluggable-authentication.html#kerberos-usage-mysql-account-setup
+    "Create a MySQL Account That Uses Kerberos Authentication").
+  id: totrans-325
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当创建一个使用 GSSAPI/Kerberos 认证方法的`authentication_ldap_sasl` SASL LDAP 认证插件进行身份验证的账户时，[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句将领域作为用户名的一部分。这与使用`authentication_kerberos`
+    Kerberos 插件创建账户不同。对于这样的账户，[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER
+    Statement")语句不包括领域作为用户名的一部分。而是在`BY`子句中指定领域作为认证字符串。请参阅[创建使用 Kerberos 认证的 MySQL
+    账户](kerberos-pluggable-authentication.html#kerberos-usage-mysql-account-setup
+    "创建使用 Kerberos 认证的 MySQL 账户")。
+- en: The proxied account uses the `mysql_no_login` authentication plugin to prevent
+    clients from using the account to log in directly to the MySQL server. Instead,
+    it is expected that users who authenticate using LDAP use the `bredon@MYSQL.LOCAL`
+    proxy account. (This assumes that the `mysql_no_login` plugin is installed. For
+    instructions, see [Section 8.4.1.9, “No-Login Pluggable Authentication”](no-login-pluggable-authentication.html
+    "8.4.1.9 No-Login Pluggable Authentication").) For alternative methods of protecting
+    proxied accounts against direct use, see [Preventing Direct Login to Proxied Accounts](proxy-users.html#preventing-proxied-account-direct-login
+    "Preventing Direct Login to Proxied Accounts").
+  id: totrans-326
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 被代理账户使用`mysql_no_login`认证插件防止客户端直接使用该账户登录到 MySQL 服务器。相反，预期使用 LDAP 进行身份验证的用户使用`bredon@MYSQL.LOCAL`代理账户。（这假设已安装`mysql_no_login`插件。有关说明，请参见[第
+    8.4.1.9 节，“无登录可插入认证”](no-login-pluggable-authentication.html "8.4.1.9 No-Login
+    Pluggable Authentication")。）有关保护被代理账户免受直接使用的替代方法，请参见[防止直接登录到被代理账户](proxy-users.html#preventing-proxied-account-direct-login
+    "防止直接登录到被代理账户")。
+- en: Use the MySQL Account to Connect to the MySQL Server
+  id: totrans-327
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 使用 MySQL 账户连接到 MySQL 服务器
+- en: 'After a MySQL account that authenticates using GSSAPI/Kerberos has been set
+    up, clients can use it to connect to the MySQL server. Kerberos authentication
+    can take place either prior to or at the time of MySQL client program invocation:'
+  id: totrans-328
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 设置使用 GSSAPI/Kerberos 进行身份验证的 MySQL 账户后，客户端可以使用它连接到 MySQL 服务器。Kerberos 认证可以在
+    MySQL 客户端程序调用之前或同时进行：
+- en: 'Prior to invoking the MySQL client program, the client user can obtain a TGT
+    from the KDC independently of MySQL. For example, the client user can use **kinit**
+    to authenticate to Kerberos by providing a Kerberos principal name and the principal
+    password:'
+  id: totrans-329
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在调用 MySQL 客户端程序之前，客户端用户可以独立于 MySQL 从 KDC 获取 TGT。例如，客户端用户可以使用**kinit**通过提供 Kerberos
+    主体名称和主体密码来对 Kerberos 进行身份验证：
+- en: '[PRE43]'
+  id: totrans-330
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE43]'
+- en: 'The resulting TGT is cached and becomes available for use by other Kerberos-aware
+    applications, such as programs that use the client-side SASL LDAP authentication
+    plugin. In this case, the MySQL client program authenticates to the MySQL server
+    using the TGT, so invoke the client without specifying a user name or password:'
+  id: totrans-331
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 结果的 TGT 被缓存并可供其他了解 Kerberos 的应用程序使用，例如使用客户端端 SASL LDAP 认证插件的程序。在这种情况下，MySQL
+    客户端程序使用 TGT 对 MySQL 服务器进行认证，因此调用客户端时不需要指定用户名或密码：
+- en: '[PRE44]'
+  id: totrans-332
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE44]'
+- en: 'As just described, when the TGT is cached, user-name and password options are
+    not needed in the client command. If the command includes them anyway, they are
+    handled as follows:'
+  id: totrans-333
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 正如刚才所描述的，当 TGT 被缓存时，在客户端命令中不需要用户名称和密码选项。如果命令中仍然包含它们，则处理如下：
+- en: If the command includes a user name, authentication fails if that name does
+    not match the principal name in the TGT.
+  id: totrans-334
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果命令包含用户名，如果该名称与 TGT 中的主体名称不匹配，则认证失败。
+- en: If the command includes a password, the client-side plugin ignores it. Because
+    authentication is based on the TGT, it can succeed *even if the user-provided
+    password is incorrect*. For this reason, the plugin produces a warning if a valid
+    TGT is found that causes a password to be ignored.
+  id: totrans-335
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果命令包含密码，客户端插件会忽略它。因为认证是基于 TGT 的，*即使用户提供的密码不正确*，也可以成功。因此，如果找到有效的 TGT 导致密码被忽略，插件会产生警告。
+- en: 'If the Kerberos cache contains no TGT, the client-side SASL LDAP authentication
+    plugin itself can obtain the TGT from the KDC. Invoke the client with options
+    for the name and password of the Kerberos principal associated with the MySQL
+    account (enter the command on a single line, then enter the principal password
+    when prompted):'
+  id: totrans-336
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果 Kerberos 缓存中不包含 TGT，则客户端端 SASL LDAP 认证插件本身可以从 KDC 获取 TGT。使用与 MySQL 账户关联的
+    Kerberos 主体的名称和密码选项调用客户端（在提示时输入主体密码）：
+- en: '[PRE45]'
+  id: totrans-337
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE45]'
+- en: If the Kerberos cache contains no TGT and the client command specifies no principal
+    name as the user name, authentication fails.
+  id: totrans-338
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果 Kerberos 缓存中不包含 TGT，并且客户端命令未指定主体名称作为用户名，则认证失败。
+- en: If you are uncertain whether a TGT exists, you can use **klist** to check.
+  id: totrans-339
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您不确定是否存在 TGT，可以使用 **klist** 进行检查。
+- en: 'Authentication occurs as follows:'
+  id: totrans-340
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证过程如下：
+- en: The client uses the TGT to authenticate using Kerberos.
+  id: totrans-341
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 客户端使用 TGT 使用 Kerberos 进行认证。
+- en: The server finds the LDAP entry for the principal and uses it to authenticate
+    the connection for the `bredon@MYSQL.LOCAL` MySQL proxy account.
+  id: totrans-342
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器找到主体的 LDAP 条目并用它来认证连接到 `bredon@MYSQL.LOCAL` MySQL 代理账户。
+- en: The group mapping information in the proxy account authentication string (`'#krb_grp=proxied_krb_user'`)
+    indicates that the authenticated proxied user should be `proxied_krb_user`.
+  id: totrans-343
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 代理账户认证字符串中的组映射信息（`'#krb_grp=proxied_krb_user'`）表示认证的被代理用户应该是 `proxied_krb_user`。
+- en: '`bredon@MYSQL.LOCAL` is treated as a proxy for `proxied_krb_user`, and the
+    following query returns output as shown:'
+  id: totrans-344
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '`bredon@MYSQL.LOCAL` 被视为 `proxied_krb_user` 的代理，并且以下查询返回如下输出：'
+- en: '[PRE46]'
+  id: totrans-345
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE46]'
+- en: The [`USER()`](information-functions.html#function_user) value indicates the
+    user name used for the client command (`bredon@MYSQL.LOCAL`) and the host from
+    which the client connected (`localhost`).
+  id: totrans-346
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`USER()`](information-functions.html#function_user) 值表示用于客户端命令的用户名（`bredon@MYSQL.LOCAL`）和客户端连接的主机（`localhost`）。'
+- en: The [`CURRENT_USER()`](information-functions.html#function_current-user) value
+    is the full name of the proxied user account, which consists of the `proxied_krb_user`
+    user part and the `%` host part.
+  id: totrans-347
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`CURRENT_USER()`](information-functions.html#function_current-user) 值是被代理用户账户的全名，由
+    `proxied_krb_user` 用户部分和 `%` 主机部分组成。'
+- en: The [`@@proxy_user`](server-system-variables.html#sysvar_proxy_user) value indicates
+    the full name of the account used to make the connection to the MySQL server,
+    which consists of the `bredon@MYSQL.LOCAL` user part and the `%` host part.
+  id: totrans-348
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`@@proxy_user`](server-system-variables.html#sysvar_proxy_user) 值表示用于连接到 MySQL
+    服务器的账户的全名，由 `bredon@MYSQL.LOCAL` 用户部分和 `%` 主机部分组成。'
+- en: This demonstrates that proxying occurs through the `bredon@MYSQL.LOCAL` proxy
+    user account, and that `bredon@MYSQL.LOCAL` assumes the privileges granted to
+    the `proxied_krb_user` proxied user account.
+  id: totrans-349
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这表明代理是通过 `bredon@MYSQL.LOCAL` 代理用户账户进行的，并且 `bredon@MYSQL.LOCAL` 承担了授予 `proxied_krb_user`
+    被代理用户账户的权限。
+- en: A TGT once obtained is cached on the client side and can be used until it expires
+    without specifying the password again. However the TGT is obtained, the client-side
+    plugin uses it to acquire service tickets and communicate with the server-side
+    plugin.
+  id: totrans-350
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦获得TGT，客户端会将其缓存在本地，并且在不再需要重新输入密码的情况下可以一直使用直到过期。无论如何获取TGT，客户端插件都会使用它来获取服务票据并与服务器端插件通信。
+- en: Note
+  id: totrans-351
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When the client-side authentication plugin itself obtains the TGT, the client
+    user may not want the TGT to be reused. As described in [Client Configuration
+    Parameters for LDAP Authentication](ldap-pluggable-authentication.html#ldap-gssapi-mysql-client-config-parameters
+    "Client Configuration Parameters for LDAP Authentication"), the local `/etc/krb5.conf`
+    file can be used to cause the client-side plugin to destroy the TGT when done
+    with it.
+  id: totrans-352
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当客户端身份验证插件本身获取TGT时，客户端用户可能不希望TGT被重复使用。如[LDAP身份验证的客户端配置参数](ldap-pluggable-authentication.html#ldap-gssapi-mysql-client-config-parameters
+    "LDAP身份验证的客户端配置参数")所述，本地的`/etc/krb5.conf`文件可用于使客户端插件在完成后销毁TGT。
+- en: The server-side plugin has no access to the TGT itself or the Kerberos password
+    used to obtain it.
+  id: totrans-353
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端插件无法访问TGT本身或用于获取TGT的Kerberos密码。
+- en: The LDAP authentication plugins have no control over the caching mechanism (storage
+    in a local file, in memory, and so forth), but Kerberos utilities such as **kswitch**
+    may be available for this purpose.
+  id: totrans-354
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LDAP身份验证插件无法控制缓存机制（存储在本地文件中、内存中等），但Kerberos实用程序如**kswitch**可能可用于此目的。
+- en: Client Configuration Parameters for LDAP Authentication
+  id: totrans-355
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: LDAP身份验证的客户端配置参数
+- en: 'The `authentication_ldap_sasl_client` client-side SASL LDAP plugin reads the
+    local `/etc/krb5.conf` file. If this file is missing or inaccessible, an error
+    occurs. Assuming that the file is accessible, it can include an optional `[appdefaults]`
+    section to provide information used by the plugin. Place the information within
+    the `mysql` part of the section. For example:'
+  id: totrans-356
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`authentication_ldap_sasl_client`客户端端SASL LDAP插件会读取本地的`/etc/krb5.conf`文件。如果该文件丢失或无法访问，将会出现错误。假设该文件可访问，它可以包含一个可选的`[appdefaults]`部分，提供插件使用的信息。将信息放在部分的`mysql`部分内。例如：'
+- en: '[PRE47]'
+  id: totrans-357
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE47]'
+- en: 'The client-side plugin recognizes these parameters in the `mysql` section:'
+  id: totrans-358
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端插件在`mysql`部分识别这些参数：
+- en: The `ldap_server_host` value specifies the LDAP server host and can be useful
+    when that host differs from the KDC server host specified in the `[realms]` section.
+    By default, the plugin uses the KDC server host as the LDAP server host.
+  id: totrans-359
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ldap_server_host`值指定LDAP服务器主机，当该主机与`[realms]`部分指定的KDC服务器主机不同时，这可能很有用。默认情况下，插件使用KDC服务器主机作为LDAP服务器主机。'
+- en: The `ldap_destroy_tgt` value indicates whether the client-side plugin destroys
+    the TGT after obtaining and using it. By default, `ldap_destroy_tgt` is `false`,
+    but can be set to `true` to avoid TGT reuse. (This setting applies only to TGTs
+    created by the client-side plugin, not TGTs created by other plugins or externally
+    to MySQL.)
+  id: totrans-360
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ldap_destroy_tgt`值指示客户端插件在获取和使用TGT后是否销毁TGT。默认情况下，`ldap_destroy_tgt`为`false`，但可以设置为`true`以避免TGT重复使用。（此设置仅适用于由客户端插件创建的TGT，不适用于由MySQL的其他插件或外部创建的TGT。）'
+- en: LDAP Search Referral
+  id: totrans-361
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: LDAP搜索引荐
+- en: 'An LDAP server can be configured to delegate LDAP searches to another LDAP
+    server, a functionality known as LDAP referral. Suppose that the server `a.example.com`
+    holds a `"dc=example,dc=com"` root DN and wishes to delegate searches to another
+    server `b.example.com`. To enable this, `a.example.com` would be configured with
+    a named referral object having these attributes:'
+  id: totrans-362
+  prefs: []
+  type: TYPE_NORMAL
+  zh: LDAP服务器可以配置为将LDAP搜索委派给另一个LDAP服务器，这种功能称为LDAP引荐。假设服务器`a.example.com`拥有一个`"dc=example,dc=com"`根DN，并希望将搜索委派给另一个服务器`b.example.com`。为了启用这个功能，`a.example.com`将被配置为具有以下属性的命名引荐对象：
+- en: '[PRE48]'
+  id: totrans-363
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE48]'
+- en: An issue with enabling LDAP referral is that searches can fail with LDAP operation
+    errors when the search base DN is the root DN, and referral objects are not set.
+    A MySQL DBA might wish to avoid such referral errors for the LDAP authentication
+    plugins, even though LDAP referral might be set globally in the `ldap.conf` configuration
+    file. To configure on a plugin-specific basis whether the LDAP server should use
+    LDAP referral when communicating with each plugin, set the [`authentication_ldap_simple_referral`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_referral)
+    and [`authentication_ldap_sasl_referral`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_referral)
+    system variables. Setting either variable to `ON` or `OFF` causes the corresponding
+    LDAP authentication plugin to tell the LDAP server whether to use referral during
+    MySQL authentication. Each variable has a plugin-specific effect and does not
+    affect other applications that communicate with the LDAP server. Both variables
+    are `OFF` by default.
+  id: totrans-364
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 启用LDAP引荐的一个问题是，当搜索基本DN为根DN且未设置引荐对象时，搜索可能会因LDAP操作错误而失败。即使在`ldap.conf`配置文件中全局设置了LDAP引荐，MySQL
+    DBA可能希望避免LDAP认证插件出现此类引荐错误。要根据插件特定的基础配置LDAP服务器在与每个插件通信时是否应使用LDAP引荐，需设置[`authentication_ldap_simple_referral`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_simple_referral)和[`authentication_ldap_sasl_referral`](pluggable-authentication-system-variables.html#sysvar_authentication_ldap_sasl_referral)系统变量。将任一变量设置为`ON`或`OFF`会导致相应的LDAP认证插件告知LDAP服务器在MySQL认证期间是否使用引荐。每个变量具有插件特定的效果，不会影响与LDAP服务器通信的其他应用程序。这两个变量默认为`OFF`。

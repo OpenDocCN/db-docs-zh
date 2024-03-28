@@ -1,0 +1,908 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-auto-increment-handling.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-auto-increment-handling.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-auto-increment-handling.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-auto-increment-handling.html)
+- en: 17.6.1.6 AUTO_INCREMENT Handling in InnoDB
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.6.1.6 InnoDB中的AUTO_INCREMENT处理
+- en: '`InnoDB` provides a configurable locking mechanism that can significantly improve
+    scalability and performance of SQL statements that add rows to tables with `AUTO_INCREMENT`
+    columns. To use the `AUTO_INCREMENT` mechanism with an `InnoDB` table, an `AUTO_INCREMENT`
+    column must be defined as the first or only column of some index such that it
+    is possible to perform the equivalent of an indexed `SELECT MAX(*`ai_col`*)` lookup
+    on the table to obtain the maximum column value. The index is not required to
+    be a `PRIMARY KEY` or `UNIQUE`, but to avoid duplicate values in the `AUTO_INCREMENT`
+    column, those index types are recommended.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`提供了可配置的锁定机制，可以显著提高向带有`AUTO_INCREMENT`列的表添加行的SQL语句的可伸缩性和性能。要在`InnoDB`表中使用`AUTO_INCREMENT`机制，必须将`AUTO_INCREMENT`列定义为某个索引的第一列或唯一列，以便可以对表执行相当于索引的`SELECT
+    MAX(*ai_col*)`查找以获取最大列值。索引不需要是`PRIMARY KEY`或`UNIQUE`，但为了避免`AUTO_INCREMENT`列中的重复值，建议使用这些索引类型。'
+- en: This section describes the `AUTO_INCREMENT` lock modes, usage implications of
+    different `AUTO_INCREMENT` lock mode settings, and how `InnoDB` initializes the
+    `AUTO_INCREMENT` counter.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了`AUTO_INCREMENT`锁定模式，不同`AUTO_INCREMENT`锁定模式设置的使用影响以及`InnoDB`如何初始化`AUTO_INCREMENT`计数器。
+- en: '[InnoDB AUTO_INCREMENT Lock Modes](innodb-auto-increment-handling.html#innodb-auto-increment-lock-modes
+    "InnoDB AUTO_INCREMENT Lock Modes")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB AUTO_INCREMENT锁定模式](innodb-auto-increment-handling.html#innodb-auto-increment-lock-modes
+    "InnoDB AUTO_INCREMENT锁定模式")'
+- en: '[InnoDB AUTO_INCREMENT Lock Mode Usage Implications](innodb-auto-increment-handling.html#innodb-auto-increment-lock-mode-usage-implications
+    "InnoDB AUTO_INCREMENT Lock Mode Usage Implications")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB AUTO_INCREMENT锁定模式使用影响](innodb-auto-increment-handling.html#innodb-auto-increment-lock-mode-usage-implications
+    "InnoDB AUTO_INCREMENT锁定模式使用影响")'
+- en: '[InnoDB AUTO_INCREMENT Counter Initialization](innodb-auto-increment-handling.html#innodb-auto-increment-initialization
+    "InnoDB AUTO_INCREMENT Counter Initialization")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB AUTO_INCREMENT计数器初始化](innodb-auto-increment-handling.html#innodb-auto-increment-initialization
+    "InnoDB AUTO_INCREMENT计数器初始化")'
+- en: '[Notes](innodb-auto-increment-handling.html#innodb-auto-increment-notes "Notes")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[注释](innodb-auto-increment-handling.html#innodb-auto-increment-notes "注释")'
+- en: InnoDB AUTO_INCREMENT Lock Modes
+  id: totrans-8
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB AUTO_INCREMENT锁定模式
+- en: This section describes the `AUTO_INCREMENT` lock modes used to generate auto-increment
+    values, and how each lock mode affects replication. The auto-increment lock mode
+    is configured at startup using the [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    variable.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了用于生成自增值的`AUTO_INCREMENT`锁定模式，以及每种锁定模式如何影响复制。`auto-increment`锁定模式是在启动时使用[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)变量进行配置的。
+- en: 'The following terms are used in describing [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    settings:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在描述[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置时使用以下术语：
+- en: “[`INSERT`](insert.html "15.2.7 INSERT Statement")-like” statements
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “[`INSERT`](insert.html "15.2.7 INSERT Statement")-like”语句
+- en: All statements that generate new rows in a table, including [`INSERT`](insert.html
+    "15.2.7 INSERT Statement"), [`INSERT ... SELECT`](insert-select.html "15.2.7.1 INSERT
+    ... SELECT Statement"), [`REPLACE`](replace.html "15.2.12 REPLACE Statement"),
+    [`REPLACE ... SELECT`](replace.html "15.2.12 REPLACE Statement"), and [`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement"). Includes “simple-inserts”, “bulk-inserts”, and
+    “mixed-mode” inserts.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 所有在表中生成新行的语句，包括[`INSERT`](insert.html "15.2.7 INSERT Statement")，[`INSERT ...
+    SELECT`](insert-select.html "15.2.7.1 INSERT ... SELECT Statement")，[`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement")，[`REPLACE ... SELECT`](replace.html "15.2.12 REPLACE
+    Statement")和[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")。包括“simple-inserts”，“bulk-inserts”和“mixed-mode”插入。
+- en: “Simple inserts”
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “简单插入”
+- en: Statements for which the number of rows to be inserted can be determined in
+    advance (when the statement is initially processed). This includes single-row
+    and multiple-row [`INSERT`](insert.html "15.2.7 INSERT Statement") and [`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement") statements that do not have a nested subquery, but
+    not [`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html "15.2.7.2 INSERT
+    ... ON DUPLICATE KEY UPDATE Statement").
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以在初始处理语句时提前确定要插入的行数的语句。这包括没有嵌套子查询的单行和多行[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")和[`REPLACE`](replace.html "15.2.12 REPLACE Statement")语句，但不包括[`INSERT
+    ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html "15.2.7.2 INSERT ... ON
+    DUPLICATE KEY UPDATE Statement")。
+- en: “Bulk inserts”
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “批量插入”
+- en: Statements for which the number of rows to be inserted (and the number of required
+    auto-increment values) is not known in advance. This includes [`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement"), [`REPLACE ... SELECT`](replace.html "15.2.12 REPLACE
+    Statement"), and [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") statements,
+    but not plain `INSERT`. `InnoDB` assigns new values for the `AUTO_INCREMENT` column
+    one at a time as each row is processed.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 无法提前确定要插入的行数（和所需的自动递增值数量）的语句。这包括[`INSERT ... SELECT`](insert-select.html "15.2.7.1 INSERT
+    ... SELECT Statement")、[`REPLACE ... SELECT`](replace.html "15.2.12 REPLACE Statement")和[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement")语句，但不包括普通的`INSERT`。`InnoDB`在处理每一行时逐个为`AUTO_INCREMENT`列分配新值。
+- en: “Mixed-mode inserts”
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “混合模式插入”
+- en: 'These are “simple insert” statements that specify the auto-increment value
+    for some (but not all) of the new rows. An example follows, where `c1` is an `AUTO_INCREMENT`
+    column of table `t1`:'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些是指定一些（但不是所有）新行的自动递增值的“简单插入”语句。以下是一个示例，其中`c1`是表`t1`的一个`AUTO_INCREMENT`列：
+- en: '[PRE0]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Another type of “mixed-mode insert” is [`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html
+    "15.2.7.2 INSERT ... ON DUPLICATE KEY UPDATE Statement"), which in the worst case
+    is in effect an [`INSERT`](insert.html "15.2.7 INSERT Statement") followed by
+    a [`UPDATE`](update.html "15.2.17 UPDATE Statement"), where the allocated value
+    for the `AUTO_INCREMENT` column may or may not be used during the update phase.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另一种“混合模式插入”是[`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html
+    "15.2.7.2 INSERT ... ON DUPLICATE KEY UPDATE Statement")，在最坏的情况下实际上是一个[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")后跟一个[`UPDATE`](update.html "15.2.17 UPDATE Statement")，其中在更新阶段可能会或可能不会使用`AUTO_INCREMENT`列的分配值。
+- en: There are three possible settings for the [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    variable. The settings are 0, 1, or 2, for “traditional”, “consecutive”, or “interleaved”
+    lock mode, respectively. As of MySQL 8.0, interleaved lock mode ([`innodb_autoinc_lock_mode=2`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode))
+    is the default setting. Prior to MySQL 8.0, consecutive lock mode is the default
+    ([`innodb_autoinc_lock_mode=1`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)).
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)变量有三种可能的设置。这些设置分别为0、1或2，分别为“传统”、“连续”或“交错”锁定模式。从MySQL
+    8.0开始，交错锁定模式（[`innodb_autoinc_lock_mode=2`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)）是默认设置。在MySQL
+    8.0之前，连续锁定模式是默认设置（[`innodb_autoinc_lock_mode=1`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)）。'
+- en: The default setting of interleaved lock mode in MySQL 8.0 reflects the change
+    from statement-based replication to row based replication as the default replication
+    type. Statement-based replication requires the consecutive auto-increment lock
+    mode to ensure that auto-increment values are assigned in a predictable and repeatable
+    order for a given sequence of SQL statements, whereas row-based replication is
+    not sensitive to the execution order of SQL statements.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0中交错锁定模式的默认设置反映了从基于语句的复制到基于行的复制作为默认复制类型的更改。基于语句的复制需要连续的自动递增锁定模式，以确保为给定的一系列SQL语句分配自动递增值的顺序是可预测和可重复的，而基于行的复制不会受到SQL语句执行顺序的影响。
+- en: '`innodb_autoinc_lock_mode = 0` (“traditional” lock mode)'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`innodb_autoinc_lock_mode = 0`（“传统”锁定模式）'
+- en: The traditional lock mode provides the same behavior that existed before the
+    [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    variable was introduced. The traditional lock mode option is provided for backward
+    compatibility, performance testing, and working around issues with “mixed-mode
+    inserts”, due to possible differences in semantics.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 传统的锁模式提供了在引入 [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    变量之前存在的相同行为。传统的锁模式选项是为了向后兼容性、性能测试以及解决“混合模式插入”问题而提供的，因为可能存在语义上的差异。
+- en: In this lock mode, all “INSERT-like” statements obtain a special table-level
+    `AUTO-INC` lock for inserts into tables with `AUTO_INCREMENT` columns. This lock
+    is normally held to the end of the statement (not to the end of the transaction)
+    to ensure that auto-increment values are assigned in a predictable and repeatable
+    order for a given sequence of [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    statements, and to ensure that auto-increment values assigned by any given statement
+    are consecutive.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在此锁模式下，所有“类似于 INSERT”的语句为具有 `AUTO_INCREMENT` 列的表获取特殊的表级 `AUTO-INC` 锁。通常，此锁持续到语句结束（而不是事务结束），以确保为给定的一系列
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") 语句分配自增值的顺序是可预测且可重复的，并确保由任何给定语句分配的自增值是连续的。
+- en: In the case of statement-based replication, this means that when an SQL statement
+    is replicated on a replica server, the same values are used for the auto-increment
+    column as on the source server. The result of execution of multiple [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements is deterministic, and the replica reproduces
+    the same data as on the source. If auto-increment values generated by multiple
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") statements were interleaved,
+    the result of two concurrent [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    statements would be nondeterministic, and could not reliably be propagated to
+    a replica server using statement-based replication.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在基于语句的复制中，这意味着当 SQL 语句在副本服务器上复制时，自增列使用与源服务器相同的值。多个 [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") 语句的执行结果是确定性的，并且副本会复制与源相同的数据。如果多个 [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") 语句生成的自增值交错，那么两个并发的 [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    语句的结果将是不确定的，并且无法可靠地使用基于语句的复制传播到副本服务器。
+- en: 'To make this clear, consider an example that uses this table:'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了更清楚地说明，考虑一个使用此表的示例：
+- en: '[PRE1]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Suppose that there are two transactions running, each inserting rows into a
+    table with an `AUTO_INCREMENT` column. One transaction is using an [`INSERT ...
+    SELECT`](insert-select.html "15.2.7.1 INSERT ... SELECT Statement") statement
+    that inserts 1000 rows, and another is using a simple [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statement that inserts one row:'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设有两个正在运行的事务，每个事务都向具有 `AUTO_INCREMENT` 列的表中插入行。一个事务使用 [`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement") 语句插入 1000 行，另一个使用简单的 [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") 语句插入一行：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '`InnoDB` cannot tell in advance how many rows are retrieved from the [`SELECT`](select.html
+    "15.2.13 SELECT Statement") in the [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    statement in Tx1, and it assigns the auto-increment values one at a time as the
+    statement proceeds. With a table-level lock, held to the end of the statement,
+    only one [`INSERT`](insert.html "15.2.7 INSERT Statement") statement referring
+    to table `t1` can execute at a time, and the generation of auto-increment numbers
+    by different statements is not interleaved. The auto-increment values generated
+    by the Tx1 [`INSERT ... SELECT`](insert-select.html "15.2.7.1 INSERT ... SELECT
+    Statement") statement are consecutive, and the (single) auto-increment value used
+    by the [`INSERT`](insert.html "15.2.7 INSERT Statement") statement in Tx2 is either
+    smaller or larger than all those used for Tx1, depending on which statement executes
+    first.'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 无法提前知道在 Tx1 中的 [`INSERT`](insert.html "15.2.7 INSERT Statement") 语句中从
+    [`SELECT`](select.html "15.2.13 SELECT Statement") 检索到多少行，并且随着语句的执行，它逐个分配自增值。通过表级锁，持续到语句结束，只有一个涉及表
+    `t1` 的 [`INSERT`](insert.html "15.2.7 INSERT Statement") 语句可以同时执行，并且不同语句生成的自增值不会交错。Tx1
+    的 [`INSERT ... SELECT`](insert-select.html "15.2.7.1 INSERT ... SELECT Statement")
+    语句生成的自增值是连续的，而 Tx2 中 [`INSERT`](insert.html "15.2.7 INSERT Statement") 语句使用的（单个）自增值要么比
+    Tx1 中使用的所有自增值小，要么大，具体取决于哪个语句先执行。'
+- en: As long as the SQL statements execute in the same order when replayed from the
+    binary log (when using statement-based replication, or in recovery scenarios),
+    the results are the same as they were when Tx1 and Tx2 first ran. Thus, table-level
+    locks held until the end of a statement make [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statements using auto-increment safe for use with statement-based
+    replication. However, those table-level locks limit concurrency and scalability
+    when multiple transactions are executing insert statements at the same time.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 只要在从二进制日志重放SQL语句时（在使用基于语句的复制或在恢复场景中）SQL语句以相同的顺序执行，结果与Tx1和Tx2首次运行时的结果相同。因此，持有直到语句结束的表级锁使得使用自增的[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句在基于语句的复制中是安全的。然而，这些表级锁会限制并发性和可伸缩性，当多个事务同时执行插入语句时。
+- en: In the preceding example, if there were no table-level lock, the value of the
+    auto-increment column used for the [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    in Tx2 depends on precisely when the statement executes. If the [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") of Tx2 executes while the [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") of Tx1 is running (rather than before it starts or after it completes),
+    the specific auto-increment values assigned by the two [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements are nondeterministic, and may vary from
+    run to run.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在上面的例子中，如果没有表级锁，用于Tx2中的[`INSERT`](insert.html "15.2.7 INSERT Statement")的自增列的值取决于语句执行的时间。如果Tx2的[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")在Tx1的[`INSERT`](insert.html "15.2.7 INSERT Statement")运行时执行（而不是在其开始之前或完成之后），那么两个[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句分配的具体自增值是不确定的，并且可能会因运行而异。
+- en: Under the [consecutive](innodb-auto-increment-handling.html#innodb-auto-increment-lock-mode-consecutive)
+    lock mode, `InnoDB` can avoid using table-level `AUTO-INC` locks for “simple insert”
+    statements where the number of rows is known in advance, and still preserve deterministic
+    execution and safety for statement-based replication.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在[连续](innodb-auto-increment-handling.html#innodb-auto-increment-lock-mode-consecutive)锁模式下，`InnoDB`可以避免对“简单插入”语句使用表级`AUTO-INC`锁，其中行数是预先知道的，并且仍然保持基于语句的复制的确定性执行和安全性。
+- en: If you are not using the binary log to replay SQL statements as part of recovery
+    or replication, the [interleaved](innodb-auto-increment-handling.html#innodb-auto-increment-lock-mode-interleaved)
+    lock mode can be used to eliminate all use of table-level `AUTO-INC` locks for
+    even greater concurrency and performance, at the cost of permitting gaps in auto-increment
+    numbers assigned by a statement and potentially having the numbers assigned by
+    concurrently executing statements interleaved.
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果不使用二进制日志来重放SQL语句作为恢复或复制的一部分，可以使用[交错](innodb-auto-increment-handling.html#innodb-auto-increment-lock-mode-interleaved)锁模式来消除所有表级`AUTO-INC`锁的使用，以获得更大的并发性和性能，但代价是允许语句分配的自增号中存在间隙，并且可能会有并发执行语句分配的号码交错。
+- en: '`innodb_autoinc_lock_mode = 1` (“consecutive” lock mode)'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`innodb_autoinc_lock_mode = 1`（“连续”锁模式）'
+- en: In this mode, “bulk inserts” use the special `AUTO-INC` table-level lock and
+    hold it until the end of the statement. This applies to all [`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement"), [`REPLACE ... SELECT`](replace.html "15.2.12 REPLACE
+    Statement"), and [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") statements.
+    Only one statement holding the `AUTO-INC` lock can execute at a time. If the source
+    table of the bulk insert operation is different from the target table, the `AUTO-INC`
+    lock on the target table is taken after a shared lock is taken on the first row
+    selected from the source table. If the source and target of the bulk insert operation
+    are the same table, the `AUTO-INC` lock is taken after shared locks are taken
+    on all selected rows.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种模式下，“批量插入”使用特殊的`AUTO-INC`表级锁，并在语句结束前保持该锁。这适用于所有[`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement")、[`REPLACE ... SELECT`](replace.html "15.2.12 REPLACE
+    Statement")和[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")语句。只能有一个持有`AUTO-INC`锁的语句可以执行。如果批量插入操作的源表与目标表不同，那么在从源表选择的第一行获取共享锁后，将在目标表上获取`AUTO-INC`锁。如果批量插入操作的源表和目标表是同一张表，则在选择的所有行上获取共享锁后，将获取`AUTO-INC`锁。
+- en: “Simple inserts” (for which the number of rows to be inserted is known in advance)
+    avoid table-level `AUTO-INC` locks by obtaining the required number of auto-increment
+    values under the control of a mutex (a light-weight lock) that is only held for
+    the duration of the allocation process, *not* until the statement completes. No
+    table-level `AUTO-INC` lock is used unless an `AUTO-INC` lock is held by another
+    transaction. If another transaction holds an `AUTO-INC` lock, a “simple insert”
+    waits for the `AUTO-INC` lock, as if it were a “bulk insert”.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: “简单插入”（已知要插入的行数）通过在互斥锁（一种轻量级锁）的控制下获取所需数量的自增值来避免表级`AUTO-INC`锁，该锁仅在分配过程的持续时间内保持，*而不是*直到语句完成。除非另一个事务持有`AUTO-INC`锁，否则不会使用表级`AUTO-INC`锁。如果另一个事务持有`AUTO-INC`锁，则“简单插入”将等待`AUTO-INC`锁，就像它是“批量插入”一样。
+- en: This lock mode ensures that, in the presence of [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statements where the number of rows is not known in advance (and where
+    auto-increment numbers are assigned as the statement progresses), all auto-increment
+    values assigned by any “[`INSERT`](insert.html "15.2.7 INSERT Statement")-like”
+    statement are consecutive, and operations are safe for statement-based replication.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这种锁定模式确保，在存在不事先知道要插入的行数的[`INSERT`](insert.html "15.2.7 INSERT Statement")语句中（并且自增数字是随着语句的进行而分配的），任何“[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")-like”语句分配的所有自增值都是连续的，并且操作对于基于语句的复制是安全的。
+- en: Simply put, this lock mode significantly improves scalability while being safe
+    for use with statement-based replication. Further, as with “traditional” lock
+    mode, auto-increment numbers assigned by any given statement are *consecutive*.
+    There is *no change* in semantics compared to “traditional” mode for any statement
+    that uses auto-increment, with one important exception.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 简而言之，这种锁定模式在显著提高可伸缩性的同时，对于基于语句的复制是安全的。此外，与“传统”锁定模式一样，任何给定语句分配的自增数字是*连续的*。与使用自增的“传统”模式相比，对于使用自增的任何语句，语义*没有变化*，只有一个重要的例外。
+- en: The exception is for “mixed-mode inserts”, where the user provides explicit
+    values for an `AUTO_INCREMENT` column for some, but not all, rows in a multiple-row
+    “simple insert”. For such inserts, `InnoDB` allocates more auto-increment values
+    than the number of rows to be inserted. However, all values automatically assigned
+    are consecutively generated (and thus higher than) the auto-increment value generated
+    by the most recently executed previous statement. “Excess” numbers are lost.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例外情况是“混合模式插入”，其中用户为多行“简单插入”中的某些行的`AUTO_INCREMENT`列提供显式值，但不是所有行。对于这样的插入，`InnoDB`分配的自增值比要插入的行数多。然而，所有自动分配的值都是连续生成的（因此高于）最近执行的前一个语句生成的自增值。“多余”的数字会丢失。
+- en: '`innodb_autoinc_lock_mode = 2` (“interleaved” lock mode)'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`innodb_autoinc_lock_mode = 2`（“交错”锁定模式）'
+- en: In this lock mode, no “[`INSERT`](insert.html "15.2.7 INSERT Statement")-like”
+    statements use the table-level `AUTO-INC` lock, and multiple statements can execute
+    at the same time. This is the fastest and most scalable lock mode, but it is *not
+    safe* when using statement-based replication or recovery scenarios when SQL statements
+    are replayed from the binary log.
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种锁定模式下，没有“[`INSERT`](insert.html "15.2.7 INSERT Statement")-like”语句使用表级`AUTO-INC`锁，并且多个语句可以同时执行。这是最快和最可伸缩的锁定模式，但在使用基于语句的复制或从二进制日志重放
+    SQL 语句的恢复场景时*不安全*。
+- en: In this lock mode, auto-increment values are guaranteed to be unique and monotonically
+    increasing across all concurrently executing “[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")-like” statements. However, because multiple statements can be generating
+    numbers at the same time (that is, allocation of numbers is *interleaved* across
+    statements), the values generated for the rows inserted by any given statement
+    may not be consecutive.
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种锁定模式下，自增值保证在所有同时执行的“[`INSERT`](insert.html "15.2.7 INSERT Statement")-like”语句中是唯一且单调递增的。然而，由于多个语句可以同时生成数字（即，数字的分配在语句之间*交错*进行），因此由任何给定语句插入的行生成的值可能不是连续的。
+- en: If the only statements executing are “simple inserts” where the number of rows
+    to be inserted is known ahead of time, there are no gaps in the numbers generated
+    for a single statement, except for “mixed-mode inserts”. However, when “bulk inserts”
+    are executed, there may be gaps in the auto-increment values assigned by any given
+    statement.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果唯一执行的语句是“简单插入”，其中要插入的行数是事先已知的，那么对于单个语句生成的数字不会有间隔，除了“混合模式插入”。然而，当执行“批量插入”时，任何给定语句分配的自增值可能存在间隔。
+- en: InnoDB AUTO_INCREMENT Lock Mode Usage Implications
+  id: totrans-46
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB AUTO_INCREMENT 锁定模式的使用影响
+- en: Using auto-increment with replication
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用复制的自增
+- en: If you are using statement-based replication, set [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    to 0 or 1 and use the same value on the source and its replicas. Auto-increment
+    values are not ensured to be the same on the replicas as on the source if you
+    use [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    = 2 (“interleaved”) or configurations where the source and replicas do not use
+    the same lock mode.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您正在使用基于语句的复制，请将[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置为0或1，并在源和其副本上使用相同的值。如果您使用[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    = 2（“交错”）或源和副本不使用相同锁定模式的配置，则不能确保副本上的自增值与源上的相同。
+- en: If you are using row-based or mixed-format replication, all of the auto-increment
+    lock modes are safe, since row-based replication is not sensitive to the order
+    of execution of the SQL statements (and the mixed format uses row-based replication
+    for any statements that are unsafe for statement-based replication).
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您正在使用基于行或混合格式的复制，所有的自增锁定模式都是安全的，因为基于行的复制不受SQL语句执行顺序的影响（混合格式使用基于行的复制来处理任何对基于语句的复制不安全的语句）。
+- en: “Lost” auto-increment values and sequence gaps
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “丢失”的自增值和序列间隔
+- en: In all lock modes (0, 1, and 2), if a transaction that generated auto-increment
+    values rolls back, those auto-increment values are “lost”. Once a value is generated
+    for an auto-increment column, it cannot be rolled back, whether or not the “[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")-like” statement is completed, and whether or not the
+    containing transaction is rolled back. Such lost values are not reused. Thus,
+    there may be gaps in the values stored in an `AUTO_INCREMENT` column of a table.
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在所有的锁模式（0、1和2）中，如果生成自增值的事务回滚，那些自增值就会“丢失”。一旦为自增列生成了一个值，无论“[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")-like”语句是否完成，以及包含事务是否回滚，都无法回滚该值。这些丢失的值不会被重用。因此，表中的`AUTO_INCREMENT`列中的值可能存在间隔。
+- en: Specifying NULL or 0 for the `AUTO_INCREMENT` column
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为`AUTO_INCREMENT`列指定NULL或0
+- en: In all lock modes (0, 1, and 2), if a user specifies NULL or 0 for the `AUTO_INCREMENT`
+    column in an [`INSERT`](insert.html "15.2.7 INSERT Statement"), `InnoDB` treats
+    the row as if the value was not specified and generates a new value for it.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在所有的锁模式（0、1和2）中，如果用户在[`INSERT`](insert.html "15.2.7 INSERT Statement")中的`AUTO_INCREMENT`列中指定NULL或0，`InnoDB`会将该行视为未指定值并为其生成一个新值。
+- en: Assigning a negative value to the `AUTO_INCREMENT` column
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为`AUTO_INCREMENT`列分配负值
+- en: In all lock modes (0, 1, and 2), the behavior of the auto-increment mechanism
+    is undefined if you assign a negative value to the `AUTO_INCREMENT` column.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在所有的锁模式（0、1和2）中，如果将负值分配给`AUTO_INCREMENT`列，则自增机制的行为是未定义的。
+- en: If the `AUTO_INCREMENT` value becomes larger than the maximum integer for the
+    specified integer type
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果`AUTO_INCREMENT`值变大于指定整数类型的最大整数
+- en: In all lock modes (0, 1, and 2), the behavior of the auto-increment mechanism
+    is undefined if the value becomes larger than the maximum integer that can be
+    stored in the specified integer type.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在所有的锁模式（0、1和2）中，如果值变大于指定整数类型中可以存储的最大整数，则自增机制的行为是未定义的。
+- en: Gaps in auto-increment values for “bulk inserts”
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “批量插入”中的自增值间隔
+- en: With [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    set to 0 (“traditional”) or 1 (“consecutive”), the auto-increment values generated
+    by any given statement are consecutive, without gaps, because the table-level
+    `AUTO-INC` lock is held until the end of the statement, and only one such statement
+    can execute at a time.
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置为0（“传统”）或1（“连续”）时，由任何给定语句生成的自增值是连续的，没有间隔，因为表级别的`AUTO-INC`锁会一直保持到语句结束，而且一次只能执行一个这样的语句。
+- en: With [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    set to 2 (“interleaved”), there may be gaps in the auto-increment values generated
+    by “bulk inserts,” but only if there are concurrently executing “[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")-like” statements.
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置为2（“交错”）时，可能会在“批量插入”生成的自增值中出现间隙，但只有在同时执行“类似[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")”语句时才会出现。
+- en: For lock modes 1 or 2, gaps may occur between successive statements because
+    for bulk inserts the exact number of auto-increment values required by each statement
+    may not be known and overestimation is possible.
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于锁定模式1或2，连续语句之间可能会出现间隙，因为对于批量插入，每个语句所需的自增值数量可能未知，可能会出现过估计。
+- en: Auto-increment values assigned by “mixed-mode inserts”
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “混合模式插入”分配的自增值
+- en: Consider a “mixed-mode insert,” where a “simple insert” specifies the auto-increment
+    value for some (but not all) resulting rows. Such a statement behaves differently
+    in lock modes 0, 1, and 2\. For example, assume `c1` is an `AUTO_INCREMENT` column
+    of table `t1`, and that the most recent automatically generated sequence number
+    is 100.
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 考虑一个“混合模式插入”，其中一个“简单插入”为一些（但不是全部）结果行指定了自增值。这样的语句在锁定模式0、1和2中的行为不同。例如，假设`c1`是表`t1`的`AUTO_INCREMENT`列，并且最近自动生成的序列号是100。
+- en: '[PRE3]'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Now, consider the following “mixed-mode insert” statement:'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 现在，考虑以下“混合模式插入”语句：
+- en: '[PRE4]'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'With [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    set to 0 (“traditional”), the four new rows are:'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置为0（“传统”）时，四行新数据为：
+- en: '[PRE5]'
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: The next available auto-increment value is 103 because the auto-increment values
+    are allocated one at a time, not all at once at the beginning of statement execution.
+    This result is true whether or not there are concurrently executing “[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")-like” statements (of any type).
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 下一个可用的自增值是103，因为自增值是一次分配一个，而不是在语句执行开始时一次性分配所有。无论是否有同时执行的“类似[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")”语句（任何类型），这个结果都是正确的。
+- en: 'With [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    set to 1 (“consecutive”), the four new rows are also:'
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置为1（“连续”）时，四行新数据也是：
+- en: '[PRE6]'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: However, in this case, the next available auto-increment value is 105, not 103
+    because four auto-increment values are allocated at the time the statement is
+    processed, but only two are used. This result is true whether or not there are
+    concurrently executing “[`INSERT`](insert.html "15.2.7 INSERT Statement")-like”
+    statements (of any type).
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 然而，在这种情况下，下一个可用的自增值是105，而不是103，因为在处理语句时分配了四个自增值，但只使用了两个。无论是否有同时执行的“类似[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")”语句（任何类型），这个结果都是正确的。
+- en: 'With [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    set to 2 (“interleaved”), the four new rows are:'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置为2（“交错”）时，四行新数据为：
+- en: '[PRE7]'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: The values of *`x`* and *`y`* are unique and larger than any previously generated
+    rows. However, the specific values of *`x`* and *`y`* depend on the number of
+    auto-increment values generated by concurrently executing statements.
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*`x`*和*`y`*的值是唯一的且大于先前生成的任何行。然而，*`x`*和*`y`*的具体值取决于同时执行语句生成的自增值的数量。'
+- en: 'Finally, consider the following statement, issued when the most-recently generated
+    sequence number is 100:'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 最后，考虑以下语句，在最近生成的序列号为100时发出：
+- en: '[PRE8]'
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: With any [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    setting, this statement generates a duplicate-key error 23000 (`Can't write; duplicate
+    key in table`) because 101 is allocated for the row `(NULL, 'b')` and insertion
+    of the row `(101, 'c')` fails.
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 无论[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)设置为何值，这个语句都会生成一个重复键错误23000（`无法写入；表中有重复键`），因为101被分配给行`(NULL,
+    'b')`，插入行`(101, 'c')`失败。
+- en: Modifying `AUTO_INCREMENT` column values in the middle of a sequence of [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements
+  id: totrans-79
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 修改`AUTO_INCREMENT`列值在一系列[`INSERT`](insert.html "15.2.7 INSERT Statement")语句中间
+- en: In MySQL 5.7 and earlier, modifying an `AUTO_INCREMENT` column value in the
+    middle of a sequence of [`INSERT`](insert.html "15.2.7 INSERT Statement") statements
+    could lead to “Duplicate entry” errors. For example, if you performed an [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") operation that changed an `AUTO_INCREMENT` column
+    value to a value larger than the current maximum auto-increment value, subsequent
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") operations that did not specify
+    an unused auto-increment value could encounter “Duplicate entry” errors. In MySQL
+    8.0 and later, if you modify an `AUTO_INCREMENT` column value to a value larger
+    than the current maximum auto-increment value, the new value is persisted, and
+    subsequent [`INSERT`](insert.html "15.2.7 INSERT Statement") operations allocate
+    auto-increment values starting from the new, larger value. This behavior is demonstrated
+    in the following example.
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 MySQL 5.7 及更早版本中，在一系列[`INSERT`](insert.html "15.2.7 INSERT Statement")语句中间修改`AUTO_INCREMENT`列值可能会导致“重复条目”错误。例如，如果执行了一个将`AUTO_INCREMENT`列值更改为大于当前最大自增值的值的[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")操作，则后续未指定未使用的自增值的[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")操作可能会遇到“重复条目”错误。在 MySQL 8.0 及更高版本中，如果将`AUTO_INCREMENT`列值修改为大于当前最大自增值的值，则新值会被持久化，并且后续的[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")操作会从新的更大值开始分配自增值。这种行为在以下示例中展示。
+- en: '[PRE9]'
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: InnoDB AUTO_INCREMENT Counter Initialization
+  id: totrans-82
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB AUTO_INCREMENT 计数器初始化
+- en: This section describes how `InnoDB` initializes `AUTO_INCREMENT` counters.
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了`InnoDB`如何初始化`AUTO_INCREMENT`计数器。
+- en: If you specify an `AUTO_INCREMENT` column for an `InnoDB` table, the in-memory
+    table object contains a special counter called the auto-increment counter that
+    is used when assigning new values for the column.
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果为`InnoDB`表指定了`AUTO_INCREMENT`列，内存中的表对象包含一个称为自增计数器的特殊计数器，用于为该列分配新值。
+- en: In MySQL 5.7 and earlier, the auto-increment counter is stored in main memory,
+    not on disk. To initialize an auto-increment counter after a server restart, `InnoDB`
+    would execute the equivalent of the following statement on the first insert into
+    a table containing an `AUTO_INCREMENT` column.
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 5.7 及更早版本中，自增计数器存储在主内存中，而不是在磁盘上。要在服务器重新启动后初始化自增计数器，`InnoDB`会在包含`AUTO_INCREMENT`列的表中第一次插入时执行类似以下语句的操作。
+- en: '[PRE10]'
+  id: totrans-86
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: In MySQL 8.0, this behavior is changed. The current maximum auto-increment counter
+    value is written to the redo log each time it changes and saved to the data dictionary
+    on each checkpoint. These changes make the current maximum auto-increment counter
+    value persistent across server restarts.
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0 中，此行为已更改。每次更改当前最大自增计数器值时，都会将其写入重做日志并保存到数据字典中的检查点。这些更改使得当前最大自增计数器值在服务器重新启动时保持持久性。
+- en: On a server restart following a normal shutdown, `InnoDB` initializes the in-memory
+    auto-increment counter using the current maximum auto-increment value stored in
+    the data dictionary.
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在正常关闭后的服务器重新启动时，`InnoDB` 使用数据字典中存储的当前最大自增值初始化内存中的自增计数器。
+- en: On a server restart during crash recovery, `InnoDB` initializes the in-memory
+    auto-increment counter using the current maximum auto-increment value stored in
+    the data dictionary and scans the redo log for auto-increment counter values written
+    since the last checkpoint. If a redo-logged value is greater than the in-memory
+    counter value, the redo-logged value is applied. However, in the case of an unexpected
+    server exit, reuse of a previously allocated auto-increment value cannot be guaranteed.
+    Each time the current maximum auto-increment value is changed due to an [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") or [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    operation, the new value is written to the redo log, but if the unexpected exit
+    occurs before the redo log is flushed to disk, the previously allocated value
+    could be reused when the auto-increment counter is initialized after the server
+    is restarted.
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器重新启动期间进行崩溃恢复时，`InnoDB` 使用数据字典中存储的当前最大自增值初始化内存中的自增计数器，并扫描重做日志，查找自上次检查点以来写入的自增计数器值。如果重做记录的值大于内存中的计数器值，则应用重做记录的值。然而，在意外服务器退出的情况下，无法保证之前分配的自增值是否会被重用。每次由于[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")或[`UPDATE`](update.html "15.2.17 UPDATE Statement")操作而更改当前最大自增值时，新值会被写入重做日志，但如果在重做日志刷新到磁盘之前发生意外退出，则在服务器重新启动后初始化自增计数器时之前分配的值可能会被重用。
+- en: The only circumstance in which `InnoDB` uses the equivalent of a `SELECT MAX(ai_col)
+    FROM *`table_name`* FOR UPDATE` statement to initialize an auto-increment counter
+    is when [importing a table](innodb-table-import.html "17.6.1.3 Importing InnoDB
+    Tables") without a `.cfg` metadata file. Otherwise, the current maximum auto-increment
+    counter value is read from the `.cfg` metadata file if present. Aside from counter
+    value initialization, the equivalent of a `SELECT MAX(ai_col) FROM *`table_name`*`
+    statement is used to determine the current maximum auto-increment counter value
+    of the table when attempting to set the counter value to one that is smaller than
+    or equal to the persisted counter value using an `ALTER TABLE ... AUTO_INCREMENT
+    = *`N`*` statement. For example, you might try to set the counter value to a lesser
+    value after deleting some records. In this case, the table must be searched to
+    ensure that the new counter value is not less than or equal to the actual current
+    maximum counter value.
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅当[导入表](innodb-table-import.html "17.6.1.3 导入InnoDB表")时没有`.cfg`元数据文件时，`InnoDB`才会使用类似于`SELECT
+    MAX(ai_col) FROM *`table_name`* FOR UPDATE`语句来初始化自增计数器的等效值。否则，如果存在`.cfg`元数据文件，则从中读取当前最大自增计数器值。除了计数器值的初始化外，当尝试使用`ALTER
+    TABLE ... AUTO_INCREMENT = *`N`*`语句将计数器值设置为小于或等于持久化计数器值时，会使用类似于`SELECT MAX(ai_col)
+    FROM *`table_name`*`语句来确定表的当前最大自增计数器值。例如，您可能在删除一些记录后尝试将计数器值设置为较小的值。在这种情况下，必须搜索表以确保新的计数器值不小于或等于实际当前最大计数器值。
+- en: In MySQL 5.7 and earlier, a server restart cancels the effect of the `AUTO_INCREMENT
+    = N` table option, which may be used in a `CREATE TABLE` or `ALTER TABLE` statement
+    to set an initial counter value or alter the existing counter value, respectively.
+    In MySQL 8.0, a server restart does not cancel the effect of the `AUTO_INCREMENT
+    = N` table option. If you initialize the auto-increment counter to a specific
+    value, or if you alter the auto-increment counter value to a larger value, the
+    new value is persisted across server restarts.
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 5.7及更早版本中，服务器重新启动会取消`AUTO_INCREMENT = N`表选项的效果，该选项可用于在`CREATE TABLE`或`ALTER
+    TABLE`语句中设置初始计数器值或修改现有计数器值。在MySQL 8.0中，服务器重新启动不会取消`AUTO_INCREMENT = N`表选项的效果。如果将自增计数器初始化为特定值，或者将自增计数器值更改为较大值，则新值会在服务器重新启动时持久化。
+- en: Note
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '[`ALTER TABLE ... AUTO_INCREMENT = N`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") can only change the auto-increment counter value to a value larger
+    than the current maximum.'
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`ALTER TABLE ... AUTO_INCREMENT = N`](alter-table.html "15.1.9 ALTER TABLE语句")只能将自增计数器值更改为大于当前最大值的值。'
+- en: In MySQL 5.7 and earlier, a server restart immediately following a [`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") operation could result
+    in the reuse of auto-increment values that were previously allocated to the rolled-back
+    transaction, effectively rolling back the current maximum auto-increment value.
+    In MySQL 8.0, the current maximum auto-increment value is persisted, preventing
+    the reuse of previously allocated values.
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 5.7及更早版本中，[`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements")操作后立即重新启动服务器可能导致先前分配给回滚事务的自增值被重用，实际上回滚了当前最大自增值。在MySQL
+    8.0中，当前最大自增值是持久化的，防止了先前分配值的重用。
+- en: If a [`SHOW TABLE STATUS`](show-table-status.html "15.7.7.38 SHOW TABLE STATUS
+    Statement") statement examines a table before the auto-increment counter is initialized,
+    `InnoDB` opens the table and initializes the counter value using the current maximum
+    auto-increment value that is stored in the data dictionary. The value is then
+    stored in memory for use by later inserts or updates. Initialization of the counter
+    value uses a normal exclusive-locking read on the table which lasts to the end
+    of the transaction. `InnoDB` follows the same procedure when initializing the
+    auto-increment counter for a newly created table that has a user-specified auto-increment
+    value greater than 0.
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在初始化自增计数器之前[`SHOW TABLE STATUS`](show-table-status.html "15.7.7.38 SHOW TABLE
+    STATUS语句")语句检查表，则`InnoDB`会打开表并使用存储在数据字典中的当前最大自增值来初始化计数器值。然后将该值存储在内存中供后续插入或更新使用。计数器值的初始化使用对表的正常独占锁定读取，该读取持续到事务结束。当初始化具有大于0的用户指定自增值的新创建表的自增计数器时，`InnoDB`遵循相同的过程。
+- en: After the auto-increment counter is initialized, if you do not explicitly specify
+    an auto-increment value when inserting a row, `InnoDB` implicitly increments the
+    counter and assigns the new value to the column. If you insert a row that explicitly
+    specifies an auto-increment column value, and the value is greater than the current
+    maximum counter value, the counter is set to the specified value.
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 初始化自增计数器后，如果在插入行时没有明确指定自增值，`InnoDB` 会隐式递增计数器并将新值分配给列。如果插入一行时明确指定了自增列值，并且该值大于当前最大计数器值，则计数器将设置为指定值。
+- en: '`InnoDB` uses the in-memory auto-increment counter as long as the server runs.
+    When the server is stopped and restarted, `InnoDB` reinitializes the auto-increment
+    counter, as described earlier.'
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 在服务器运行时使用内存中的自增计数器。当服务器停止并重新启动时，`InnoDB` 会重新初始化自增计数器，如前所述。'
+- en: The [`auto_increment_offset`](replication-options-source.html#sysvar_auto_increment_offset)
+    variable determines the starting point for the `AUTO_INCREMENT` column value.
+    The default setting is 1.
+  id: totrans-98
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`auto_increment_offset`](replication-options-source.html#sysvar_auto_increment_offset)
+    变量确定 `AUTO_INCREMENT` 列值的起始点。默认设置为 1。'
+- en: The [`auto_increment_increment`](replication-options-source.html#sysvar_auto_increment_increment)
+    variable controls the interval between successive column values. The default setting
+    is 1.
+  id: totrans-99
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`auto_increment_increment`](replication-options-source.html#sysvar_auto_increment_increment)
+    变量控制连续列值之间的间隔。默认设置为 1。'
+- en: Notes
+  id: totrans-100
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When an `AUTO_INCREMENT` integer column runs out of values, a subsequent `INSERT`
+    operation returns a duplicate-key error. This is general MySQL behavior.
+  id: totrans-101
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当 `AUTO_INCREMENT` 整数列用尽数值时，后续的 `INSERT` 操作会返回重复键错误。这是一般的 MySQL 行为。

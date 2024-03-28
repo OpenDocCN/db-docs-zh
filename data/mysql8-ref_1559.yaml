@@ -1,0 +1,267 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-methods.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-methods.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-methods.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-online-upgrade-methods.html)
+- en: 20.8.3.3 Group Replication Online Upgrade Methods
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.8.3.3 Group Replication Online Upgrade Methods
+- en: 'Choose one of the following methods of upgrading a Group Replication group:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 选择以下升级 Group Replication 组的方法之一：
+- en: Rolling In-Group Upgrade
+  id: totrans-3
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 滚动式组内升级
+- en: This method is supported provided that servers running a newer version are not
+    generating workload to the group while there are still servers with an older version
+    in it. In other words servers with a newer version can join the group only as
+    secondaries. In this method there is only ever one group, and each server instance
+    is removed from the group, upgraded and then rejoined to the group.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只要运行较新版本的服务器不会在仍有较旧版本的服务器的情况下向组生成工作负载，此方法就受支持。换句话说，只有运行较新版本的服务器可以作为辅助服务器加入组。在此方法中，只有一个组，每个服务器实例都会从组中移除，升级，然后重新加入组。
+- en: This method is well suited to single-primary groups. When the group is operating
+    in single-primary mode, if you require the primary to remain the same throughout
+    (except when it is being upgraded itself), it should be the last member to be
+    upgraded. The primary cannot remain as the primary unless it is running the lowest
+    MySQL Server version in the group. After the primary has been upgraded, you can
+    use the [`group_replication_set_as_primary()`](group-replication-functions-for-new-primary.html#function_group-replication-set-as-primary)
+    function to reappoint it as the primary. If you do not mind which member is the
+    primary, the members can be upgraded in any order. The group elects a new primary
+    whenever necessary from among the members running the lowest MySQL Server version,
+    following the election policies described in [Section 20.1.3.1, “Single-Primary
+    Mode”](group-replication-single-primary-mode.html "20.1.3.1 Single-Primary Mode").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此方法非常适用于单主组。当组以单主模式运行时，如果您要求主服务器在整个过程中保持不变（除非正在升级自身），则应将其作为最后一个升级的成员。主服务器必须在组中运行最低版本的
+    MySQL 服务器版本才能保持为主服务器。主服务器升级后，您可以使用[`group_replication_set_as_primary()`](group-replication-functions-for-new-primary.html#function_group-replication-set-as-primary)函数将其重新指定为主服务器。如果您不在意哪个成员是主服务器，那么成员可以以任何顺序进行升级。组在必要时从运行最低
+    MySQL 服务器版本的成员中选举新的主服务器，遵循[第 20.1.3.1 节，“单主模式”](group-replication-single-primary-mode.html
+    "20.1.3.1 单主模式")中描述的选举策略。
+- en: For groups operating in multi-primary mode, during a rolling in-group upgrade
+    the number of primaries is decreased, causing a reduction in write availability.
+    This is because if a member joins a group when it is running a higher MySQL Server
+    version than the lowest version that the existing group members are running, it
+    automatically remains in read-only mode ([`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only)).
+    Note that members running MySQL 8.0.17 or higher take into account the patch version
+    of the release when checking this, but members running MySQL 8.0.16 or lower,
+    or MySQL 5.7, only take into account the major version. When all members have
+    been upgraded to the same release, from MySQL 8.0.17, they all change back to
+    read-write mode automatically. For earlier releases, you must set [`super_read_only=OFF`](server-system-variables.html#sysvar_super_read_only)
+    manually on each member that should function as a primary following the upgrade.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于以多主模式运行的组，在组内滚动升级期间，主服务器数量会减少，导致写入可用性降低。这是因为如果成员在组运行时加入组，而其运行的 MySQL 服务器版本高于现有组成员运行的最低版本，则它会自动保持为只读模式（[`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only)）。请注意，运行
+    MySQL 8.0.17 或更高版本的成员在检查时会考虑发布的补丁版本，但运行 MySQL 8.0.16 或更低版本，或 MySQL 5.7 的成员只会考虑主要版本。当所有成员升级到相同版本后，从
+    MySQL 8.0.17 开始，它们会自动恢复为读写模式。对于早期版本，您必须在每个成员上手动设置[`super_read_only=OFF`](server-system-variables.html#sysvar_super_read_only)，以便在升级后作为主服务器运行。
+- en: For full information on version compatibility in a group and how this influences
+    the behavior of a group during an upgrade process, see [Section 20.8.1, “Combining
+    Different Member Versions in a Group”](group-replication-online-upgrade-combining-versions.html
+    "20.8.1 Combining Different Member Versions in a Group") .
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关组中版本兼容性的完整信息以及这如何影响升级过程中组的行为，请参阅[第 20.8.1 节，“组中不同成员版本的组合”](group-replication-online-upgrade-combining-versions.html
+    "20.8.1 组中不同成员版本的组合")。
+- en: Rolling Migration Upgrade
+  id: totrans-8
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 滚动式迁移升级
+- en: In this method you remove members from the group, upgrade them and then create
+    a second group using the upgraded members. For groups operating in multi-primary
+    mode, during this process the number of primaries is decreased, causing a reduction
+    in write availability. This does not impact groups operating in single-primary
+    mode.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种方法中，您将从组中移除成员，升级它们，然后使用升级后的成员创建第二组。对于在多主模式下运行的组，在此过程中主节点的数量会减少，导致写入可用性降低。这不会影响在单主模式下运行的组。
+- en: Because the group running the older version is online while you are upgrading
+    the members, you need the group running the newer version to catch up with any
+    transactions executed while the members were being upgraded. Therefore one of
+    the servers in the new group is configured as a replica of a primary from the
+    older group. This ensures that the new group catches up with the older group.
+    Because this method relies on an asynchronous replication channel which is used
+    to replicate data from one group to another, it is supported under the same assumptions
+    and requirements of asynchronous source-replica replication, see [Chapter 19,
+    *Replication*](replication.html "Chapter 19 Replication"). For groups operating
+    in single-primary mode, the asynchronous replication connection to the old group
+    must send data to the primary in the new group, for a multi-primary group the
+    asynchronous replication channel can connect to any primary.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为在升级成员时运行较旧版本的组在线，所以需要运行较新版本的组赶上在升级成员时执行的任何事务。因此，新组中的一个服务器被配置为较旧组的主节点的副本。这确保新组赶上较旧组。由于此方法依赖于用于将数据从一个组复制到另一个组的异步复制通道，因此它在异步源-副本复制的相同假设和要求下受支持，参见[Chapter 19,
+    *复制*](replication.html "Chapter 19 复制")。对于在单主模式下运行的组，向旧组的异步复制连接必须发送数据到新组的主节点，对于多主组，异步复制通道可以连接到任何主节点。
+- en: 'The process is to:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 过程如下：
+- en: remove members from the original group running the older server version one
+    by one, see [Section 20.8.3.2, “Upgrading a Group Replication Member”](group-replication-upgrading-member.html
+    "20.8.3.2 Upgrading a Group Replication Member")
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 逐个从运行较旧服务器版本的原始组中移除成员，参见[Section 20.8.3.2, “升级组复制成员”](group-replication-upgrading-member.html
+    "20.8.3.2 升级组复制成员")
+- en: upgrade the server version running on the member, see [Chapter 3, *Upgrading
+    MySQL*](upgrading.html "Chapter 3 Upgrading MySQL"). You can either follow an
+    in-place or provision approach to upgrading.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 升级运行在成员上的服务器版本，参见[Chapter 3, *升级MySQL*](upgrading.html "Chapter 3 升级MySQL")。您可以选择进行就地升级或预置升级的方法。
+- en: create a new group with the upgraded members, see [Chapter 20, *Group Replication*](group-replication.html
+    "Chapter 20 Group Replication"). In this case you need to configure a new group
+    name on each member (because the old group is still running and using the old
+    name), bootstrap an initial upgraded member, and then add the remaining upgraded
+    members.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 创建一个具有升级成员的新组，参见[Chapter 20, *组复制*](group-replication.html "Chapter 20 组复制")。在这种情况下，您需要在每个成员上配置一个新组名称（因为旧组仍在运行并使用旧名称），引导一个初始升级成员，然后添加其余的升级成员。
+- en: set up an asynchronous replication channel between the old group and the new
+    group, see [Section 19.1.3.4, “Setting Up Replication Using GTIDs”](replication-gtids-howto.html
+    "19.1.3.4 Setting Up Replication Using GTIDs"). Configure the older primary to
+    function as the asynchronous replication source server and the new group member
+    as a GTID-based replica.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在旧组和新组之间建立一个异步复制通道，参见[Section 19.1.3.4, “使用GTIDs设置复制”](replication-gtids-howto.html
+    "19.1.3.4 使用GTIDs设置复制")。将较旧的主节点配置为异步复制源服务器，将新组成员配置为基于GTID的副本。
+- en: Before you can redirect your application to the new group, you must ensure that
+    the new group has a suitable number of members, for example so that the group
+    can handle the failure of a member. Issue `SELECT * FROM performance_schema.replication_group_members`
+    and compare the initial group size and the new group size. Wait until all data
+    from the old group is propagated to the new group and then drop the asynchronous
+    replication connection and upgrade any missing members.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在将应用程序重定向到新组之前，您必须确保新组具有合适数量的成员，例如使组能够处理成员的故障。执行`SELECT * FROM performance_schema.replication_group_members`并比较初始组大小和新组大小。等到所有旧组的数据传播到新组，然后删除异步复制连接并升级任何缺失的成员。
+- en: Rolling Duplication Upgrade
+  id: totrans-17
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 滚动复制升级
+- en: In this method you create a second group consisting of members which are running
+    the newer version, and the data missing from the older group is replicated to
+    the newer group. This assumes that you have enough servers to run both groups
+    simultaneously. Due to the fact that during this process the number of primaries
+    is *not* decreased, for groups operating in multi-primary mode there is no reduction
+    in write availability. This makes rolling duplication upgrade well suited to groups
+    operating in multi-primary mode. This does not impact groups operating in single-primary
+    mode.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种方法中，您创建一个由运行较新版本的成员组成的第二组，并将旧组缺失的数据复制到较新组。这假定您有足够的服务器同时运行两个组。由于在此过程中主服务器的数量*不*减少，对于运行在多主模式下的组来说，写入可用性不会减少。这使得滚动复制升级非常适合在多主模式下运行的组。这不会影响在单主模式下运行的组。
+- en: Because the group running the older version is online while you are provisioning
+    the members in the new group, you need the group running the newer version to
+    catch up with any transactions executed while the members were being provisioned.
+    Therefore one of the servers in the new group is configured as a replica of a
+    primary from the older group. This ensures that the new group catches up with
+    the older group. Because this method relies on an asynchronous replication channel
+    which is used to replicate data from one group to another, it is supported under
+    the same assumptions and requirements of asynchronous source-replica replication,
+    see [Chapter 19, *Replication*](replication.html "Chapter 19 Replication"). For
+    groups operating in single-primary mode, the asynchronous replication connection
+    to the old group must send data to the primary in the new group, for a multi-primary
+    group the asynchronous replication channel can connect to any primary.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为在为新组的成员提供资源时，运行旧版本的组在线，您需要确保运行较新版本的组赶上在为成员提供资源时执行的任何事务。因此，新组中的一个服务器被配置为旧组的主服务器的副本。这确保新组赶上旧组。由于此方法依赖于用于将数据从一个组复制到另一个组的异步复制通道，因此它在相同的异步源-副本复制的假设和要求下受支持，请参阅[第19章，*复制*](replication.html
+    "第19章 复制")。对于在单主模式下运行的组，异步复制连接到旧组必须将数据发送到新组的主服务器，对于多主组，异步复制通道可以连接到任何主服务器。
+- en: 'The process is to:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 过程是：
+- en: deploy a suitable number of members so that the group running the newer version
+    can handle failure of a member
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 部署适当数量的成员，以便运行较新版本的组可以处理成员的故障
+- en: take a backup of the existing data from a member of the group
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对组中的一个成员进行现有数据的备份
+- en: use the backup from the older member to provision the members of the new group,
+    see [Section 20.8.3.4, “Group Replication Upgrade with **mysqlbackup**”](group-replication-upgrade-with-mysqlbackup.html
+    "20.8.3.4 Group Replication Upgrade with mysqlbackup") for one method.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用来自旧成员的备份为新组的成员提供资源，请参阅[第20.8.3.4节，“使用**mysqlbackup**进行组复制升级”](group-replication-upgrade-with-mysqlbackup.html
+    "20.8.3.4 使用mysqlbackup进行组复制升级")中的一种方法。
+- en: Note
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: You must restore the backup to the same version of MySQL which the backup was
+    taken from, and then perform an in-place upgrade. For instructions, see [Chapter 3,
+    *Upgrading MySQL*](upgrading.html "Chapter 3 Upgrading MySQL").
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您必须将备份还原到与备份所在的MySQL版本相同的版本，然后执行就地升级。有关说明，请参阅[第3章，*升级MySQL*](upgrading.html
+    "第3章 升级MySQL")。
+- en: create a new group with the upgraded members, see [Chapter 20, *Group Replication*](group-replication.html
+    "Chapter 20 Group Replication"). In this case you need to configure a new group
+    name on each member (because the old group is still running and using the old
+    name), bootstrap an initial upgraded member, and then add the remaining upgraded
+    members.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 创建一个包含升级成员的新组，请参阅[第20章，*组复制*](group-replication.html "第20章 组复制")。在这种情况下，您需要在每个成员上配置一个新的组名（因为旧组仍在运行并使用旧名称），引导一个初始升级成员，然后添加其余的升级成员。
+- en: set up an asynchronous replication channel between the old group and the new
+    group, see [Section 19.1.3.4, “Setting Up Replication Using GTIDs”](replication-gtids-howto.html
+    "19.1.3.4 Setting Up Replication Using GTIDs"). Configure the older primary to
+    function as the asynchronous replication source server and the new group member
+    as a GTID-based replica.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在旧组和新组之间建立一个异步复制通道，请参阅[第19.1.3.4节，“使用GTIDs设置复制”](replication-gtids-howto.html
+    "19.1.3.4 使用GTIDs设置复制")。将较旧的主服务器配置为异步复制源服务器，将新组成员配置为基于GTID的副本。
+- en: Once the ongoing data missing from the newer group is small enough to be quickly
+    transferred, you must redirect write operations to the new group. Wait until all
+    data from the old group is propagated to the new group and then drop the asynchronous
+    replication connection.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦新组中缺失的持续数据量足够小，可以快速传输，您必须将写操作重定向到新组。等到所有旧组的数据传播到新组，然后断开异步复制连接。

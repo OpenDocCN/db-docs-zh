@@ -1,0 +1,74 @@
+- en: 17.8.6 Using Asynchronous I/O on Linux
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.8.6 在Linux上使用异步I/O
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-linux-native-aio.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-linux-native-aio.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-linux-native-aio.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-linux-native-aio.html)
+- en: '`InnoDB` uses the asynchronous I/O subsystem (native AIO) on Linux to perform
+    read-ahead and write requests for data file pages. This behavior is controlled
+    by the [`innodb_use_native_aio`](innodb-parameters.html#sysvar_innodb_use_native_aio)
+    configuration option, which applies to Linux systems only and is enabled by default.
+    On other Unix-like systems, `InnoDB` uses synchronous I/O only. Historically,
+    `InnoDB` only used asynchronous I/O on Windows systems. Using the asynchronous
+    I/O subsystem on Linux requires the `libaio` library.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`在Linux上使用异步I/O子系统（本机AIO）执行数据文件页的预读和写请求。此行为由[`innodb_use_native_aio`](innodb-parameters.html#sysvar_innodb_use_native_aio)配置选项控制，仅适用于Linux系统，并且默认启用。在其他类Unix系统上，`InnoDB`仅使用同步I/O。从历史上看，`InnoDB`仅在Windows系统上使用异步I/O。在Linux上使用异步I/O子系统需要`libaio`库。'
+- en: With synchronous I/O, query threads queue I/O requests, and `InnoDB` background
+    threads retrieve the queued requests one at a time, issuing a synchronous I/O
+    call for each. When an I/O request is completed and the I/O call returns, the
+    `InnoDB` background thread that is handling the request calls an I/O completion
+    routine and returns to process the next request. The number of requests that can
+    be processed in parallel is *`n`*, where *`n`* is the number of `InnoDB` background
+    threads. The number of `InnoDB` background threads is controlled by [`innodb_read_io_threads`](innodb-parameters.html#sysvar_innodb_read_io_threads)
+    and [`innodb_write_io_threads`](innodb-parameters.html#sysvar_innodb_write_io_threads).
+    See [Section 17.8.5, “Configuring the Number of Background InnoDB I/O Threads”](innodb-performance-multiple_io_threads.html
+    "17.8.5 Configuring the Number of Background InnoDB I/O Threads").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用同步I/O时，查询线程排队I/O请求，`InnoDB`后台线程逐个检索排队的请求，为每个请求发出同步I/O调用。当I/O请求完成并且I/O调用返回时，处理请求的`InnoDB`后台线程调用I/O完成例程并返回以处理下一个请求。可以并行处理的请求数量为*`n`*，其中*`n`*是`InnoDB`后台线程的数量。`InnoDB`后台线程的数量由[`innodb_read_io_threads`](innodb-parameters.html#sysvar_innodb_read_io_threads)和[`innodb_write_io_threads`](innodb-parameters.html#sysvar_innodb_write_io_threads)控制。参见[第17.8.5节，“配置后台InnoDB
+    I/O线程数量”](innodb-performance-multiple_io_threads.html "17.8.5 配置后台InnoDB I/O线程数量")。
+- en: With native AIO, query threads dispatch I/O requests directly to the operating
+    system, thereby removing the limit imposed by the number of background threads.
+    `InnoDB` background threads wait for I/O events to signal completed requests.
+    When a request is completed, a background thread calls an I/O completion routine
+    and resumes waiting for I/O events.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用本机AIO，查询线程直接将I/O请求分派给操作系统，从而消除了后台线程数量的限制。`InnoDB`后台线程等待I/O事件来标志完成的请求。当请求完成时，后台线程调用I/O完成例程并恢复等待I/O事件。
+- en: The advantage of native AIO is scalability for heavily I/O-bound systems that
+    typically show many pending reads/writes in `SHOW ENGINE INNODB STATUS\G` output.
+    The increase in parallel processing when using native AIO means that the type
+    of I/O scheduler or properties of the disk array controller have a greater influence
+    on I/O performance.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本机AIO的优势在于对于通常在`SHOW ENGINE INNODB STATUS\G`输出中显示许多待处理读/写操作的重度I/O绑定系统的可伸缩性。使用本机AIO时的并行处理增加意味着I/O性能受到I/O调度程序类型或磁盘阵列控制器属性的更大影响。
+- en: A potential disadvantage of native AIO for heavily I/O-bound systems is lack
+    of control over the number of I/O write requests dispatched to the operating system
+    at once. Too many I/O write requests dispatched to the operating system for parallel
+    processing could, in some cases, result in I/O read starvation, depending on the
+    amount of I/O activity and system capabilities.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于重度I/O绑定系统，本机AIO的一个潜在缺点是无法控制一次性发送到操作系统的I/O写请求数量。在某些情况下，一次性发送太多I/O写请求到操作系统进行并行处理可能导致I/O读取饥饿，这取决于I/O活动量和系统能力。
+- en: If a problem with the asynchronous I/O subsystem in the OS prevents `InnoDB`
+    from starting, you can start the server with [`innodb_use_native_aio=0`](innodb-parameters.html#sysvar_innodb_use_native_aio).
+    This option may also be disabled automatically during startup if `InnoDB` detects
+    a potential problem such as a combination of `tmpdir` location, `tmpfs` file system,
+    and Linux kernel that does not support asynchronous I/O on `tmpfs`.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果操作系统中异步I/O子系统出现问题导致`InnoDB`无法启动，您可以使用[`innodb_use_native_aio=0`](innodb-parameters.html#sysvar_innodb_use_native_aio)选项启动服务器。在启动过程中，如果`InnoDB`检测到潜在问题，比如`tmpdir`位置、`tmpfs`文件系统和Linux内核的组合不支持在`tmpfs`上进行异步I/O，该选项也可能会被自动禁用。

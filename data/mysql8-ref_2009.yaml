@@ -1,0 +1,653 @@
+- en: 29.10 Performance Schema Statement Digests and Sampling
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 29.10 性能模式语句摘要和采样
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-statement-digests.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-statement-digests.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-statement-digests.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-statement-digests.html)
+- en: The MySQL server is capable of maintaining statement digest information. The
+    digesting process converts each SQL statement to normalized form (the statement
+    digest) and computes a SHA-256 hash value (the digest hash value) from the normalized
+    result. Normalization permits statements that are similar to be grouped and summarized
+    to expose information about the types of statements the server is executing and
+    how often they occur. For each digest, a representative statement that produces
+    the digest is stored as a sample. This section describes how statement digesting
+    and sampling occur and how they can be useful.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 服务器能够维护语句摘要信息。摘要过程将每个 SQL 语句转换为规范化形式（语句摘要），并从规范化结果计算一个 SHA-256 哈希值（摘要哈希值）。规范化允许类似的语句被分组和总结，以公开关于服务器正在执行的语句类型及其频率的信息。对于每个摘要，存储生成该摘要的代表性语句作为样本。本节描述了语句摘要和采样的发生方式以及它们的用途。
+- en: Digesting occurs in the parser regardless of whether the Performance Schema
+    is available, so that other features such as MySQL Enterprise Firewall and query
+    rewrite plugins have access to statement digests.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论性能模式是否可用，解析器都会进行摘要处理，以便其他功能如 MySQL 企业防火墙和查询重写插件可以访问语句摘要。
+- en: '[Statement Digest General Concepts](performance-schema-statement-digests.html#statement-digests-general
+    "Statement Digest General Concepts")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[语句摘要概念](performance-schema-statement-digests.html#statement-digests-general
+    "语句摘要概念")'
+- en: '[Statement Digests in the Performance Schema](performance-schema-statement-digests.html#statement-digests-performance-schema
+    "Statement Digests in the Performance Schema")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[性能模式中的语句摘要](performance-schema-statement-digests.html#statement-digests-performance-schema
+    "性能模式中的语句摘要")'
+- en: '[Statement Digest Memory Use](performance-schema-statement-digests.html#statement-digests-memory-use
+    "Statement Digest Memory Use")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[语句摘要内存使用](performance-schema-statement-digests.html#statement-digests-memory-use
+    "语句摘要内存使用")'
+- en: '[Statement Sampling](performance-schema-statement-digests.html#statement-digests-sampling
+    "Statement Sampling")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[语句采样](performance-schema-statement-digests.html#statement-digests-sampling
+    "语句采样")'
+- en: Statement Digest General Concepts
+  id: totrans-8
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 语句摘要概念
+- en: 'When the parser receives an SQL statement, it computes a statement digest if
+    that digest is needed, which is true if any of the following conditions are true:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当解析器接收到一个 SQL 语句时，如果需要该摘要，则会计算一个语句摘要，如果以下任一条件为真，则为真：
+- en: Performance Schema digest instrumentation is enabled
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 启用了性能模式摘要工具
+- en: MySQL Enterprise Firewall is enabled
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 启用了 MySQL 企业防火墙
+- en: A query rewrite plugin is enabled
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 启用了查询重写插件
+- en: The parser is also used by the [`STATEMENT_DIGEST_TEXT()`](encryption-functions.html#function_statement-digest-text)
+    and [`STATEMENT_DIGEST()`](encryption-functions.html#function_statement-digest)
+    functions, which applications can call to compute a normalized statement digest
+    and a digest hash value, respectively, from an SQL statement.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 解析器还被 [`STATEMENT_DIGEST_TEXT()`](encryption-functions.html#function_statement-digest-text)
+    和 [`STATEMENT_DIGEST()`](encryption-functions.html#function_statement-digest)
+    函数使用，应用程序可以调用这些函数从 SQL 语句中计算规范化语句摘要和摘要哈希值。
+- en: 'The [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    system variable value determines the maximum number of bytes available per session
+    for computation of normalized statement digests. Once that amount of space is
+    used during digest computation, truncation occurs: no further tokens from a parsed
+    statement are collected or figure into its digest value. Statements that differ
+    only after that many bytes of parsed tokens produce the same normalized statement
+    digest and are considered identical if compared or if aggregated for digest statistics.'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    系统变量的值确定了每个会话用于计算规范化语句摘要的最大字节数。一旦在摘要计算过程中使用了这么多空间，就会发生截断：从解析语句中收集的标记不再被收集或计入其摘要值。只有在解析标记之后的那么多字节之后才有所不同的语句会产生相同的规范化语句摘要，并且如果进行比较或用于摘要统计，则被视为相同。'
+- en: Warning
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Setting the [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    system variable to zero disables digest production, which also disables server
+    functionality that requires digests.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)系统变量设置为零会禁用摘要生成，这也会禁用需要摘要的服务器功能。
+- en: 'After the normalized statement has been computed, a SHA-256 hash value is computed
+    from it. In addition:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 计算规范化语句后，从中计算SHA-256哈希值。此外：
+- en: If MySQL Enterprise Firewall is enabled, it is called and the digest as computed
+    is available to it.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了MySQL企业防火墙，则会调用它，并且计算的摘要对其可用。
+- en: If any query rewrite plugin is enabled, it is called and the statement digest
+    and digest value are available to it.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了任何查询重写插件，则会调用它，并且语句摘要和摘要值对其可用。
+- en: If the Performance Schema has digest instrumentation enabled, it makes a copy
+    of the normalized statement digest, allocating a maximum of [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    bytes for it. Consequently, if [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    is less than [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length),
+    the copy is truncated relative to the original. The copy of the normalized statement
+    digest is stored in the appropriate Performance Schema tables, along with the
+    SHA-256 hash value computed from the original normalized statement. (If the Performance
+    Schema truncates its copy of the normalized statement digest relative to the original,
+    it does not recompute the SHA-256 hash value.)
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果性能模式启用了摘要仪器，它会复制规范化的语句摘要，为其分配最多[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)字节。因此，如果[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)小于[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)，则复制相对于原始文本被截断。规范化的语句摘要的副本存储在适当的性能模式表中，以及从原始规范化语句计算的SHA-256哈希值。
+    （如果性能模式相对于原始文本截断其规范化语句摘要的副本，则不会重新计算SHA-256哈希值。）
+- en: 'Statement normalization transforms the statement text to a more standardized
+    digest string representation that preserves the general statement structure while
+    removing information not essential to the structure:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 语句规范化将语句文本转换为更标准化的摘要字符串表示形式，保留一般语句结构同时删除不影响结构的信息：
+- en: Object identifiers such as database and table names are preserved.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 保留对象标识符，如数据库和表名。
+- en: Literal values are converted to parameter markers. A normalized statement does
+    not retain information such as names, passwords, dates, and so forth.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 文本值被转换为参数标记。规范化的语句不保留名称、密码、日期等信息。
+- en: Comments are removed and whitespace is adjusted.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 注释被移除，空格被调整。
+- en: 'Consider these statements:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑这些语句：
+- en: '[PRE0]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To normalize these statements, the parser replaces data values by `?` and adjusts
+    whitespace. Both statements yield the same normalized form and thus are considered
+    “the same”:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了规范化这些语句，解析器将数据值替换为`?`并调整空格。两个语句产生相同的规范化形式，因此被认为是“相同的”：
+- en: '[PRE1]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The normalized statement contains less information but is still representative
+    of the original statement. Other similar statements that have different data values
+    have the same normalized form.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 规范化的语句包含较少信息，但仍代表原始语句。其他类似的具有不同数据值的语句具有相同的规范化形式。
+- en: 'Now consider these statements:'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在考虑这些语句：
+- en: '[PRE2]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'In this case, the normalized statements differ because the object identifiers
+    differ:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，规范化的语句不同，因为对象标识符不同：
+- en: '[PRE3]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'If normalization produces a statement that exceeds the space available in the
+    digest buffer (as determined by [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)),
+    truncation occurs and the text ends with “...”. Long normalized statements that
+    differ only in the part that occurs following the “...” are considered the same.
+    Consider these statements:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果规范化产生的语句超过摘要缓冲区中可用的空间（由[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)确定），则会发生截断，并且文本以“...”结尾。只有在“...”后面部分不同的长规范化语句被视为相同。考虑这些语句：
+- en: '[PRE4]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'If the cutoff happens to be right after the `AND`, both statements have this
+    normalized form:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果截断恰好发生在`AND`之后，则这两个语句具有相同的规范化形式：
+- en: '[PRE5]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: In this case, the difference in the second column name is lost and both statements
+    are considered the same.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，第二列名称的差异被忽略，两个语句被视为相同。
+- en: Statement Digests in the Performance Schema
+  id: totrans-39
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 性能模式中的语句摘要
+- en: 'In the Performance Schema, statement digesting involves these elements:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在性能模式中，语句摘要涉及以下元素：
+- en: A `statements_digest` consumer in the [`setup_consumers`](performance-schema-setup-consumers-table.html
+    "29.12.2.2 The setup_consumers Table") table controls whether the Performance
+    Schema maintains digest information. See [Statement Digest Consumer](performance-schema-consumer-filtering.html#performance-schema-consumer-filtering-statement-digest
+    "Statement Digest Consumer").
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`setup_consumers`](performance-schema-setup-consumers-table.html "29.12.2.2 setup_consumers
+    表") 表中的 `statements_digest` 消费者控制性能模式是否维护摘要信息。参见 [语句摘要消费者](performance-schema-consumer-filtering.html#performance-schema-consumer-filtering-statement-digest
+    "语句摘要消费者")。'
+- en: 'The statement event tables ([`events_statements_current`](performance-schema-events-statements-current-table.html
+    "29.12.6.1 The events_statements_current Table"), [`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 The events_statements_history Table"), and [`events_statements_history_long`](performance-schema-events-statements-history-long-table.html
+    "29.12.6.3 The events_statements_history_long Table")) have columns for storing
+    normalized statement digests and the corresponding digest SHA-256 hash values:'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 语句事件表（[`events_statements_current`](performance-schema-events-statements-current-table.html
+    "29.12.6.1 events_statements_current 表")，[`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 events_statements_history 表") 和 [`events_statements_history_long`](performance-schema-events-statements-history-long-table.html
+    "29.12.6.3 events_statements_history_long 表")）具有用于存储规范语句摘要和相应摘要 SHA-256 哈希值的列：
+- en: '`DIGEST_TEXT` is the text of the normalized statement digest. This is a copy
+    of the original normalized statement that was computed to a maximum of [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes, further truncated as necessary to [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    bytes.'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DIGEST_TEXT` 是规范语句摘要的文本。这是原始规范语句的副本，计算到最大 [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    字节，根据需要进一步截断为 [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    字节。'
+- en: '`DIGEST` is the digest SHA-256 hash value computed from the original normalized
+    statement.'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DIGEST` 是从原始规范语句计算得出的摘要 SHA-256 哈希值。'
+- en: See [Section 29.12.6, “Performance Schema Statement Event Tables”](performance-schema-statement-tables.html
+    "29.12.6 Performance Schema Statement Event Tables").
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参见 [第 29.12.6 节，“性能模式语句事件表”](performance-schema-statement-tables.html "29.12.6 性能模式语句事件表")。
+- en: The [`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables") summary table provides aggregated statement
+    digest information. This table aggregates information for statements per `SCHEMA_NAME`
+    and `DIGEST` combination. The Performance Schema uses SHA-256 hash values for
+    aggregation because they are fast to compute and have a favorable statistical
+    distribution that minimizes collisions. See [Section 29.12.20.3, “Statement Summary
+    Tables”](performance-schema-statement-summary-tables.html "29.12.20.3 Statement
+    Summary Tables").
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 语句摘要表") 摘要表提供了聚合的语句摘要信息。该表按 `SCHEMA_NAME` 和 `DIGEST` 组合对语句信息进行聚合。性能模式使用
+    SHA-256 哈希值进行聚合，因为它们计算速度快，并且具有有利的统计分布，可以最小化碰撞。参见 [第 29.12.20.3 节，“语句摘要表”](performance-schema-statement-summary-tables.html
+    "29.12.20.3 语句���要表")。'
+- en: 'Some Performance Tables have a column that stores original SQL statements from
+    which digests are computed:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些性能表具有一个列，用于存储计算摘要的原始 SQL 语句：
+- en: The `SQL_TEXT` column of the [`events_statements_current`](performance-schema-events-statements-current-table.html
+    "29.12.6.1 The events_statements_current Table"), [`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 The events_statements_history Table"), and [`events_statements_history_long`](performance-schema-events-statements-history-long-table.html
+    "29.12.6.3 The events_statements_history_long Table") statement event tables.
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`events_statements_current`](performance-schema-events-statements-current-table.html
+    "29.12.6.1 events_statements_current 表")，[`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 events_statements_history 表") 和 [`events_statements_history_long`](performance-schema-events-statements-history-long-table.html
+    "29.12.6.3 events_statements_history_long 表") 语句事件表的 `SQL_TEXT` 列。'
+- en: The `QUERY_SAMPLE_TEXT` column of the [`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables") summary table.
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 语句摘要表") 摘要表的 `QUERY_SAMPLE_TEXT` 列。'
+- en: The maximum space available for statement display is 1024 bytes by default.
+    To change this value, set the [`performance_schema_max_sql_text_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_sql_text_length)
+    system variable at server startup. Changes affect the storage required for all
+    the columns just named.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，语句显示的最大空间为 1024 字节。要更改此值，请在服务器启动时设置 [`performance_schema_max_sql_text_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_sql_text_length)
+    系统变量。更改会影响所有上述列所需的存储空间。
+- en: The [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    system variable determines the maximum number of bytes available per statement
+    for digest value storage in the Performance Schema. However, the display length
+    of statement digests may be longer than the available buffer size due to internal
+    encoding of statement elements such as keywords and literal values. Consequently,
+    values selected from the `DIGEST_TEXT` column of statement event tables may appear
+    to exceed the [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    value.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    系统变量确定性能模式中用于摘要值存储的每个语句的最大字节数。然而，由于语句元素（如关键字和文字值）的内部编码，语句摘要的显示长度可能长于可用缓冲区大小。因此，从语句事件表的
+    `DIGEST_TEXT` 列中选择的值可能会超过 [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    的值。'
+- en: The [`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables") summary table provides a profile of the
+    statements executed by the server. It shows what kinds of statements an application
+    is executing and how often. An application developer can use this information
+    together with other information in the table to assess the application's performance
+    characteristics. For example, table columns that show wait times, lock times,
+    or index use may highlight types of queries that are inefficient. This gives the
+    developer insight into which parts of the application need attention.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 语句摘要表") 摘要表提供了服务器执行的语句的概要。它显示了应用程序执行的语句类型和频率。应用程序开发人员可以将此信息与表中的其他信息一起使用，评估应用程序的性能特征。例如，显示等待时间、锁定时间或索引使用的表列可能突出显示效率低下的查询类型。这使开发人员了解应用程序哪些部分需要关注。'
+- en: The [`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables") summary table has a fixed size. By default
+    the Performance Schema estimates the size to use at startup. To specify the table
+    size explicitly, set the [`performance_schema_digests_size`](performance-schema-system-variables.html#sysvar_performance_schema_digests_size)
+    system variable at server startup. If the table becomes full, the Performance
+    Schema groups statements that have `SCHEMA_NAME` and `DIGEST` values not matching
+    existing values in the table in a special row with `SCHEMA_NAME` and `DIGEST`
+    set to `NULL`. This permits all statements to be counted. However, if the special
+    row accounts for a significant percentage of the statements executed, it might
+    be desirable to increase the summary table size by increasing [`performance_schema_digests_size`](performance-schema-system-variables.html#sysvar_performance_schema_digests_size).
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 语句摘要表") 摘要表具有固定大小。默认情况下，性能模式在启动时估计要使用的大小。要明确指定表大小，请在服务器启动时设置 [`performance_schema_digests_size`](performance-schema-system-variables.html#sysvar_performance_schema_digests_size)
+    系统变量。如果表变满，性能模式将具有 `SCHEMA_NAME` 和 `DIGEST` 值不匹配现有表中值的语句分组到一个特殊行中，该行的 `SCHEMA_NAME`
+    和 `DIGEST` 设置为 `NULL`。这允许计算所有语句。但是，如果特殊行占执行的语句的显著百分比，可能需要通过增加 [`performance_schema_digests_size`](performance-schema-system-variables.html#sysvar_performance_schema_digests_size)
+    来增加摘要表大小。'
+- en: Statement Digest Memory Use
+  id: totrans-54
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 语句摘要内存使用
+- en: For applications that generate very long statements that differ only at the
+    end, increasing [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    enables computation of digests that distinguish statements that would otherwise
+    aggregate to the same digest. Conversely, decreasing [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    causes the server to devote less memory to digest storage but increases the likelihood
+    of longer statements aggregating to the same digest. Administrators should keep
+    in mind that larger values result in correspondingly increased memory requirements,
+    particularly for workloads that involve large numbers of simultaneous sessions
+    (the server allocates [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes per session).
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于生成仅在结尾处有所不同的非常长语句的应用程序，增加[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)可以计算出区分否则会聚合到相同摘要的语句的摘要。相反，减少[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)会导致服务器将更少的内存用于摘要存储，但增加较长语句聚合到相同摘要的可能性。管理员应牢记，较大的值会导致相应增加的内存需求，特别是对于涉及大量同时会话的工作负载（服务器为每个会话分配[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节）。
+- en: 'As described previously, normalized statement digests as computed by the parser
+    are constrained to a maximum of [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes, whereas normalized statement digests stored in the Performance Schema use
+    [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    bytes. The following memory-use considerations apply regarding the relative values
+    of [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    and [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length):'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，由解析器计算的规范化语句摘要受限于最多[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节，而性能模式中存储的规范化语句摘要使用[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)字节。关于[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)和[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)的相对值，以下内存使用考虑适用：
+- en: 'If [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    is less than [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length):'
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)小于[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)：
+- en: Server features other than the Performance Schema use normalized statement digests
+    that take up to [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes.
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 除了性能模式之外的服务器功能使用占用最多[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节的规范化语句摘要。
+- en: The Performance Schema does not further truncate normalized statement digests
+    that it stores, but allocates more memory than [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes per digest, which is unnecessary.
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 性能模式不会进一步截断存储的规范化语句摘要，但为每个摘要分配比[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节更多的内存，这是不必要的。
+- en: 'If [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    equals [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length):'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)等于[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)：
+- en: Server features other than the Performance Schema use normalized statement digests
+    that take up to [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes.
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 除了性能模式之外的服务器功能使用占用最多[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节的规范化语句摘要。
+- en: The Performance Schema does not further truncate normalized statement digests
+    that it stores, and allocates the same amount of memory as [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes per digest.
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 性能模式不会进一步截断存储的规范化语句摘要，并为每个摘要分配与[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节相同的内存。
+- en: 'If [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    is greater than [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length):'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)大于[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)：
+- en: Server features other than the Performance Schema use normalized statement digests
+    that take up to [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes.
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Performance Schema之外的服务器功能使用占用[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节的规范语句摘要。
+- en: The Performance Schema further truncates normalized statement digests that it
+    stores, and allocates less memory than [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes per digest.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Performance Schema进一步截断其存储的规范语句摘要，并为每个摘要分配少于[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节的内存。
+- en: 'Because the Performance Schema statement event tables might store many digests,
+    setting [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    smaller than [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    enables administrators to balance these factors:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为Performance Schema语句事件表可能存储许多摘要，所以将[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)设置为小于[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)使管理员能够平衡这些因素：
+- en: The need to have long normalized statement digests available to server features
+    outside the Performance Schema
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在Performance Schema之外的服务器功能需要长规范语句摘要
+- en: Many concurrent sessions, each of which allocates digest-computation memory
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 许多并发会话，每个会话分配摘要计算内存
+- en: The need to limit memory consumption by the Performance Schema statement event
+    tables when storing many statement digests
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在存储许多语句摘要时，需要限制Performance Schema语句事件表的内存消耗
+- en: The [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    setting is not per session, it is per statement, and a session can store multiple
+    statements in the [`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 The events_statements_history Table") table. A typical number of statements
+    in this table is 10 per session, so each session consumes 10 times the memory
+    indicated by the [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    value, for this table alone.
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)设置不是每个会话，而是每个语句，一个会话可以在[`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 The events_statements_history Table")表中存储多个语句。在此表中的典型语句数量为每个会话10个，因此每个会话仅针对此表消耗了[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)值所示的内存的10倍。'
+- en: Also, there are many statements (and digests) collected globally, most notably
+    in the [`events_statements_history_long`](performance-schema-events-statements-history-long-table.html
+    "29.12.6.3 The events_statements_history_long Table") table. Here, too, *`N`*
+    statements stored consumes *`N`* times the memory indicated by the [`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)
+    value.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，全局收集了许多语句（和摘要），最显著的是在[`events_statements_history_long`](performance-schema-events-statements-history-long-table.html
+    "29.12.6.3 The events_statements_history_long Table")表中。在这里，存储的*N*语句消耗了*N*倍于[`performance_schema_max_digest_length`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length)值所示内存的内存。
+- en: 'To assess the amount of memory used for SQL statement storage and digest computation,
+    use the [`SHOW ENGINE PERFORMANCE_SCHEMA STATUS`](show-engine.html "15.7.7.15 SHOW
+    ENGINE Statement") statement, or monitor these instruments:'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要评估用于SQL语句存储和摘要计算的内存量，请使用[`SHOW ENGINE PERFORMANCE_SCHEMA STATUS`](show-engine.html
+    "15.7.7.15 SHOW ENGINE Statement")语句，或监视这些指标：
+- en: '[PRE6]'
+  id: totrans-73
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Statement Sampling
+  id: totrans-74
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 语句抽样
+- en: 'The Performance Schema uses statement sampling to collect representative statements
+    that produce each digest value in the [`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables") table. These columns store sample statement
+    information: `QUERY_SAMPLE_TEXT` (the text of the statement), `QUERY_SAMPLE_SEEN`
+    (when the statement was seen), and `QUERY_SAMPLE_TIMER_WAIT` (the statement wait
+    or execution time). The Performance Schema updates all three columns each time
+    it chooses a sample statement.'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 性能模式使用语句取样来收集在[`events_statements_summary_by_digest`](performance-schema-statement-summary-tables.html
+    "29.12.20.3 Statement Summary Tables")表中生成每个摘要值的代表性语句。这些列存储样本语句信息：`QUERY_SAMPLE_TEXT`（语句的文本），`QUERY_SAMPLE_SEEN`（语句被看到的时间）和`QUERY_SAMPLE_TIMER_WAIT`（语句等待或执行时间）。每次选择样本语句时，性能模式都会更新这三列。
+- en: 'When a new table row is inserted, the statement that produced the row digest
+    value is stored as the current sample statement associated with the digest. Thereafter,
+    when the server sees other statements with the same digest value, it determines
+    whether to use the new statement to replace the current sample statement (that
+    is, whether to resample). Resampling policy is based on the comparative wait times
+    of the current sample statement and new statement and, optionally, the age of
+    the current sample statement:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当插入新表行时，生成行摘要值的语句将作为与摘要相关联的当前样本语句存储。此后，当服务器看到具有相同摘要值的其他语句时，它将确定是否使用新语句替换当前样本语句（即是否重新取样）。重新取样策略基于当前样本语句和新语句的比较等待时间，以及可选的当前样本语句的年龄：
+- en: 'Resampling based on wait times: If the new statement wait time has a wait time
+    greater than that of the current sample statement, it becomes the current sample
+    statement.'
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 基于等待时间的重新取样：如果新语句的等待时间大于当前样本语句的等待时间，则新语句将成为当前样本语句。
+- en: 'Resampling based on age: If the [`performance_schema_max_digest_sample_age`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_sample_age)
+    system variable has a value greater than zero and the current sample statement
+    is more than that many seconds old, the current statement is considered “too old”
+    and the new statement replaces it. This occurs even if the new statement wait
+    time is less than that of the current sample statement.'
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 基于年龄的重新取样：如果[`performance_schema_max_digest_sample_age`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_sample_age)系统变量的值大于零，并且当前样本语句的年龄超过该秒数，则当前语句被视为“太旧”，新语句将替换它。即使新语句的等待时间小于当前样本语句的等待时间，也会发生这种情况。
+- en: By default, [`performance_schema_max_digest_sample_age`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_sample_age)
+    is 60 seconds (1 minute). To change how quickly sample statements “expire” due
+    to age, increase or decrease the value. To disable the age-based part of the resampling
+    policy, set [`performance_schema_max_digest_sample_age`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_sample_age)
+    to 0.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，[`performance_schema_max_digest_sample_age`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_sample_age)为60秒（1分钟）。要更改样本语句由于年龄而“过期”的速度，增加或减少该值。要禁用基于年龄的重新取样策略的部分，请将[`performance_schema_max_digest_sample_age`](performance-schema-system-variables.html#sysvar_performance_schema_max_digest_sample_age)设置为0。

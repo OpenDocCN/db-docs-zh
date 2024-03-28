@@ -1,0 +1,421 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-administration-skip.html](https://dev.mysql.com/doc/refman/8.0/en/replication-administration-skip.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-administration-skip.html](https://dev.mysql.com/doc/refman/8.0/en/replication-administration-skip.html)
+- en: 19.1.7.3 Skipping Transactions
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.7.3 跳过事务
+- en: If replication stops due to an issue with an event in a replicated transaction,
+    you can resume replication by skipping the failed transaction on the replica.
+    Before skipping a transaction, ensure that the replication I/O (receiver) thread
+    is stopped as well as the SQL (applier) thread.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果由于复制事务中的事件问题而导致复制停止，则可以通过在副本上跳过失败的事务来恢复复制。在跳过事务之前，请确保复制I/O（接收器）线程以及SQL（应用程序）线程已停止。
+- en: First you need to identify the replicated event that caused the error. Details
+    of the error and the last successfully applied transaction are recorded in the
+    Performance Schema table [`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table"). You can use [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") to retrieve and
+    display the events that were logged around the time of the error. For instructions
+    to do this, see [Section 9.5, “Point-in-Time (Incremental) Recovery”](point-in-time-recovery.html
+    "9.5 Point-in-Time (Incremental) Recovery"). Alternatively, you can issue [`SHOW
+    RELAYLOG EVENTS`](show-relaylog-events.html "15.7.7.32 SHOW RELAYLOG EVENTS Statement")
+    on the replica or [`SHOW BINLOG EVENTS`](show-binlog-events.html "15.7.7.2 SHOW
+    BINLOG EVENTS Statement") on the source.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，您需要确定导致错误的复制事件。错误的详细信息和最后成功应用的事务记录在性能模式表[`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 replication_applier_status_by_worker表")中。您可以使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")检索和显示围绕错误发生时记录的事件。有关如何执行此操作的说明，请参阅[第9.5节，“时间点（增量）恢复”](point-in-time-recovery.html
+    "9.5 时间点（增量）恢复")。或者，您可以在副本上发出[`SHOW RELAYLOG EVENTS`](show-relaylog-events.html
+    "15.7.7.32 SHOW RELAYLOG EVENTS语句")或在源上发出[`SHOW BINLOG EVENTS`](show-binlog-events.html
+    "15.7.7.2 SHOW BINLOG EVENTS语句")。
+- en: 'Before skipping the transaction and restarting the replica, check these points:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在跳过事务并重新启动副本之前，请检查以下几点：
+- en: Is the transaction that stopped replication from an unknown or untrusted source?
+    If so, investigate the cause in case there are any security considerations that
+    indicate the replica should not be restarted.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 停止复制的事务是否来自未知或不受信任的来源？如果是，请调查原因，以确定是否有任何安全考虑因素表明不应重新启动副本。
+- en: Does the transaction that stopped replication need to be applied on the replica?
+    If so, either make the appropriate corrections and reapply the transaction, or
+    manually reconcile the data on the replica.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 停止复制的事务是否需要在副本上应用？如果是，请进行适当的更正并重新应用该事务，或者在副本上手动协调数据。
+- en: Did the transaction that stopped replication need to be applied on the source?
+    If not, undo the transaction manually on the server where it originally took place.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 停止复制的事务是否需要在源上应用？如果不需要，请在原始发生地的服务器上手动撤消该事务。
+- en: 'To skip the transaction, choose one of the following methods as appropriate:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要跳过事务，请根据情况选择以下方法之一：
+- en: When GTIDs are in use ([`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    is `ON`), see [Section 19.1.7.3.1, “Skipping Transactions With GTIDs”](replication-administration-skip.html#replication-administration-skip-gtid
+    "19.1.7.3.1 Skipping Transactions With GTIDs") .
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当使用GTIDs时（[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)为`ON`），请参阅[第19.1.7.3.1节，“跳过带有GTIDs的事务”](replication-administration-skip.html#replication-administration-skip-gtid
+    "19.1.7.3.1 跳过带有GTIDs的事务")。
+- en: When GTIDs are not in use or are being phased in ([`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    is `OFF`, `OFF_PERMISSIVE`, or `ON_PERMISSIVE`), see [Section 19.1.7.3.2, “Skipping
+    Transactions Without GTIDs”](replication-administration-skip.html#replication-administration-skip-nogtid
+    "19.1.7.3.2 Skipping Transactions Without GTIDs").
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当不使用GTIDs或正在逐步引入GTIDs时（[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)为`OFF`、`OFF_PERMISSIVE`或`ON_PERMISSIVE`），请参阅[第19.1.7.3.2节，“跳过不带GTIDs的事务”](replication-administration-skip.html#replication-administration-skip-nogtid
+    "19.1.7.3.2 跳过不带GTIDs的事务")。
+- en: If you have enabled GTID assignment on a replication channel using the `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`
+    option of the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") or [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement, see [Section 19.1.7.3.2, “Skipping
+    Transactions Without GTIDs”](replication-administration-skip.html#replication-administration-skip-nogtid
+    "19.1.7.3.2 Skipping Transactions Without GTIDs"). Using `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`
+    on a replication channel is not the same as introducing GTID-based replication
+    for the channel, and you cannot use the transaction skipping method for GTID-based
+    replication with those channels.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您已经使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement")或[`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE
+    MASTER TO Statement")语句的`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`选项在复制通道上启用了GTID分配，请参阅[第19.1.7.3.2节，“跳过没有GTIDs的事务”](replication-administration-skip.html#replication-administration-skip-nogtid
+    "19.1.7.3.2 Skipping Transactions Without GTIDs")。在复制通道上使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`与为通道引入基于GTID的复制不同，您不能在这些通道上使用基于GTID的复制的事务跳过方法。
+- en: To restart replication after skipping the transaction, issue [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement"), with the `FOR CHANNEL` clause if the replica
+    is a multi-source replica.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在跳过事务后重新启动复制，请发出[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA
+    Statement")命令，如果副本是多源副本，则带有`FOR CHANNEL`子句。
+- en: 19.1.7.3.1 Skipping Transactions With GTIDs
+  id: totrans-13
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 19.1.7.3.1 跳过带有GTIDs的事务
+- en: When GTIDs are in use ([`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    is `ON`), the GTID for a committed transaction is persisted on the replica even
+    if the content of the transaction is filtered out. This feature prevents a replica
+    from retrieving previously filtered transactions when it reconnects to the source
+    using GTID auto-positioning. It can also be used to skip a transaction on the
+    replica, by committing an empty transaction in place of the failing transaction.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用GTIDs时（[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)为`ON`），即使事务内容被过滤掉，已提交事务的GTID也会在副本上持久化。这个特性可以防止副本在使用GTID自动定位重新连接到源时检索先前被过滤的事务。它还可以用于在副本上跳过一个事务，方法是提交一个空事务来代替失败的事务。
+- en: This method of skipping transactions is not suitable when you have enabled GTID
+    assignment on a replication channel using the `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`
+    option of the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您已经使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement")语句的`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`选项在复制通道上启用了GTID分配时，这种跳过事务的方法不适用。
+- en: If the failing transaction generated an error in a worker thread, you can obtain
+    its GTID directly from the `APPLYING_TRANSACTION` field in the Performance Schema
+    table [`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table"). To see what the
+    transaction is, issue [`SHOW RELAYLOG EVENTS`](show-relaylog-events.html "15.7.7.32 SHOW
+    RELAYLOG EVENTS Statement") on the replica or [`SHOW BINLOG EVENTS`](show-binlog-events.html
+    "15.7.7.2 SHOW BINLOG EVENTS Statement") on the source, and search the output
+    for a transaction preceded by that GTID.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果失败的事务在工作线程中生成了错误，您可以直接从性能模式表[`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table")中的`APPLYING_TRANSACTION`字段获取其GTID。要查看该事务是什么，请在副本上发出[`SHOW
+    RELAYLOG EVENTS`](show-relaylog-events.html "15.7.7.32 SHOW RELAYLOG EVENTS Statement")或在源上发出[`SHOW
+    BINLOG EVENTS`](show-binlog-events.html "15.7.7.2 SHOW BINLOG EVENTS Statement")，并搜索输出以找到由该GTID引导的事务。
+- en: 'When you have assessed the failing transaction for any other appropriate actions
+    as described previously (such as security considerations), to skip it, commit
+    an empty transaction on the replica that has the same GTID as the failing transaction.
+    For example:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您已经评估了失败的事务是否需要采取其他适当的操作（如安全考虑）后，要跳过它，请在副本上提交一个与失败事务具有相同GTID的空事务。例如：
+- en: '[PRE0]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The presence of this empty transaction on the replica means that when you issue
+    a [`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement") statement
+    to restart replication, the replica uses the auto-skip function to ignore the
+    failing transaction, because it sees a transaction with that GTID has already
+    been applied. If the replica is a multi-source replica, you do not need to specify
+    the channel name when you commit the empty transaction, but you do need to specify
+    the channel name when you issue [`START REPLICA`](start-replica.html "15.4.2.6 START
+    REPLICA Statement").
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在副本上存在这个空事务意味着当您发出[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA
+    Statement")语句重新启动复制时，副本将使用自动跳过功能来忽略失败的事务，因为它看到具有该GTID的事务已经被应用。如果副本是多源副本，则在提交空事务时不需要指定通道名称，但在发出[`START
+    REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement")时需要指定通道名称。
+- en: 'Note that if binary logging is in use on this replica, the empty transaction
+    enters the replication stream if the replica becomes a source or primary in the
+    future. If you need to avoid this possibility, consider flushing and purging the
+    replica''s binary logs, as in this example:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，如果此副本正在使用二进制日志记录，则在将来该副本成为源或主时，空事务将进入复制流。如果您需要避免这种可能性，请考虑刷新和清除副本的二进制日志，就像这个例子一样：
+- en: '[PRE1]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The GTID of the empty transaction is persisted, but the transaction itself is
+    removed by purging the binary log files.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 空事务的GTID是持久的，但事务本身通过清除二进制日志文件而被移除。
+- en: 19.1.7.3.2 Skipping Transactions Without GTIDs
+  id: totrans-23
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 19.1.7.3.2 跳过没有GTID的事务
+- en: To skip failing transactions when GTIDs are not in use or are being phased in
+    ([`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) is `OFF`, `OFF_PERMISSIVE`,
+    or `ON_PERMISSIVE`), you can skip a specified number of events by issuing a `SET
+    GLOBAL sql_replica_skip_counter` statement (from MySQL 8.0.26) or a `SET GLOBAL
+    sql_slave_skip_counter` statement. Alternatively, you can skip past an event or
+    events by issuing a [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") or [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement to move the source binary log
+    position forward.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当GTID未被使用或正在逐步引入时（[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)为`OFF`、`OFF_PERMISSIVE`或`ON_PERMISSIVE`），您可以通过发出`SET
+    GLOBAL sql_replica_skip_counter`语句（从MySQL 8.0.26开始）或`SET GLOBAL sql_slave_skip_counter`语句来跳过指定数量的事件。或者，您可以通过发出[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")或[`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE
+    MASTER TO Statement")语句来跳过一个或多个事件，以将源二进制日志位置向前移动。
+- en: These methods are also suitable when you have enabled GTID assignment on a replication
+    channel using the `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` option of the [`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement") or [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE
+    MASTER TO Statement") statement.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您在复制通道上使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`选项的[`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement")或[`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement")语句启用GTID分配时，这些方法也是适用的。
+- en: When you use these methods, it is important to understand that you are not necessarily
+    skipping a complete transaction, as is always the case with the GTID-based method
+    described previously. These non-GTID-based methods are not aware of transactions
+    as such, but instead operate on events. The binary log is organized as a sequence
+    of groups known as event groups, and each event group consists of a sequence of
+    events.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您使用这些方法时，重要的是要理解，您并不一定是跳过一个完整的事务，就像之前描述的基于GTID的方法总是这样。这些非GTID方法并不知道事务的存在，而是操作事件。二进制日志被组织为一系列称为事件组的组，每个事件组由一系列事件组成。
+- en: For transactional tables, an event group corresponds to a transaction.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于事务性表，一个事件组对应一个事务。
+- en: For nontransactional tables, an event group corresponds to a single SQL statement.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于非事务性表，一个事件组对应一个单独的SQL语句。
+- en: A single transaction can contain changes to both transactional and nontransactional
+    tables.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个单独的事务可以包含对事务性和非事务性表的更改。
+- en: When you use a `SET GLOBAL sql_replica_skip_counter` or `SET GLOBAL sql_slave_skip_counter`
+    statement to skip events and the resulting position is in the middle of an event
+    group, the replica continues to skip events until it reaches the end of the group.
+    Execution then starts with the next event group. The [`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement") or [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement") statement does not have this function, so you must be careful to
+    identify the correct location to restart replication at the beginning of an event
+    group. However, using [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") or [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") means you do not have to count the events
+    that need to be skipped, as you do with `SET GLOBAL sql_replica_skip_counter`
+    or `SET GLOBAL sql_slave_skip_counter`, and instead you can just specify the location
+    to restart.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您使用`SET GLOBAL sql_replica_skip_counter`或`SET GLOBAL sql_slave_skip_counter`语句跳过事件，并且结果位置位于事件组的中间时，复制品会继续跳过事件，直到达到该组的末尾。然后执行将从下一个事件组开始。[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")或[`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE
+    MASTER TO Statement")语句没有此功能，因此您必须小心确定重新启动复制的正确位置，即事件组的开头。但是，使用[`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement")或[`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement")意味着您无需计算需要跳过的事件，就像使用`SET GLOBAL sql_replica_skip_counter`或`SET GLOBAL
+    sql_slave_skip_counter`一样，而是可以直接指定重新启动的位置。
+- en: 19.1.7.3.2.1 Skipping Transactions With `SET GLOBAL sql_slave_skip_counter`
+  id: totrans-31
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 19.1.7.3.2.1 使用`SET GLOBAL sql_slave_skip_counter`跳过事务
+- en: When you have assessed the failing transaction for any other appropriate actions
+    as described previously (such as security considerations), count the number of
+    events that you need to skip. One event normally corresponds to one SQL statement
+    in the binary log, but note that statements that use `AUTO_INCREMENT` or `LAST_INSERT_ID()`
+    count as two events in the binary log. When binary log transaction compression
+    is in use, a compressed transaction payload (`Transaction_payload_event`) is counted
+    as a single counter value, so all the events inside it are skipped as a unit.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您已经评估了失败的事务以及之前描述的任何其他适当操作（如安全考虑）后，计算您需要跳过的事件数。一个事件通常对应于二进制日志中的一个SQL语句，但请注意，使用`AUTO_INCREMENT`或`LAST_INSERT_ID()`的语句在二进制日志中计为两个事件。当使用二进制日志事务压缩时，压缩的事务负载（`Transaction_payload_event`）被计为单个计数值，因此其中的所有事件都作为一个单元跳过。
+- en: If you want to skip the complete transaction, you can count the events to the
+    end of the transaction, or you can just skip the relevant event group. Remember
+    that with `SET GLOBAL sql_replica_skip_counter` or `SET GLOBAL sql_slave_skip_counter`,
+    the replica continues to skip to the end of an event group. Make sure you do not
+    skip too far forward and go into the next event group or transaction so that it
+    is not also skipped.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您想跳过完整的事务，可以计算事件直到事务结束，或者只是跳过相关的事件组。请记住，使用`SET GLOBAL sql_replica_skip_counter`或`SET
+    GLOBAL sql_slave_skip_counter`时，复制品会继续跳过到事件组的末尾。确保您不要跳得太远，进入下一个事件组或事务，以免也被跳过。
+- en: 'Issue the `SET` statement as follows, where *`N`* is the number of events from
+    the source to skip:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 发出以下`SET`语句，其中*`N`*是要从源跳过的事件数：
+- en: '[PRE2]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: This statement cannot be issued if [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)
+    is set, or if the replication I/O (receiver) and SQL (applier) threads are running.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果设置了[`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)，或者复制I/O（接收器）和SQL（应用程序）线程正在运行，则无法发出此语句。
+- en: The `SET GLOBAL sql_replica_skip_counter` or `SET GLOBAL sql_slave_skip_counter`
+    statement has no immediate effect. When you issue the [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement") statement for the next time following this
+    `SET` statement, the new value for the system variable [`sql_replica_skip_counter`](replication-options-replica.html#sysvar_sql_replica_skip_counter)
+    or [`sql_slave_skip_counter`](replication-options-replica.html#sysvar_sql_slave_skip_counter)
+    is applied, and the events are skipped. That [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement") statement also automatically sets the value
+    of the system variable back to 0\. If the replica is a multi-source replica, when
+    you issue that [`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement")
+    statement, the `FOR CHANNEL` clause is required. Make sure that you name the correct
+    channel, otherwise events are skipped on the wrong channel.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`SET GLOBAL sql_replica_skip_counter` 或 `SET GLOBAL sql_slave_skip_counter`
+    语句没有立即生效。当你在这个 `SET` 语句之后再次发出 [`START REPLICA`](start-replica.html "15.4.2.6 START
+    REPLICA Statement") 语句时，系统变量 [`sql_replica_skip_counter`](replication-options-replica.html#sysvar_sql_replica_skip_counter)
+    或 [`sql_slave_skip_counter`](replication-options-replica.html#sysvar_sql_slave_skip_counter)
+    的新值会生效，并且事件会被跳过。那个 [`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA
+    Statement") 语句也会自动将系统变量的值设置回0。如果复制品是多源复制品，则在发出那个 [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement") 语句时，`FOR CHANNEL` 子句是必需的。确保你命名了正确的通道，否则事件会在错误的通道上被跳过。'
+- en: 19.1.7.3.2.2 Skipping Transactions With `CHANGE MASTER TO`
+  id: totrans-38
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 19.1.7.3.2.2 跳过事务使用 `CHANGE MASTER TO`
+- en: When you have assessed the failing transaction for any other appropriate actions
+    as described previously (such as security considerations), identify the coordinates
+    (file and position) in the source's binary log that represent a suitable position
+    to restart replication. This can be the start of the event group following the
+    event that caused the issue, or the start of the next transaction. The replication
+    I/O (receiver) thread begins reading from the source at these coordinates the
+    next time the thread starts, skipping the failing event. Make sure that you have
+    identified the position accurately, because this statement does not take event
+    groups into account.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当你评估了失败的事务以及之前描述的任何其他适当操作（如安全考虑）后，确定源二进制日志中表示适当位置以重新启动复制的坐标（文件和位置）。这可以是导致问题的事件后的事件组的开始，或者下一个事务的开始。复制
+    I/O（接收器）线程在下次启动时从这些坐标开始读取源，跳过失败的事件。确保你准确地确定了位置，因为这个语句不考虑事件组。
+- en: 'Issue the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") or [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement as follows, where *`source_log_name`*
+    is the binary log file that contains the restart position, and *`source_log_pos`*
+    is the number representing the restart position as stated in the binary log file:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 发出以下 [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") 或 [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") 语句，其中 *`source_log_name`* 是包含重新启动位置的二进制日志文件，*`source_log_pos`*
+    是表示二进制日志文件中重新启动位置的数字：
+- en: '[PRE3]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: If the replica is a multi-source replica, you must use the `FOR CHANNEL` clause
+    to name the appropriate channel on the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") or [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果复制品是多源复制品，则必须在 [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") 或 [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") 语句中使用 `FOR CHANNEL` 子句来命名适当的通道。
+- en: 'This statement cannot be issued if `SOURCE_AUTO_POSITION=1` or `MASTER_AUTO_POSITION=1`
+    is set, or if the replication I/O (receiver) and SQL (applier) threads are running.
+    If you need to use this method of skipping a transaction when `SOURCE_AUTO_POSITION=1`
+    or `MASTER_AUTO_POSITION=1` is normally set, you can change the setting to `SOURCE_AUTO_POSITION=0`
+    or `MASTER_AUTO_POSITION=0` while issuing the statement, then change it back again
+    afterwards. For example:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 `SOURCE_AUTO_POSITION=1` 或 `MASTER_AUTO_POSITION=1` 被设置，或者复制 I/O（接收器）和 SQL（应用程序）线程正在运行，则无法发出此语句。如果在通常设置为
+    `SOURCE_AUTO_POSITION=1` 或 `MASTER_AUTO_POSITION=1` 时需要使用此跳过事务的方法，你可以在发出语句时将设置更改为
+    `SOURCE_AUTO_POSITION=0` 或 `MASTER_AUTO_POSITION=0`，然后之后再将其改回。例如：
+- en: '[PRE4]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'

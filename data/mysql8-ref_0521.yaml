@@ -1,0 +1,447 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/nested-join-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/nested-join-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/nested-join-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/nested-join-optimization.html)
+- en: 10.2.1.8 Nested Join Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.8 嵌套连接优化
+- en: The syntax for expressing joins permits nested joins. The following discussion
+    refers to the join syntax described in [Section 15.2.13.2, “JOIN Clause”](join.html
+    "15.2.13.2 JOIN Clause").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表达连接的语法允许嵌套连接。以下讨论涉及[第15.2.13.2节，“JOIN子句”](join.html "15.2.13.2 JOIN Clause")中描述的连接语法。
+- en: 'The syntax of *`table_factor`* is extended in comparison with the SQL Standard.
+    The latter accepts only *`table_reference`*, not a list of them inside a pair
+    of parentheses. This is a conservative extension if we consider each comma in
+    a list of *`table_reference`* items as equivalent to an inner join. For example:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与SQL标准相比，*`table_factor`*的语法有所扩展。后者仅接受*`table_reference`*，而不是在一对括号内列出它们。如果我们将*`table_reference`*项目列表中的每个逗号视为等同于内连接，则这是一种保守的扩展。例如：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Is equivalent to:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 等同于：
+- en: '[PRE1]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: In MySQL, `CROSS JOIN` is syntactically equivalent to `INNER JOIN`; they can
+    replace each other. In standard SQL, they are not equivalent. `INNER JOIN` is
+    used with an `ON` clause; `CROSS JOIN` is used otherwise.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL中，`CROSS JOIN`在语法上等同于`INNER JOIN`；它们可以互换使用。在标准SQL中，它们不等效。`INNER JOIN`与`ON`子句一起使用；否则使用`CROSS
+    JOIN`。
+- en: 'In general, parentheses can be ignored in join expressions containing only
+    inner join operations. Consider this join expression:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一般来说，可以忽略仅包含内连接操作的连接表达式中的括号。考虑这个连接表达式：
+- en: '[PRE2]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'After removing parentheses and grouping operations to the left, that join expression
+    transforms into this expression:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 删除括号并将操作分组到左侧后，该连接表达式转换为以下表达式：
+- en: '[PRE3]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Yet, the two expressions are not equivalent. To see this, suppose that the
+    tables `t1`, `t2`, and `t3` have the following state:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，这两个表达式并不等效。为了看到这一点，假设表`t1`，`t2`和`t3`具有以下状态：
+- en: Table `t1` contains rows `(1)`, `(2)`
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表`t1`包含行`(1)`，`(2)`
+- en: Table `t2` contains row `(1,101)`
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表`t2`包含行`(1,101)`
+- en: Table `t3` contains row `(101)`
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表`t3`包含行`(101)`
+- en: 'In this case, the first expression returns a result set including the rows
+    `(1,1,101,101)`, `(2,NULL,NULL,NULL)`, whereas the second expression returns the
+    rows `(1,1,101,101)`, `(2,NULL,NULL,101)`:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，第一个表达式返回包含行`(1,1,101,101)`，`(2,NULL,NULL,NULL)`的结果集，而第二个表达式返回行`(1,1,101,101)`，`(2,NULL,NULL,101)`：
+- en: '[PRE4]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'In the following example, an outer join operation is used together with an
+    inner join operation:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以下示例中，外连接操作与内连接操作一起使用：
+- en: '[PRE5]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'That expression cannot be transformed into the following expression:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该表达式无法转换为以下表达式：
+- en: '[PRE6]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'For the given table states, the two expressions return different sets of rows:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于给定的表状态，这两个表达式返回不同的行集：
+- en: '[PRE7]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: Therefore, if we omit parentheses in a join expression with outer join operators,
+    we might change the result set for the original expression.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，如果在具有外连接运算符的连接表达式中省略括号，可能会改变原始表达式的结果集。
+- en: More exactly, we cannot ignore parentheses in the right operand of the left
+    outer join operation and in the left operand of a right join operation. In other
+    words, we cannot ignore parentheses for the inner table expressions of outer join
+    operations. Parentheses for the other operand (operand for the outer table) can
+    be ignored.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更确切地说，在左外连接操作的右操作数和右连接操作的左操作数中不能忽略括号。换句话说，我们不能忽略外连接操作的内表达式的括号。其他操作数（外表的操作数）的括号可以忽略。
+- en: 'The following expression:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表达式：
+- en: '[PRE8]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Is equivalent to this expression for any tables `t1,t2,t3` and any condition
+    `P` over attributes `t2.b` and `t3.b`:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于任何表`t1,t2,t3`和任何条件`P`，在属性`t2.b`和`t3.b`上：
+- en: '[PRE9]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'Whenever the order of execution of join operations in a join expression (*`joined_table`*)
+    is not from left to right, we talk about nested joins. Consider the following
+    queries:'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每当连接表达式（*`joined_table`*）中连接操作的执行顺序不是从左到右时，我们谈论嵌套连接。考虑以下查询：
+- en: '[PRE10]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'Those queries are considered to contain these nested joins:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些查询被认为包含这些嵌套连接：
+- en: '[PRE11]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: In the first query, the nested join is formed with a left join operation. In
+    the second query, it is formed with an inner join operation.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第一个查询中，嵌套连接是通过左连接操作形成的。在第二个查询中，它是通过内连接操作形成的。
+- en: 'In the first query, the parentheses can be omitted: The grammatical structure
+    of the join expression dictates the same order of execution for join operations.
+    For the second query, the parentheses cannot be omitted, although the join expression
+    here can be interpreted unambiguously without them. In our extended syntax, the
+    parentheses in `(t2, t3)` of the second query are required, although theoretically
+    the query could be parsed without them: We still would have unambiguous syntactical
+    structure for the query because `LEFT JOIN` and `ON` play the role of the left
+    and right delimiters for the expression `(t2,t3)`.'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第一个查询中，括号可以省略：连接表达式的语法结构决定了连接操作的执行顺序相同。对于第二个查询，不能省略括号，尽管这里的连接表达式可以在没有括号的情况下明确解释。在我们的扩展语法中，第二个查询中`(t2,
+    t3)`的括号是必需的，尽管理论上可以在没有它们的情况下解析查询：我们仍然会对查询有一个明确的语法结构，因为`LEFT JOIN`和`ON`扮演了表达式`(t2,t3)`的左右定界符的角色。
+- en: 'The preceding examples demonstrate these points:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前面的例子演示了这些要点：
+- en: For join expressions involving only inner joins (and not outer joins), parentheses
+    can be removed and joins evaluated left to right. In fact, tables can be evaluated
+    in any order.
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于仅涉及内连接（而不是外连接）的连接表达式，可以去掉括号并从左到右评估连接。实际上，表可以以任何顺序评估。
+- en: The same is not true, in general, for outer joins or for outer joins mixed with
+    inner joins. Removal of parentheses may change the result.
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一般来说，对于外连接或混合内连接的外连接，去掉括号可能会改变结果。
+- en: 'Queries with nested outer joins are executed in the same pipeline manner as
+    queries with inner joins. More exactly, a variation of the nested-loop join algorithm
+    is exploited. Recall the algorithm by which the nested-loop join executes a query
+    (see [Section 10.2.1.7, “Nested-Loop Join Algorithms”](nested-loop-joins.html
+    "10.2.1.7 Nested-Loop Join Algorithms")). Suppose that a join query over 3 tables
+    `T1,T2,T3` has this form:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 具有嵌套外连接的查询以与具有内连接相同的管道方式执行。更确切地说，利用了嵌套循环连接算法的一个变体。回想一下嵌套循环连接执行查询的算法（参见[第10.2.1.7节，“嵌套循环连接算法”](nested-loop-joins.html
+    "10.2.1.7 嵌套循环连接算法")）。假设一个涉及3个表`T1,T2,T3`的连接查询具有以下形式：
+- en: '[PRE12]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: Here, `P1(T1,T2)` and `P2(T3,T3)` are some join conditions (on expressions),
+    whereas `P(T1,T2,T3)` is a condition over columns of tables `T1,T2,T3`.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里，`P1(T1,T2)`和`P2(T3,T3)`是一些连接条件（基于表达式），而`P(T1,T2,T3)`是关于表`T1,T2,T3`列的条件。
+- en: 'The nested-loop join algorithm would execute this query in the following manner:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 嵌套循环连接算法将以以下方式执行此查询：
+- en: '[PRE13]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: The notation `t1||t2||t3` indicates a row constructed by concatenating the columns
+    of rows `t1`, `t2`, and `t3`. In some of the following examples, `NULL` where
+    a table name appears means a row in which `NULL` is used for each column of that
+    table. For example, `t1||t2||NULL` indicates a row constructed by concatenating
+    the columns of rows `t1` and `t2`, and `NULL` for each column of `t3`. Such a
+    row is said to be `NULL`-complemented.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表示通过连接行`t1`, `t2`和`t3`的列构造的行的符号`t1||t2||t3`。在以下一些示例中，表名出现的地方的`NULL`表示使用`NULL`作为该表的每列。例如，`t1||t2||NULL`表示通过连接行`t1`和`t2`的列，并为`t3`的每列使用`NULL`构造的行。这样的行被称为`NULL`-补充。
+- en: 'Now consider a query with nested outer joins:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在考虑一个具有嵌套外连接的查询：
+- en: '[PRE14]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'For this query, modify the nested-loop pattern to obtain:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于这个查询，修改嵌套循环模式以获得：
+- en: '[PRE15]'
+  id: totrans-48
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: In general, for any nested loop for the first inner table in an outer join operation,
+    a flag is introduced that is turned off before the loop and is checked after the
+    loop. The flag is turned on when for the current row from the outer table a match
+    from the table representing the inner operand is found. If at the end of the loop
+    cycle the flag is still off, no match has been found for the current row of the
+    outer table. In this case, the row is complemented by `NULL` values for the columns
+    of the inner tables. The result row is passed to the final check for the output
+    or into the next nested loop, but only if the row satisfies the join condition
+    of all embedded outer joins.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一般来说，在外连接操作的第一个内表的嵌套循环中，引入了一个标志，在循环之前关闭，在循环之后检查。当在外表的当前行中找到来自表示内操作数的表的匹配时，该标志被打开。如果在循环周期结束时标志仍然关闭，则没有找到外表当前行的匹配。在这种情况下，行将通过为内表的列补充`NULL`值。结果行将传递到输出的最终检查或下一个嵌套循环中，但仅当该行满足所有嵌套外连接的连接条件时。
+- en: 'In the example, the outer join table expressed by the following expression
+    is embedded:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在示例中，以下表达式表示的外连接表被嵌入：
+- en: '[PRE16]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'For the query with inner joins, the optimizer could choose a different order
+    of nested loops, such as this one:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于带有内连接的查询，优化器可以选择不同顺序的嵌套循环，例如这样一个顺序：
+- en: '[PRE17]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: For queries with outer joins, the optimizer can choose only such an order where
+    loops for outer tables precede loops for inner tables. Thus, for our query with
+    outer joins, only one nesting order is possible. For the following query, the
+    optimizer evaluates two different nestings. In both nestings, `T1` must be processed
+    in the outer loop because it is used in an outer join. `T2` and `T3` are used
+    in an inner join, so that join must be processed in the inner loop. However, because
+    the join is an inner join, `T2` and `T3` can be processed in either order.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于带有外连接的查询，优化器只能选择外表的循环在内表的循环之前的顺序。因此，对于我们带有外连接的查询，只有一种嵌套顺序是可能的。对于以下查询，优化器评估了两种不同的嵌套。在这两种嵌套中，`T1`必须在外循环中处理，因为它用于外连接。`T2`和`T3`用于内连接，因此该连接必须在内循环中处理。然而，由于连接是内连接，`T2`和`T3`可以以任何顺序处理。
+- en: '[PRE18]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: 'One nesting evaluates `T2`, then `T3`:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个嵌套评估`T2`，然后是`T3`：
+- en: '[PRE19]'
+  id: totrans-57
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: 'The other nesting evaluates `T3`, then `T2`:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一个嵌套评估`T3`，然后是`T2`：
+- en: '[PRE20]'
+  id: totrans-59
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: 'When discussing the nested-loop algorithm for inner joins, we omitted some
+    details whose impact on the performance of query execution may be huge. We did
+    not mention so-called “pushed-down” conditions. Suppose that our `WHERE` condition
+    `P(T1,T2,T3)` can be represented by a conjunctive formula:'
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在讨论内连接的嵌套循环算法时，我们省略了一些细节，这些细节对查询执行性能的影响可能是巨大的。我们没有提到所谓的“推送下推”条件。假设我们的`WHERE`条件`P(T1,T2,T3)`可以用一个合取公式表示：
+- en: '[PRE21]'
+  id: totrans-61
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: 'In this case, MySQL actually uses the following nested-loop algorithm for the
+    execution of the query with inner joins:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，MySQL实际上使用以下嵌套循环算法来执行带有内连接的查询：
+- en: '[PRE22]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: You see that each of the conjuncts `C1(T1)`, `C2(T2)`, `C3(T3)` are pushed out
+    of the most inner loop to the most outer loop where it can be evaluated. If `C1(T1)`
+    is a very restrictive condition, this condition pushdown may greatly reduce the
+    number of rows from table `T1` passed to the inner loops. As a result, the execution
+    time for the query may improve immensely.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以看到每个连接`C1(T1)`，`C2(T2)`，`C3(T3)`都被推出最内部循环到最外部循环，其中可以进行评估。如果`C1(T1)`是一个非常严格的条件，这种条件下推可能会大大减少传递给内部循环的表`T1`的行数。结果，查询的执行时间可能会极大地改善。
+- en: For a query with outer joins, the `WHERE` condition is to be checked only after
+    it has been found that the current row from the outer table has a match in the
+    inner tables. Thus, the optimization of pushing conditions out of the inner nested
+    loops cannot be applied directly to queries with outer joins. Here we must introduce
+    conditional pushed-down predicates guarded by the flags that are turned on when
+    a match has been encountered.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于带有外连接的查询，`WHERE`条件只有在发现当前外表行在内表中有匹配时才会被检查。因此，将条件推出内部嵌套循环的优化不能直接应用于带有外连接的查询。在这里，我们必须引入由标志保护的条件推送下推谓词，当遇到匹配时这些标志被打开。
+- en: 'Recall this example with outer joins:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 回想一下带有外连接的这个例子：
+- en: '[PRE23]'
+  id: totrans-67
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: 'For that example, the nested-loop algorithm using guarded pushed-down conditions
+    looks like this:'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于那个例子，使用受保护的推送下推条件的嵌套循环算法如下：
+- en: '[PRE24]'
+  id: totrans-69
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: In general, pushed-down predicates can be extracted from join conditions such
+    as `P1(T1,T2)` and `P(T2,T3)`. In this case, a pushed-down predicate is guarded
+    also by a flag that prevents checking the predicate for the `NULL`-complemented
+    row generated by the corresponding outer join operation.
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一般来说，推送下推谓词可以从连接条件中提取，例如`P1(T1,T2)`和`P(T2,T3)`。在这种情况下，推送下推谓词也受到一个标志的保护，该标志防止对由相应外连接操作生成的`NULL`-补充行进行谓词检查。
+- en: Access by key from one inner table to another in the same nested join is prohibited
+    if it is induced by a predicate from the `WHERE` condition.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在相同的嵌套连接中，如果由`WHERE`条件引起，从一个内表到另一个内表的键访问是被禁止的。

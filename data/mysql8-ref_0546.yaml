@@ -1,0 +1,127 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/insert-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/insert-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/insert-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/insert-optimization.html)
+- en: 10.2.5.1 Optimizing INSERT Statements
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.5.1 优化INSERT语句
+- en: To optimize insert speed, combine many small operations into a single large
+    operation. Ideally, you make a single connection, send the data for many new rows
+    at once, and delay all index updates and consistency checking until the very end.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了优化插入速度，将许多小操作合并为单个大操作。理想情况下，您建立一个单一连接，一次发送许多新行的数据，并延迟所有索引更新和一致性检查直到最后。
+- en: 'The time required for inserting a row is determined by the following factors,
+    where the numbers indicate approximate proportions:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插入一行所需的时间由以下因素决定，其中数字表示近似比例：
+- en: 'Connecting: (3)'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 连接：(3)
+- en: 'Sending query to server: (2)'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将查询发送到服务器：(2)
+- en: 'Parsing query: (2)'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 解析查询：(2)
+- en: 'Inserting row: (1 × size of row)'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 插入行：(1 × 行大小)
+- en: 'Inserting indexes: (1 × number of indexes)'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 插入索引：(1 × 索引数)
+- en: 'Closing: (1)'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 关闭：(1)
+- en: This does not take into consideration the initial overhead to open tables, which
+    is done once for each concurrently running query.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这并未考虑到打开表的初始开销，这是每个并发运行的查询都会执行一次的操作。
+- en: The size of the table slows down the insertion of indexes by log *`N`*, assuming
+    B-tree indexes.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表的大小通过对数*`N`*减慢索引的插入速度，假设是B树索引。
+- en: 'You can use the following methods to speed up inserts:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用以下方法加快插入速度：
+- en: If you are inserting many rows from the same client at the same time, use [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements with multiple `VALUES` lists to insert several
+    rows at a time. This is considerably faster (many times faster in some cases)
+    than using separate single-row [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    statements. If you are adding data to a nonempty table, you can tune the [`bulk_insert_buffer_size`](server-system-variables.html#sysvar_bulk_insert_buffer_size)
+    variable to make data insertion even faster. See [Section 7.1.8, “Server System
+    Variables”](server-system-variables.html "7.1.8 Server System Variables").
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您正在同时从同一客户端插入许多行，请使用带有多个`VALUES`列表的[`INSERT`](insert.html "15.2.7 INSERT Statement")语句一次性插入多行。这比使用单独的单行[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句要快得多（在某些情况下快几倍）。如果要向非空表添加数据，您可以调整[`bulk_insert_buffer_size`](server-system-variables.html#sysvar_bulk_insert_buffer_size)变量以使数据插入速度更快。请参阅[第7.1.8节，“服务器系统变量”](server-system-variables.html
+    "7.1.8 Server System Variables")。
+- en: When loading a table from a text file, use [`LOAD DATA`](load-data.html "15.2.9 LOAD
+    DATA Statement"). This is usually 20 times faster than using [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements. See [Section 15.2.9, “LOAD DATA Statement”](load-data.html
+    "15.2.9 LOAD DATA Statement").
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从文本文件加载表时，请使用[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")。这通常比使用[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句快20倍。请参阅[第15.2.9节，“LOAD DATA语句”](load-data.html "15.2.9 LOAD
+    DATA Statement")。
+- en: Take advantage of the fact that columns have default values. Insert values explicitly
+    only when the value to be inserted differs from the default. This reduces the
+    parsing that MySQL must do and improves the insert speed.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 利用列具有默认值的事实。仅在要插入的值与默认值不同时显式插入值。这减少了MySQL必须进行的解析，并提高了插入速度。
+- en: See [Section 10.5.5, “Bulk Data Loading for InnoDB Tables”](optimizing-innodb-bulk-data-loading.html
+    "10.5.5 Bulk Data Loading for InnoDB Tables") for tips specific to `InnoDB` tables.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 有关`InnoDB`表的特定提示，请参阅[第10.5.5节，“InnoDB表的批量数据加载”](optimizing-innodb-bulk-data-loading.html
+    "10.5.5 Bulk Data Loading for InnoDB Tables")。
+- en: See [Section 10.6.2, “Bulk Data Loading for MyISAM Tables”](optimizing-myisam-bulk-data-loading.html
+    "10.6.2 Bulk Data Loading for MyISAM Tables") for tips specific to `MyISAM` tables.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 有关`MyISAM`表的特定提示，请参阅[第10.6.2节，“MyISAM表的批量数据加载”](optimizing-myisam-bulk-data-loading.html
+    "10.6.2 Bulk Data Loading for MyISAM Tables")。

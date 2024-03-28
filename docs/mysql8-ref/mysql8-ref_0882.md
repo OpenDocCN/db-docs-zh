@@ -1,0 +1,205 @@
+# 第十五章 SQL 语句
+
+> 原文：[`dev.mysql.com/doc/refman/8.0/en/sql-statements.html`](https://dev.mysql.com/doc/refman/8.0/en/sql-statements.html)
+
+**目录**
+
+15.1 数据定义语句
+
+15.1.1 原子数据定义语句支持
+
+15.1.2 ALTER DATABASE 语句
+
+15.1.3 ALTER EVENT 语句
+
+15.1.4 ALTER FUNCTION 语句
+
+15.1.5 ALTER INSTANCE 语句
+
+15.1.6 ALTER LOGFILE GROUP 语句
+
+15.1.7 ALTER PROCEDURE 语句
+
+15.1.8 ALTER SERVER 语句
+
+15.1.9 ALTER TABLE 语句
+
+15.1.10 ALTER TABLESPACE 语句
+
+15.1.11 ALTER VIEW 语句
+
+15.1.12 CREATE DATABASE 语句
+
+15.1.13 CREATE EVENT 语句
+
+15.1.14 CREATE FUNCTION 语句
+
+15.1.15 CREATE INDEX 语句
+
+15.1.16 CREATE LOGFILE GROUP 语句
+
+15.1.17 CREATE PROCEDURE 和 CREATE FUNCTION 语句
+
+15.1.18 CREATE SERVER 语句
+
+15.1.19 CREATE SPATIAL REFERENCE SYSTEM 语句
+
+15.1.20 CREATE TABLE 语句
+
+15.1.21 CREATE TABLESPACE 语句
+
+15.1.22 CREATE TRIGGER 语句
+
+15.1.23 CREATE VIEW 语句
+
+15.1.24 DROP DATABASE 语句
+
+15.1.25 DROP EVENT 语句
+
+15.1.26 DROP FUNCTION 语句
+
+15.1.27 DROP INDEX 语句
+
+15.1.28 DROP LOGFILE GROUP 语句
+
+15.1.29 DROP PROCEDURE 和 DROP FUNCTION 语句
+
+15.1.30 DROP SERVER 语句
+
+15.1.31 DROP SPATIAL REFERENCE SYSTEM 语句
+
+15.1.32 DROP TABLE 语句
+
+15.1.33 DROP TABLESPACE 语句
+
+15.1.34 DROP TRIGGER 语句
+
+15.1.35 DROP VIEW 语句
+
+15.1.36 重命名表 语句
+
+15.1.37 TRUNCATE TABLE 语句
+
+15.2 数据操作语句
+
+15.2.1 CALL 语句
+
+15.2.2 DELETE 语句
+
+15.2.3 DO 语句
+
+15.2.4 EXCEPT 子句
+
+15.2.5 HANDLER 语句
+
+15.2.6 IMPORT TABLE 语句
+
+15.2.7 INSERT 语句
+
+15.2.8 INTERSECT 子句
+
+15.2.9 LOAD DATA 语句
+
+15.2.10 LOAD XML 语句
+
+15.2.11 带括号的查询表达式
+
+15.2.12 REPLACE 语句
+
+15.2.13 SELECT 语句
+
+15.2.14 使用 UNION、INTERSECT 和 EXCEPT 的集合操作
+
+15.2.15 子查询
+
+15.2.16 TABLE 语句
+
+15.2.17 UPDATE 语句
+
+15.2.18 UNION 子句
+
+15.2.19 VALUES 语句
+
+15.2.20 WITH（公共表达式）
+
+15.3 事务和锁定语句
+
+15.3.1 START TRANSACTION、COMMIT 和 ROLLBACK 语句
+
+15.3.2 无法回滚的语句
+
+15.3.3 导致隐式提交的语句
+
+15.3.4 SAVEPOINT、ROLLBACK TO SAVEPOINT 和 RELEASE SAVEPOINT 语句
+
+15.3.5 LOCK INSTANCE FOR BACKUP 和 UNLOCK INSTANCE 语句
+
+15.3.6 LOCK TABLES 和 UNLOCK TABLES 语句
+
+15.3.7 SET TRANSACTION 语句
+
+15.3.8 XA 事务
+
+15.4 复制语句
+
+15.4.1 控制源服务器的 SQL 语句
+
+15.4.2 控制副本服务器的 SQL 语句
+
+15.4.3 控制组复制的 SQL 语句
+
+15.5 预处理语句
+
+15.5.1 PREPARE 语句
+
+15.5.2 EXECUTE 语句
+
+15.5.3 DEALLOCATE PREPARE 语句
+
+15.6 复合语句语法
+
+15.6.1 BEGIN ... END 复合语句
+
+15.6.2 语句标签
+
+15.6.3 DECLARE 语句
+
+15.6.4 存储程序中的变量
+
+15.6.5 流程控制语句
+
+15.6.6 游标
+
+15.6.7 条件处理
+
+15.6.8 条件处理的限制
+
+15.7 数据库管理语句
+
+15.7.1 账户管理语句
+
+15.7.2 资源组管理语句
+
+15.7.3 表维护语句
+
+15.7.4 组件、插件和可加载函数语句
+
+15.7.5 CLONE 语句
+
+15.7.6 SET 语句
+
+15.7.7 SHOW 语句
+
+15.7.8 其他管理语句
+
+15.8 实用程序语句
+
+15.8.1 DESCRIBE 语句
+
+15.8.2 EXPLAIN 语句
+
+15.8.3 HELP 语句
+
+15.8.4 USE 语句
+
+本章描述了 MySQL 支持的 SQL 语句的语法。

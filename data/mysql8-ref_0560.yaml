@@ -1,0 +1,189 @@
+- en: 10.3.9 Comparison of B-Tree and Hash Indexes
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.3.9 B-树和哈希索引的比较
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-btree-hash.html](https://dev.mysql.com/doc/refman/8.0/en/index-btree-hash.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-btree-hash.html](https://dev.mysql.com/doc/refman/8.0/en/index-btree-hash.html)
+- en: Understanding the B-tree and hash data structures can help predict how different
+    queries perform on different storage engines that use these data structures in
+    their indexes, particularly for the `MEMORY` storage engine that lets you choose
+    B-tree or hash indexes.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 理解 B-树和哈希数据结构可以帮助预测不同查询在使用这些数据结构的不同存储引擎上的性能表现，特别是对于允许选择 B-树或哈希索引的 `MEMORY` 存储引擎。
+- en: '[B-Tree Index Characteristics](index-btree-hash.html#btree-index-characteristics
+    "B-Tree Index Characteristics")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[B-树索引特性](index-btree-hash.html#btree-index-characteristics "B-树索引特性")'
+- en: '[Hash Index Characteristics](index-btree-hash.html#hash-index-characteristics
+    "Hash Index Characteristics")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[哈希索引特性](index-btree-hash.html#hash-index-characteristics "哈希索引特性")'
+- en: B-Tree Index Characteristics
+  id: totrans-5
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: B-树索引特性
+- en: 'A B-tree index can be used for column comparisons in expressions that use the
+    [`=`](comparison-operators.html#operator_equal), [`>`](comparison-operators.html#operator_greater-than),
+    [`>=`](comparison-operators.html#operator_greater-than-or-equal), [`<`](comparison-operators.html#operator_less-than),
+    [`<=`](comparison-operators.html#operator_less-than-or-equal), or [`BETWEEN`](comparison-operators.html#operator_between)
+    operators. The index also can be used for [`LIKE`](string-comparison-functions.html#operator_like)
+    comparisons if the argument to [`LIKE`](string-comparison-functions.html#operator_like)
+    is a constant string that does not start with a wildcard character. For example,
+    the following [`SELECT`](select.html "15.2.13 SELECT Statement") statements use
+    indexes:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: B-树索引可用于使用 [`=`](comparison-operators.html#operator_equal), [`>`](comparison-operators.html#operator_greater-than),
+    [`>=`](comparison-operators.html#operator_greater-than-or-equal), [`<`](comparison-operators.html#operator_less-than),
+    [`<=`](comparison-operators.html#operator_less-than-or-equal), 或 [`BETWEEN`](comparison-operators.html#operator_between)
+    操作符的表达式中的列比较。如果 [`LIKE`](string-comparison-functions.html#operator_like) 的参数是不以通配符字符开头的常量字符串，则也可用于
+    [`LIKE`](string-comparison-functions.html#operator_like) 比较。例如，以下 [`SELECT`](select.html
+    "15.2.13 SELECT 语句") 语句使用索引：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: In the first statement, only rows with `'Patrick' <= *`key_col`* < 'Patricl'`
+    are considered. In the second statement, only rows with `'Pat' <= *`key_col`*
+    < 'Pau'` are considered.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第一条语句中，只考虑 `'Patrick' <= *`key_col`* < 'Patricl'` 的行。在第二条语句中，只考虑 `'Pat' <=
+    *`key_col`* < 'Pau'` 的行。
+- en: 'The following [`SELECT`](select.html "15.2.13 SELECT Statement") statements
+    do not use indexes:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下 [`SELECT`](select.html "15.2.13 SELECT 语句") 语句不使用索引：
+- en: '[PRE1]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: In the first statement, the [`LIKE`](string-comparison-functions.html#operator_like)
+    value begins with a wildcard character. In the second statement, the [`LIKE`](string-comparison-functions.html#operator_like)
+    value is not a constant.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第一条语句中，[`LIKE`](string-comparison-functions.html#operator_like) 值以通配符字符开头。在第二条语句中，[`LIKE`](string-comparison-functions.html#operator_like)
+    值不是一个常量。
+- en: If you use `... LIKE '%*`string`*%'` and *`string`* is longer than three characters,
+    MySQL uses the Turbo Boyer-Moore algorithm to initialize the pattern for the string
+    and then uses this pattern to perform the search more quickly.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用 `... LIKE '%*`string`*%'`，且 *`string`* 长度超过三个字符，MySQL 将使用 Turbo Boyer-Moore
+    算法初始化字符串的模式，然后使用该模式更快地执行搜索。
+- en: A search using `*`col_name`* IS NULL` employs indexes if *`col_name`* is indexed.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 `*`col_name`* IS NULL` 进行搜索时，如果 *`col_name`* 被索引，则会使用索引。
+- en: Any index that does not span all [`AND`](logical-operators.html#operator_and)
+    levels in the `WHERE` clause is not used to optimize the query. In other words,
+    to be able to use an index, a prefix of the index must be used in every [`AND`](logical-operators.html#operator_and)
+    group.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 任何不跨越 `WHERE` 子句中的所有 [`AND`](logical-operators.html#operator_and) 级别的索引都不会被用来优化查询。换句话说，为了能够使用索引，索引的前缀必须在每个
+    [`AND`](logical-operators.html#operator_and) 组中被使用。
+- en: 'The following `WHERE` clauses use indexes:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下 `WHERE` 子句使用索引：
+- en: '[PRE2]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'These `WHERE` clauses do *not* use indexes:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些 `WHERE` 子句 *不* 使用索引：
+- en: '[PRE3]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Sometimes MySQL does not use an index, even if one is available. One circumstance
+    under which this occurs is when the optimizer estimates that using the index would
+    require MySQL to access a very large percentage of the rows in the table. (In
+    this case, a table scan is likely to be much faster because it requires fewer
+    seeks.) However, if such a query uses `LIMIT` to retrieve only some of the rows,
+    MySQL uses an index anyway, because it can much more quickly find the few rows
+    to return in the result.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有时候 MySQL 即使有索引也不会使用。发生这种情况的一个情况是，优化器估计使用索引需要 MySQL 访问表中非常大比例的行。在这种情况下，表扫描可能会快得多，因为它需要更少的查找。然而，如果这样的查询使用`LIMIT`只检索一些行，MySQL
+    仍然会使用索引，因为它可以更快地找到要返回的少数行。
+- en: Hash Index Characteristics
+  id: totrans-20
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 哈希索引特性
+- en: 'Hash indexes have somewhat different characteristics from those just discussed:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 哈希索引具有与刚才讨论的索引略有不同的特性：
+- en: They are used only for equality comparisons that use the `=` or `<=>` operators
+    (but are *very* fast). They are not used for comparison operators such as `<`
+    that find a range of values. Systems that rely on this type of single-value lookup
+    are known as “key-value stores”; to use MySQL for such applications, use hash
+    indexes wherever possible.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它们仅用于使用`=`或`<=>`运算符的相等比较（但非常快）。它们不用于查找一系列值的比较运算符，如`<`。依赖这种单值查找的系统被称为“键值存储”；为了在这类应用中使用
+    MySQL，请尽可能使用哈希索引。
+- en: The optimizer cannot use a hash index to speed up `ORDER BY` operations. (This
+    type of index cannot be used to search for the next entry in order.)
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化器无法使用哈希索引加速`ORDER BY`操作。（这种类型的索引不能用于按顺序搜索下一个条目。）
+- en: MySQL cannot determine approximately how many rows there are between two values
+    (this is used by the range optimizer to decide which index to use). This may affect
+    some queries if you change a `MyISAM` or `InnoDB` table to a hash-indexed `MEMORY`
+    table.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 无法准确确定两个值之间有多少行（这是范围优化器用来决定使用哪个索引的）。如果你将一个`MyISAM`或`InnoDB`表更改为哈希索引的`MEMORY`表，这可能会影响一些查询。
+- en: Only whole keys can be used to search for a row. (With a B-tree index, any leftmost
+    prefix of the key can be used to find rows.)
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只有整个键才能用于搜索行。（使用 B 树索引，任何键的最左前缀都可以用于查找行。）

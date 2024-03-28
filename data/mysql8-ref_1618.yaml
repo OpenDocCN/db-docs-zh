@@ -1,0 +1,324 @@
+- en: 25.2.2 NDB Cluster Nodes, Node Groups, Fragment Replicas, and Partitions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.2.2 NDB Cluster节点、节点组、分片副本和分区
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-nodes-groups.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-nodes-groups.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-nodes-groups.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-nodes-groups.html)
+- en: This section discusses the manner in which NDB Cluster divides and duplicates
+    data for storage.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论了NDB Cluster如何划分和复制数据以进行存储。
+- en: A number of concepts central to an understanding of this topic are discussed
+    in the next few paragraphs.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下面几段讨论了理解这个主题所需的一些核心概念。
+- en: '**Data node. ** An [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") process,
+    which stores one or more fragment replicas—that is, copies of the partitions (discussed
+    later in this section) assigned to the node group of which the node is a member.'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**数据节点。** 一个存储一个或多个分片副本的[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")进程，即分配给节点组的分区的副本（稍后在本节中讨论）。'
+- en: Each data node should be located on a separate computer. While it is also possible
+    to host multiple data node processes on a single computer, such a configuration
+    is not usually recommended.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个数据节点应位于单独的计算机上。虽然也可以在单台计算机上托管多个数据节点进程，但通常不建议这样配置。
+- en: It is common for the terms “node” and “data node” to be used interchangeably
+    when referring to an [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") process;
+    where mentioned, management nodes ([**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon") processes) and SQL
+    nodes ([**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") processes)
+    are specified as such in this discussion.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当提到[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)")进程时，通常会将“节点”和“数据节点”这两个术语互换使用；在本讨论中，管理节点([**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon")进程)和SQL节点([**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")进程)在提到时会明确指出。
+- en: '**Node group. ** A node group consists of one or more nodes, and stores partitions,
+    or sets of fragment replicas (see next item).'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**节点组。** 节点组由一个或多个节点组成，并存储分区或分片副本集（见下一项）。'
+- en: 'The number of node groups in an NDB Cluster is not directly configurable; it
+    is a function of the number of data nodes and of the number of fragment replicas
+    ([`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)
+    configuration parameter), as shown here:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster中的节点组数量不是直接可配置的；它是数据节点数量和分片副本数量([`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)配置参数)的函数，如下所示：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Thus, an NDB Cluster with 4 data nodes has 4 node groups if [`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)
+    is set to 1 in the `config.ini` file, 2 node groups if [`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)
+    is set to 2, and 1 node group if [`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)
+    is set to 4. Fragment replicas are discussed later in this section; for more information
+    about [`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas),
+    see [Section 25.4.3.6, “Defining NDB Cluster Data Nodes”](mysql-cluster-ndbd-definition.html
+    "25.4.3.6 Defining NDB Cluster Data Nodes").
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，如果在`config.ini`文件中将[`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)设置为1，则具有4个数据节点的NDB
+    Cluster有4个节点组，如果将[`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)设置为2，则有2个节点组，如果将[`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)设置为4，则有1个节点组。分片副本将在本节后面讨论；有关[`NoOfReplicas`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-noofreplicas)的更多信息，请参见[第25.4.3.6节，“定义NDB
+    Cluster数据节点”](mysql-cluster-ndbd-definition.html "25.4.3.6 Defining NDB Cluster
+    Data Nodes")。
+- en: Note
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: All node groups in an NDB Cluster must have the same number of data nodes.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster中的所有节点组必须具有相同数量的数据节点。
+- en: You can add new node groups (and thus new data nodes) online, to a running NDB
+    Cluster; see [Section 25.6.7, “Adding NDB Cluster Data Nodes Online”](mysql-cluster-online-add-node.html
+    "25.6.7 Adding NDB Cluster Data Nodes Online"), for more information.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在线向运行中的NDB Cluster添加新的节点组（因此添加新的数据节点）；有关更多信息，请参见[第25.6.7节“在线添加NDB Cluster数据节点”](mysql-cluster-online-add-node.html
+    "25.6.7 在线添加NDB Cluster数据节点")。
+- en: '**Partition. ** This is a portion of the data stored by the cluster. Each node
+    is responsible for keeping at least one copy of any partitions assigned to it
+    (that is, at least one fragment replica) available to the cluster.'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**分区。** 这是集群中存储的数据的一部分。每个节点负责至少保留分配给它的任何分区（即至少一个片段副本）可供集群使用。'
+- en: 'The number of partitions used by default by NDB Cluster depends on the number
+    of data nodes and the number of LDM threads in use by the data nodes, as shown
+    here:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，NDB Cluster 使用的分区数量取决于数据节点的数量和数据节点使用的LDM线程数量，如下所示：
+- en: '[PRE1]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: When using data nodes running [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)"), the number
+    of LDM threads is controlled by the setting for [`MaxNoOfExecutionThreads`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-maxnoofexecutionthreads).
+    When using [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon") there is a single LDM thread, which means that there
+    are as many cluster partitions as nodes participating in the cluster. This is
+    also the case when using [**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)") with `MaxNoOfExecutionThreads`
+    set to 3 or less. (You should be aware that the number of LDM threads increases
+    with the value of this parameter, but not in a strictly linear fashion, and that
+    there are additional constraints on setting it; see the description of [`MaxNoOfExecutionThreads`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-maxnoofexecutionthreads)
+    for more information.)
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用运行[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd — NDB Cluster数据节点守护程序（多线程）")的数据节点时，LDM线程的数量由[`MaxNoOfExecutionThreads`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-maxnoofexecutionthreads)的设置控制。当使用[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — NDB Cluster数据节点守护程序")时，只有一个LDM线程，这意味着参与集群的节点数量与集群分区数量相同。当使用[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — NDB Cluster数据节点守护程序（多线程）")且`MaxNoOfExecutionThreads`设置为3或更少时也是如此。（您应该注意，LDM线程的数量随着此参数的值增加，但不是严格线性增加，并且对设置它有额外的约束；有关更多信息，请参阅[`MaxNoOfExecutionThreads`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-maxnoofexecutionthreads)的描述。）
+- en: '**NDB and user-defined partitioning. ** NDB Cluster normally partitions [`NDBCLUSTER`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables automatically. However, it is also
+    possible to employ user-defined partitioning with [`NDBCLUSTER`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables. This is subject to the following limitations:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB和用户定义的分区。** NDB Cluster通常会自动对[`NDBCLUSTER`](mysql-cluster.html "第25章 MySQL
+    NDB Cluster 8.0")表进行分区。但是，也可以使用[`NDBCLUSTER`](mysql-cluster.html "第25章 MySQL NDB
+    Cluster 8.0")表进行用户定义的分区。这受以下限制：'
+- en: Only the `KEY` and `LINEAR KEY` partitioning schemes are supported in production
+    with [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") tables.
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 仅支持在生产环境中使用`KEY`和`LINEAR KEY`分区方案与[`NDB`](mysql-cluster.html "第25章 MySQL NDB
+    Cluster 8.0")表。
+- en: The maximum number of partitions that may be defined explicitly for any [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") table is `8 * [*`number of LDM threads`*]
+    * [*`number of node groups`*]`, the number of node groups in an NDB Cluster being
+    determined as discussed previously in this section. When running [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") for data node processes, setting
+    the number of LDM threads has no effect (since [`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)
+    applies only to [**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)")); in such cases, this value
+    can be treated as though it were equal to 1 for purposes of performing this calculation.
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 任何[`NDB`](mysql-cluster.html "第 25 章 MySQL NDB 集群 8.0")表明确定的显式分区的最大数量为`8 * [*线程数*]
+    * [*节点组数*]`，NDB 集群中的节点组数量如本节前面讨论的那样确定。在运行[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — NDB 集群数据节点守护程序")进行数据节点进程时，设置 LDM 线程数不会产生影响（因为[`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)仅适用于[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — NDB 集群数据节点守护程序（多线程）")）；在这种情况下，为了进行此计算，可以将此值视为等于 1。
+- en: See [Section 25.5.3, “ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)”](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)"), for more
+    information.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查看[第 25.5.3 节，“ndbmtd — NDB 集群数据节点守护程序（多线程）”](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — NDB 集群数据节点守护程序（多线程）")，获取更多信息。
+- en: For more information relating to NDB Cluster and user-defined partitioning,
+    see [Section 25.2.7, “Known Limitations of NDB Cluster”](mysql-cluster-limitations.html
+    "25.2.7 Known Limitations of NDB Cluster"), and [Section 26.6.2, “Partitioning
+    Limitations Relating to Storage Engines”](partitioning-limitations-storage-engines.html
+    "26.6.2 Partitioning Limitations Relating to Storage Engines").
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 NDB 集群和用户定义分区的更多信息，请参阅[第 25.2.7 节，“NDB 集群的已知限制”](mysql-cluster-limitations.html
+    "25.2.7 NDB 集群的已知限制")和[第 26.6.2 节，“与存储引擎相关的分区限制”](partitioning-limitations-storage-engines.html
+    "26.6.2 与存储引擎相关的分区限制")。
+- en: '**Fragment replica. ** This is a copy of a cluster partition. Each node in
+    a node group stores a fragment replica. Also sometimes known as a partition replica.
+    The number of fragment replicas is equal to the number of nodes per node group.'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**分片副本。** 这是集群分区的副本。每个节点组中的每个节点都存储一个分片副本。有时也称为分区副本。分片副本的数量等于每个节点组中的节点数。'
+- en: A fragment replica belongs entirely to a single node; a node can (and usually
+    does) store several fragment replicas.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个分片副本完全属于一个节点；一个节点可以（通常也会）存储多个分片副本。
+- en: The following diagram illustrates an NDB Cluster with four data nodes running
+    [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster Data
+    Node Daemon"), arranged in two node groups of two nodes each; nodes 1 and 2 belong
+    to node group 0, and nodes 3 and 4 belong to node group 1.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下图示说明了一个具有四个数据节点的 NDB 集群，运行[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1
+    ndbd — NDB 集群数据节点守护程序")，排列在两个每个两个节点的节点组中；节点 1 和 2 属于节点组 0，节点 3 和 4 属于节点组 1。
+- en: Note
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Only data nodes are shown here; although a working NDB Cluster requires an [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon") process for cluster
+    management and at least one SQL node to access the data stored by the cluster,
+    these have been omitted from the figure for clarity.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里只显示数据节点；尽管工作中的 NDB 集群需要一个用于集群管理的[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — NDB 集群管理服务器守护程序")进程和至少一个 SQL 节点来访问集群存储的数据，但出于清晰起见，这些在图中被省略。
+- en: '**Figure 25.2 NDB Cluster with Two Node Groups**'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 25.2 NDB 集群与两个节点组**'
+- en: '![Content is described in the surrounding text.](../Images/8b7f951700f2fe27e9a7350e7543a695.png)'
+  id: totrans-29
+  prefs: []
+  type: TYPE_IMG
+  zh: '![内容在周围的文本中描述。](../Images/8b7f951700f2fe27e9a7350e7543a695.png)'
+- en: 'The data stored by the cluster is divided into four partitions, numbered 0,
+    1, 2, and 3\. Each partition is stored—in multiple copies—on the same node group.
+    Partitions are stored on alternate node groups as follows:'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 集群存储的数据分为四个分区，编号为 0、1、2 和 3。每个分区都存储在同一节点组中的���个副本中。分区存储在交替的节点组中，如下所示：
+- en: Partition 0 is stored on node group 0; a primary fragment replica (primary copy)
+    is stored on node 1, and a backup fragment replica (backup copy of the partition)
+    is stored on node 2.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 分区 0 存储在节点组 0 上；主分片副本（主分区的备份）存储在节点 1 上，备份分片副本（分区的备份副本）存储在节点 2 上。
+- en: Partition 1 is stored on the other node group (node group 1); this partition's
+    primary fragment replica is on node 3, and its backup fragment replica is on node
+    4.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第 1 分区存储在另一个节点组（节点组 1）上；该分区的主要片段副本位于节点 3 上，备份片段副本位于节点 4 上。
+- en: Partition 2 is stored on node group 0\. However, the placing of its two fragment
+    replicas is reversed from that of Partition 0; for Partition 2, the primary fragment
+    replica is stored on node 2, and the backup on node 1.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第 2 分区存储在节点组 0。然而，其两个片段副本的放置与第 0 分区相反；对于第 2 分区，主要片段副本存储在节点 2 上，备份存储在节点 1 上。
+- en: Partition 3 is stored on node group 1, and the placement of its two fragment
+    replicas are reversed from those of partition 1\. That is, its primary fragment
+    replica is located on node 4, with the backup on node 3.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第 3 分区存储在节点组 1 上，其两个片段副本的放置与第 1 分区相反。也就是说，其主要片段副本位于节点 4 上，备份位于节点 3 上。
+- en: 'What this means regarding the continued operation of an NDB Cluster is this:
+    so long as each node group participating in the cluster has at least one node
+    operating, the cluster has a complete copy of all data and remains viable. This
+    is illustrated in the next diagram.'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于 NDB 集群的持续运行意味着：只要参与集群的每个节点组至少有一个节点在运行，集群就拥有所有数据的完整副本并保持可用。这在下一个图表中有所说明。
+- en: '**Figure 25.3 Nodes Required for a 2x2 NDB Cluster**'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 25.3 2x2 NDB 集群所需的节点**'
+- en: '![Content is described in the surrounding text.](../Images/772b90487fbb8e68d5d7280073078017.png)'
+  id: totrans-37
+  prefs: []
+  type: TYPE_IMG
+  zh: '![内容在周围的文本中描述。](../Images/772b90487fbb8e68d5d7280073078017.png)'
+- en: In this example, the cluster consists of two node groups each consisting of
+    two data nodes. Each data node is running an instance of [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon"). Any combination of at least
+    one node from node group 0 and at least one node from node group 1 is sufficient
+    to keep the cluster “alive”. However, if both nodes from a single node group fail,
+    the combination consisting of the remaining two nodes in the other node group
+    is not sufficient. In this situation, the cluster has lost an entire partition
+    and so can no longer provide access to a complete set of all NDB Cluster data.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个例子中，集群由两个节点组组成，每个节点组包含两个数据节点。每个数据节点都在运行一个实例的[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")。从节点组 0 中至少选择一个节点和从节点组 1 中至少选择一个节点的任意组合就足以保持集群“活跃”。然而，如果来自单个节点组的两个节点都失败了，那么另一个节点组中剩余的两个节点组成的组合是不够的。在这种情况下，集群已经丢失了一个完整的分区，因此无法再提供对所有
+    NDB 集群数据的完整访问。
+- en: The maximum number of node groups supported for a single NDB Cluster instance
+    is 48.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 单个 NDB 集群实例支持的最大节点组数为 48。

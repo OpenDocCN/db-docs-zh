@@ -1,0 +1,131 @@
+- en: 25.6.13 Privilege Synchronization and NDB_STORED_USER
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.6.13 权限同步和 NDB_STORED_USER
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-privilege-synchronization.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-privilege-synchronization.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-privilege-synchronization.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-privilege-synchronization.html)
+- en: NDB 8.0 introduces a new mechanism for sharing and synchronizing users, roles,
+    and privileges between SQL nodes connected to an NDB Cluster. This can be enabled
+    by granting the [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)
+    privilege. See the description of the privilege for usage information.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB 8.0 引入了一个新的机制，用于在连接到 NDB Cluster 的 SQL 节点之间共享和同步用户、角色和权限。这可以通过授予 [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)
+    权限来启用。查看权限的描述以获取使用信息。
+- en: '`NDB_STORED_USER` is printed in the output of [`SHOW GRANTS`](show-grants.html
+    "15.7.7.21 SHOW GRANTS Statement") as with any other privilege, as shown here:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB_STORED_USER` 在 [`SHOW GRANTS`](show-grants.html "15.7.7.21 SHOW GRANTS
+    Statement") 的输出中与其他权限一样被打印出来，如下所示：'
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'You can also verify that privileges are shared for this account using the [**ndb_select_all**](mysql-cluster-programs-ndb-select-all.html
+    "25.5.25 ndb_select_all — Print Rows from an NDB Table") utility supplied with
+    NDB Cluster, like this (some output wrapped to preserve formatting):'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以使用 NDB Cluster 提供的 [**ndb_select_all**](mysql-cluster-programs-ndb-select-all.html
+    "25.5.25 ndb_select_all — Print Rows from an NDB Table") 实用程序验证此帐户的权限是否已共享，如下所示（一些输出已换行以保持格式）：
+- en: '[PRE1]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '`ndb_sql_metadata` is a special `NDB` table that is not visible using the [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") or other MySQL client.'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ndb_sql_metadata` 是一个特殊的 `NDB` 表，不能使用 [**mysql**](mysql.html "6.5.1 mysql
+    — The MySQL Command-Line Client") 或其他 MySQL 客户端看到。'
+- en: A statement granting the [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)
+    privilege, such as `GRANT NDB_STORED_USER ON *.* TO 'cluster_app_user'@'localhost'`,
+    works by directing `NDB` to create a snapshot using the queries `SHOW CREATE USER
+    cluster_app_user@localhost` and `SHOW GRANTS FOR cluster_app_user@localhost`,
+    then storing the results in `ndb_sql_metadata`. Any other SQL nodes are then requested
+    to read and apply the snapshot. Whenever a MySQL server starts up and joins the
+    cluster as an SQL node it executes these stored [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement") and [`GRANT`](grant.html "15.7.1.6 GRANT Statement")
+    statements as part of the cluster schema synchronization process.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 授予 [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user) 权限的语句，例如
+    `GRANT NDB_STORED_USER ON *.* TO 'cluster_app_user'@'localhost'`，通过指示 `NDB` 使用查询
+    `SHOW CREATE USER cluster_app_user@localhost` 和 `SHOW GRANTS FOR cluster_app_user@localhost`
+    来创建一个快照，然后将结果存储在 `ndb_sql_metadata` 中。然后请求任何其他 SQL 节点读取和应用该快照。每当 MySQL 服务器启动并作为
+    SQL 节点加入集群时，它会执行这些存储的 [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    和 [`GRANT`](grant.html "15.7.1.6 GRANT Statement") 语句作为集群模式同步过程的一部分。
+- en: Whenever an SQL statement is executed on an SQL node other than the one where
+    it originated, the statement is run in a utility thread of the `NDBCLUSTER` storage
+    engine; this is done within a security environment equivalent to that of the MySQL
+    replication replica applier thread.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每当在非原始 SQL 节点上执行 SQL 语句时，该语句将在 `NDBCLUSTER` 存储引擎的实用线程中运行；这是在与 MySQL 复制副本应用程序线程相同的安全环境中完成的。
+- en: Beginning with NDB 8.0.27, an SQL node performing a change to user privileges
+    takes a global lock before doing so, which prevents deadlocks by concurrent ACL
+    operations on different SQL nodes. Prior to NDB 8.0.27, changes to users with
+    [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user) were updated
+    in a completely asynchronous fashion, without any locks being taken.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 NDB 8.0.27 开始，执行对用户权限的更改的 SQL 节点在执行之前会获取全局锁，这可以防止不同 SQL 节点上的并发 ACL 操作导致死锁。在
+    NDB 8.0.27 之前，对具有 [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)
+    的用户的更改是完全异步更新的，没有任何锁被获取。
+- en: You should keep in mind that, because shared schema change operations are performed
+    synchronously, the next shared schema change following a change to any shared
+    user or users serves as a synchronization point. Any pending user changes run
+    to completion before the schema change distribution can begin; after this the
+    schema change itself runs synchronously. For example, if a [`DROP DATABASE`](drop-database.html
+    "15.1.24 DROP DATABASE Statement") statement follows a [`DROP USER`](drop-user.html
+    "15.7.1.5 DROP USER Statement") of a distributed user, the drop of the database
+    cannot take place until the drop of the user has completed on all SQL nodes.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请记住，由于共享模式更改操作是同步执行的，因此在更改任何共享用户或用户后，下一个共享模式更改将作为同步点。在模式更改分发开始之前，任何待处理的用户更改都会完成；之后模式更改本身会同步运行。例如，如果一个[`DROP
+    DATABASE`](drop-database.html "15.1.24 DROP DATABASE Statement")语句跟随一个[`DROP USER`](drop-user.html
+    "15.7.1.5 DROP USER Statement")对分布式用户的操作，那么在所有 SQL 节点上用户的删除完成之前，数据库的删除无法进行。
+- en: In the event that multiple [`GRANT`](grant.html "15.7.1.6 GRANT Statement"),
+    [`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement"), or other user administration
+    statements from multiple SQL nodes cause privileges for a given user to diverge
+    on different SQL nodes, you can fix this problem by issuing `GRANT NDB_STORED_USER`
+    for this user on an SQL node where the privileges are known to be correct; this
+    causes a new snapshot of the privileges to be taken and synchronized to the other
+    SQL nodes.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果来自多个 SQL 节点的多个[`GRANT`](grant.html "15.7.1.6 GRANT Statement")、[`REVOKE`](revoke.html
+    "15.7.1.8 REVOKE Statement")或其他用户管理语句导致给定用户在不同 SQL 节点上的权限不一致，您可以通过在已知权限正确的 SQL
+    节点上为该用户发出`GRANT NDB_STORED_USER`来解决此问题；这将导致对权限的新快照被获取并同步到其他 SQL 节点。
+- en: NDB Cluster 8.0 does not support distribution of MySQL users and privileges
+    across SQL nodes in an NDB Cluster by altering the MySQL privilege tables such
+    that they used the `NDB` storage engine as in NDB 7.6 and earlier releases (see
+    [Distributed Privileges Using Shared Grant Tables](/doc/refman/5.7/en/mysql-cluster-privilege-distribution.html)).
+    For information about the impact of this change on upgrades to NDB 8.0 from a
+    previous release, see [Section 25.3.7, “Upgrading and Downgrading NDB Cluster”](mysql-cluster-upgrade-downgrade.html
+    "25.3.7 Upgrading and Downgrading NDB Cluster").
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster 8.0 不支持通过更改 MySQL 权限表使其使用`NDB`存储引擎来在 NDB Cluster 中的 SQL 节点之间分发 MySQL
+    用户和权限，就像在 NDB 7.6 和之前的版本中一样（参见[Distributed Privileges Using Shared Grant Tables](/doc/refman/5.7/en/mysql-cluster-privilege-distribution.html)）。有关此更改对从先前版本升级到
+    NDB 8.0 的影响的信息，请参见[Section 25.3.7, “Upgrading and Downgrading NDB Cluster”](mysql-cluster-upgrade-downgrade.html
+    "25.3.7 Upgrading and Downgrading NDB Cluster")。

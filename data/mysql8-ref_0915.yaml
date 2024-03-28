@@ -1,0 +1,203 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-table-secondary-indexes.html](https://dev.mysql.com/doc/refman/8.0/en/create-table-secondary-indexes.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-table-secondary-indexes.html](https://dev.mysql.com/doc/refman/8.0/en/create-table-secondary-indexes.html)
+- en: 15.1.20.9 Secondary Indexes and Generated Columns
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.1.20.9 二级索引和生成列
+- en: '`InnoDB` supports secondary indexes on virtual generated columns. Other index
+    types are not supported. A secondary index defined on a virtual column is sometimes
+    referred to as a “virtual index”.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`支持虚拟生成列上的二级索引。不支持其他索引类型。在虚拟列上定义的二级索引有时被称为“虚拟索引”。'
+- en: A secondary index may be created on one or more virtual columns or on a combination
+    of virtual columns and regular columns or stored generated columns. Secondary
+    indexes that include virtual columns may be defined as `UNIQUE`.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以在一个或多个虚拟列上或在虚拟列和常规列或存储生成列的组合上创建二级索引。包含虚拟列的二级索引可以被定义为`UNIQUE`。
+- en: When a secondary index is created on a virtual generated column, generated column
+    values are materialized in the records of the index. If the index is a [covering
+    index](glossary.html#glos_covering_index "covering index") (one that includes
+    all the columns retrieved by a query), generated column values are retrieved from
+    materialized values in the index structure instead of computed “on the fly”.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在虚拟生成列上创建二级索引时，生成列的值会实现在索引记录中。如果索引是一个[覆盖索引](glossary.html#glos_covering_index
+    "covering index")（包含查询检索的所有列），生成列的值将从索引结构中的实现值中检索，而不是实时计算。
+- en: There are additional write costs to consider when using a secondary index on
+    a virtual column due to computation performed when materializing virtual column
+    values in secondary index records during [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") and [`UPDATE`](update.html "15.2.17 UPDATE Statement") operations.
+    Even with additional write costs, secondary indexes on virtual columns may be
+    preferable to generated *stored* columns, which are materialized in the clustered
+    index, resulting in larger tables that require more disk space and memory. If
+    a secondary index is not defined on a virtual column, there are additional costs
+    for reads, as virtual column values must be computed each time the column's row
+    is examined.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用虚拟列上的二级索引时需要考虑额外的写入成本，因为在[`INSERT`](insert.html "15.2.7 INSERT 语句")和[`UPDATE`](update.html
+    "15.2.17 UPDATE 语句")操作期间，在二级索引记录中实现虚拟列值时执行计算。即使有额外的写入成本，虚拟列上的二级索引可能比生成*存储*列更可取，后者实现在聚簇索引中，导致需要更多磁盘空间和内存的更大表。如果在虚拟列上未定义二级索引，则读取时会有额外的成本，因为每次检查列的行时都必须计算虚拟列值。
+- en: Values of an indexed virtual column are MVCC-logged to avoid unnecessary recomputation
+    of generated column values during rollback or during a purge operation. The data
+    length of logged values is limited by the index key limit of 767 bytes for `COMPACT`
+    and `REDUNDANT` row formats, and 3072 bytes for `DYNAMIC` and `COMPRESSED` row
+    formats.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 虚拟列的索引列值被 MVCC 记录，以避免在回滚或清除操作期间重新计算生成列值。对于`COMPACT`和`REDUNDANT`行格式，记录值的数据长度受索引键限制的限制为
+    767 字节，对于`DYNAMIC`和`COMPRESSED`行格式，为 3072 字节。
+- en: Adding or dropping a secondary index on a virtual column is an in-place operation.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在虚拟列上添加或删除二级索引是一个原地操作。
+- en: Indexing a Generated Column to Provide a JSON Column Index
+  id: totrans-8
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 为提供 JSON 列索引而对生成列建立索引
+- en: 'As noted elsewhere, [`JSON`](json.html "13.5 The JSON Data Type") columns cannot
+    be indexed directly. To create an index that references such a column indirectly,
+    you can define a generated column that extracts the information that should be
+    indexed, then create an index on the generated column, as shown in this example:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如其他地方所述，[`JSON`](json.html "13.5 JSON 数据类型")列不能直接建立索引。要创建引用此类列的索引，可以定义一个生成列，提取应该建立索引的信息，然后在生成列上创建索引，如下例所示：
+- en: '[PRE0]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: (We have wrapped the output from the last statement in this example to fit the
+    viewing area.)
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: （我们已经将此示例中最后一条语句的输出包装起来以适应查看区域。）
+- en: 'When you use [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") on a [`SELECT`](select.html
+    "15.2.13 SELECT Statement") or other SQL statement containing one or more expressions
+    that use the `->` or `->>` operator, these expressions are translated into their
+    equivalents using `JSON_EXTRACT()` and (if needed) `JSON_UNQUOTE()` instead, as
+    shown here in the output from [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement") immediately following this `EXPLAIN` statement:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您在包含使用`->`或`->>`运算符的一个或多个表达式的[`SELECT`](select.html "15.2.13 SELECT Statement")或其他SQL语句上使用[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")时，这些表达式将被转换为使用`JSON_EXTRACT()`和（如果需要）`JSON_UNQUOTE()`的等效形式，如下所示，在`EXPLAIN`语句后立即显示的[`SHOW
+    WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")输出中：
+- en: '[PRE1]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: See the descriptions of the [`->`](json-search-functions.html#operator_json-column-path)
+    and [`->>`](json-search-functions.html#operator_json-inline-path) operators, as
+    well as those of the [`JSON_EXTRACT()`](json-search-functions.html#function_json-extract)
+    and [`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)
+    functions, for additional information and examples.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请参阅[`->`](json-search-functions.html#operator_json-column-path)和[`->>`](json-search-functions.html#operator_json-inline-path)运算符的描述，以及[`JSON_EXTRACT()`](json-search-functions.html#function_json-extract)和[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)函数的描述，获取更多信息和示例。
+- en: This technique also can be used to provide indexes that indirectly reference
+    columns of other types that cannot be indexed directly, such as `GEOMETRY` columns.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种技术还可以用于提供间接引用其他类型列的索引，这些列不能直接进行索引，例如`GEOMETRY`列。
+- en: In MySQL 8.0.21 and later, it is also possible to create an index on a [`JSON`](json.html
+    "13.5 The JSON Data Type") column using the [`JSON_VALUE()`](json-search-functions.html#function_json-value)
+    function with an expression that can be used to optimize queries employing the
+    expression. See the description of that function for more information and examples.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.21及更高版本中，还可以使用[`JSON_VALUE()`](json-search-functions.html#function_json-value)函数在[`JSON`](json.html
+    "13.5 The JSON Data Type")列上创建索引，使用可以优化查询的表达式。有关该函数的更多信息和示例，请参阅该函数的描述。
+- en: JSON columns and indirect indexing in NDB Cluster
+  id: totrans-17
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: NDB Cluster中的JSON列和间接索引
+- en: 'It is also possible to use indirect indexing of JSON columns in MySQL NDB Cluster,
+    subject to the following conditions:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL NDB Cluster中，也可以使用JSON列的间接索引，但需要符合以下条件：
+- en: '[`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") handles a [`JSON`](json.html
+    "13.5 The JSON Data Type") column value internally as a [`BLOB`](blob.html "13.3.4 The
+    BLOB and TEXT Types"). This means that any `NDB` table having one or more JSON
+    columns must have a primary key, else it cannot be recorded in the binary log.'
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '[`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")将[`JSON`](json.html
+    "13.5 The JSON Data Type")列值在内部处理为[`BLOB`](blob.html "13.3.4 The BLOB and TEXT
+    Types")。这意味着任何具有一个或多个JSON列的NDB表必须具有主键，否则无法记录在二进制日志中。'
+- en: The [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") storage engine
+    does not support indexing of virtual columns. Since the default for generated
+    columns is `VIRTUAL`, you must specify explicitly the generated column to which
+    to apply the indirect index as `STORED`.
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '[`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")存储引擎不支持虚拟列的索引。由于生成列的默认值是`VIRTUAL`，因此必须明确指定要应用间接索引的生成列为`STORED`。'
+- en: 'The **`CREATE TABLE`** statement used to create the table `jempn` shown here
+    is a version of the `jemp` table shown previously, with modifications making it
+    compatible with `NDB`:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于创建此处显示的`jempn`表的**`CREATE TABLE`**语句是先前显示的`jemp`表的版本，经过修改以使其与`NDB`兼容：
+- en: '[PRE2]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'We can populate this table using the following [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statement:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以使用以下[`INSERT`](insert.html "15.2.7 INSERT Statement")语句填充这个表：
+- en: '[PRE3]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Now `NDB` can use index `i`, as shown here:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在`NDB`可以使用索引`i`，如下所示：
+- en: '[PRE4]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: You should keep in mind that a stored generated column, as well as any index
+    on such a column, uses [`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory).
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你应该记住，存储的生成列以及该列上的任何索引都使用[`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory)。

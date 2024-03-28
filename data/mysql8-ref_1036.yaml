@@ -1,0 +1,253 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/handler-scope.html](https://dev.mysql.com/doc/refman/8.0/en/handler-scope.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/handler-scope.html](https://dev.mysql.com/doc/refman/8.0/en/handler-scope.html)
+- en: 15.6.7.6 Scope Rules for Handlers
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.6.7.6 处理程序的范围规则
+- en: 'A stored program may include handlers to be invoked when certain conditions
+    occur within the program. The applicability of each handler depends on its location
+    within the program definition and on the condition or conditions that it handles:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存储过程可以包括在程序内发生某些条件时调用的处理程序。每个处理程序的适用性取决于其在程序定义中的位置以及它处理的条件或条件：
+- en: A handler declared in a [`BEGIN ... END`](begin-end.html "15.6.1 BEGIN ... END
+    Compound Statement") block is in scope only for the SQL statements following the
+    handler declarations in the block. If the handler itself raises a condition, it
+    cannot handle that condition, nor can any other handlers declared in the block.
+    In the following example, handlers `H1` and `H2` are in scope for conditions raised
+    by statements *`stmt1`* and *`stmt2`*. But neither `H1` nor `H2` are in scope
+    for conditions raised in the body of `H1` or `H2`.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`BEGIN ... END`](begin-end.html "15.6.1 BEGIN ... END Compound Statement")块中声明的处理程序仅对在块中处理程序声明后的SQL语句有效。如果处理程序本身引发条件，则它无法处理该条件，也不能处理块中声明的任何其他处理程序。在下面的示例中，处理程序`H1`和`H2`适用于*`stmt1`*和*`stmt2`*语句引发的条件。但是`H1`和`H2`对于在`H1`或`H2`主体中引发的条件不适用。
+- en: '[PRE0]'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'A handler is in scope only for the block in which it is declared, and cannot
+    be activated for conditions occurring outside that block. In the following example,
+    handler `H1` is in scope for *`stmt1`* in the inner block, but not for *`stmt2`*
+    in the outer block:'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 处理程序仅在声明它的块中有效，并且不能用于发生在该块外部的条件。在下面的示例中，处理程序`H1`仅在内部块中的*`stmt1`*中有效，而不适用于外部块中的*`stmt2`*：
+- en: '[PRE1]'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: A handler can be specific or general. A specific handler is for a MySQL error
+    code, `SQLSTATE` value, or condition name. A general handler is for a condition
+    in the `SQLWARNING`, `SQLEXCEPTION`, or `NOT FOUND` class. Condition specificity
+    is related to condition precedence, as described later.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 处理程序可以是特定的或一般的。特定处理程序是针对MySQL错误代码、`SQLSTATE`值或条件名称的。一般处理程序是针对`SQLWARNING`、`SQLEXCEPTION`或`NOT
+    FOUND`类中的条件。条件特异性与条件优先级有关，如后面所述。
+- en: Multiple handlers can be declared in different scopes and with different specificities.
+    For example, there might be a specific MySQL error code handler in an outer block,
+    and a general `SQLWARNING` handler in an inner block. Or there might be handlers
+    for a specific MySQL error code and the general `SQLWARNING` class in the same
+    block.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多个处理程序可以在不同的范围和具有不同的特异性中声明。例如，在外部块中可能有一个特定的MySQL错误代码处理程序，而在内部块中可能有一个一般的`SQLWARNING`处理程序。或者在同一块中可能有一个特定的MySQL错误代码处理程序和一般的`SQLWARNING`类处理程序。
+- en: 'Whether a handler is activated depends not only on its own scope and condition
+    value, but on what other handlers are present. When a condition occurs in a stored
+    program, the server searches for applicable handlers in the current scope (current
+    [`BEGIN ... END`](begin-end.html "15.6.1 BEGIN ... END Compound Statement") block).
+    If there are no applicable handlers, the search continues outward with the handlers
+    in each successive containing scope (block). When the server finds one or more
+    applicable handlers at a given scope, it chooses among them based on condition
+    precedence:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 处理程序是否被激活不仅取决于其自身的范围和条件值，还取决于其他处理程序的存在。当存储过程中发生条件时，服务器会在当前范围（当前[`BEGIN ... END`](begin-end.html
+    "15.6.1 BEGIN ... END Compound Statement")块）中搜索适用的处理程序。如果没有适用的处理程序，则搜索会继续向外进行，直到找到每个连续包含范围（块）中的处理程序。当服务器在给定范围找到一个或多个适用的处理程序时，它会根据条件优先级在它们之间进行选择：
+- en: A MySQL error code handler takes precedence over an `SQLSTATE` value handler.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个MySQL错误代码处理程序优先于一个`SQLSTATE`值处理程序。
+- en: An `SQLSTATE` value handler takes precedence over general `SQLWARNING`, `SQLEXCEPTION`,
+    or `NOT FOUND` handlers.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个`SQLSTATE`值处理程序优先于一般的`SQLWARNING`、`SQLEXCEPTION`或`NOT FOUND`处理程序。
+- en: An `SQLEXCEPTION` handler takes precedence over an `SQLWARNING` handler.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个`SQLEXCEPTION`处理程序优先于一个`SQLWARNING`处理程序。
+- en: It is possible to have several applicable handlers with the same precedence.
+    For example, a statement could generate multiple warnings with different error
+    codes, for each of which an error-specific handler exists. In this case, the choice
+    of which handler the server activates is nondeterministic, and may change depending
+    on the circumstances under which the condition occurs.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可能存在几个具有相同优先级的适用处理程序。例如，一个语句可能生成多个具有不同错误代码的警告，对于每个警告都存在一个特定错误的处理程序。在这种情况下，服务器激活哪个处理程序的选择是不确定的，并且可能根据条件发生的情况而变化。
+- en: One implication of the handler selection rules is that if multiple applicable
+    handlers occur in different scopes, handlers with the most local scope take precedence
+    over handlers in outer scopes, even over those for more specific conditions.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 处理程序选择规则的一个含义是，如果不同作用域中存在多个适用的处理程序，则具有最局部作用域的处理程序优先于外部作用域中的处理程序，甚至优先于更具体条件的处理程序。
+- en: 'If there is no appropriate handler when a condition occurs, the action taken
+    depends on the class of the condition:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在条件发生时没有适当的处理程序，则采取的操作取决于条件的类别：
+- en: For `SQLEXCEPTION` conditions, the stored program terminates at the statement
+    that raised the condition, as if there were an `EXIT` handler. If the program
+    was called by another stored program, the calling program handles the condition
+    using the handler selection rules applied to its own handlers.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`SQLEXCEPTION`条件，存储程序在引发条件的语句处终止，就好像有一个`EXIT`处理程序。如果程序是由另一个存储程序调用的，则调用程序使用其自己的处理程序选择规则处理条件。
+- en: For `SQLWARNING` conditions, the program continues executing, as if there were
+    a `CONTINUE` handler.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`SQLWARNING`条件，程序继续执行，就好像有一个`CONTINUE`处理程序。
+- en: For `NOT FOUND` conditions, if the condition was raised normally, the action
+    is `CONTINUE`. If it was raised by [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    or [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement"), the action is `EXIT`.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`NOT FOUND`条件，如果条件是正常引发的，则操作是`CONTINUE`。如果是由[`SIGNAL`](signal.html "15.6.7.5 SIGNAL
+    Statement")或[`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement")引发的，则操作是`EXIT`。
+- en: The following examples demonstrate how MySQL applies the handler selection rules.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了MySQL如何应用处理程序选择规则。
+- en: 'This procedure contains two handlers, one for the specific `SQLSTATE` value
+    (`''42S02''`) that occurs for attempts to drop a nonexistent table, and one for
+    the general `SQLEXCEPTION` class:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个过程包含两个处理程序，一个用于特定的`SQLSTATE`值（`'42S02'`），用于尝试删除不存在表时发生的情况，另一个用于一般的`SQLEXCEPTION`类：
+- en: '[PRE2]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Both handlers are declared in the same block and have the same scope. However,
+    `SQLSTATE` handlers take precedence over `SQLEXCEPTION` handlers, so if the table
+    `t` is nonexistent, the [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")
+    statement raises a condition that activates the `SQLSTATE` handler:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个处理程序都在同一个块中声明并具有相同的作用域。然而，`SQLSTATE`处理程序优先于`SQLEXCEPTION`处理程序，因此如果表`t`不存在，则[`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句引发一个激活`SQLSTATE`处理程序的条件：
+- en: '[PRE3]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'This procedure contains the same two handlers. But this time, the [`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement") statement and `SQLEXCEPTION` handler are in an
+    inner block relative to the `SQLSTATE` handler:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个过程包含相同的两个处理程序。但这次，[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句和`SQLEXCEPTION`处理程序在相对于`SQLSTATE`处理程序的内部块中：
+- en: '[PRE4]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'In this case, the handler that is more local to where the condition occurs
+    takes precedence. The `SQLEXCEPTION` handler activates, even though it is more
+    general than the `SQLSTATE` handler:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，更接近条件发生位置的处理程序优先。即使`SQLEXCEPTION`处理程序比`SQLSTATE`处理程序更一般，`SQLEXCEPTION`处理程序也会被激活：
+- en: '[PRE5]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'In this procedure, one of the handlers is declared in a block inner to the
+    scope of the [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") statement:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个过程中，处理程序之一在[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句的作用域内部声明：
+- en: '[PRE6]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Only the `SQLEXCEPTION` handler applies because the other one is not in scope
+    for the condition raised by the [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE
+    Statement"):'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有`SQLEXCEPTION`处理程序适用，因为另一个处理程序不适用于[`DROP TABLE`](drop-table.html "15.1.32 DROP
+    TABLE Statement")引发的条件：
+- en: '[PRE7]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'In this procedure, both handlers are declared in a block inner to the scope
+    of the [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") statement:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个过程中，两个处理程序都在[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句的作用域内部声明：
+- en: '[PRE8]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Neither handler applies because they are not in scope for the [`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement"). The condition raised by the statement goes unhandled
+    and terminates the procedure with an error:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于它们不在[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")的范围内，因此都不适用。语句引发的条件未被处理，导致过程以错误终止：
+- en: '[PRE9]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'

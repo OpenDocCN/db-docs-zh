@@ -1,0 +1,188 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rules-examples.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rules-examples.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rules-examples.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rules-examples.html)
+- en: 19.2.5.3 Interactions Between Replication Filtering Options
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.2.5.3 复制过滤选项之间的交互
+- en: If you use a combination of database-level and table-level replication filtering
+    options, the replica first accepts or ignores events using the database options,
+    then it evaluates all events permitted by those options according to the table
+    options. This can sometimes lead to results that seem counterintuitive. It is
+    also important to note that the results vary depending on whether the operation
+    is logged using statement-based or row-based binary logging format. If you want
+    to be sure that your replication filters always operate in the same way independently
+    of the binary logging format, which is particularly important if you are using
+    mixed binary logging format, follow the guidance in this topic.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您同时使用数据库级和表级复制过滤选项，副本首先根据数据库选项接受或忽略事件，然后根据表选项评估所有这些选项允许的事件。这有时可能导致看起来反直觉的结果。还要注意，结果会根据操作是使用基于语句还是基于行的二进制日志格式而变化。如果您希望确保您的复制过滤器始终以相同的方式运行，独立于二进制日志格式，这在使用混合二进制日志格式时尤为重要，请遵循本主题中的指导。
+- en: The effect of the replication filtering options differs between binary logging
+    formats because of the way the database name is identified. With statement-based
+    format, DML statements are handled based on the current database, as specified
+    by the [`USE`](use.html "15.8.4 USE Statement") statement. With row-based format,
+    DML statements are handled based on the database where the modified table exists.
+    DDL statements are always filtered based on the current database, as specified
+    by the [`USE`](use.html "15.8.4 USE Statement") statement, regardless of the binary
+    logging format.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 复制过滤选项的效果在不同的二进制日志格式之间有所不同，这是因为数据库名称的识别方式不同。在基于语句的格式中，DML语句是基于当前数据库处理的，由[`USE`](use.html
+    "15.8.4 USE Statement")语句指定。在基于行的格式中，DML语句是基于修改表所在的数据库处理的。DDL语句始终基于当前数据库进行过滤，由[`USE`](use.html
+    "15.8.4 USE Statement")语句指定，而不受二进制日志格式的影响。
+- en: An operation that involves multiple tables can also be affected differently
+    by replication filtering options depending on the binary logging format. Operations
+    to watch out for include transactions involving multi-table [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") statements, triggers, cascading foreign keys, stored
+    functions that update multiple tables, and DML statements that invoke stored functions
+    that update one or more tables. If these operations update both filtered-in and
+    filtered-out tables, the results can vary with the binary logging format.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 涉及多个表的操作也可能会因二进制日志格式的不同而受到复制过滤选项的影响。需要注意的操作包括涉及多表[`UPDATE`](update.html "15.2.17 UPDATE
+    Statement")语句的事务、触发器、级联外键、更新多个表的存储函数以及调用更新一个或多个表的存储函数的DML语句。如果这些操作同时更新被过滤进和被过滤出的表，结果可能会随着二进制日志格式的不同而变化。
+- en: If you need to guarantee that your replication filters operate consistently
+    regardless of the binary logging format, particularly if you are using mixed binary
+    logging format ([`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)),
+    use only table-level replication filtering options, and do not use database-level
+    replication filtering options. Also, do not use multi-table DML statements that
+    update both filtered-in and filtered-out tables.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您需要确保您的复制过滤器在不同的二进制日志格式下都能一致地运行，特别是如果您正在使用混合二进制日志格式（[`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)），请仅使用表级复制过滤选项，不要使用数据库级复制过滤选项。此外，不要使用同时更新被过滤进和被过滤出表的多表DML语句。
+- en: 'If you need to use a combination of database-level and table-level replication
+    filters, and want these to operate as consistently as possible, choose one of
+    the following strategies:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您需要同时使用数据库级和表级复制过滤器，并希望它们尽可能一致地运行，请选择以下策略之一：
+- en: If you use row-based binary logging format ([`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)),
+    for DDL statements, rely on the [`USE`](use.html "15.8.4 USE Statement") statement
+    to set the database and do not specify the database name. You can consider changing
+    to row-based binary logging format for improved consistency with replication filtering.
+    See [Section 7.4.4.2, “Setting The Binary Log Format”](binary-log-setting.html
+    "7.4.4.2 Setting The Binary Log Format") for the conditions that apply to changing
+    the binary logging format.
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您使用基于行的二进制日志格式（[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)），对于DDL语句，依赖[`USE`](use.html
+    "15.8.4 USE Statement")语句设置数据库，不要指定数据库名称。您可以考虑更改为基于行的二进制日志格式以提高与复制过滤的一致性。有关更改二进制日志格式适用的条件，请参见[Section 7.4.4.2,
+    “Setting The Binary Log Format”](binary-log-setting.html "7.4.4.2 Setting The
+    Binary Log Format")。
+- en: If you use statement-based or mixed binary logging format ([`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    or `MIXED`), for both DML and DDL statements, rely on the [`USE`](use.html "15.8.4 USE
+    Statement") statement and do not use the database name. Also, do not use multi-table
+    DML statements that update both filtered-in and filtered-out tables.
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您使用基于语句或混合二进制日志格式（[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)或`MIXED`），对于DML和DDL语句，依赖[`USE`](use.html
+    "15.8.4 USE Statement")语句，不要使用数据库名称。此外，不要使用同时更新过滤进和过滤出表的多表DML语句。
+- en: '**Example 19.7 A [`--replicate-ignore-db`](replication-options-replica.html#option_mysqld_replicate-ignore-db)
+    option and a [`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    option**'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**示例 19.7 一个[`--replicate-ignore-db`](replication-options-replica.html#option_mysqld_replicate-ignore-db)选项和一个[`--replicate-do-table`](replication-options-replica.html#option_mysqld_replicate-do-table)选项**'
+- en: 'On the replication source server, the following statements are issued:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在复制源服务器上，发出以下语句：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The replica has the following replication filtering options set:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 副本设置了以下复制过滤选项：
+- en: '[PRE1]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The DDL statement [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE
+    Statement") creates the table in `db1`, as specified by the preceding [`USE`](use.html
+    "15.8.4 USE Statement") statement. The replica filters out this statement according
+    to its [`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db)
+    option, because `db1` is the current database. This result is the same whatever
+    the binary logging format is on the replication source server. However, the result
+    of the DML [`INSERT`](insert.html "15.2.7 INSERT Statement") statement is different
+    depending on the binary logging format:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: DDL语句[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")在`db1`中创建表，如前述[`USE`](use.html
+    "15.8.4 USE Statement")语句指定。副本根据其[`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db)选项过滤掉此语句，因为`db1`是当前数据库。无论复制源服务器上的二进制日志格式如何，结果都是相同的。然而，DML
+    [`INSERT`](insert.html "15.2.7 INSERT Statement")语句的结果取决于二进制日志格式：
+- en: If row-based binary logging format is in use on the source ([`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)),
+    the replica evaluates the [`INSERT`](insert.html "15.2.7 INSERT Statement") operation
+    using the database where the table exists, which is named as `db2`. The database-level
+    option [`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db),
+    which is evaluated first, therefore does not apply. The table-level option [`--replicate-do-table
+    = db2.t3`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    does apply, so the replica applies the change to table `t3`.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果源服务器上使用基于行的二进制日志格式（[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)），副本使用表存在的数据库`db2`评估[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")操作。首先评估数据库级选项[`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db)，因此不适用。表级选项[`--replicate-do-table
+    = db2.t3`](replication-options-replica.html#option_mysqld_replicate-do-table)适用，因此副本将更改应用于表`t3`。
+- en: If statement-based binary logging format is in use on the source ([`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)),
+    the replica evaluates the [`INSERT`](insert.html "15.2.7 INSERT Statement") operation
+    using the default database, which was set by the [`USE`](use.html "15.8.4 USE
+    Statement") statement to `db1` and has not been changed. According to its database-level
+    [`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db)
+    option, it therefore ignores the operation and does not apply the change to table
+    `t3`. The table-level option [`--replicate-do-table = db2.t3`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    is not checked, because the statement already matched a database-level option
+    and was ignored.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果源端使用基于语句的二进制日志格式（[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)），那么复制端将使用由[`USE`](use.html
+    "15.8.4 USE Statement")语句设置为`db1`且未更改的默认数据库来评估[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")操作。根据其数据库级别的[`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db)选项，因此它会忽略该操作，不会将更改应用于表`t3`。表级别的选项[`--replicate-do-table
+    = db2.t3`](replication-options-replica.html#option_mysqld_replicate-do-table)不会被检查，因为该语句已经匹配了一个数据库级别的选项并被忽略。
+- en: 'If the [`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db)
+    option on the replica is necessary, and the use of statement-based (or mixed)
+    binary logging format on the source is also necessary, the results can be made
+    consistent by omitting the database name from the [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statement and relying on a [`USE`](use.html "15.8.4 USE Statement")
+    statement instead, as follows:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在复制端需要[`--replicate-ignore-db = db1`](replication-options-replica.html#option_mysqld_replicate-ignore-db)选项，并且在源端使用基于语句（或混合）的二进制日志格式也是必要的，可以通过在[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句中省略数据库名称并依赖于[`USE`](use.html "15.8.4 USE Statement")语句来使结果保持一致，如下所示：
+- en: '[PRE2]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: In this case, the replica always evaluates the [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statement based on the database `db2`. Whether the operation is logged
+    in statement-based or row-based binary format, the results remain the same.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，复制端始终基于数据库`db2`评估[`INSERT`](insert.html "15.2.7 INSERT Statement")语句。无论操作是以语句为基础还是以行为基础的二进制格式记录，结果都是一样的。

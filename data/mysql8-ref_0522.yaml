@@ -1,0 +1,158 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/outer-join-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/outer-join-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/outer-join-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/outer-join-optimization.html)
+- en: 10.2.1.9 Outer Join Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.9 外连接优化
+- en: Outer joins include `LEFT JOIN` and `RIGHT JOIN`.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 外连接包括`LEFT JOIN`和`RIGHT JOIN`。
+- en: 'MySQL implements an `*`A`* LEFT JOIN *`B`* *`join_specification`*` as follows:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL实现`*`A`* LEFT JOIN *`B`* *`join_specification`*`如下：
+- en: Table *`B`* is set to depend on table *`A`* and all tables on which *`A`* depends.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表*`B`*被设置为依赖于表*`A`*和*`A`*依赖的所有表。
+- en: Table *`A`* is set to depend on all tables (except *`B`*) that are used in the
+    `LEFT JOIN` condition.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表*`A`*被设置为依赖于所有表（除了*`B`*）在`LEFT JOIN`条件中使用的表。
+- en: The `LEFT JOIN` condition is used to decide how to retrieve rows from table
+    *`B`*. (In other words, any condition in the `WHERE` clause is not used.)
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LEFT JOIN`条件用于决定如何从表*`B`*中检索行。（换句话说，`WHERE`子句中的任何条件都不会被使用。）'
+- en: All standard join optimizations are performed, with the exception that a table
+    is always read after all tables on which it depends. If there is a circular dependency,
+    an error occurs.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行所有标准连接优化，除了一个表始终在其依赖的所有表之后读取。如果存在循环依赖关系，则会出现错误。
+- en: All standard `WHERE` optimizations are performed.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行所有标准`WHERE`优化。
+- en: If there is a row in *`A`* that matches the `WHERE` clause, but there is no
+    row in *`B`* that matches the `ON` condition, an extra *`B`* row is generated
+    with all columns set to `NULL`.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果*`A`*中有一行与`WHERE`子句匹配，但*`B`*中没有一行与`ON`条件匹配，则会生成一个额外的*`B`*行，其中所有列均设置为`NULL`。
+- en: 'If you use `LEFT JOIN` to find rows that do not exist in some table and you
+    have the following test: `*`col_name`* IS NULL` in the `WHERE` part, where *`col_name`*
+    is a column that is declared as `NOT NULL`, MySQL stops searching for more rows
+    (for a particular key combination) after it has found one row that matches the
+    `LEFT JOIN` condition.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您使用`LEFT JOIN`查找在某个表中不存在的行，并且在`WHERE`部分中有以下测试：`*`col_name`* IS NULL`，其中*`col_name`*被声明为`NOT
+    NULL`的列，那么MySQL在找到与`LEFT JOIN`条件匹配的一行后，停止搜索更多行（对于特定键组合）。
+- en: The `RIGHT JOIN` implementation is analogous to that of `LEFT JOIN` with the
+    table roles reversed. Right joins are converted to equivalent left joins, as described
+    in [Section 10.2.1.10, “Outer Join Simplification”](outer-join-simplification.html
+    "10.2.1.10 Outer Join Simplification").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`RIGHT JOIN`的实现类似于`LEFT JOIN`，只是表的角色被颠倒。右连接被转换为等效的左连接，如[Section 10.2.1.10,
+    “Outer Join Simplification”](outer-join-simplification.html "10.2.1.10 Outer Join
+    Simplification")中所述。'
+- en: 'For a `LEFT JOIN`, if the `WHERE` condition is always false for the generated
+    `NULL` row, the `LEFT JOIN` is changed to an inner join. For example, the `WHERE`
+    clause would be false in the following query if `t2.column1` were `NULL`:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`LEFT JOIN`，如果生成的`NULL`行的`WHERE`条件始终为假，则`LEFT JOIN`会转为内连接。例如，在以下查询中，如果`t2.column1`为`NULL`，则`WHERE`子句将为假：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Therefore, it is safe to convert the query to an inner join:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，将查询转换为内连接是安全的：
+- en: '[PRE1]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'In MySQL 8.0.14 and later, trivial `WHERE` conditions arising from constant
+    literal expressions are removed during preparation, rather than at a later stage
+    in optimization, by which time joins have already been simplified. Earlier removal
+    of trivial conditions allows the optimizer to convert outer joins to inner joins;
+    this can result in improved plans for queries with outer joins containing trivial
+    conditions in the `WHERE` clause, such as this one:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.14及更高版本中，常量文字表达式导致的平凡`WHERE`条件在准备期间被移除，而不是在优化的后期阶段，此时连接已经被简化。提前移除平凡条件允许优化器将外连接转换为内连接；这可以改善包含`WHERE`子句中包含平凡条件的外连接查询的计划，例如以下查询：
+- en: '[PRE2]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The optimizer now sees during preparation that 0 = 1 is always false, making
+    `OR 0 = 1` redundant, and removes it, leaving this:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器现在在准备期间看到0 = 1始终为假，使得`OR 0 = 1`多余，并将其删除，留下这样的内容：
+- en: '[PRE3]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Now the optimizer can rewrite the query as an inner join, like this:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在优化器可以将查询重写为内连接，如下所示：
+- en: '[PRE4]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Now the optimizer can use table `t2` before table `t1` if doing so would result
+    in a better query plan. To provide a hint about the table join order, use optimizer
+    hints; see [Section 10.9.3, “Optimizer Hints”](optimizer-hints.html "10.9.3 Optimizer
+    Hints"). Alternatively, use `STRAIGHT_JOIN`; see [Section 15.2.13, “SELECT Statement”](select.html
+    "15.2.13 SELECT Statement"). However, `STRAIGHT_JOIN` may prevent indexes from
+    being used because it disables semijoin transformations; see [Section 10.2.2.1,
+    “Optimizing IN and EXISTS Subquery Predicates with Semijoin Transformations”](semijoins.html
+    "10.2.2.1 Optimizing IN and EXISTS Subquery Predicates with Semijoin Transformations").
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在优化器可以在表`t1`之前使用表`t2`，如果这样做可以得到更好的查询计划。要提供关于表连接顺序的提示，请使用优化器提示；参见[第10.9.3节，“优化器提示”](optimizer-hints.html
+    "10.9.3 优化器提示")。或者，使用`STRAIGHT_JOIN`；参见[第15.2.13节，“SELECT语句”](select.html "15.2.13
+    SELECT语句")。然而，`STRAIGHT_JOIN`可能会阻止索引的使用，因为它禁用了半连接转换；参见[第10.2.2.1节，“使用半连接转换优化IN和EXISTS子查询谓词”](semijoins.html
+    "10.2.2.1 使用半连接转换优化IN和EXISTS子查询谓词")。

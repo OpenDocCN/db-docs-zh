@@ -1,0 +1,303 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-howto.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-howto.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-howto.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-howto.html)
+- en: 19.1.3.4 Setting Up Replication Using GTIDs
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.3.4 使用GTID设置复制
+- en: This section describes a process for configuring and starting GTID-based replication
+    in MySQL 8.0\. This is a “cold start” procedure that assumes either that you are
+    starting the source server for the first time, or that it is possible to stop
+    it; for information about provisioning replicas using GTIDs from a running source
+    server, see [Section 19.1.3.5, “Using GTIDs for Failover and Scaleout”](replication-gtids-failover.html
+    "19.1.3.5 Using GTIDs for Failover and Scaleout"). For information about changing
+    GTID mode on servers online, see [Section 19.1.4, “Changing GTID Mode on Online
+    Servers”](replication-mode-change-online.html "19.1.4 Changing GTID Mode on Online
+    Servers").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了在MySQL 8.0中配置和启动基于GTID的复制的过程。这是一个“冷启动”过程，假设您要么是第一次启动源服务器，要么可以停止它；有关从运行中的源服务器使用GTID为副本提供服务的信息，请参阅[第19.1.3.5节，“使用GTID进行故障转移和扩展”](replication-gtids-failover.html
+    "19.1.3.5 使用GTID进行故障转移和扩展")。有关在线更改服务器上的GTID模式的信息，请参阅[第19.1.4节，“在线更改GTID模式”](replication-mode-change-online.html
+    "19.1.4 在线更改GTID模式")。
+- en: 'The key steps in this startup process for the simplest possible GTID replication
+    topology, consisting of one source and one replica, are as follows:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最简单的GTID复制拓扑结构的启动过程中的关键步骤，包括一个源和一个副本，如下所示：
+- en: If replication is already running, synchronize both servers by making them read-only.
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果复制已经在运行，请使两个服务器变为只读状态以进行同步。
+- en: Stop both servers.
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止两个服务器。
+- en: Restart both servers with GTIDs enabled and the correct options configured.
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用启用了GTID并配置了正确选项的正确选项重新启动两个服务器。
+- en: The [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") options necessary
+    to start the servers as described are discussed in the example that follows later
+    in this section.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启动服务器所需的[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器")选项将在本节稍后的示例中讨论。
+- en: Instruct the replica to use the source as the replication data source and to
+    use auto-positioning. The SQL statements needed to accomplish this step are described
+    in the example that follows later in this section.
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 指示副本使用源作为复制数据源并使用自动定位。完成此步骤所需的SQL语句在本节稍后的示例中描述。
+- en: Take a new backup. Binary logs containing transactions without GTIDs cannot
+    be used on servers where GTIDs are enabled, so backups taken before this point
+    cannot be used with your new configuration.
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 进行新的备份。包含没有GTID的事务的二进制日志不能在启用GTID的服务器上使用，因此在此点之前进行的备份不能与新配置一起使用。
+- en: Start the replica, then disable read-only mode on both servers, so that they
+    can accept updates.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动副本，然后在两个服务器上禁用只读模式，以便它们可以接受更新。
+- en: In the following example, two servers are already running as source and replica,
+    using MySQL's binary log position-based replication protocol. If you are starting
+    with new servers, see [Section 19.1.2.3, “Creating a User for Replication”](replication-howto-repuser.html
+    "19.1.2.3 Creating a User for Replication") for information about adding a specific
+    user for replication connections and [Section 19.1.2.1, “Setting the Replication
+    Source Configuration”](replication-howto-masterbaseconfig.html "19.1.2.1 Setting
+    the Replication Source Configuration") for information about setting the [`server_id`](replication-options.html#sysvar_server_id)
+    variable. The following examples show how to store [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") startup options in server's option file, see [Section 6.2.2.2,
+    “Using Option Files”](option-files.html "6.2.2.2 Using Option Files") for more
+    information. Alternatively you can use startup options when running [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以下示例中，两个服务器已经作为源和副本运行，使用MySQL的基于二进制日志位置的复制协议。如果您要使用新服务器，请参阅[第19.1.2.3节，“为复制创建用户”](replication-howto-repuser.html
+    "19.1.2.3 为复制创建用户")以获取有关为复制连接添加特定用户的信息，以及[第19.1.2.1节，“设置复制源配置”](replication-howto-masterbaseconfig.html
+    "19.1.2.1 设置复制源配置")以获取有关设置[`server_id`](replication-options.html#sysvar_server_id)变量的信息。以下示例显示了如何在服务器的选项文件中存储[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器")启动选项，请参阅[第6.2.2.2节，“使用选项文件”](option-files.html "6.2.2.2 使用选项文件")以获取更多信息。或者，您可以在运行[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器")时使用启动选项。
+- en: Most of the steps that follow require the use of the MySQL `root` account or
+    another MySQL user account that has the [`SUPER`](privileges-provided.html#priv_super)
+    privilege. [**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server
+    Administration Program") `shutdown` requires either the `SUPER` privilege or the
+    [`SHUTDOWN`](privileges-provided.html#priv_shutdown) privilege.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 后续大部分步骤需要使用 MySQL `root` 帐户或具有[`SUPER`](privileges-provided.html#priv_super)权限的其他
+    MySQL 用户帐户。[**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server
+    Administration Program") `shutdown` 需要`SUPER`权限或[`SHUTDOWN`](privileges-provided.html#priv_shutdown)权限。
+- en: '**Step 1: Synchronize the servers. ** This step is only required when working
+    with servers which are already replicating without using GTIDs. For new servers
+    proceed to Step 3\. Make the servers read-only by setting the [`read_only`](server-system-variables.html#sysvar_read_only)
+    system variable to `ON` on each server by issuing the following:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第一步：同步服务器。** 仅在使用不使用 GTID 复制的服务器时才需要此步骤。对于新服务器，请继续到第三步。通过在每个服务器上将[`read_only`](server-system-variables.html#sysvar_read_only)系统变量设置为`ON`来使服务器只读，发出以下命令：'
+- en: '[PRE0]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Wait for all ongoing transactions to commit or roll back. Then, allow the replica
+    to catch up with the source. *It is extremely important that you make sure the
+    replica has processed all updates before continuing*.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 等待所有正在进行的事务提交或回滚。然后，允许复制品赶上源。*确保复制品处理了所有更新非常重要*。
+- en: If you use binary logs for anything other than replication, for example to do
+    point in time backup and restore, wait until you do not need the old binary logs
+    containing transactions without GTIDs. Ideally, wait for the server to purge all
+    binary logs, and wait for any existing backup to expire.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您使用二进制日志来进行除了复制之外的任何操作，例如进行时点备份和恢复，请等到您不再需要包含没有 GTID 的旧二进制日志。理想情况下，等待服务器清除所有二进制日志，并等待任何现有备份过期。
+- en: Important
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: It is important to understand that logs containing transactions without GTIDs
+    cannot be used on servers where GTIDs are enabled. Before proceeding, you must
+    be sure that transactions without GTIDs do not exist anywhere in the topology.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示：必须了解不包含 GTID 的事务的日志不能在启用 GTID 的服务器上使用。在继续之前，您必须确保在拓扑结构中任何地方都不存在不带 GTID
+    的事务。
+- en: '**Step 2: Stop both servers. ** Stop each server using [**mysqladmin**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") as shown here, where
+    *`username`* is the user name for a MySQL user having sufficient privileges to
+    shut down the server:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第二步：停止两个服务器。** 使用[**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A MySQL
+    Server Administration Program")停止每个服务器，如下所示，其中*`username`*是具有足够权限关闭服务器的 MySQL
+    用户的用户名：'
+- en: '[PRE1]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Then supply this user's password at the prompt.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后在提示处提供此用户的密码。
+- en: '**Step 3: Start both servers with GTIDs enabled. ** To enable GTID-based replication,
+    each server must be started with GTID mode enabled by setting the [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    variable to `ON`, and with the [`enforce_gtid_consistency`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)
+    variable enabled to ensure that only statements which are safe for GTID-based
+    replication are logged. For example:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第三步：启用两个启用 GTID 的服务器。** 要启用基于 GTID 的复制，必须通过将[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)变量设置为`ON`来启用每个服务器的
+    GTID 模式，并通过启用[`enforce_gtid_consistency`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)变量来确保仅记录对于基于
+    GTID 的复制安全的语句。例如：'
+- en: '[PRE2]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Start each replica with the [`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)
+    option, or from MySQL 8.0.24, the [`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)
+    system variable, to ensure that replication does not start until you have configured
+    the replica settings. From MySQL 8.0.26, use [`--skip-replica-start`](replication-options-replica.html#option_mysqld_skip-replica-start)
+    or [`skip_replica_start`](replication-options-replica.html#sysvar_skip_replica_start)
+    instead. For more information on GTID related options and variables, see [Section 19.1.6.5,
+    “Global Transaction ID System Variables”](replication-options-gtids.html "19.1.6.5 Global
+    Transaction ID System Variables").
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 [`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)
+    选项或从 MySQL 8.0.24 开始，使用 [`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)
+    系统变量，确保在配置副本设置之前不会启动复制。从 MySQL 8.0.26 开始，改用 [`--skip-replica-start`](replication-options-replica.html#option_mysqld_skip-replica-start)
+    或 [`skip_replica_start`](replication-options-replica.html#sysvar_skip_replica_start)。有关
+    GTID 相关选项和变量的更多信息，请参见 [第 19.1.6.5 节，“全局事务 ID 系统变量”](replication-options-gtids.html
+    "19.1.6.5 Global Transaction ID System Variables")。
+- en: It is not mandatory to have binary logging enabled in order to use GTIDs when
+    using the [mysql.gtid_executed Table](replication-gtids-concepts.html#replication-gtids-gtid-executed-table
+    "mysql.gtid_executed Table"). Source servers must always have binary logging enabled
+    in order to be able to replicate. However, replica servers can use GTIDs but without
+    binary logging. If you need to disable binary logging on a replica server, you
+    can do this by specifying the [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    and [`--log-replica-updates=OFF`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    or [`--log-slave-updates=OFF`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    options for the replica.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用 [mysql.gtid_executed 表](replication-gtids-concepts.html#replication-gtids-gtid-executed-table
+    "mysql.gtid_executed Table") 时，不需要启用二进制日志记录才能使用 GTIDs 是强制性的。源服务器必须始终启用二进制日志记录才能进行复制。但是，副本服务器可以使用
+    GTIDs，但不启用二进制日志记录。如果需要在副本服务器上禁用二进制日志记录，可以通过为副本指定 [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    和 [`--log-replica-updates=OFF`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    或 [`--log-slave-updates=OFF`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    选项来实现。
+- en: '**Step 4: Configure the replica to use GTID-based auto-positioning. ** Tell
+    the replica to use the source with GTID based transactions as the replication
+    data source, and to use GTID-based auto-positioning rather than file-based positioning.
+    Issue a [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") statement (from MySQL 8.0.23) or [`CHANGE MASTER
+    TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement") statement (before
+    MySQL 8.0.23) on the replica, including the `SOURCE_AUTO_POSITION` | `MASTER_AUTO_POSITION`
+    option in the statement to tell the replica that the source''s transactions are
+    identified by GTIDs.'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第 4 步：配置副本以使用基于 GTID 的自动定位。** 告诉副本使用具有基于 GTID 的事务的源作为复制数据源，并使用基于 GTID 的自动定位而不是基于文件的定位。在副本上发出
+    [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") 语句（从 MySQL 8.0.23 开始）或 [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") 语句（在 MySQL 8.0.23 之前），在语句中包含 `SOURCE_AUTO_POSITION`
+    | `MASTER_AUTO_POSITION` 选项，告诉副本源的事务由 GTIDs 标识。'
+- en: You may also need to supply appropriate values for the source's host name and
+    port number as well as the user name and password for a replication user account
+    which can be used by the replica to connect to the source; if these have already
+    been set prior to Step 1 and no further changes need to be made, the corresponding
+    options can safely be omitted from the statement shown here.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可能还需要为源主机名和端口号以及用于副本连接到源的复制用户帐户的用户名和密码提供适当的值；如果这些值在第 1 步之前已经设置并且不需要进行进一步更改，则可以安全地从此处显示的语句中省略相应的选项。
+- en: '[PRE3]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '**Step 5: Take a new backup. ** Existing backups that were made before you
+    enabled GTIDs can no longer be used on these servers now that you have enabled
+    GTIDs. Take a new backup at this point, so that you are not left without a usable
+    backup.'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第 5 步：进行新的备份。** 在启用 GTIDs 之前制作的现有备份现在无法在这些服务器上使用，因为您已经启用了 GTIDs。在这一点上进行新的备份，这样您就不会没有可用的备份了。'
+- en: For instance, you can execute [`FLUSH LOGS`](flush.html#flush-logs) on the server
+    where you are taking backups. Then either explicitly take a backup or wait for
+    the next iteration of any periodic backup routine you may have set up.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，您可以在执行备份的服务器上执行[`FLUSH LOGS`](flush.html#flush-logs)。然后要么明确地进行备份，要么等待您设置的任何定期备份例程的下一次迭代。
+- en: '**Step 6: Start the replica and disable read-only mode. ** Start the replica
+    like this:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**步骤6：启动副本并禁用只读模式。** 像这样启动副本：'
+- en: '[PRE4]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'The following step is only necessary if you configured a server to be read-only
+    in Step 1\. To allow the server to begin accepting updates again, issue the following
+    statement:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您在第1步中将服务器配置为只读，则需要执行以下步骤才能使服务器再次接受更新。发出以下语句：
+- en: '[PRE5]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: GTID-based replication should now be running, and you can begin (or resume)
+    activity on the source as before. [Section 19.1.3.5, “Using GTIDs for Failover
+    and Scaleout”](replication-gtids-failover.html "19.1.3.5 Using GTIDs for Failover
+    and Scaleout"), discusses creation of new replicas when using GTIDs.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 基于GTID的复制现在应该正在运行，您可以像以前一样开始（或恢复）源上的活动。[第19.1.3.5节，“使用GTIDs进行故障转移和扩展”](replication-gtids-failover.html
+    "19.1.3.5 使用GTIDs进行故障转移和扩展")，讨论了在使用GTIDs时创建新副本。

@@ -1,0 +1,312 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-merge-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/index-merge-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-merge-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/index-merge-optimization.html)
+- en: 10.2.1.3 Index Merge Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.3 索引合并优化
+- en: The Index Merge access method retrieves rows with multiple [`range`](explain-output.html#jointype_range)
+    scans and merges their results into one. This access method merges index scans
+    from a single table only, not scans across multiple tables. The merge can produce
+    unions, intersections, or unions-of-intersections of its underlying scans.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引合并访问方法通过多个[`range`](explain-output.html#jointype_range)扫描检索行，并将它们的结果合并为一个。此访问方法仅合并来自单个表的索引扫描，而不是跨多个表的扫描。合并可以生成底层扫描的并集、交集或并集的交集。
+- en: 'Example queries for which Index Merge may be used:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可能使用索引合并的示例查询：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The Index Merge optimization algorithm has the following known limitations:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引合并优化算法具有以下已知限制：
+- en: 'If your query has a complex `WHERE` clause with deep [`AND`](logical-operators.html#operator_and)/[`OR`](logical-operators.html#operator_or)
+    nesting and MySQL does not choose the optimal plan, try distributing terms using
+    the following identity transformations:'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您的查询具有复杂的`WHERE`子句，带有深层次的[`AND`](logical-operators.html#operator_and)/[`OR`](logical-operators.html#operator_or)嵌套，并且MySQL没有选择最佳计划，请尝试使用以下标识变换来分发术语：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Index Merge is not applicable to full-text indexes.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 索引合并不适用于全文索引。
+- en: In [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output, the Index Merge
+    method appears as [`index_merge`](explain-output.html#jointype_index_merge) in
+    the `type` column. In this case, the `key` column contains a list of indexes used,
+    and `key_len` contains a list of the longest key parts for those indexes.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[`EXPLAIN`](explain.html "15.8.2 EXPLAIN语句")输出中，索引合并方法显示为`type`列中的[`index_merge`](explain-output.html#jointype_index_merge)。在这种情况下，`key`列包含使用的索引列表，`key_len`包含这些索引的最长键部分的列表。
+- en: 'The Index Merge access method has several algorithms, which are displayed in
+    the `Extra` field of [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引合并访问方法有几种算法，这些算法显示在[`EXPLAIN`](explain.html "15.8.2 EXPLAIN语句")输出的`Extra`字段中：
+- en: '`Using intersect(...)`'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`使用 intersect(...)`'
+- en: '`Using union(...)`'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`使用 union(...)`'
+- en: '`Using sort_union(...)`'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`使用 sort_union(...)`'
+- en: The following sections describe these algorithms in greater detail. The optimizer
+    chooses between different possible Index Merge algorithms and other access methods
+    based on cost estimates of the various available options.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下部分更详细地描述了这些算法。优化器根据各种可用选项的成本估算，在不同可能的索引合并算法和其他访问方法之间进行选择。
+- en: '[Index Merge Intersection Access Algorithm](index-merge-optimization.html#index-merge-intersection
+    "Index Merge Intersection Access Algorithm")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[索引合并交集访问算法](index-merge-optimization.html#index-merge-intersection "索引合并交集访问算法")'
+- en: '[Index Merge Union Access Algorithm](index-merge-optimization.html#index-merge-union
+    "Index Merge Union Access Algorithm")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[索引合并并集访问算法](index-merge-optimization.html#index-merge-union "索引合并并集访问算法")'
+- en: '[Index Merge Sort-Union Access Algorithm](index-merge-optimization.html#index-merge-sort-union
+    "Index Merge Sort-Union Access Algorithm")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[索引合并排序-并集访问算法](index-merge-optimization.html#index-merge-sort-union "索引合并排序-并集访问算法")'
+- en: '[Influencing Index Merge Optimization](index-merge-optimization.html#index-merge-influencing
+    "Influencing Index Merge Optimization")'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[影响索引合并优化](index-merge-optimization.html#index-merge-influencing "影响索引合并优化")'
+- en: Index Merge Intersection Access Algorithm
+  id: totrans-20
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 索引合并交集访问算法
+- en: 'This access algorithm is applicable when a `WHERE` clause is converted to several
+    range conditions on different keys combined with [`AND`](logical-operators.html#operator_and),
+    and each condition is one of the following:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当`WHERE`子句转换为与[`AND`](logical-operators.html#operator_and)组合的不同键上的几个范围条件时，并且每个条件是以下之一时，可以应用此访问算法：
+- en: 'An *`N`*-part expression of this form, where the index has exactly *`N`* parts
+    (that is, all index parts are covered):'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这种形式的*`N`*部分表达式，其中索引恰好有*`N`*部分（即，所有索引部分都被覆盖）：
+- en: '[PRE2]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Any range condition over the primary key of an `InnoDB` table.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`InnoDB`表的主键上的任何范围条件。'
+- en: 'Examples:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE3]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The Index Merge intersection algorithm performs simultaneous scans on all used
+    indexes and produces the intersection of row sequences that it receives from the
+    merged index scans.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引合并交集算法对所有使用的索引执行同时扫描，并生成从合并索引扫描接收到的行序列的交集。
+- en: 'If all columns used in the query are covered by the used indexes, full table
+    rows are not retrieved ([`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output
+    contains `Using index` in `Extra` field in this case). Here is an example of such
+    a query:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果查询中使用的所有列都由使用的索引覆盖，则不会检索完整的表行（在这种情况下，[`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement")输出在`Extra`字段中包含`Using index`）。以下是这种查询的示例：
+- en: '[PRE4]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: If the used indexes do not cover all columns used in the query, full rows are
+    retrieved only when the range conditions for all used keys are satisfied.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用的索引未覆盖查询中使用的所有列，则仅在满足所有使用键的范围条件时才检索完整行。
+- en: If one of the merged conditions is a condition over the primary key of an `InnoDB`
+    table, it is not used for row retrieval, but is used to filter out rows retrieved
+    using other conditions.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果合并条件之一是`InnoDB`表的主键条件，则不用于检索行，而是用于过滤使用其他条件检索的行。
+- en: Index Merge Union Access Algorithm
+  id: totrans-32
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 索引合并联合访问算法
+- en: 'The criteria for this algorithm are similar to those for the Index Merge intersection
+    algorithm. The algorithm is applicable when the table''s `WHERE` clause is converted
+    to several range conditions on different keys combined with [`OR`](logical-operators.html#operator_or),
+    and each condition is one of the following:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该算法的标准与索引合并交集算法的标准类似。当表的`WHERE`子句转换为与[`OR`](logical-operators.html#operator_or)组合的不同键上的多个范围条件，并且每个条件是以下条件之一时，该算法适用：
+- en: 'An *`N`*-part expression of this form, where the index has exactly *`N`* parts
+    (that is, all index parts are covered):'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这种形式的*`N`*部分表达式，其中索引恰好有*`N`*部分（即所有索引部分都被覆盖）：
+- en: '[PRE5]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Any range condition over a primary key of an `InnoDB` table.
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 任何`InnoDB`表的主键上的范围条件。
+- en: A condition for which the Index Merge intersection algorithm is applicable.
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 适用于索引合并交集算法的条件。
+- en: 'Examples:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE6]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Index Merge Sort-Union Access Algorithm
+  id: totrans-40
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 索引合并排序联合访问算法
+- en: This access algorithm is applicable when the `WHERE` clause is converted to
+    several range conditions combined by [`OR`](logical-operators.html#operator_or),
+    but the Index Merge union algorithm is not applicable.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当`WHERE`子句转换为由[`OR`](logical-operators.html#operator_or)组合的多个范围条件时，此访问算法适用，但索引合并联合算法不适用。
+- en: 'Examples:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE7]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: The difference between the sort-union algorithm and the union algorithm is that
+    the sort-union algorithm must first fetch row IDs for all rows and sort them before
+    returning any rows.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 排序联合算法和联合算法之间的区别在于排序联合算法必须首先获取所有行的行ID并对其进行排序，然后才能返回任何行。
+- en: Influencing Index Merge Optimization
+  id: totrans-45
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 影响索引合并优化
+- en: Use of Index Merge is subject to the value of the [`index_merge`](switchable-optimizations.html#optflag_index-merge),
+    [`index_merge_intersection`](switchable-optimizations.html#optflag_index-merge-intersection),
+    [`index_merge_union`](switchable-optimizations.html#optflag_index-merge-union),
+    and [`index_merge_sort_union`](switchable-optimizations.html#optflag_index-merge-sort-union)
+    flags of the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable. See [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations"). By default, all those flags are `on`. To enable
+    only certain algorithms, set [`index_merge`](switchable-optimizations.html#optflag_index-merge)
+    to `off`, and enable only such of the others as should be permitted.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用索引合并取决于[`index_merge`](switchable-optimizations.html#optflag_index-merge)、[`index_merge_intersection`](switchable-optimizations.html#optflag_index-merge-intersection)、[`index_merge_union`](switchable-optimizations.html#optflag_index-merge-union)和[`index_merge_sort_union`](switchable-optimizations.html#optflag_index-merge-sort-union)标志的[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量的值。请参阅[第10.9.2节，“可切换优化”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations")。默认情况下，所有这些标志都是`on`。要仅启用某些算法，请将[`index_merge`](switchable-optimizations.html#optflag_index-merge)设置为`off`，并仅启用应允许的其他算法。
+- en: In addition to using the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable to control optimizer use of the Index Merge algorithms session-wide,
+    MySQL supports optimizer hints to influence the optimizer on a per-statement basis.
+    See [Section 10.9.3, “Optimizer Hints”](optimizer-hints.html "10.9.3 Optimizer
+    Hints").
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了使用[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量来全局控制MySQL对索引合并算法的使用之外，MySQL还支持优化器提示以影响每个语句的优化器。请参阅[第10.9.3节，“优化器提示”](optimizer-hints.html
+    "10.9.3 Optimizer Hints")。

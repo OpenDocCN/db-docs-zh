@@ -1,0 +1,122 @@
+- en: 19.2.2 Replication Channels
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.2.2 复制通道
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-channels.html](https://dev.mysql.com/doc/refman/8.0/en/replication-channels.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-channels.html](https://dev.mysql.com/doc/refman/8.0/en/replication-channels.html)
+- en: '[19.2.2.1 Commands for Operations on a Single Channel](channels-commands-single-channel.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.2.1 单个通道操作命令](channels-commands-single-channel.html)'
+- en: '[19.2.2.2 Compatibility with Previous Replication Statements](channels-with-prev-replication.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.2.2 与先前复制语句的兼容性](channels-with-prev-replication.html)'
+- en: '[19.2.2.3 Startup Options and Replication Channels](channels-startup-options.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.2.3 启动选项和复制通道](channels-startup-options.html)'
+- en: '[19.2.2.4 Replication Channel Naming Conventions](channels-naming-conventions.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.2.4 复制通道命名约定](channels-naming-conventions.html)'
+- en: In MySQL multi-source replication, a replica opens multiple replication channels,
+    one for each source server. The replication channels represent the path of transactions
+    flowing from a source to the replica. Each replication channel has its own receiver
+    (I/O) thread, one or more applier (SQL) threads, and relay log. When transactions
+    from a source are received by a channel's receiver thread, they are added to the
+    channel's relay log file and passed through to the channel's applier threads.
+    This enables each channel to function independently.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL多源复制中，副本会打开多个复制通道，每个通道对应一个源服务器。复制通道代表从源到副本流动的事务路径。每个复制通道都有自己的接收器（I/O）线程、一个或多个应用程序（SQL）线程和中继日志。当来自源的事务被通道的接收器线程接收时，它们被添加到通道的中继日志文件中，并传递给通道的应用程序线程。这使得每个通道可以独立运作。
+- en: This section describes how channels can be used in a replication topology, and
+    the impact they have on single-source replication. For instructions to configure
+    sources and replicas for multi-source replication, to start, stop and reset multi-source
+    replicas, and to monitor multi-source replication, see [Section 19.1.5, “MySQL
+    Multi-Source Replication”](replication-multi-source.html "19.1.5 MySQL Multi-Source
+    Replication").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了通道在复制拓扑中的使用方式，以及它们对单源复制的影响。有关配置多源复制的源和副本、启动、停止和重置多源副本以及监视多源复制的说明，请参见[第19.1.5节，“MySQL多源复制”](replication-multi-source.html
+    "19.1.5 MySQL多源复制")。
+- en: The maximum number of channels that can be created on one replica server in
+    a multi-source replication topology is 256\. Each replication channel must have
+    a unique (nonempty) name, as explained in [Section 19.2.2.4, “Replication Channel
+    Naming Conventions”](channels-naming-conventions.html "19.2.2.4 Replication Channel
+    Naming Conventions"). The error codes and messages that are issued when multi-source
+    replication is enabled specify the channel that generated the error.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在多源复制拓扑中，一个副本服务器上可以创建的通道的最大数量为256。每个复制通道必须具有唯一（非空）的名称，如[第19.2.2.4节，“复制通道命名约定”](channels-naming-conventions.html
+    "19.2.2.4 复制通道命名约定")中所解释的。启用多源复制时发出的错误代码和消息指定生成错误的通道。
+- en: Note
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Each channel on a multi-source replica must replicate from a different source.
+    You cannot set up multiple replication channels from a single replica to a single
+    source. This is because the server IDs of replicas must be unique in a replication
+    topology. The source distinguishes replicas only by their server IDs, not by the
+    names of the replication channels, so it cannot recognize different replication
+    channels from the same replica.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多源副本上的每个通道必须从不同的源复制。您不能从单个副本设置多个复制通道到单个源。这是因为副本的服务器ID在复制拓扑中必须是唯一的。源仅通过副本的服务器ID来区分副本，而不是通过复制通道的名称，因此它无法识别来自同一副本的不同复制通道。
+- en: A multi-source replica can also be set up as a multi-threaded replica, by setting
+    the system variable [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    (from MySQL 8.0.26) or [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)
+    (before MySQL 8.0.26) to a value greater than 0\. When you do this on a multi-source
+    replica, each channel on the replica has the specified number of applier threads,
+    plus a coordinator thread to manage them. You cannot configure the number of applier
+    threads for individual channels.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多源复制副本还可以设置为多线程副本，方法是将系统变量[`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)（从
+    MySQL 8.0.26 开始）或[`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)（在
+    MySQL 8.0.26 之前）设置为大于 0 的值。当在多源复制副本上执行此操作时，副本上的每个通道都具有指定数量的应用程序线程，以及一个协调器线程来管理它们。无法为各个通道配置应用程序线程的数量。
+- en: From MySQL 8.0, multi-source replicas can be configured with replication filters
+    on specific replication channels. Channel specific replication filters can be
+    used when the same database or table is present on multiple sources, and you only
+    need the replica to replicate it from one source. For GTID-based replication,
+    if the same transaction might arrive from multiple sources (such as in a diamond
+    topology), you must ensure the filtering setup is the same on all channels. For
+    more information, see [Section 19.2.5.4, “Replication Channel Based Filters”](replication-rules-channel-based-filters.html
+    "19.2.5.4 Replication Channel Based Filters").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0 开始，可以在特定复制通道上配置多源复制副本的复制过滤器。当相同数据库或表存在于多个源上时，可以使用特定通道的复制过滤器，只需将副本从一个源复制即可。对于基于
+    GTID 的复制，如果同一事务可能来自多个源（例如在钻石拓扑中），必须确保所有通道上的过滤设置相同。有关更多信息，请参见[Section 19.2.5.4，“基于复制通道的过滤器”](replication-rules-channel-based-filters.html
+    "19.2.5.4 基于复制通道的过滤器")。
+- en: To provide compatibility with previous versions, the MySQL server automatically
+    creates on startup a default channel whose name is the empty string (`""`). This
+    channel is always present; it cannot be created or destroyed by the user. If no
+    other channels (having nonempty names) have been created, replication statements
+    act on the default channel only, so that all replication statements from older
+    replicas function as expected (see [Section 19.2.2.2, “Compatibility with Previous
+    Replication Statements”](channels-with-prev-replication.html "19.2.2.2 Compatibility
+    with Previous Replication Statements"). Statements applying to replication channels
+    as described in this section can be used only when there is at least one named
+    channel.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了与旧版本兼容，MySQL 服务器在启动时自动创建一个名为空字符串（`""`）的默认通道。该通道始终存在；用户无法创建或销毁它。如果没有创建其他通道（具有非空名称），则复制语句仅在默认通道上执行，以便所有来自旧副本的复制语句都能正常运行（参见[Section
+    19.2.2.2，“与先前复制语句的兼容性”](channels-with-prev-replication.html "19.2.2.2 与先前复制语句的兼容性")）。本节描述的应用于复制通道的语句仅在至少有一个命名通道时才能使用。

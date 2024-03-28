@@ -1,0 +1,194 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/table-cache.html](https://dev.mysql.com/doc/refman/8.0/en/table-cache.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/table-cache.html](https://dev.mysql.com/doc/refman/8.0/en/table-cache.html)
+- en: 10.4.3.1 How MySQL Opens and Closes Tables
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.4.3.1 MySQL 如何打开和关闭表
+- en: 'When you execute a [**mysqladmin status**](mysqladmin.html "6.5.2 mysqladmin
+    — A MySQL Server Administration Program") command, you should see something like
+    this:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当你执行 [**mysqladmin status**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server
+    Administration Program") 命令时，你应该看到类似以下内容：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The `Open tables` value of 12 can be somewhat puzzling if you have fewer than
+    12 tables.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Open tables` 值为 12 可能会让人感到困惑，如果你的表少于 12 张。'
+- en: MySQL is multithreaded, so there may be many clients issuing queries for a given
+    table simultaneously. To minimize the problem with multiple client sessions having
+    different states on the same table, the table is opened independently by each
+    concurrent session. This uses additional memory but normally increases performance.
+    With `MyISAM` tables, one extra file descriptor is required for the data file
+    for each client that has the table open. (By contrast, the index file descriptor
+    is shared between all sessions.)
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 是多线程的，因此可能会有许多客户端同时为给定表发出查询。为了最小化多个客户端会话在同一表上具有不同状态的问题，每个并发会话独立打开表。这会使用额外的内存，但通常会提高性能。对于
+    `MyISAM` 表，每个打开表的客户端都需要一个额外的文件描述符用于数据文件。（相比之下，索引文件描述符在所有会话之间共享。）
+- en: The [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    and [`max_connections`](server-system-variables.html#sysvar_max_connections) system
+    variables affect the maximum number of files the server keeps open. If you increase
+    one or both of these values, you may run up against a limit imposed by your operating
+    system on the per-process number of open file descriptors. Many operating systems
+    permit you to increase the open-files limit, although the method varies widely
+    from system to system. Consult your operating system documentation to determine
+    whether it is possible to increase the limit and how to do so.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    和 [`max_connections`](server-system-variables.html#sysvar_max_connections) 系统变量影响服务器保持打开的文件的最大数量。如果你增加其中一个或两个值，可能会遇到操作系统对每个进程打开文件描述符数量的限制。许多操作系统允许你增加打开文件的限制，尽管方法因系统而异。请查阅你的操作系统文档，确定是否可以增加限制以及如何操作。'
+- en: '[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    is related to [`max_connections`](server-system-variables.html#sysvar_max_connections).
+    For example, for 200 concurrent running connections, specify a table cache size
+    of at least `200 * *`N`*`, where *`N`* is the maximum number of tables per join
+    in any of the queries which you execute. You must also reserve some extra file
+    descriptors for temporary tables and files.'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    与 [`max_connections`](server-system-variables.html#sysvar_max_connections) 相关。例如，对于
+    200 个并发运行的连接，至少指定一个表缓存大小为 `200 * *`N`*`，其中 *`N`* 是你执行的任何查询中任何连接中的最大表数。你还必须为临时表和文件保留一些额外的文件描述符。'
+- en: Make sure that your operating system can handle the number of open file descriptors
+    implied by the [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    setting. If [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    is set too high, MySQL may run out of file descriptors and exhibit symptoms such
+    as refusing connections or failing to perform queries.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 确保你的操作系统能够处理由 [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    设置所暗示的打开文件描述符数量。如果 [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    设置过高，MySQL 可能会耗尽文件描述符，并表现出拒绝连接或无法执行查询等症状。
+- en: Also take into account that the `MyISAM` storage engine needs two file descriptors
+    for each unique open table. To increase the number of file descriptors available
+    to MySQL, set the [`open_files_limit`](server-system-variables.html#sysvar_open_files_limit)
+    system variable. See [Section B.3.2.16, “File Not Found and Similar Errors”](not-enough-file-handles.html
+    "B.3.2.16 File Not Found and Similar Errors").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还要考虑到 `MyISAM` 存储引擎每个唯一打开表需要两个文件描述符。要增加供 MySQL 使用的文件描述符数量，设置 [`open_files_limit`](server-system-variables.html#sysvar_open_files_limit)
+    系统变量。参见 [Section B.3.2.16, “File Not Found and Similar Errors”](not-enough-file-handles.html
+    "B.3.2.16 File Not Found and Similar Errors")。
+- en: The cache of open tables is kept at a level of [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    entries. The server autosizes the cache size at startup. To set the size explicitly,
+    set the [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    system variable at startup. MySQL may temporarily open more tables than this to
+    execute queries, as described later in this section.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 打开表的缓存保持在[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)条目的水平。服务器在启动时自动调整缓存大小。要显式设置大小，请在启动时设置[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)系统变量。MySQL可能会临时打开比这更多的表来执行查询，如本节后面所述。
+- en: 'MySQL closes an unused table and removes it from the table cache under the
+    following circumstances:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL在以下情况下关闭未使用的表并从表缓存中删除它：
+- en: When the cache is full and a thread tries to open a table that is not in the
+    cache.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当缓存已满且线程尝试打开不在缓存中的表时。
+- en: When the cache contains more than [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    entries and a table in the cache is no longer being used by any threads.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当缓存包含超过[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)条目且缓存中的表不再被任何线程使用时。
+- en: When a table-flushing operation occurs. This happens when someone issues a [`FLUSH
+    TABLES`](flush.html#flush-tables) statement or executes a [**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") or [**mysqladmin refresh**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") command.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当发生表刷新操作时。当有人发出[`FLUSH TABLES`](flush.html#flush-tables)语句或执行[**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")或[**mysqladmin refresh**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")命令时。
+- en: 'When the table cache fills up, the server uses the following procedure to locate
+    a cache entry to use:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当表缓存填满时，服务器使用以下过程来定位要使用的缓存条目：
+- en: Tables not currently in use are released, beginning with the table least recently
+    used.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当前未使用的表将被释放，从最近最少使用的表开始。
+- en: If a new table must be opened, but the cache is full and no tables can be released,
+    the cache is temporarily extended as necessary. When the cache is in a temporarily
+    extended state and a table goes from a used to unused state, the table is closed
+    and released from the cache.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果必须打开新表，但缓存已满且无法释放表，则根据需要临时扩展缓存。当缓存处于临时扩展状态且表从已使用到未使用状态时，表将被关闭并从缓存中释放。
+- en: 'A `MyISAM` table is opened for each concurrent access. This means the table
+    needs to be opened twice if two threads access the same table or if a thread accesses
+    the table twice in the same query (for example, by joining the table to itself).
+    Each concurrent open requires an entry in the table cache. The first open of any
+    `MyISAM` table takes two file descriptors: one for the data file and one for the
+    index file. Each additional use of the table takes only one file descriptor for
+    the data file. The index file descriptor is shared among all threads.'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个并发访问都会打开一个`MyISAM`表。这意味着如果两个线程访问同一张表，或者一个线程在同一查询中两次访问表（例如，通过将表与自身连接），则需要打开表两次。每个并发打开都需要在表缓存中有一个条目。任何`MyISAM`表的第一次打开需要两个文件描述符：一个用于数据文件，一个用于索引文件。对表的每次额外使用只需要一个数据文件的文件描述符。索引文件描述符在所有线程之间共享。
+- en: If you are opening a table with the `HANDLER *`tbl_name`* OPEN` statement, a
+    dedicated table object is allocated for the thread. This table object is not shared
+    by other threads and is not closed until the thread calls `HANDLER *`tbl_name`*
+    CLOSE` or the thread terminates. When this happens, the table is put back in the
+    table cache (if the cache is not full). See [Section 15.2.5, “HANDLER Statement”](handler.html
+    "15.2.5 HANDLER Statement").
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您使用`HANDLER *`tbl_name`* OPEN`语句打开表，则为线程分配一个专用表对象。此表对象不与其他线程共享，并且直到线程调用`HANDLER
+    *`tbl_name`* CLOSE`或线程终止时才关闭。发生这种情况时，表将放回表缓存（如果缓存未满）。请参阅[第15.2.5节，“HANDLER语句”](handler.html
+    "15.2.5 HANDLER Statement")。
+- en: 'To determine whether your table cache is too small, check the [`Opened_tables`](server-status-variables.html#statvar_Opened_tables)
+    status variable, which indicates the number of table-opening operations since
+    the server started:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要确定您的表缓存是否太小，请检查[`Opened_tables`](server-status-variables.html#statvar_Opened_tables)状态变量，该变量指示自服务器启动以来的表打开操作次数：
+- en: '[PRE1]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If the value is very large or increases rapidly, even when you have not issued
+    many [`FLUSH TABLES`](flush.html#flush-tables) statements, increase the [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    value at server startup.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果值非常大或增长迅速，即使您没有发出许多[`FLUSH TABLES`](flush.html#flush-tables)语句，也应在服务器启动时增加[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)的值。

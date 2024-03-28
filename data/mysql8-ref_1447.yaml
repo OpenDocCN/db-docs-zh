@@ -1,0 +1,80 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-load-data.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-load-data.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-load-data.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-load-data.html)
+- en: 19.5.1.19 Replication and LOAD DATA
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.19 复制和LOAD DATA
+- en: '[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") is considered unsafe
+    for statement-based logging (see [Section 19.2.1.3, “Determination of Safe and
+    Unsafe Statements in Binary Logging”](replication-rbr-safe-unsafe.html "19.2.1.3 Determination
+    of Safe and Unsafe Statements in Binary Logging")). When [`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, the statement is logged in row-based format. When [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, note that [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") does
+    not generate a warning, unlike other unsafe statements.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") 被认为在基于语句的日志记录中是不安全的（参见
+    [Section 19.2.1.3, “二进制日志中安全和不安全语句的确定”](replication-rbr-safe-unsafe.html "19.2.1.3
+    二进制日志中安全和不安全语句的确定")）。当设置 [`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)
+    时，该语句以行格式记录。当设置 [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    时，请注意，与其他不安全语句不同，[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") 不会生成警告。'
+- en: If you use [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") with [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format),
+    each replica on which the changes are to be applied creates a temporary file containing
+    the data. The replica then uses a [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA
+    Statement") statement to apply the changes. This temporary file is not encrypted,
+    even if binary log encryption is active on the source, If encryption is required,
+    use row-based or mixed binary logging format instead, for which replicas do not
+    create the temporary file.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您使用 [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") 与 [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)，每个要应用更改的副本都会创建一个包含数据的临时文件。然后，副本使用
+    [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") 语句来应用更改。即使源上启用了二进制日志加密，此临时文件也不会被加密。如果需要加密，请改用基于行或混合的二进制日志格式，副本不会创建临时文件。
+- en: If a `PRIVILEGE_CHECKS_USER` account has been used to help secure the replication
+    channel (see [Section 19.3.3, “Replication Privilege Checks”](replication-privilege-checks.html
+    "19.3.3 Replication Privilege Checks")), it is strongly recommended that you log
+    [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") operations using row-based
+    binary logging ([`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)).
+    If `REQUIRE_ROW_FORMAT` is set for the channel, row-based binary logging is required.
+    With this logging format, the [`FILE`](privileges-provided.html#priv_file) privilege
+    is not needed to execute the event, so do not give the `PRIVILEGE_CHECKS_USER`
+    account this privilege. If you need to recover from a replication error involving
+    a `LOAD DATA INFILE` operation logged in statement format, and the replicated
+    event is trusted, you could grant the [`FILE`](privileges-provided.html#priv_file)
+    privilege to the `PRIVILEGE_CHECKS_USER` account temporarily, removing it after
+    the replicated event has been applied.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用 `PRIVILEGE_CHECKS_USER` 帐户来帮助保护复制通道（参见 [Section 19.3.3, “复制权限检查”](replication-privilege-checks.html
+    "19.3.3 复制权限检查")），强烈建议您使用基于行的二进制日志记录（[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)）记录
+    [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") 操作。如果为通道设置了 `REQUIRE_ROW_FORMAT`，则需要基于行的二进制日志记录。使用此日志格式，执行事件不需要
+    [`FILE`](privileges-provided.html#priv_file) 权限，因此不要给 `PRIVILEGE_CHECKS_USER`
+    帐户此权限。如果需要从以语句格式记录的 `LOAD DATA INFILE` 操作的复制错误中恢复，并且复制的事件是可信的，则可以暂时授予 `PRIVILEGE_CHECKS_USER`
+    帐户 [`FILE`](privileges-provided.html#priv_file) 权限，在应用复制的事件后再删除该权限。
+- en: When [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") reads log events for [`LOAD DATA`](load-data.html "15.2.9 LOAD
+    DATA Statement") statements logged in statement-based format, a generated local
+    file is created in a temporary directory. These temporary files are not automatically
+    removed by [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for
+    Processing Binary Log Files") or any other MySQL program. If you do use [`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement") statements with statement-based
+    binary logging, you should delete the temporary files yourself after you no longer
+    need the statement log. For more information, see [Section 6.6.9, “mysqlbinlog
+    — Utility for Processing Binary Log Files”](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")读取以语句为基础格式记录的[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA 语句")语句的日志事件时，会在临时目录中创建一个生成的本地文件。这些临时文件不会被[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")或任何其他MySQL程序自动删除。如果您确实使用了以语句为基础的二进制日志记录的[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA 语句")语句，那么在不再需要语句日志后，您应该自行删除这些临时文件。更多信息，请参阅[Section 6.6.9,
+    “mysqlbinlog — 用于处理二进制日志文件的实用程序”](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")。

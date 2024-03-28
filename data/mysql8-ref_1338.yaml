@@ -1,0 +1,149 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto-masterstatus.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto-masterstatus.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto-masterstatus.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto-masterstatus.html)
+- en: 19.1.2.4 Obtaining the Replication Source Binary Log Coordinates
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.2.4 获取复制源二进制日志坐标
+- en: To configure the replica to start the replication process at the correct point,
+    you need to note the source's current coordinates within its binary log.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要配置副本以在正确位置开始复制过程，您需要记录源在其二进制日志中的当前坐标。
+- en: Warning
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: This procedure uses [`FLUSH TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock),
+    which blocks [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements") operations for [`InnoDB`](innodb-storage-engine.html "Chapter 17 The
+    InnoDB Storage Engine") tables.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此过程使用[`FLUSH TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock)，会阻塞[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")表的[`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements")操作。
+- en: If you are planning to shut down the source to create a data snapshot, you can
+    optionally skip this procedure and instead store a copy of the binary log index
+    file along with the data snapshot. In that situation, the source creates a new
+    binary log file on restart. The source binary log coordinates where the replica
+    must start the replication process are therefore the start of that new file, which
+    is the next binary log file on the source following after the files that are listed
+    in the copied binary log index file.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您计划关闭源以创建数据快照，则可以选择跳过此过程，而是将二进制日志索引文件的副本与数据快照一起存储。在那种情况下，源在重新启动时会创建一个新的二进制日志文件。因此，副本必须开始复制过程的源二进制日志坐标是该新文件的开头，即在复制的二进制日志索引文件中列出的文件之后的源上的下一个二进制日志文件。
+- en: 'To obtain the source binary log coordinates, follow these steps:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要获取源二进制日志坐标，请按照以下步骤操作：
+- en: 'Start a session on the source by connecting to it with the command-line client,
+    and flush all tables and block write statements by executing the [`FLUSH TABLES
+    WITH READ LOCK`](flush.html#flush-tables-with-read-lock) statement:'
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源上启动一个会话，通过命令行客户端连接到它，并通过执行[`FLUSH TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock)语句刷新所有表并阻止写入语句：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Warning
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Leave the client from which you issued the [`FLUSH TABLES`](flush.html#flush-tables)
+    statement running so that the read lock remains in effect. If you exit the client,
+    the lock is released.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 保持发出[`FLUSH TABLES`](flush.html#flush-tables)语句的客户端运行，以使读锁保持生效。如果退出客户端，则锁将被释放。
+- en: 'In a different session on the source, use the [`SHOW MASTER STATUS`](show-master-status.html
+    "15.7.7.23 SHOW MASTER STATUS Statement") statement to determine the current binary
+    log file name and position:'
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源的另一个会话中，使用[`SHOW MASTER STATUS`](show-master-status.html "15.7.7.23 SHOW MASTER
+    STATUS Statement")语句确定当前二进制日志文件名和位置：
+- en: '[PRE1]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The `File` column shows the name of the log file and the `Position` column shows
+    the position within the file. In this example, the binary log file is `mysql-bin.000003`
+    and the position is 73\. Record these values. You need them later when you are
+    setting up the replica. They represent the replication coordinates at which the
+    replica should begin processing new updates from the source.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`File`列显示日志文件的名称，`Position`列显示文件内的位置。在此示例中，二进制日志文件为`mysql-bin.000003`，位置为73。记录这些值。在设置副本时，您将需要它们。它们代表副本应开始处理源的新更新的复制坐标。'
+- en: If the source has been running previously with binary logging disabled, the
+    log file name and position values displayed by [`SHOW MASTER STATUS`](show-master-status.html
+    "15.7.7.23 SHOW MASTER STATUS Statement") or [**mysqldump --master-data**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") are empty. In that case, the values
+    that you need to use later when specifying the source's binary log file and position
+    are the empty string (`''`) and `4`.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果源先前已禁用二进制日志记录运行，则[`SHOW MASTER STATUS`](show-master-status.html "15.7.7.23 SHOW
+    MASTER STATUS Statement")或[**mysqldump --master-data**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program")显示的日志文件名和位置值为空。在这种情况下，您稍后在指定源的二进制日志文件和位置时需要使用的值是空字符串（`''`）和`4`。
+- en: You now have the information you need to enable the replica to start reading
+    from the source's binary log in the correct place to start replication.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您现在拥有启用副本从源的二进制日志中正确位置开始读取所需的信息。
+- en: 'The next step depends on whether you have existing data on the source. Choose
+    one of the following options:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下一步取决于您在源端是否有现有数据。请选择以下选项之一：
+- en: If you have existing data that needs be to synchronized with the replica before
+    you start replication, leave the client running so that the lock remains in place.
+    This prevents any further changes being made, so that the data copied to the replica
+    is in synchrony with the source. Proceed to [Section 19.1.2.5, “Choosing a Method
+    for Data Snapshots”](replication-snapshot-method.html "19.1.2.5 Choosing a Method
+    for Data Snapshots").
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您有现有数据需要在开始复制之前与副本同步，请保持客户端运行，以便锁定保持在原位。这样可以防止进行进一步的更改，从而使复制到副本的数据与源数据同步。继续查看[Section 19.1.2.5,
+    “选择数据快照方法”](replication-snapshot-method.html "19.1.2.5 选择数据快照方法")。
+- en: If you are setting up a new source and replica combination, you can exit the
+    first session to release the read lock. See [Section 19.1.2.6.1, “Setting Up Replication
+    with New Source and Replicas”](replication-setup-replicas.html#replication-howto-newservers
+    "19.1.2.6.1 Setting Up Replication with New Source and Replicas") for how to proceed.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您正在设置新的源和副本组合，您可以退出第一个会话以释放读锁。查看[Section 19.1.2.6.1, “使用新源和副本设置复制”](replication-setup-replicas.html#replication-howto-newservers
+    "19.1.2.6.1 使用新源和副本设置复制")以了解如何继续。

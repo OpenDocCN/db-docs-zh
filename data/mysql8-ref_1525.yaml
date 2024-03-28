@@ -1,0 +1,357 @@
+- en: 20.6.1 Communication Stack for Connection Security Management
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.6.1 连接安全管理的通信堆栈
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-connection-security.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-connection-security.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-connection-security.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-connection-security.html)
+- en: 'From MySQL 8.0.27, Group Replication can secure group communication connections
+    between members by one of the following methods:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.27开始，Group Replication可以通过以下方法之一保护成员之间的组通信连接：
+- en: Using its own implementation of the security protocols, including TLS/SSL and
+    the use of an allowlist for incoming Group Communication System (GCS) connections.
+    This is the only option for MySQL 8.0.26 and earlier.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用其自身的安全协议实现，包括TLS/SSL和用于传入组通信系统（GCS）连接的白名单。这是MySQL 8.0.26及更早版本的唯一选项。
+- en: Using MySQL Server’s own connection security in place of Group Replication’s
+    implementation. Using the MySQL protocol means that standard methods of user authentication
+    can be used for granting (or revoking) access to the group in place of the allowlist,
+    and the latest functionality of the server’s protocol is always available on release.
+    This option is available from MySQL 8.0.27.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用MySQL服务器自身的连接安全代替Group Replication的实现。使用MySQL协议意味着可以使用标准的用户认证方法来授予（或撤销）对组的访问权限，而不是使用白名单，并且服务器协议的最新功能始终在发布时可用。此选项从MySQL
+    8.0.27开始提供。
+- en: The choice is made by setting the system variable [`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)
+    to `XCOM` to use Group Replication's own implementation (this is the default choice),
+    or to `MYSQL` to use MySQL Server's connection security.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过设置系统变量[`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)为`XCOM`来选择使用Group
+    Replication的自身实现（这是默认选择），或者设置为`MYSQL`以使用MySQL服务器的连接安全。
+- en: The following additional configuration is required for a replication group to
+    use the MySQL communication stack. It is especially important to make sure these
+    requirements are all fulfilled when you switch from using the XCom communication
+    stack to the MySQL communication stack for your group.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 复制组要使用MySQL通信堆栈，需要进行以下额外配置。当您从使用XCom通信堆栈切换到MySQL通信堆栈时，特别重要的是确保所有这些要求都得到满足。
+- en: '**Group Replication Requirements For The MySQL Communication Stack**'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**MySQL通信堆栈的Group Replication要求**'
+- en: The network address configured by the [`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)
+    system variable for each group member must be set to one of the IP addresses and
+    ports that MySQL Server is listening on, as specified by the [`bind_address`](server-system-variables.html#sysvar_bind_address)
+    system variable for the server. The combination of IP address and port for each
+    member must be unique in the group. It is recommended that the [`group_replication_group_seeds`](group-replication-system-variables.html#sysvar_group_replication_group_seeds)
+    system variable for each group member be configured to contain all the local addresses
+    for all the group members.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)系统变量配置的网络地址必须设置为MySQL服务器正在侦听的IP地址和端口之一，如服务器的[`bind_address`](server-system-variables.html#sysvar_bind_address)系统变量所指定的那样。每个成员的IP地址和端口组合在组内必须是唯一的。建议为每个组成员配置[`group_replication_group_seeds`](group-replication-system-variables.html#sysvar_group_replication_group_seeds)系统变量，其中包含所有组成员的本地地址。
+- en: The MySQL communication stack supports network namespaces, which the XCom communication
+    stack does not support. If network namespaces are used with the Group Replication
+    local addresses for the group members ([`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)),
+    these must be configured for each group member using the [`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement") statement. Also, the [`report_host`](replication-options-replica.html#sysvar_report_host)
+    server system variable for each group member must be set to report the namespace.
+    All group members must use the same namespace to avoid possible issues with address
+    resolution during distributed recovery.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL通信栈支持网络命名空间，而XCom通信栈不支持。如果使用网络命名空间与组复制的本地地址（[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)）一起使用，必须为每个组成员使用[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")语句进行配置。此外，每个组成员的[`report_host`](replication-options-replica.html#sysvar_report_host)服务器系统变量必须设置为报告命名空间。所有组成员必须使用相同的命名空间，以避免在分布式恢复期间可能出现的地址解析问题。
+- en: The [`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)
+    system variable must be set to the required setting for group communications.
+    This system variable controls whether TLS/SSL is enabled or disabled for group
+    communications. For MySQL 8.0.26 and earlier, the TLS/SSL configuration is always
+    taken from the server’s SSL settings; for MySQL 8.0.27 and later, when the MySQL
+    communication stack is used, the TLS/SSL configuration is taken from Group Replication’s
+    distributed recovery settings. This setting should be the same on all the group
+    members, to avoid potential conflicts.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)系统变量必须设置为组通信所需的设置。此系统变量控制组通信是否启用或禁用TLS/SSL。对于MySQL
+    8.0.26及更早版本，TLS/SSL配置始终从服务器的SSL设置中获取；对于MySQL 8.0.27及更高版本，在使用MySQL通信栈时，TLS/SSL配置将从组复制的分布式恢复设置中获取。为避免潜在冲突，此设置应在所有组成员上相同。'
+- en: The settings for the [`--ssl`](server-options.html#option_mysqld_ssl) or [`--skip-ssl`](server-options.html#option_mysqld_ssl)
+    server option and for the [`require_secure_transport`](server-system-variables.html#sysvar_require_secure_transport)
+    server system variable should be the same on all the group members, to avoid potential
+    conflicts. If [`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)
+    is set to `REQUIRED`, `VERIFY_CA`, or `VERIFY_IDENTITY`, use [`--ssl`](server-options.html#option_mysqld_ssl)
+    and [`require_secure_transport=ON`](server-system-variables.html#sysvar_require_secure_transport).
+    If [`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)
+    is set to `DISABLED`, use [`require_secure_transport=OFF`](server-system-variables.html#sysvar_require_secure_transport).
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--ssl`](server-options.html#option_mysqld_ssl)或[`--skip-ssl`](server-options.html#option_mysqld_ssl)服务器选项和[`require_secure_transport`](server-system-variables.html#sysvar_require_secure_transport)服务器系统变量的设置应在所有组成员上相同，以避免潜在冲突。如果[`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)设置为`REQUIRED`、`VERIFY_CA`或`VERIFY_IDENTITY`，请使用[`--ssl`](server-options.html#option_mysqld_ssl)和[`require_secure_transport=ON`](server-system-variables.html#sysvar_require_secure_transport)。如果[`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)设置为`DISABLED`，请使用[`require_secure_transport=OFF`](server-system-variables.html#sysvar_require_secure_transport)。'
+- en: If TLS/SSL is enabled for group communications, Group Replication’s settings
+    for securing distributed recovery must be configured if they are not already in
+    place, or validated if they already are. The MySQL communication stack uses these
+    settings not just for member-to-member distributed recovery connections, but also
+    for TLS/SSL configuration in general group communications. [`group_replication_recovery_use_ssl`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)
+    and the other `group_replication_recovery_*` system variables are explained in
+    [Section 20.6.3.2, “Secure Socket Layer (SSL) Connections for Distributed Recovery”](group-replication-configuring-ssl-for-recovery.html
+    "20.6.3.2 Secure Socket Layer (SSL) Connections for Distributed Recovery").
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果为组通信启用了TLS/SSL，则必须配置Group Replication的用于保护分布式恢复的设置，如果尚未配置，则必须配置，或者如果已经配置，则必须进行验证。MySQL通信堆栈不仅在成员之间的分布式恢复连接中使用这些设置，还在一般组通信中使用TLS/SSL配置。[`group_replication_recovery_use_ssl`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)和其他`group_replication_recovery_*`系统变量在[第20.6.3.2节，“用于分布式恢复的安全套接字层（SSL）连接”](group-replication-configuring-ssl-for-recovery.html
+    "20.6.3.2 用于分布式恢复的安全套接字层（SSL）连接")中有解释。
+- en: The Group Replication allowlist is not used when the group is using the MySQL
+    communication stack, so the [`group_replication_ip_allowlist`](group-replication-system-variables.html#sysvar_group_replication_ip_allowlist)
+    and [`group_replication_ip_whitelist`](group-replication-system-variables.html#sysvar_group_replication_ip_whitelist)
+    system variables are ignored and need not be configured.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当组使用MySQL通信堆栈时，不使用Group Replication白名单，因此[`group_replication_ip_allowlist`](group-replication-system-variables.html#sysvar_group_replication_ip_allowlist)和[`group_replication_ip_whitelist`](group-replication-system-variables.html#sysvar_group_replication_ip_whitelist)系统变量将被忽略，无需配置。
+- en: 'The replication user account that Group Replication uses for distributed recovery,
+    as configured using the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement, is used for authentication
+    by the MySQL communication stack when setting up Group Replication connections.
+    This user account, which is the same on all group members, must be given the following
+    privileges:'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Group Replication用于分布式恢复的复制用户帐户，如使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO语句")语句配置的，用于在设置Group Replication连接时由MySQL通信堆栈进行身份验证。这个用户帐户在所有组成员上都是相同的，必须具有以下权限：
+- en: '[`GROUP_REPLICATION_STREAM`](privileges-provided.html#priv_group-replication-stream).
+    This privilege is required for the user account to be able to establish connections
+    for Group Replication using the MySQL communication stack.'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`GROUP_REPLICATION_STREAM`](privileges-provided.html#priv_group-replication-stream)。此权限是用户帐户能够使用MySQL通信堆栈建立Group
+    Replication连接所必需的。'
+- en: '[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin). This
+    privilege is required so that Group Replication connections are not terminated
+    if one of the servers involved is placed in offline mode. If the MySQL communication
+    stack is in use without this privilege, a member that is placed in offline mode
+    is expelled from the group.'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)。此权限是为了确保Group
+    Replication连接在涉及的服务器之一处于离线模式时不会被终止。如果使用MySQL通信堆栈而没有此权限，则被放置在离线模式的成员将被从组中驱逐。'
+- en: These are in addition to the privileges [`REPLICATION SLAVE`](privileges-provided.html#priv_replication-slave)
+    and [`BACKUP_ADMIN`](privileges-provided.html#priv_backup-admin) that all replication
+    user accounts must have (see [Section 20.2.1.3, “User Credentials For Distributed
+    Recovery”](group-replication-user-credentials.html "20.2.1.3 User Credentials
+    For Distributed Recovery")). When you add the new privileges, ensure that you
+    skip binary logging on each group member by issuing `SET SQL_LOG_BIN=0` before
+    you issue the [`GRANT`](grant.html "15.7.1.6 GRANT Statement") statements, and
+    `SET SQL_LOG_BIN=1` after them, so that the local transaction does not interfere
+    with restarting Group Replication.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些权限是所有复制用户帐户必须具有的权限[`REPLICATION SLAVE`](privileges-provided.html#priv_replication-slave)和[`BACKUP_ADMIN`](privileges-provided.html#priv_backup-admin)的附加权限（请参阅[第20.2.1.3节，“用于分布式恢复的用户凭据”](group-replication-user-credentials.html
+    "20.2.1.3 用于分布式恢复的用户凭据")）。在添加新权限时，请确保在发出[`GRANT`](grant.html "15.7.1.6 GRANT语句")语句之前通过发出`SET
+    SQL_LOG_BIN=0`跳过每个组成员上的二进制日志记录，并在之后通过`SET SQL_LOG_BIN=1`，以便本地事务不会干扰Group Replication的重新启动。
+- en: '[`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)
+    is effectively a group-wide configuration setting, and the setting must be the
+    same on all group members. However, this is not policed by Group Replication’s
+    own checks for group-wide configuration settings. A member with a different value
+    from the rest of the group cannot communicate with the other members at all, because
+    the communication protocols are incompatible, so it cannot exchange information
+    about its configuration settings.'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)实际上是一个群组范围的配置设置，所有群组成员必须设置相同的值。然而，Group
+    Replication自身并不检查群组范围配置设置的一致性。一个值与其他群组成员不同的成员无法与其他成员通信，因为通信协议不兼容，所以无法交换关于其配置设置的信息。'
+- en: This means that although the value of the system variable can be changed while
+    Group Replication is running, and takes effect after you restart Group Replication
+    on the group member, the member still cannot rejoin the group until the setting
+    has been changed on all the members. You must therefore stop Group Replication
+    on all of the members and change the value of the system variable on them all
+    before you can restart the group. Because all of the members are stopped, a full
+    reboot of the group (a bootstrap by a server with [`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group))
+    is required in order for the value change to take effect. You can make the other
+    required changes to settings on the group members while they are stopped.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这意味着虽然在Group Replication运行时可以更改系统变量的值，并在重新启动群组成员上的Group Replication后生效，但成员仍然无法重新加入群组，直到所有成员的设置都已更改。因此，您必须在所有成员上停止Group
+    Replication并更改系统变量的值，然后才能重新启动群组。因为所有成员都已停止，所以需要通过一个具有[`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group)的服务器进行完整重启群组（引导）。在值更改生效之前，您可以在停止的群组成员上进行其他必要的设置更改。
+- en: 'For a running group, follow this procedure to change the value of [`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)
+    and the other required settings to migrate a group from the XCom communication
+    stack to the MySQL communication stack, or from the MySQL communication stack
+    to the XCom communication stack:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于一个运行中的群组，按照以下步骤更改[`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)的值和其他必要的设置，以将一个群组从XCom通信栈迁移到MySQL通信栈，或者从MySQL通信栈迁移到XCom通信栈：
+- en: Stop Group Replication on each of the group members, using a [`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement") statement. Stop the primary member
+    last, so that you do not trigger a new primary election and have to wait for that
+    to complete.
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每个群组成员上停止Group Replication，使用[`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement")语句。最后停止主要成员，以免触发新的主要选举并等待其完成。
+- en: 'On each of the group members, set the system variable [`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)
+    to the new communication stack, `MYSQL` or `XCOM` as appropriate. You can do this
+    by editing the MySQL Server configuration file (typically named `my.cnf` on Linux
+    and Unix systems, or `my.ini` on Windows systems), or by using a [`SET`](set.html
+    "13.3.6 The SET Type") statement. For example:'
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每个群组成员上，将系统变量[`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)设置为新的通信栈，`MYSQL`或`XCOM`，具体取决于情况。您可以通过编辑MySQL服务器配置文件（在Linux和Unix系统上通常命名为`my.cnf`，在Windows系统上为`my.ini`），或使用[`SET`](set.html
+    "13.3.6 The SET Type")语句来完成。例如：
+- en: '[PRE0]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: If you are migrating the replication group from the XCom communication stack
+    (the default) to the MySQL communication stack, on each of the group members,
+    configure or reconfigure the required system variables to appropriate settings,
+    as described in the listing above. For example, the [`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)
+    system variable must be set to one of the IP addresses and ports that MySQL Server
+    is listening on. Also configure any network namespaces using a [`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement") statement.
+  id: totrans-24
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您正在将复制组从XCom通信堆栈（默认）迁移到MySQL通信堆栈，请在每个组成员上配置或重新配置所需的系统变量为适当的设置，如上述清单中所述。例如，[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)系统变量必须设置为MySQL服务器正在侦听的IP地址和端口之一。还要使用[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")语句配置任何网络命名空间。
+- en: 'If you are migrating the replication group from the XCom communication stack
+    (the default) to the MySQL communication stack, on each of the group members,
+    issue [`GRANT`](grant.html "15.7.1.6 GRANT Statement") statements to give the
+    replication user account the [`GROUP_REPLICATION_STREAM`](privileges-provided.html#priv_group-replication-stream)
+    and [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin) privileges.
+    You will need to take the group members out of the read-only state that is applied
+    when Group Replication is stopped. Also ensure that you skip binary logging on
+    each group member by issuing `SET SQL_LOG_BIN=0` before you issue the [`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement") statements, and `SET SQL_LOG_BIN=1` after them, so
+    that the local transaction does not interfere with restarting Group Replication.
+    For example:'
+  id: totrans-25
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您正在将复制组从XCom通信堆栈（默认）迁移到MySQL通信堆栈，请在每个组成员上发出[`GRANT`](grant.html "15.7.1.6 GRANT
+    Statement")语句，以赋予复制用户帐户[`GROUP_REPLICATION_STREAM`](privileges-provided.html#priv_group-replication-stream)和[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)权限。您需要将组成员从应用Group
+    Replication停止时应用的只读状态中取出。还要确保在发出[`GRANT`](grant.html "15.7.1.6 GRANT Statement")语句之前在每个组成员上跳过二进制日志记录，通过在发出语句之前执行`SET
+    SQL_LOG_BIN=0`，并在之后执行`SET SQL_LOG_BIN=1`，以确保本地事务不会干扰重新启动Group Replication。例如：
+- en: '[PRE1]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If you are migrating the replication group from the MySQL communication stack
+    back to the XCom communication stack, on each of the group members, reconfigure
+    the system variables in the requirements listing above to settings suitable for
+    the XCom communication stack. [Section 20.9, “Group Replication Variables”](group-replication-options.html
+    "20.9 Group Replication Variables") lists the system variables with their defaults
+    and requirements for the XCom communication stack.
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您正在将复制组从MySQL通信堆栈迁移回XCom通信堆栈，请在每个组成员上重新配置上述要求中的系统变量，以适合XCom通信堆栈的设置。[第20.9节，“组复制变量”](group-replication-options.html
+    "20.9 组复制变量")列出了系统变量及其默认值以及XCom通信堆栈的要求。
+- en: Note
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The XCom communication stack does not support network namespaces, so the Group
+    Replication local address ([`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)
+    system variable) cannot use these. Unset them by issuing a [`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement") statement.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: XCom通信堆栈不支持网络命名空间，因此组复制本地地址（[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)系统变量）不能使用这些。通过发出[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")语句取消设置。
+- en: When you move back to the XCom communication stack, the settings specified by
+    [`group_replication_recovery_use_ssl`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)
+    and the other `group_replication_recovery_*` system variables are not used to
+    secure group communications. Instead, the Group Replication system variable [`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)
+    is used to activate the use of SSL for group communication connections and specify
+    the security mode for the connections, and the remainder of the configuration
+    is taken from the server's SSL configuration. For details, see [Section 20.6.2,
+    “Securing Group Communication Connections with Secure Socket Layer (SSL)”](group-replication-secure-socket-layer-support-ssl.html
+    "20.6.2 Securing Group Communication Connections with Secure Socket Layer (SSL)").
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当切换回XCom通信堆栈时，由[`group_replication_recovery_use_ssl`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)和其他`group_replication_recovery_*`系统变量指定的设置不用于保护组通信。相反，组复制系统变量[`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)用于激活SSL用于组通信连接并指定连接的安全模式，其余配置取自服务器的SSL配置。有关详细信息，请参见[第20.6.2节“使用安全套接字层（SSL）保护组通信连接”](group-replication-secure-socket-layer-support-ssl.html
+    "20.6.2 使用安全套接字层（SSL）保护组通信连接")。
+- en: To restart the group, follow the process in [Section 20.5.2, “Restarting a Group”](group-replication-restarting-group.html
+    "20.5.2 Restarting a Group"), which explains how to safely bootstrap a group where
+    transactions have been executed and certified. A bootstrap by a server with [`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group)
+    is necessary to change the communication stack, because all of the members must
+    be shut down.
+  id: totrans-31
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要重新启动组，请按照[第20.5.2节“重新启动组”](group-replication-restarting-group.html "20.5.2
+    重新启动组")中的过程进行操作，该节解释了如何安全地引导已执行和认证事务的组。由具有[`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group)的服务器引导是必要的，以更改通信堆栈，因为所有成员必须关闭。
+- en: Members now connect to each other using the new communication stack. Any server
+    that has [`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)
+    set (or defaulted, in the case of XCom) to the previous communication stack is
+    no longer able to join the group. It is important to note that because Group Replication
+    cannot even see the joining attempt, it does not check and reject the joining
+    member with an error message. Instead, the attempted join fails silently when
+    the previous communication stack gives up trying to contact the new one.
+  id: totrans-32
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 成员现在使用新的通信堆栈相互连接。任何将[`group_replication_communication_stack`](group-replication-system-variables.html#sysvar_group_replication_communication_stack)设置为先前通信堆栈（或在XCom的情况下默认设置）的服务器将无法加入该组。重要的是要注意，由于组复制甚至无法看到加入尝试，因此它不会检查并用错误消息拒绝加入成员。相反，当先前的通信堆栈放弃尝试联系新的通信堆栈时，尝试加入会悄无声息地失败。

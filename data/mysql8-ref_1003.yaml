@@ -1,0 +1,96 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/stop-group-replication.html](https://dev.mysql.com/doc/refman/8.0/en/stop-group-replication.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/stop-group-replication.html](https://dev.mysql.com/doc/refman/8.0/en/stop-group-replication.html)
+- en: 15.4.3.2 STOP GROUP_REPLICATION Statement
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.4.3.2 停止 GROUP_REPLICATION 语句
+- en: '[PRE0]'
+  id: totrans-2
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Stops Group Replication. This statement requires the [`GROUP_REPLICATION_ADMIN`](privileges-provided.html#priv_group-replication-admin)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege).
+    As soon as you issue [`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP
+    GROUP_REPLICATION Statement") the member is set to [`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only),
+    which ensures that no writes can be made to the member while Group Replication
+    stops. Any other asynchronous replication channels running on the member are also
+    stopped. Any user credentials that you specified in the [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") statement when starting Group Replication
+    on this member are removed from memory, and must be supplied when you start Group
+    Replication again.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 停止 Group Replication。此语句需要 [`GROUP_REPLICATION_ADMIN`](privileges-provided.html#priv_group-replication-admin)
+    权限（或已弃用的 [`SUPER`](privileges-provided.html#priv_super) 权限）。一旦您发出 [`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement")，该成员将被设置为 [`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only)，这确保在
+    Group Replication 停止时无法对成员进行写入。该成员上运行的任何其他异步复制通道也将停止。在启动此成员上的 Group Replication
+    时在 [`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement") 语句中指定的任何用户凭据将从内存中删除，并且在再次启动 Group Replication 时必须提供。
+- en: Warning
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Use this statement with extreme caution because it removes the server instance
+    from the group, meaning it is no longer protected by Group Replication's consistency
+    guarantee mechanisms. To be completely safe, ensure that your applications can
+    no longer connect to the instance before issuing this statement to avoid any chance
+    of stale reads.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用此语句时要非常小心，因为它会将服务器实例从组中移除，这意味着它不再受到 Group Replication 一致性保证机制的保护。为了完全安全起见，在发出此语句之前，请确保您的应用程序无法连接到该实例，以避免任何陈旧读取的可能性。
+- en: The [`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP GROUP_REPLICATION
+    Statement") statement stops asynchronous replication channels on the group member,
+    but it does not implicitly commit transactions that are in progress on them like
+    [`STOP REPLICA`](stop-replica.html "15.4.2.8 STOP REPLICA Statement") does. This
+    is because on a Group Replication group member, an additional transaction committed
+    during the shutdown operation would leave the member inconsistent with the group
+    and cause an issue with rejoining. To avoid failed commits for transactions that
+    are in progress while stopping Group Replication, from MySQL 8.0.28, the [`STOP
+    GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP GROUP_REPLICATION
+    Statement") statement cannot be issued while a GTID is assigned as the value of
+    the `gtid_next` system variable.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP GROUP_REPLICATION
+    Statement") 语句会停止组成员上的异步复制通道，但不像 [`STOP REPLICA`](stop-replica.html "15.4.2.8 STOP
+    REPLICA Statement") 那样隐式提交正在进行的事务。这是因为在 Group Replication 组成员上，关闭操作期间提交的其他事务会使成员与组不一致，并导致重新加入时出现问题。为了避免在停止
+    Group Replication 时正在进行的事务失败提交，从 MySQL 8.0.28 开始，当将 GTID 分配为 `gtid_next` 系统变量的值时，不能发出
+    [`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP GROUP_REPLICATION
+    Statement") 语句。'
+- en: The [`group_replication_components_stop_timeout`](group-replication-system-variables.html#sysvar_group_replication_components_stop_timeout)
+    system variable specifies the time for which Group Replication waits for each
+    of its modules to complete ongoing processes after this statement is issued. The
+    timeout is used to resolve situations in which Group Replication components cannot
+    be stopped normally, which can happen if the member is expelled from the group
+    while it is in an error state, or while a process such as MySQL Enterprise Backup
+    is holding a global lock on tables on the member. In such situations, the member
+    cannot stop the applier thread or complete the distributed recovery process to
+    rejoin. `STOP GROUP_REPLICATION` does not complete until either the situation
+    is resolved (for example, by the lock being released), or the component timeout
+    expires and the modules are shut down regardless of their status. Prior to MySQL
+    8.0.27, the default component timeout is 31536000 seconds, or 365 days. With this
+    setting, the component timeout does not help in situations such as those just
+    described, so a lower setting is recommended in those versions of MySQL 8.0\.
+    Beginning with MySQL 8.0.27, the default value is 300 seconds; this means that
+    Group Replication components are stopped after 5 minutes if the situation is not
+    resolved before that time, allowing the member to be restarted and rejoin.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`group_replication_components_stop_timeout`](group-replication-system-variables.html#sysvar_group_replication_components_stop_timeout)
+    系统变量指定了组复制在发出此语句后等待其各个模块完成正在进行的进程的时间。超时用于解决组复制组件无法正常停止的情况，这可能发生在成员在错误状态下被驱逐出组，或者在诸如
+    MySQL Enterprise Backup 正在持有成员表的全局锁时。在这种情况下，成员无法停止应用程序线程或完成分布式恢复过程以重新加入。`STOP
+    GROUP_REPLICATION` 不会完成，直到情况得到解决（例如，通过释放锁），或者组件超时到期并且模块无论其状态如何都会关闭。在 MySQL 8.0.27
+    之前，默认组件超时为 31536000 秒，即 365 天。使用此设置，组件超时对于刚才描述的情况并不起作用，因此建议在这些 MySQL 8.0 版本中使用较低的设置。从
+    MySQL 8.0.27 开始，默认值为 300 秒；这意味着如果在此之前未解决情况，则在 5 分钟后停止组复制组件，从而允许成员重新启动并重新加入。'

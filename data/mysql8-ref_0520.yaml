@@ -1,0 +1,188 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/nested-loop-joins.html](https://dev.mysql.com/doc/refman/8.0/en/nested-loop-joins.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/nested-loop-joins.html](https://dev.mysql.com/doc/refman/8.0/en/nested-loop-joins.html)
+- en: 10.2.1.7 Nested-Loop Join Algorithms
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.7 嵌套循环连接算法
+- en: MySQL executes joins between tables using a nested-loop algorithm or variations
+    on it.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL使用嵌套循环算法或其变体来执行表之间的连接。
+- en: '[Nested-Loop Join Algorithm](nested-loop-joins.html#nested-loop-join-algorithm
+    "Nested-Loop Join Algorithm")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[嵌套循环连接算法](nested-loop-joins.html#nested-loop-join-algorithm "嵌套循环连接算法")'
+- en: '[Block Nested-Loop Join Algorithm](nested-loop-joins.html#block-nested-loop-join-algorithm
+    "Block Nested-Loop Join Algorithm")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[块嵌套循环连接算法](nested-loop-joins.html#block-nested-loop-join-algorithm "块嵌套循环连接算法")'
+- en: Nested-Loop Join Algorithm
+  id: totrans-5
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 嵌套循环连接算法
+- en: A simple nested-loop join (NLJ) algorithm reads rows from the first table in
+    a loop one at a time, passing each row to a nested loop that processes the next
+    table in the join. This process is repeated as many times as there remain tables
+    to be joined.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 简单的嵌套循环连接（NLJ）算法从第一个表中逐行读取行，将每行传递给处理连接中下一个表的嵌套循环。这个过程重复进行，直到所有要连接的表都处理完为止。
+- en: 'Assume that a join between three tables `t1`, `t2`, and `t3` is to be executed
+    using the following join types:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设要使用以下连接类型执行三个表`t1`、`t2`和`t3`之间的连接：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'If a simple NLJ algorithm is used, the join is processed like this:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用简单的NLJ算法，则连接的处理方式如下：
+- en: '[PRE1]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Because the NLJ algorithm passes rows one at a time from outer loops to inner
+    loops, it typically reads tables processed in the inner loops many times.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为NLJ算法将行逐个从外部循环传递到内部循环，所以通常会多次读取在内部循环中处理的表。
+- en: Block Nested-Loop Join Algorithm
+  id: totrans-12
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 块嵌套循环连接算法
+- en: A Block Nested-Loop (BNL) join algorithm uses buffering of rows read in outer
+    loops to reduce the number of times that tables in inner loops must be read. For
+    example, if 10 rows are read into a buffer and the buffer is passed to the next
+    inner loop, each row read in the inner loop can be compared against all 10 rows
+    in the buffer. This reduces by an order of magnitude the number of times the inner
+    table must be read.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 块嵌套循环（BNL）连接算法使用缓冲区来减少内部循环中读取表的次数。例如，如果将10行读入缓冲区并将缓冲区传递给下一个内部循环，那么内部循环中读取的每一行都可以与缓冲区中的所有10行进行比较。这将使内部表的读取次数减少一个数量级。
+- en: Prior to MySQL 8.0.18, this algorithm was applied for equi-joins when no indexes
+    could be used; in MySQL 8.0.18 and later, the hash join optimization is employed
+    in such cases. Starting with MySQL 8.0.20, the block nested loop is no longer
+    used by MySQL, and a hash join is employed for in all cases where the block nested
+    loop was used previously. See [Section 10.2.1.4, “Hash Join Optimization”](hash-joins.html
+    "10.2.1.4 Hash Join Optimization").
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.18之前，当无法使用索引时，此算法用于等值连接；在MySQL 8.0.18及更高版本中，在这种情况下使用哈希连接优化。从MySQL
+    8.0.20开始，MySQL不再使用块嵌套循环，并且在以前使用块嵌套循环的所有情况下都使用哈希连接。参见[第10.2.1.4节“哈希连接优化”](hash-joins.html
+    "10.2.1.4 哈希连接优化")。
+- en: 'MySQL join buffering has these characteristics:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL连接缓冲具有以下特点：
+- en: Join buffering can be used when the join is of type [`ALL`](explain-output.html#jointype_all)
+    or [`index`](explain-output.html#jointype_index) (in other words, when no possible
+    keys can be used, and a full scan is done, of either the data or index rows, respectively),
+    or [`range`](explain-output.html#jointype_range). Use of buffering is also applicable
+    to outer joins, as described in [Section 10.2.1.12, “Block Nested-Loop and Batched
+    Key Access Joins”](bnl-bka-optimization.html "10.2.1.12 Block Nested-Loop and
+    Batched Key Access Joins").
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当连接的类型为[`ALL`](explain-output.html#jointype_all)或[`index`](explain-output.html#jointype_index)（换句话说，无法使用任何可能的键，并且需要进行完全扫描，无论是数据行还是索引行），或者[`range`](explain-output.html#jointype_range)时，可以使用连接缓冲。连接缓冲也适用于外连接，如[第10.2.1.12节“块嵌套循环和批量键访问连接”](bnl-bka-optimization.html
+    "10.2.1.12 块嵌套循环和批量键访问连接")中所述。
+- en: A join buffer is never allocated for the first nonconstant table, even if it
+    would be of type [`ALL`](explain-output.html#jointype_all) or [`index`](explain-output.html#jointype_index).
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为第一个非常量表不分配连接缓冲区，即使它的类型为[`ALL`](explain-output.html#jointype_all)或[`index`](explain-output.html#jointype_index)。
+- en: Only columns of interest to a join are stored in its join buffer, not whole
+    rows.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅将连接中感兴趣的列存储在其连接缓冲区中，而不是整行。
+- en: The [`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    system variable determines the size of each join buffer used to process a query.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    系统变量确定用于处理查询的每个连接缓冲区的大小。'
+- en: One buffer is allocated for each join that can be buffered, so a given query
+    might be processed using multiple join buffers.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为每个可以缓冲的连接分配一个缓冲区，因此一个给定的查询可能会使用多个连接缓冲区。
+- en: A join buffer is allocated prior to executing the join and freed after the query
+    is done.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在执行连接之前分配连接缓冲区，并在查询完成后释放。
+- en: 'For the example join described previously for the NLJ algorithm (without buffering),
+    the join is done as follows using join buffering:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于之前描述的 NLJ 算法的示例连接（不使用缓冲），使用连接缓冲区进行连接如下：
+- en: '[PRE2]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'If *`S`* is the size of each stored `t1`, `t2` combination in the join buffer
+    and *`C`* is the number of combinations in the buffer, the number of times table
+    `t3` is scanned is:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 *`S`* 是连接缓冲区中每个存储的 `t1`, `t2` 组合的大小，*`C`* 是缓冲区中组合的数量，则表 `t3` 被扫描的次数为：
+- en: '[PRE3]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The number of `t3` scans decreases as the value of [`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    increases, up to the point when [`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    is large enough to hold all previous row combinations. At that point, no speed
+    is gained by making it larger.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当 [`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    的值增加时，`t3` 扫描的次数会减少，直到 [`join_buffer_size`](server-system-variables.html#sysvar_join_buffer_size)
+    足够大以容纳所有先前的行组合为止。在那一点上，通过增大它不会获得速度上的提升。

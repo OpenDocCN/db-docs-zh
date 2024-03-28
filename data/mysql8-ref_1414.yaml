@@ -1,0 +1,192 @@
+- en: 19.4.4 Using Replication with Different Source and Replica Storage Engines
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.4.4 使用不同源和副本存储引擎的复制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-diffengines.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-diffengines.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-diffengines.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-diffengines.html)
+- en: It does not matter for the replication process whether the original table on
+    the source and the replicated table on the replica use different storage engine
+    types. In fact, the [`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)
+    system variable is not replicated.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在复制过程中，原始源上的表和副本上的复制表使用不同的存储引擎类型并不重要。实际上，[`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)
+    系统变量不会被复制。
+- en: This provides a number of benefits in the replication process in that you can
+    take advantage of different engine types for different replication scenarios.
+    For example, in a typical scale-out scenario (see [Section 19.4.5, “Using Replication
+    for Scale-Out”](replication-solutions-scaleout.html "19.4.5 Using Replication
+    for Scale-Out")), you want to use `InnoDB` tables on the source to take advantage
+    of the transactional functionality, but use `MyISAM` on the replicas where transaction
+    support is not required because the data is only read. When using replication
+    in a data-logging environment you may want to use the `Archive` storage engine
+    on the replica.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这在复制过程中提供了许多好处，因为您可以针对不同的复制场景利用不同的引擎类型。例如，在典型的扩展场景中（参见 [第 19.4.5 节，“使用复制进行扩展”](replication-solutions-scaleout.html
+    "19.4.5 Using Replication for Scale-Out")），您希望在源上使用 `InnoDB` 表以利用事务功能，但在只读数据的副本上使用
+    `MyISAM`，因为不需要事务支持。在数据记录环境中使用复制时，您可能希望在副本上使用 `Archive` 存储引擎。
+- en: 'Configuring different engines on the source and replica depends on how you
+    set up the initial replication process:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在源和副本上配置不同的引擎取决于您如何设置初始复制过程：
+- en: If you used [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program") to create the database snapshot on your source, you could edit the dump
+    file text to change the engine type used on each table.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您使用 [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    在源上创建数据库快照，您可以编辑转储文件文本以更改每个表使用的引擎类型。
+- en: Another alternative for [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A
+    Database Backup Program") is to disable engine types that you do not want to use
+    on the replica before using the dump to build the data on the replica. For example,
+    you can add the `--skip-federated` option on your replica to disable the [`FEDERATED`](federated-storage-engine.html
+    "18.8 The FEDERATED Storage Engine") engine. If a specific engine does not exist
+    for a table to be created, MySQL uses the default engine type, usually [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine"). (This requires that the [`NO_ENGINE_SUBSTITUTION`](sql-mode.html#sqlmode_no_engine_substitution)
+    SQL mode is not enabled.) If you want to disable additional engines in this way,
+    you may want to consider building a special binary to be used on the replica that
+    supports only the engines you want.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另一个 [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    的替代方法是在使用转储构建副本数据之前禁用不想在副本上使用的引擎类型。例如，您可以在副本上添加 `--skip-federated` 选项来禁用 [`FEDERATED`](federated-storage-engine.html
+    "18.8 The FEDERATED Storage Engine") 引擎。如果要创建的表没有特定的引擎存在，MySQL 将使用默认的引擎类型，通常是
+    [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")。（这要求未启用
+    [`NO_ENGINE_SUBSTITUTION`](sql-mode.html#sqlmode_no_engine_substitution) SQL 模式。）如果您想以这种方式禁用其他引擎，您可能需要考虑构建一个专用的二进制文件，该文件仅支持您想要的引擎。
+- en: If you use raw data files (a binary backup) to set up the replica, it is not
+    possible to change the initial table format. Instead, use [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") to change the table types after the replica has
+    been started.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您使用原始数据文件（二进制备份）设置副本，则无法更改初始表格式。相反，在启动副本后，请使用 [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") 来更改表类型。
+- en: For new source/replica replication setups where there are currently no tables
+    on the source, avoid specifying the engine type when creating new tables.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于新的源/复制复制设置，如果源上当前没有表，请在创建新表时避免指定引擎类型。
+- en: 'If you are already running a replication solution and want to convert your
+    existing tables to another engine type, follow these steps:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您已经在运行复制解决方案，并希望将现有表转换为另一种引擎类型，请按照以下步骤操作：
+- en: 'Stop the replica from running replication updates:'
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止副本运行复制更新：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: This makes it possible to change engine types without interruption.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这样可以在不中断的情况下更改引擎类型。
+- en: Execute an `ALTER TABLE ... ENGINE='*`engine_type`*'` for each table to be changed.
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对每个要更改的表执行`ALTER TABLE ... ENGINE='*`engine_type`*'`。
+- en: 'Start the replication process again:'
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 重新开始复制过程：
+- en: '[PRE1]'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Or, beginning with MySQL 8.0.22:'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者，从MySQL 8.0.22开始：
+- en: '[PRE2]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Although the [`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)
+    variable is not replicated, be aware that [`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement") and [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    statements that include the engine specification are replicated to the replica
+    correctly. If, in the case of a [`CSV`](csv-storage-engine.html "18.4 The CSV
+    Storage Engine") table, you execute this statement:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管[`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)变量不会被复制，但要注意包含引擎规范的[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")和[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")语句会正确地被复制到副本中。例如，在[`CSV`](csv-storage-engine.html
+    "18.4 The CSV Storage Engine")表的情况下，如果执行以下语句：
+- en: '[PRE3]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'This statement is replicated; the table''s engine type on the replica is converted
+    to `InnoDB`, even if you have previously changed the table type on the replica
+    to an engine other than `CSV`. If you want to retain engine differences on the
+    source and replica, you should be careful to use the [`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)
+    variable on the source when creating a new table. For example, instead of:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个语句会被复制；副本上的表引擎类型会被转换为`InnoDB`，即使你之前已经将副本上的表类型更改为`CSV`之外的其他引擎。如果你想保留源和副本上的引擎差异，创建新表时应当小心使用[`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)变量。例如，不要使用：
+- en: '[PRE4]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Use this format:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用这种格式：
+- en: '[PRE5]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: When replicated, the [`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)
+    variable is ignored, and the [`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement") statement executes on the replica using the replica's default
+    engine.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在复制时，[`default_storage_engine`](server-system-variables.html#sysvar_default_storage_engine)变量会被忽略，[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句会在副本上使用副本的默认引擎执行。

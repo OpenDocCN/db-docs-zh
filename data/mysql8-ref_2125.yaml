@@ -1,0 +1,211 @@
+- en: 29.19.2 Obtaining Parent Event Information
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 29.19.2 获取父事件信息
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-obtaining-parent-events.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-obtaining-parent-events.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-obtaining-parent-events.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-obtaining-parent-events.html)
+- en: 'The [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The
+    data_locks Table") table shows data locks held and requested. Rows of this table
+    have a `THREAD_ID` column indicating the thread ID of the session that owns the
+    lock, and an `EVENT_ID` column indicating the Performance Schema event that caused
+    the lock. Tuples of (`THREAD_ID`, `EVENT_ID`) values implicitly identify a parent
+    event in other Performance Schema tables:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 data_locks
+    表") 表显示持有和请求的数据锁。该表的行具有`THREAD_ID`列，指示拥有锁的会话的线程ID，以及`EVENT_ID`列，指示导致锁的性能模式事件。(`THREAD_ID`,
+    `EVENT_ID`)值的元组在其他性能模式表中隐式标识父事件：'
+- en: The parent wait event in the `events_waits_*`xxx`*` tables
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`events_waits_*`xxx`*` 表中的父等待事件'
+- en: The parent stage event in the `events_stages_*`xxx`*` tables
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`events_stages_*`xxx`*` 表中的父阶段事件'
+- en: The parent statement event in the `events_statements_*`xxx`*` tables
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`events_statements_*`xxx`*` 表中的父语句事件'
+- en: The parent transaction event in the [`events_transactions_current`](performance-schema-events-transactions-current-table.html
+    "29.12.7.1 The events_transactions_current Table") table
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`events_transactions_current`](performance-schema-events-transactions-current-table.html
+    "29.12.7.1 events_transactions_current 表") 表中的父事务事件'
+- en: 'To obtain details about the parent event, join the `THREAD_ID` and `EVENT_ID`
+    columns with the columns of like name in the appropriate parent event table. The
+    relation is based on a nested set data model, so the join has several clauses.
+    Given parent and child tables represented by `parent` and `child`, respectively,
+    the join looks like this:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要获取有关父事件的详细信息，请将`THREAD_ID`和`EVENT_ID`列与适当的父事件表中同名列进行连接。关系基于嵌套集数据模型，因此连接具有几个子句。给定由`parent`和`child`表示的父表和子表，连接如下所示：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The conditions for the join are:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 连接的条件是：
+- en: The parent and child events are in the same thread.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 父事件和子事件在同一线程中。
+- en: The child event begins after the parent event, so its `EVENT_ID` value is greater
+    than that of the parent.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 子事件在父事件之后开始，因此其`EVENT_ID`值大于父事件的值。
+- en: The parent event has either completed or is still running.
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 父事件已经完成或仍在运行。
+- en: To find lock information, [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table") is the table containing child events.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查找锁信息，[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 data_locks
+    表") 是包含子事件的表。
+- en: 'The [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The
+    data_locks Table") table shows only existing locks, so these considerations apply
+    regarding which table contains the parent event:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 data_locks
+    表") 表仅显示现有锁定，因此关于哪个表包含父事件的考虑如下：'
+- en: For transactions, the only choice is [`events_transactions_current`](performance-schema-events-transactions-current-table.html
+    "29.12.7.1 The events_transactions_current Table"). If a transaction is completed,
+    it may be in the transaction history tables, but the locks are gone already.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于事务，唯一的选择是[`events_transactions_current`](performance-schema-events-transactions-current-table.html
+    "29.12.7.1 events_transactions_current 表")。如果事务已完成，则可能在事务历史表中，但锁已经消失。
+- en: For statements, it all depends on whether the statement that took a lock is
+    a statement in a transaction that has already completed (use [`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 The events_statements_history Table")) or the statement is still running
+    (use [`events_statements_current`](performance-schema-events-statements-current-table.html
+    "29.12.6.1 The events_statements_current Table")).
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于语句，一切取决于获取锁的语句是否是已经完成的事务中的语句（使用[`events_statements_history`](performance-schema-events-statements-history-table.html
+    "29.12.6.2 events_statements_history 表")）还是语句仍在运行（使用[`events_statements_current`](performance-schema-events-statements-current-table.html
+    "29.12.6.1 events_statements_current 表")）。
+- en: For stages, the logic is similar to that for statements; use [`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table") or [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table").
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于阶段，逻辑与语句类似；使用[`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table")或[`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table")。
+- en: For waits, the logic is similar to that for statements; use [`events_waits_history`](performance-schema-events-waits-history-table.html
+    "29.12.4.2 The events_waits_history Table") or [`events_waits_current`](performance-schema-events-waits-current-table.html
+    "29.12.4.1 The events_waits_current Table"). However, so many waits are recorded
+    that the wait that caused a lock is most likely gone from the history tables already.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于等待，逻辑与语句类似；使用[`events_waits_history`](performance-schema-events-waits-history-table.html
+    "29.12.4.2 The events_waits_history Table")或[`events_waits_current`](performance-schema-events-waits-current-table.html
+    "29.12.4.1 The events_waits_current Table")。然而，记录的等待太多，导致引起锁定的等待很可能已经从历史表中消失。
+- en: Wait, stage, and statement events disappear quickly from the history. If a statement
+    that executed a long time ago took a lock but is in a still-open transaction,
+    it might not be possible to find the statement, but it is possible to find the
+    transaction.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 等待、阶段和语句事件很快就会从历史中消失。如果很久之前执行的语句获取了锁但仍在打开的事务中，可能无法找到该语句，但可以找到事务。
+- en: This is why the nested set data model works better for locating parent events.
+    Following links in a parent/child relationship (data lock -> parent wait -> parent
+    stage -> parent transaction) does not work well when intermediate nodes are already
+    gone from the history tables.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这就是为什么嵌套集数据模型更适合定位父事件。在父/子关系（数据锁 -> 父等待 -> 父阶段 -> 父事务）中跟随链接时，当中间节点已经从历史表中消失时，效果不佳。
+- en: 'The following scenario illustrates how to find the parent transaction of a
+    statement in which a lock was taken:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下场景说明了如何找到在其中获取锁的语句的父事务：
+- en: 'Session A:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话 A：
+- en: '[PRE1]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Session B:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话 B：
+- en: '[PRE2]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The query for session B should show statement [2] as owning a data lock on the
+    record with `pk=1`.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话 B 的查询应该显示语句 [2] 拥有记录中 `pk=1` 的数据锁。
+- en: If session A executes more statements, [2] fades out of the history table.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果会话 A 执行更多语句，[2] 将从历史表中消失。
+- en: The query should show the transaction that started in [1], regardless of how
+    many statements, stages, or waits were executed.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询应该显示从 [1] 开始的事务，无论执行了多少语句、阶段或等待。
+- en: To see more data, you can also use the `events_*`xxx`*_history_long` tables,
+    except for transactions, assuming no other query runs in the server (so that history
+    is preserved).
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看更多数据，还可以使用`events_*`xxx`*_history_long`表，除了事务，假设服务器中没有运行其他查询（以便保留历史记录）。

@@ -1,0 +1,108 @@
+- en: 19.2.3 Replication Threads
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.2.3 复制线程
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-threads.html](https://dev.mysql.com/doc/refman/8.0/en/replication-threads.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-threads.html](https://dev.mysql.com/doc/refman/8.0/en/replication-threads.html)
+- en: '[19.2.3.1 Monitoring Replication Main Threads](replication-threads-monitor-main.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.3.1 监控复制主线程](replication-threads-monitor-main.html)'
+- en: '[19.2.3.2 Monitoring Replication Applier Worker Threads](replication-threads-monitor-worker.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.3.2 监控复制应用程序工作线程](replication-threads-monitor-worker.html)'
+- en: 'MySQL replication capabilities are implemented using the following types of
+    threads:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL复制功能使用以下类型的线程实现：
+- en: '**Binary log dump thread. ** The source creates a thread to send the binary
+    log contents to a replica when the replica connects. This thread can be identified
+    in the output of [`SHOW PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW PROCESSLIST
+    Statement") on the source as the `Binlog Dump` thread.'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**二进制日志转储线程。** 源码在复制品连接时创建一个线程，将二进制日志内容发送到复制品。在源码的[`SHOW PROCESSLIST`](show-processlist.html
+    "15.7.7.29 SHOW PROCESSLIST Statement")输出中，可以将此线程标识为`Binlog Dump`线程。'
+- en: '**Replication I/O receiver thread. ** When a [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement") statement is issued on a replica server, the
+    replica creates an I/O (receiver) thread, which connects to the source and asks
+    it to send the updates recorded in its binary logs.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**复制I/O接收线程。** 当在复制品服务器上发出[`START REPLICA`](start-replica.html "15.4.2.6 START
+    REPLICA Statement")语句时，复制品将创建一个I/O（接收器）线程，该线程连接到源并要求其发送其二进制日志中记录的更新。'
+- en: The replication receiver thread reads the updates that the source's `Binlog
+    Dump` thread sends (see previous item) and copies them to local files that comprise
+    the replica's relay log.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 复制接收器线程读取源的`Binlog Dump`线程发送的更新（请参见前一项），并将其复制到组成复制品中继日志的本地文件中。
+- en: The state of this thread is shown as `Slave_IO_running` in the output of [`SHOW
+    REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement").
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此线程的状态在[`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA
+    STATUS Statement")的输出中显示为`Slave_IO_running`。
+- en: '**Replication SQL applier thread. ** When [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    (in MySQL 8.0.26 and earlier, use [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers))
+    is equal to 0, the replica creates an SQL (applier) thread to read the relay log
+    that is written by the replication receiver thread and execute the transactions
+    contained in it. When `replica_parallel_workers` is `*`N`* >= 1`, there are *`N`*
+    applier threads and one coordinator thread, which reads transactions sequentially
+    from the relay log, and schedules them to be applied by worker threads. Each worker
+    applies the transactions that the coordinator has assigned to it.'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**复制SQL应用程序线程。** 当[`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)（在MySQL
+    8.0.26及更早版本中，请使用[`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)）等于0时，复制品将创建一个SQL（应用程序）线程来读取由复制接收器线程写入的中继日志，并执行其中包含的事务。当`replica_parallel_workers`为`*`N`*
+    >= 1`时，存在*N*个应用程序线程和一个协调器线程，该协调器线程按顺序从中继日志中读取事务，并安排工作线程应用它们。每个工作线程应用协调器分配给它的事务。'
+- en: You can enable further parallelization for tasks on a replica by setting the
+    system variable `replica_parallel_workers` (MySQL 8.0.26 or later) or `slave_parallel_workers`
+    (prior to MySQL 8.0.26) to a value greater than 0\. When this is done, the replica
+    creates the specified number of worker threads to apply transactions, plus a coordinator
+    thread which reads transactions from the relay log and assigns them to workers.
+    A replica with `replica_parallel_workers` (`slave_parallel_workers`) set to a
+    value greater than 0 is called a multithreaded replica. If you are using multiple
+    replication channels, each channel has the number of threads specified using this
+    variable.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过将系统变量`replica_parallel_workers`（MySQL 8.0.26或更高版本）或`slave_parallel_workers`（MySQL
+    8.0.26之前）设置为大于0的值，可以进一步并行化复制品上的任务。这样做后，复制品将创建指定数量的工作线程来应用事务，以及一个协调器线程，该线程从中继日志中读取事务并将其分配给工作线程。将`replica_parallel_workers`（`slave_parallel_workers`）设置为大于0的值的复制品称为多线程复制品。如果使用多个复制通道，则每个通道都使用此变量指定的线程数。
+- en: Note
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Multithreaded replicas are supported by NDB Cluster beginning with NDB 8.0.33\.
+    (Previously, `NDB` silently ignored any setting for `replica_parallel_workers`.)
+    See [Section 25.7.11, “NDB Cluster Replication Using the Multithreaded Applier”](mysql-cluster-replication-mta.html
+    "25.7.11 NDB Cluster Replication Using the Multithreaded Applier"), for more information.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多线程复制在 NDB 集群中从 NDB 8.0.33 版本开始得到支持。（之前，`NDB` 会默默地忽略 `replica_parallel_workers`
+    的任何设置。）详细信息请参见 [第 25.7.11 节，“使用多线程应用程序的 NDB 集群复制”](mysql-cluster-replication-mta.html
+    "25.7.11 NDB Cluster Replication Using the Multithreaded Applier")。

@@ -1,0 +1,141 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-mysqldump.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-mysqldump.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-mysqldump.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-mysqldump.html)
+- en: 19.4.1.1 Backing Up a Replica Using mysqldump
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.4.1.1 使用 **mysqldump** 备份副本
+- en: Using [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    to create a copy of a database enables you to capture all of the data in the database
+    in a format that enables the information to be imported into another instance
+    of MySQL Server (see [Section 6.5.4, “mysqldump — A Database Backup Program”](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")). Because the format of the information
+    is SQL statements, the file can easily be distributed and applied to running servers
+    in the event that you need access to the data in an emergency. However, if the
+    size of your data set is very large, [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program") may be impractical.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")创建数据库副本可以捕获数据库中的所有数据，并以一种格式导入到另一个
+    MySQL Server 实例中（参见[第 6.5.4 节，“mysqldump — A Database Backup Program”](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")）。由于信息的格式是 SQL 语句，因此文件可以轻松分发并应用于正在运行的服务器，以便在紧急情况下访问数据。但是，如果您的数据集很大，使用[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")可能不切实际。
+- en: Tip
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 提示
+- en: Consider using the [MySQL Shell dump utilities](/doc/mysql-shell/8.0/en/mysql-shell-utilities-dump-instance-schema.html),
+    which provide parallel dumping with multiple threads, file compression, and progress
+    information display, as well as cloud features such as Oracle Cloud Infrastructure
+    Object Storage streaming, and MySQL HeatWave Service compatibility checks and
+    modifications. Dumps can be easily imported into a MySQL Server instance or a
+    MySQL HeatWave Service DB System using the [MySQL Shell load dump utilities](/doc/mysql-shell/8.0/en/mysql-shell-utilities-load-dump.html).
+    Installation instructions for MySQL Shell can be found [here](/doc/mysql-shell/8.0/en/mysql-shell-install.html).
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑使用[MySQL Shell 转储工具](/doc/mysql-shell/8.0/en/mysql-shell-utilities-dump-instance-schema.html)，提供多线程并行转储、文件压缩和进度信息显示，以及云功能，如
+    Oracle Cloud Infrastructure Object Storage 流式传输和 MySQL HeatWave Service 兼容性检查和修改。转储可以使用[MySQL
+    Shell 加载转储工具](/doc/mysql-shell/8.0/en/mysql-shell-utilities-load-dump.html)轻松导入到
+    MySQL Server 实例或 MySQL HeatWave Service DB System 中。MySQL Shell 的安装说明可在[此处](/doc/mysql-shell/8.0/en/mysql-shell-install.html)找到。
+- en: 'When using [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program"), you should stop replication on the replica before starting the dump
+    process to ensure that the dump contains a consistent set of data:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")在开始转储过程之前应停止副本上的复制，以确保转储包含一致的数据集：
+- en: 'Stop the replica from processing requests. You can stop replication completely
+    on the replica using [**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A MySQL
+    Server Administration Program"):'
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止副本处理请求。您可以使用[**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server
+    Administration Program")完全停止副本上的复制：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Alternatively, you can stop only the replication SQL thread to pause event
+    execution:'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者，您可以仅停止复制 SQL 线程以暂停事件执行：
+- en: '[PRE1]'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: This enables the replica to continue to receive data change events from the
+    source's binary log and store them in the relay logs using the replication receiver
+    thread, but prevents the replica from executing these events and changing its
+    data. Within busy replication environments, permitting the replication receiver
+    thread to run during backup may speed up the catch-up process when you restart
+    the replication applier thread.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这使得副本可以继续接收来自源二进制日志的数据更改事件，并使用复制接收器线程将其存储在中继日志中，但阻止副本执行这些事件并更改其数据。在繁忙的复制环境中，允许复制接收器线程在备份期间运行可能会加快重新启动复制应用程序线程时的赶上过程。
+- en: 'Run [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    to dump your databases. You may either dump all databases or select databases
+    to be dumped. For example, to dump all databases:'
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 运行 [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    来转储您的数据库。您可以转储所有数据库或选择要转储的数据库。例如，要转储所有数据库：
+- en: '[PRE2]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Once the dump has completed, start replication again:'
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 转储完成后，重新启动复制：
+- en: '[PRE3]'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: In the preceding example, you may want to add login credentials (user name,
+    password) to the commands, and bundle the process up into a script that you can
+    run automatically each day.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在上面的示例中，您可能希望将登录凭据（用户名、密码）添加到命令中，并将整个过程打包成一个脚本，以便每天自动运行。
+- en: If you use this approach, make sure you monitor the replication process to ensure
+    that the time taken to run the backup does not affect the replica's ability to
+    keep up with events from the source. See [Section 19.1.7.1, “Checking Replication
+    Status”](replication-administration-status.html "19.1.7.1 Checking Replication
+    Status"). If the replica is unable to keep up, you may want to add another replica
+    and distribute the backup process. For an example of how to configure this scenario,
+    see [Section 19.4.6, “Replicating Different Databases to Different Replicas”](replication-solutions-partitioning.html
+    "19.4.6 Replicating Different Databases to Different Replicas").
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您采用这种方法，请确保监控复制过程，以确保运行备份所需的时间不会影响副本跟上源事件的能力。请参见[第19.1.7.1节，“检查复制状态”](replication-administration-status.html
+    "19.1.7.1 Checking Replication Status")。如果副本无法跟上，您可能需要添加另一个副本并分发备份过程。有关如何配置此场景的示例，请参见[第19.4.6节，“将不同数据库复制到不同副本”](replication-solutions-partitioning.html
+    "19.4.6 Replicating Different Databases to Different Replicas")。

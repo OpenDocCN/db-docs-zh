@@ -1,0 +1,559 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-lifecycle.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-lifecycle.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-lifecycle.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-lifecycle.html)
+- en: 19.1.3.2 GTID Life Cycle
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.3.2 GTID 生命周期
+- en: 'The life cycle of a GTID consists of the following steps:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTID 的生命周期包括以下步骤：
+- en: A transaction is executed and committed on the source. This client transaction
+    is assigned a GTID composed of the source's UUID and the smallest nonzero transaction
+    sequence number not yet used on this server. The GTID is written to the source's
+    binary log (immediately preceding the transaction itself in the log). If a client
+    transaction is not written to the binary log (for example, because the transaction
+    was filtered out, or the transaction was read-only), it is not assigned a GTID.
+  id: totrans-3
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 事务在源端执行并提交。此客户端事务被分配一个由源的 UUID 和尚未在此服务器上使用的最小非零事务序列号组成的 GTID。GTID 被写入源的二进制日志（在日志中的事务之前立即写入）。如果客户端事务未写入二进制日志（例如，因为事务被过滤掉，或者事务是只读的），则不会分配
+    GTID。
+- en: If a GTID was assigned for the transaction, the GTID is persisted atomically
+    at commit time by writing it to the binary log at the beginning of the transaction
+    (as a `Gtid_log_event`). Whenever the binary log is rotated or the server is shut
+    down, the server writes GTIDs for all transactions that were written into the
+    previous binary log file into the `mysql.gtid_executed` table.
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果为事务分配了 GTID，则在提交时通过将其写入二进制日志的方式原子地持久化该 GTID（作为 `Gtid_log_event`）。每当二进制日志被轮换或服务器关闭时，服务器将为写入到上一个二进制日志文件中的所有事务写入
+    GTID 到 `mysql.gtid_executed` 表中。
+- en: If a GTID was assigned for the transaction, the GTID is externalized non-atomically
+    (very shortly after the transaction is committed) by adding it to the set of GTIDs
+    in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable (`@@GLOBAL.gtid_executed`). This GTID set contains a representation
+    of the set of all committed GTID transactions, and it is used in replication as
+    a token that represents the server state. With binary logging enabled (as required
+    for the source), the set of GTIDs in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable is a complete record of the transactions applied, but the `mysql.gtid_executed`
+    table is not, because the most recent history is still in the current binary log
+    file.
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果为事务分配了 GTID，则在事务提交后不久通过将其添加到 [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    系统变量 (`@@GLOBAL.gtid_executed`) 中的 GTID 集合来非原子化地外部化该 GTID。此 GTID 集合包含所有已提交 GTID
+    事务的表示，并且在复制中用作表示服务器状态的令牌。启用二进制日志记录（源端所需）后，[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    系统变量中的 GTID 集合是应用的所有事务的完整记录，但 `mysql.gtid_executed` 表不是，因为最近的历史仍在当前二进制日志文件中。
+- en: After the binary log data is transmitted to the replica and stored in the replica's
+    relay log (using established mechanisms for this process, see [Section 19.2, “Replication
+    Implementation”](replication-implementation.html "19.2 Replication Implementation"),
+    for details), the replica reads the GTID and sets the value of its [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    system variable as this GTID. This tells the replica that the next transaction
+    must be logged using this GTID. It is important to note that the replica sets
+    `gtid_next` in a session context.
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在二进制日志数据传输到副本并存储在副本的中继日志中（使用已建立的机制进行此过程，详见[第 19.2 节，“复制实现”](replication-implementation.html
+    "19.2 复制实现")），副本读取 GTID 并将其设置为其 [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    系统变量的值。这告诉副本下一个事务必须使用此 GTID 记录。重要的是要注意，副本在会话上下文中设置 `gtid_next`。
+- en: The replica verifies that no thread has yet taken ownership of the GTID in [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    in order to process the transaction. By reading and checking the replicated transaction's
+    GTID first, before processing the transaction itself, the replica guarantees not
+    only that no previous transaction having this GTID has been applied on the replica,
+    but also that no other session has already read this GTID but has not yet committed
+    the associated transaction. So if multiple clients attempt to apply the same transaction
+    concurrently, the server resolves this by letting only one of them execute. The
+    [`gtid_owned`](replication-options-gtids.html#sysvar_gtid_owned) system variable
+    (`@@GLOBAL.gtid_owned`) for the replica shows each GTID that is currently in use
+    and the ID of the thread that owns it. If the GTID has already been used, no error
+    is raised, and the auto-skip function is used to ignore the transaction.
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 副本验证尚未有任何线程拥有[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)中的
+    GTID 以处理事务。通过首先读取和检查复制的事务的 GTID，然后再处理事务本身，副本确保不仅在副本上未应用具有此 GTID 的先前事务，而且也没有其他会话已经读取此
+    GTID 但尚未提交关联事务。因此，如果多个客户端尝试并发应用相同的事务，服务器通过只允许其中一个执行来解决此问题。副本的[`gtid_owned`](replication-options-gtids.html#sysvar_gtid_owned)系统变量（`@@GLOBAL.gtid_owned`）显示当前正在使用的每个
+    GTID 及拥有它的线程的 ID。如果 GTID 已经被使用，不会引发错误，并且自动跳过功能用于忽略该事务。
+- en: If the GTID has not been used, the replica applies the replicated transaction.
+    Because [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) is set
+    to the GTID already assigned by the source, the replica does not attempt to generate
+    a new GTID for this transaction, but instead uses the GTID stored in [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next).
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果 GTID 尚未被使用，副本将应用复制的事务。因为[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)已设置为源已分配的
+    GTID，副本不会尝试为此事务生成新的 GTID，而是使用存储在[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)中的
+    GTID。
+- en: If binary logging is enabled on the replica, the GTID is persisted atomically
+    at commit time by writing it to the binary log at the beginning of the transaction
+    (as a `Gtid_log_event`). Whenever the binary log is rotated or the server is shut
+    down, the server writes GTIDs for all transactions that were written into the
+    previous binary log file into the `mysql.gtid_executed` table.
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果副本上启用了二进制日志记录，GTID将在提交时以原子方式持久化，通过在事务开始时将其写入二进制日志（作为`Gtid_log_event`）。每当二进制日志轮换或服务器关闭时，服务器将为之前写入的所有事务写入的
+    GTID写入`mysql.gtid_executed`表。
+- en: If binary logging is disabled on the replica, the GTID is persisted atomically
+    by writing it directly into the `mysql.gtid_executed` table. MySQL appends a statement
+    to the transaction to insert the GTID into the table. From MySQL 8.0, this operation
+    is atomic for DDL statements as well as for DML statements. In this situation,
+    the `mysql.gtid_executed` table is a complete record of the transactions applied
+    on the replica.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果副本上禁用了二进制日志记录，则通过直接将其写入`mysql.gtid_executed`表来以原子方式持久化 GTID。MySQL会向事务追加一个语句，将
+    GTID 插入表中。从 MySQL 8.0 开始，对于 DDL 语句以及 DML 语句，此操作都是原子的。在这种情况下，`mysql.gtid_executed`表是副本上应用的事务的完整记录。
+- en: Very shortly after the replicated transaction is committed on the replica, the
+    GTID is externalized non-atomically by adding it to the set of GTIDs in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable (`@@GLOBAL.gtid_executed`) for the replica. As for the source,
+    this GTID set contains a representation of the set of all committed GTID transactions.
+    If binary logging is disabled on the replica, the `mysql.gtid_executed` table
+    is also a complete record of the transactions applied on the replica. If binary
+    logging is enabled on the replica, meaning that some GTIDs are only recorded in
+    the binary log, the set of GTIDs in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable is the only complete record.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在副本上提交的事务后不久，GTID将通过将其添加到副本的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量（`@@GLOBAL.gtid_executed`）中的
+    GTID 集合中非原子化地外部化。对于源，此 GTID 集合包含所有已提交 GTID 事务集合的表示。如果副本上禁用了二进制日志记录，则`mysql.gtid_executed`表也是副本上应用的事务的完整记录。如果副本上启用了二进制日志记录，意味着某些
+    GTID 仅记录在二进制日志中，则[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量中的
+    GTID 集合是唯一的完整记录。
+- en: Client transactions that are completely filtered out on the source are not assigned
+    a GTID, therefore they are not added to the set of transactions in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable, or added to the `mysql.gtid_executed` table. However, the GTIDs
+    of replicated transactions that are completely filtered out on the replica are
+    persisted. If binary logging is enabled on the replica, the filtered-out transaction
+    is written to the binary log as a `Gtid_log_event` followed by an empty transaction
+    containing only `BEGIN` and `COMMIT` statements. If binary logging is disabled,
+    the GTID of the filtered-out transaction is written to the `mysql.gtid_executed`
+    table. Preserving the GTIDs for filtered-out transactions ensures that the `mysql.gtid_executed`
+    table and the set of GTIDs in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable can be compressed. It also ensures that the filtered-out transactions
+    are not retrieved again if the replica reconnects to the source, as explained
+    in [Section 19.1.3.3, “GTID Auto-Positioning”](replication-gtids-auto-positioning.html
+    "19.1.3.3 GTID Auto-Positioning").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在源端完全被过滤掉的客户端事务不会被分配GTID，因此它们不会被添加到[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量的事务集合中，也不会被添加到`mysql.gtid_executed`表中。然而，在副本上完全被过滤掉的复制事务的GTID会被保留。如果在副本上启用了二进制日志记录，被过滤掉的事务会被写入二进制日志作为一个`Gtid_log_event`，然后是一个只包含`BEGIN`和`COMMIT`语句的空事务。如果禁用了二进制日志记录，被过滤掉的事务的GTID会被写入`mysql.gtid_executed`表中。保留被过滤掉事务的GTID确保了`mysql.gtid_executed`表和[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量中的GTID集合可以被压缩。它还确保了如果副本重新连接到源端，被过滤掉的事务不会再次被检索，如[第19.1.3.3节“GTID自动定位”](replication-gtids-auto-positioning.html
+    "19.1.3.3 GTID Auto-Positioning")中所解释的那样。
+- en: On a multithreaded replica (with [`replica_parallel_workers > 0`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    or [`slave_parallel_workers > 0`](replication-options-replica.html#sysvar_slave_parallel_workers)
+    ), transactions can be applied in parallel, so replicated transactions can commit
+    out of order (unless [`replica_preserve_commit_order=1`](replication-options-replica.html#sysvar_replica_preserve_commit_order)
+    or [`slave_preserve_commit_order=1`](replication-options-replica.html#sysvar_slave_preserve_commit_order)
+    is set). When that happens, the set of GTIDs in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable contains multiple GTID ranges with gaps between them. (On a source
+    or a single-threaded replica, there are monotonically increasing GTIDs without
+    gaps between the numbers.) Gaps on multithreaded replicas only occur among the
+    most recently applied transactions, and are filled in as replication progresses.
+    When replication threads are stopped cleanly using the [`STOP REPLICA`](stop-replica.html
+    "15.4.2.8 STOP REPLICA Statement") statement, ongoing transactions are applied
+    so that the gaps are filled in. In the event of a shutdown such as a server failure
+    or the use of the [`KILL`](kill.html "15.7.8.4 KILL Statement") statement to stop
+    replication threads, the gaps might remain.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在多线程副本（具有[`replica_parallel_workers > 0`](replication-options-replica.html#sysvar_replica_parallel_workers)或[`slave_parallel_workers
+    > 0`](replication-options-replica.html#sysvar_slave_parallel_workers)）上，事务可以并行应用，因此复制事务可以无序提交（除非设置了[`replica_preserve_commit_order=1`](replication-options-replica.html#sysvar_replica_preserve_commit_order)或[`slave_preserve_commit_order=1`](replication-options-replica.html#sysvar_slave_preserve_commit_order)）。当发生这种情况时，[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量中的GTID集合包含多个GTID范围之间的间隙。（在源端或单线程副本上，GTID是单调递增的，数字之间没有间隙。）多线程副本上的间隙仅出现在最近应用的事务之间，并且随着复制的进行而填补。当使用[`STOP
+    REPLICA`](stop-replica.html "15.4.2.8 STOP REPLICA Statement")语句干净地停止复制线程时，正在进行的事务会被应用，以便填补间隙。在发生诸如服务器故障或使用[`KILL`](kill.html
+    "15.7.8.4 KILL Statement")语句停止复制线程等关闭事件时，这些间隙可能会保留。
+- en: What changes are assigned a GTID?
+  id: totrans-14
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 哪些更改会被分配一个GTID？
+- en: The typical scenario is that the server generates a new GTID for a committed
+    transaction. However, GTIDs can also be assigned to other changes besides transactions,
+    and in some cases a single transaction can be assigned multiple GTIDs.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 典型情况是服务器为已提交的事务生成一个新的GTID。然而，除了事务之外，GTIDs也可以分配给其他更改，并且在某些情况下，单个事务可以被分配多个GTIDs。
+- en: Every database change (DDL or DML) that is written to the binary log is assigned
+    a GTID. This includes changes that are autocommitted, and changes that are committed
+    using `BEGIN` and `COMMIT` or `START TRANSACTION` statements. A GTID is also assigned
+    to the creation, alteration, or deletion of a database, and of a non-table database
+    object such as a procedure, function, trigger, event, view, user, role, or grant.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个写入二进制日志的数据库更改（DDL或DML）都被分配一个GTID。这包括自动提交的更改，以及使用`BEGIN`和`COMMIT`或`START TRANSACTION`语句提交的更改。GTID也分配给数据库的创建、修改或删除，以及非表数据库对象（如存储过程、函数、触发器、事件、视图、用户、角色或授权）。
+- en: Non-transactional updates as well as transactional updates are assigned GTIDs.
+    In addition, for a non-transactional update, if a disk write failure occurs while
+    attempting to write to the binary log cache and a gap is therefore created in
+    the binary log, the resulting incident log event is assigned a GTID.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非事务更新以及事务更新都被分配GTID。此外，对于非事务更新，如果在尝试写入二进制日志缓存时发生磁盘写入失败，从而在二进制日志中创建了一个间隙，那么生成的事件日志事件将被分配一个GTID。
+- en: When a table is automatically dropped by a generated statement in the binary
+    log, a GTID is assigned to the statement. Temporary tables are dropped automatically
+    when a replica begins to apply events from a source that has just been started,
+    and when statement-based replication is in use ([`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format))
+    and a user session that has open temporary tables disconnects. Tables that use
+    the [`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage Engine") storage
+    engine are deleted automatically the first time they are accessed after the server
+    is started, because rows might have been lost during the shutdown.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当一个表被二进制日志中的生成语句自动删除时，该语句被分配一个GTID。当一个复制开始应用来自刚刚启动的源的事件时，临时表会被自动删除，并且当使用基于语句的复制（[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)）并且一个具有打开临时表的用户会话断开连接时。使用[`MEMORY`](memory-storage-engine.html
+    "18.3 The MEMORY Storage Engine")存储引擎的表在服务器启动后第一次访问时会自动删除，因为在关闭期间可能会丢失行。
+- en: When a transaction is not written to the binary log on the server of origin,
+    the server does not assign a GTID to it. This includes transactions that are rolled
+    back and transactions that are executed while binary logging is disabled on the
+    server of origin, either globally (with `--skip-log-bin` specified in the server's
+    configuration) or for the session (`SET @@SESSION.sql_log_bin = 0`). This also
+    includes no-op transactions when row-based replication is in use ([`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)).
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当一个事务在原始服务器上没有写入二进制日志时，服务器不会为其分配GTID。这包括被回滚的事务和在原始服务器上禁用二进制日志记录时执行的事务，无论是全局禁用（在服务器配置中指定`--skip-log-bin`）还是对会话禁用（`SET
+    @@SESSION.sql_log_bin = 0`）。当使用基于行的复制时（[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)），这也包括无操作事务。
+- en: XA transactions are assigned separate GTIDs for the `XA PREPARE` phase of the
+    transaction and the `XA COMMIT` or `XA ROLLBACK` phase of the transaction. XA
+    transactions are persistently prepared so that users can commit them or roll them
+    back in the case of a failure (which in a replication topology might include a
+    failover to another server). The two parts of the transaction are therefore replicated
+    separately, so they must have their own GTIDs, even though a non-XA transaction
+    that is rolled back would not have a GTID.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: XA事务为事务的`XA PREPARE`阶段和`XA COMMIT`或`XA ROLLBACK`阶段分配单独的GTID。XA事务被持久准备，以便用户在失败的情况下（在复制拓扑中可能包括故障转移到另一台服务器）提交或回滚它们。因此，事务的两个部分被分别复制，因此它们必须有自己的GTID，即使一个被回滚的非XA事务不会有GTID。
+- en: 'In the following special cases, a single statement can generate multiple transactions,
+    and therefore be assigned multiple GTIDs:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以下特殊情况下，单个语句可以生成多个事务，因此被分配多个GTID：
+- en: A stored procedure is invoked that commits multiple transactions. One GTID is
+    generated for each transaction that the procedure commits.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 调用了提交多个事务的存储过程。为存储过程提交的每个事务生成一个GTID。
+- en: A multi-table [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")
+    statement drops tables of different types. Multiple GTIDs can be generated if
+    any of the tables use storage engines that do not support atomic DDL, or if any
+    of the tables are temporary tables.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个多表[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句会删除不同类型的表。如果任何表使用不支持原子DDL的存储引擎，或者任何表是临时表，可能会生成多个GTID。
+- en: A [`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE
+    ... SELECT Statement") statement is issued when row-based replication is in use
+    ([`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)).
+    One GTID is generated for the [`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement") action and one GTID is generated for the row-insert actions.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当使用基于行的复制（[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)）时，会发出[`CREATE
+    TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE ... SELECT
+    Statement")语句。为[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")操作生成一个GTID，并为行插入操作生成一个GTID。
+- en: The `gtid_next` System Variable
+  id: totrans-25
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: '`gtid_next`系统变量'
+- en: 'By default, for new transactions committed in user sessions, the server automatically
+    generates and assigns a new GTID. When the transaction is applied on a replica,
+    the GTID from the server of origin is preserved. You can change this behavior
+    by setting the session value of the [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    system variable:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，在用户会话中提交的新事务，服务器会自动生成并分配新的GTID。在副本上应用事务时，会保留来自原始服务器的GTID。您可以通过设置[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)系统变量的会话值来更改此行为：
+- en: When [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) is set to
+    `AUTOMATIC`, which is the default, and a transaction is committed and written
+    to the binary log, the server automatically generates and assigns a new GTID.
+    If a transaction is rolled back or not written to the binary log for another reason,
+    the server does not generate and assign a GTID.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)设置为`AUTOMATIC`时，这是默认值，事务提交并写入二进制日志时，服务器会自动生成并分配新的GTID。如果事务回滚或由于其他原因未写入二进制日志，则服务器不会生成和分配GTID。
+- en: If you set [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) to
+    a valid GTID (consisting of a UUID and a transaction sequence number, separated
+    by a colon), the server assigns that GTID to your transaction. This GTID is assigned
+    and added to [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    even when the transaction is not written to the binary log, or when the transaction
+    is empty.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果将[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)设置为有效的GTID（由UUID和事务序列号组成，用冒号分隔），服务器会将该GTID分配给您的事务。即使事务未写入二进制日志，或者事务为空，此GTID也会被分配并添加到[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)。
+- en: Note that after you set [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    to a specific GTID, and the transaction has been committed or rolled back, an
+    explicit `SET @@SESSION.gtid_next` statement must be issued before any other statement.
+    You can use this to set the GTID value back to `AUTOMATIC` if you do not want
+    to assign any more GTIDs explicitly.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，在将[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)设置为特定GTID后，事务已提交或回滚后，必须在任何其他语句之前发出显式的`SET
+    @@SESSION.gtid_next`语句。如果不想显式分配更多GTID，则可以使用此方法将GTID值设置回`AUTOMATIC`。
+- en: When replication applier threads apply replicated transactions, they use this
+    technique, setting `@@SESSION.gtid_next` explicitly to the GTID of the replicated
+    transaction as assigned on the server of origin. This means the GTID from the
+    server of origin is retained, rather than a new GTID being generated and assigned
+    by the replica. It also means the GTID is added to [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    on the replica even when binary logging or replica update logging is disabled
+    on the replica, or when the transaction is a no-op or is filtered out on the replica.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当复制应用程序线程应用复制事务时，它们使用这种技术，将`@@SESSION.gtid_next`显式设置为在原始服务器上分配的复制事务的GTID。这意味着来自原始服务器的GTID被保留，而不是由副本生成和分配新的GTID。这也意味着即使在副本上禁用了二进制日志记录或副本更新日志，或者事务是无操作或在副本上被过滤掉，GTID也会被添加到[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)。
+- en: It is possible for a client to simulate a replicated transaction by setting
+    `@@SESSION.gtid_next` to a specific GTID before executing the transaction. This
+    technique is used by [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") to generate a dump of the binary log that the
+    client can replay to preserve GTIDs. A simulated replicated transaction committed
+    through a client is completely equivalent to a replicated transaction committed
+    through a replication applier thread, and they cannot be distinguished after the
+    fact.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端可以通过将`@@SESSION.gtid_next`设置为特定的GTID来模拟一个复制事务，然后执行该事务。这种技术被[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")用于生成客户端可以重放以保留GTID的二进制日志转储。通过客户端提交的模拟复制事务与通过复制应用程序线程提交的复制事务完全等效，在事后无法区分它们。
+- en: The `gtid_purged` System Variable
+  id: totrans-32
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: '`gtid_purged`系统变量'
+- en: 'The set of GTIDs in the [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    system variable (`@@GLOBAL.gtid_purged`) contains the GTIDs of all the transactions
+    that have been committed on the server, but do not exist in any binary log file
+    on the server. [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    is a subset of [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed).
+    The following categories of GTIDs are in [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged):'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)系统变量(`@@GLOBAL.gtid_purged`)中包含了在服务器上已提交但不存在于服务器上任何二进制日志文件中的所有事务的GTID。[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)是[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)的子集。[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)中包含以下类别的GTID：'
+- en: GTIDs of replicated transactions that were committed with binary logging disabled
+    on the replica.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在副本上禁用二进制日志记录的复制事务的GTID。
+- en: GTIDs of transactions that were written to a binary log file that has now been
+    purged.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 被写入二进制日志文件并已被清除的事务的GTID。
+- en: GTIDs that were added explicitly to the set by the statement `SET @@GLOBAL.gtid_purged`.
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过语句`SET @@GLOBAL.gtid_purged`显式添加到集合中的GTID。
+- en: You can change the value of [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    in order to record on the server that the transactions in a certain GTID set have
+    been applied, although they do not exist in any binary log on the server. When
+    you add GTIDs to [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged),
+    they are also added to [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed).
+    An example use case for this action is when you are restoring a backup of one
+    or more databases on a server, but you do not have the relevant binary logs containing
+    the transactions on the server. Before MySQL 8.0, you could only change the value
+    of [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) when [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    (and therefore [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged))
+    was empty. From MySQL 8.0, this restriction does not apply, and you can also choose
+    whether to replace the whole GTID set in [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    with a specified GTID set, or to add a specified GTID set to the GTIDs already
+    in [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged). For details
+    of how to do this, see the description for [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged).
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以更改[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)的值，以记录在服务器上已应用某个GTID集的事务，尽管这些事务在服务器上的任何二进制日志中都不存在。当您将GTID添加到[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)时，它们也会被添加到[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)中。执行此操作的一个示例用例是，当您在服务器上恢复一个或多个数据库的备份时，但您没有包含服务器上事务的相关二进制日志。在MySQL
+    8.0之前，只有在[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)（因此也是[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)）为空时才能更改[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)的值。从MySQL
+    8.0开始，不再有此限制，您还可以选择是否用指定的GTID集替换[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)中的整个GTID集，或者将指定的GTID集添加到已在[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)中的GTID中。有关如何执行此操作的详细信息，请参阅[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)的描述。
+- en: 'The sets of GTIDs in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    and [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) system
+    variables are initialized when the server starts. Every binary log file begins
+    with the event `Previous_gtids_log_event`, which contains the set of GTIDs in
+    all previous binary log files (composed from the GTIDs in the preceding file''s
+    `Previous_gtids_log_event`, and the GTIDs of every `Gtid_log_event` in the preceding
+    file itself). The contents of `Previous_gtids_log_event` in the oldest and most
+    recent binary log files are used to compute the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    and [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) sets at
+    server startup:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当服务器启动时，[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    和 [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) 系统变量中的GTID集合在初始化时被初始化。每个二进制日志文件都以事件`Previous_gtids_log_event`开头，其中包含了所有先前二进制日志文件中的GTIDs集合（由前一个文件的`Previous_gtids_log_event`中的GTIDs和前一个文件中每个`Gtid_log_event`的GTIDs组成）。最老和最近的二进制日志文件中的`Previous_gtids_log_event`的内容用于计算服务器启动时的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    和 [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) 集合：
+- en: '[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed) is computed
+    as the union of the GTIDs in `Previous_gtids_log_event` in the most recent binary
+    log file, the GTIDs of transactions in that binary log file, and the GTIDs stored
+    in the `mysql.gtid_executed` table. This GTID set contains all the GTIDs that
+    have been used (or added explicitly to [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged))
+    on the server, whether or not they are currently in a binary log file on the server.
+    It does not include the GTIDs for transactions that are currently being processed
+    on the server (`@@GLOBAL.gtid_owned`).'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed) 是由最近的二进制日志文件中的`Previous_gtids_log_event`中的GTIDs、该二进制日志文件中的事务的GTIDs以及`mysql.gtid_executed`表中存储的GTIDs的并集计算而得。这个GTID集合包含了服务器上已经使用过的GTIDs（或者明确添加到[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)中的GTIDs），无论它们当前是否在服务器上的二进制日志文件中。它不包括当前在服务器上处理的事务的GTIDs（`@@GLOBAL.gtid_owned`）。'
+- en: '[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) is computed
+    by first adding the GTIDs in `Previous_gtids_log_event` in the most recent binary
+    log file and the GTIDs of transactions in that binary log file. This step gives
+    the set of GTIDs that are currently, or were once, recorded in a binary log on
+    the server (`gtids_in_binlog`). Next, the GTIDs in `Previous_gtids_log_event`
+    in the oldest binary log file are subtracted from `gtids_in_binlog`. This step
+    gives the set of GTIDs that are currently recorded in a binary log on the server
+    (`gtids_in_binlog_not_purged`). Finally, `gtids_in_binlog_not_purged` is subtracted
+    from [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed). The
+    result is the set of GTIDs that have been used on the server, but are not currently
+    recorded in a binary log file on the server, and this result is used to initialize
+    [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged).'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) 首先通过将最近的二进制日志文件中的`Previous_gtids_log_event`中的GTIDs和该二进制日志文件中的事务的GTIDs相加来计算。这一步给出了当前或曾经在服务器上的二进制日志中记录的GTIDs集合（`gtids_in_binlog`）。接下来，从最老的二进制日志文件中的`Previous_gtids_log_event`中减去`gtids_in_binlog`中的GTIDs。这一步给出了当前在服务器上的二进制日志中记录的GTIDs集合（`gtids_in_binlog_not_purged`）。最后，从[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)中减去`gtids_in_binlog_not_purged`。结果是在服务器上已经使用过的GTIDs集合，但当前没有在服务器上的二进制日志文件中记录，这个结果用于初始化[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)。'
+- en: If binary logs from MySQL 5.7.7 or older are involved in these computations,
+    it is possible for incorrect GTID sets to be computed for [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    and [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged), and they
+    remain incorrect even if the server is later restarted. For details, see the description
+    for the [`binlog_gtid_simple_recovery`](replication-options-gtids.html#sysvar_binlog_gtid_simple_recovery)
+    system variable, which controls how the binary logs are iterated to compute the
+    GTID sets. If one of the situations described there applies on a server, set [`binlog_gtid_simple_recovery=FALSE`](replication-options-gtids.html#sysvar_binlog_gtid_simple_recovery)
+    in the server's configuration file before starting it. That setting makes the
+    server iterate all the binary log files (not just the newest and oldest) to find
+    where GTID events start to appear. This process could take a long time if the
+    server has a large number of binary log files without GTID events.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果涉及来自MySQL 5.7.7或更早版本的二进制日志在这些计算中，可能会计算出[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)和[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)的不正确GTID集，并且即使稍后重新启动服务器，它们仍然不正确。有关详细信息，请参阅[`binlog_gtid_simple_recovery`](replication-options-gtids.html#sysvar_binlog_gtid_simple_recovery)系统变量的描述，该变量控制如何迭代二进制日志以计算GTID集。如果服务器上适用于其中描述的情况之一，请在启动服务器之前在服务器的配置文件中设置[`binlog_gtid_simple_recovery=FALSE`](replication-options-gtids.html#sysvar_binlog_gtid_simple_recovery)。该设置使服务器迭代所有二进制日志文件（而不仅仅是最新和最旧的）以查找GTID事件开始出现的位置。如果服务器有大量没有GTID事件的二进制日志文件，这个过程可能需要很长时间。
+- en: Resetting the GTID Execution History
+  id: totrans-42
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 重置GTID执行历史
+- en: If you need to reset the GTID execution history on a server, use the [`RESET
+    MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement") statement. For example,
+    you might need to do this after carrying out test queries to verify a replication
+    setup on new GTID-enabled servers, or when you want to join a new server to a
+    replication group but it contains some unwanted local transactions that are not
+    accepted by Group Replication.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果需要在服务器上重置GTID执行历史，请使用[`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER
+    Statement")语句。例如，在新的GTID启用服务器上执行测试查询以验证复制设置，或者当您想要将新服务器加入到复制组中但它包含一些不被组复制接受的不需要的本地事务时，可能需要执行此操作。
+- en: Warning
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Use [`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement") with
+    caution to avoid losing any wanted GTID execution history and binary log files.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 谨慎使用[`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement")，以避免丢失任何需要的GTID执行���史和二进制日志文件。
+- en: Before issuing [`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement"),
+    ensure that you have backups of the server's binary log files and binary log index
+    file, if any, and obtain and save the GTID set held in the global value of the
+    [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed) system
+    variable (for example, by issuing a `SELECT @@GLOBAL.gtid_executed` statement
+    and saving the results). If you are removing unwanted transactions from that GTID
+    set, use [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") to examine the contents of the transactions to ensure that
+    they have no value, contain no data that must be saved or replicated, and did
+    not result in data changes on the server.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在执行[`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement")之前，请确保已备份服务器的二进制日志文件和二进制日志索引文件（如果有），并获取并保存[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量的全局值中保存的GTID集（例如，通过执行`SELECT
+    @@GLOBAL.gtid_executed`语句并保存结果）。如果要从该GTID集中删除不需要的事务，请使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")检查事务的内容，以确保它们没有价值，不包含必须保存或复制的数据，并且不会导致服务器上的数据更改。
+- en: 'When you issue [`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement"),
+    the following reset operations are carried out:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您执行[`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement")时，将执行以下重置操作：
+- en: The value of the [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    system variable is set to an empty string (`''`).
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)系统变量的值被设置为空字符串（`''''`）。'
+- en: The global value (but not the session value) of the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable is set to an empty string.
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 全局值（但不是会话值）的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量被设置为空字符串。
+- en: The `mysql.gtid_executed` table is cleared (see [mysql.gtid_executed Table](replication-gtids-concepts.html#replication-gtids-gtid-executed-table
+    "mysql.gtid_executed Table")).
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysql.gtid_executed` 表被清空（参见[mysql.gtid_executed Table](replication-gtids-concepts.html#replication-gtids-gtid-executed-table
+    "mysql.gtid_executed Table")）。'
+- en: If the server has binary logging enabled, the existing binary log files are
+    deleted and the binary log index file is cleared.
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果服务器启用了二进制日志记录，则现有的二进制日志文件将被删除，二进制日志索引文件将被清空。
+- en: Note that [`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement")
+    is the method to reset the GTID execution history even if the server is a replica
+    where binary logging is disabled. [`RESET REPLICA`](reset-replica.html "15.4.2.4 RESET
+    REPLICA Statement") has no effect on the GTID execution history.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，[`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement") 是重置
+    GTID 执行历史记录的方法，即使服务器是一个禁用二进制日志记录的副本。[`RESET REPLICA`](reset-replica.html "15.4.2.4 RESET
+    REPLICA Statement") 对 GTID 执行历史记录没有影响。

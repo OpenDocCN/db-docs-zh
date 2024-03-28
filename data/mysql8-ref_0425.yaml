@@ -1,0 +1,988 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/keyring-hashicorp-plugin.html](https://dev.mysql.com/doc/refman/8.0/en/keyring-hashicorp-plugin.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/keyring-hashicorp-plugin.html](https://dev.mysql.com/doc/refman/8.0/en/keyring-hashicorp-plugin.html)
+- en: 8.4.4.10 Using the HashiCorp Vault Keyring Plugin
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.4.10 使用 HashiCorp Vault 密钥环插件
+- en: Note
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `keyring_hashicorp` plugin is an extension included in MySQL Enterprise
+    Edition, a commercial product. To learn more about commercial products, see [https://www.mysql.com/products/](https://www.mysql.com/products/).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`keyring_hashicorp` 插件是包含在 MySQL Enterprise Edition 中的扩展，这是一款商业产品。要了解更多关于商业产品的信息，请参阅
+    [https://www.mysql.com/products/](https://www.mysql.com/products/)。'
+- en: The `keyring_hashicorp` keyring plugin communicates with HashiCorp Vault for
+    back end storage. The plugin supports HashiCorp Vault AppRole authentication.
+    No key information is permanently stored in MySQL server local storage. (An optional
+    in-memory key cache may be used as intermediate storage.) Random key generation
+    is performed on the MySQL server side, with the keys subsequently stored to Hashicorp
+    Vault.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`keyring_hashicorp` 密钥环插件与 HashiCorp Vault 进行后端存储通信。该插件支持 HashiCorp Vault AppRole
+    认证。没有密钥信息永久存储在 MySQL 服务器本地存储中（可使用可选的内存中密钥缓存作为中间存储）。随机密钥生成在 MySQL 服务器端执行，然后将密钥存储到
+    Hashicorp Vault。'
+- en: 'The `keyring_hashicorp` plugin supports the functions that comprise the standard
+    MySQL Keyring service interface. Keyring operations performed by those functions
+    are accessible at two levels:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`keyring_hashicorp` 插件支持组成标准 MySQL 密钥环服务接口的函数。这些函数执行的密钥环操作可在两个级别访问：'
+- en: 'SQL interface: In SQL statements, call the functions described in [Section 8.4.4.15,
+    “General-Purpose Keyring Key-Management Functions”](keyring-functions-general-purpose.html
+    "8.4.4.15 General-Purpose Keyring Key-Management Functions").'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: SQL 接口：在 SQL 语句中，调用 [第 8.4.4.15 节，“通用密钥环密钥管理函数”](keyring-functions-general-purpose.html
+    "8.4.4.15 General-Purpose Keyring Key-Management Functions") 中描述的函数。
+- en: 'C interface: In C-language code, call the keyring service functions described
+    in [Section 7.6.9.2, “The Keyring Service”](keyring-service.html "7.6.9.2 The
+    Keyring Service").'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: C 接口：在 C 语言代码中，调用 [第 7.6.9.2 节，“密钥环服务”](keyring-service.html "7.6.9.2 The Keyring
+    Service") 中描述的密钥环服务函数。
+- en: 'Example (using the SQL interface):'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例（使用 SQL 接口）：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: For information about the characteristics of key values permitted by `keyring_hashicorp`,
+    see [Section 8.4.4.13, “Supported Keyring Key Types and Lengths”](keyring-key-types.html
+    "8.4.4.13 Supported Keyring Key Types and Lengths").
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 `keyring_hashicorp` 允许的密钥值特性的信息，请参阅 [第 8.4.4.13 节，“支持的密钥环密钥类型和长度”](keyring-key-types.html
+    "8.4.4.13 Supported Keyring Key Types and Lengths")。
+- en: To install `keyring_hashicorp`, use the general instructions found in [Section 8.4.4.3,
+    “Keyring Plugin Installation”](keyring-plugin-installation.html "8.4.4.3 Keyring
+    Plugin Installation"), together with the configuration information specific to
+    `keyring_hashicorp` found here. Plugin-specific configuration includes preparation
+    of the certificate and key files needed for connecting to HashiCorp Vault, as
+    well as configuring HashiCorp Vault itself. The following sections provide the
+    necessary instructions.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要安装 `keyring_hashicorp`，请使用 [第 8.4.4.3 节，“密钥环插件安装”](keyring-plugin-installation.html
+    "8.4.4.3 Keyring Plugin Installation") 中找到的一般说明，以及此处找到的特定于 `keyring_hashicorp`
+    的配置信息。插件特定配置包括准备连接到 HashiCorp Vault 所需的证书和密钥文件，以及配置 HashiCorp Vault 本身。以下部分提供了必要的说明。
+- en: '[Certificate and Key Preparation](keyring-hashicorp-plugin.html#keyring-hashicorp-certificate-configuration
+    "Certificate and Key Preparation")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[证书和密钥准备](keyring-hashicorp-plugin.html#keyring-hashicorp-certificate-configuration
+    "Certificate and Key Preparation")'
+- en: '[HashiCorp Vault Setup](keyring-hashicorp-plugin.html#keyring-hashicorp-vault-configuration
+    "HashiCorp Vault Setup")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[HashiCorp Vault 设置](keyring-hashicorp-plugin.html#keyring-hashicorp-vault-configuration
+    "HashiCorp Vault Setup")'
+- en: '[keyring_hashicorp Configuration](keyring-hashicorp-plugin.html#keyring-hashicorp-plugin-configuration
+    "keyring_hashicorp Configuration")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[keyring_hashicorp 配置](keyring-hashicorp-plugin.html#keyring-hashicorp-plugin-configuration
+    "keyring_hashicorp Configuration")'
+- en: Certificate and Key Preparation
+  id: totrans-15
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 证书和密钥准备
+- en: 'The `keyring_hashicorp` plugin requires a secure connection to the HashiCorp
+    Vault server, employing the HTTPS protocol. A typical setup includes a set of
+    certificate and key files:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`keyring_hashicorp` 插件需要与 HashiCorp Vault 服务器建立安全连接，使用 HTTPS 协议。典型设置包括一组证书和密钥文件：'
+- en: '`company.crt`: A custom CA certificate belonging to the organization. This
+    file is used both by HashiCorp Vault server and the `keyring_hashicorp` plugin.'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`company.crt`: 组织拥有的自定义 CA 证书。此文件同时被 HashiCorp Vault 服务器和 `keyring_hashicorp`
+    插件使用。'
+- en: '`vault.key`: The private key of the HashiCorp Vault server instance. This file
+    is used by HashiCorp Vault server.'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`vault.key`：HashiCorp Vault服务器实例的私钥。此文件由HashiCorp Vault服务器使用。'
+- en: '`vault.crt`: The certificate of the HashiCorp Vault server instance. This file
+    must be signed by the organization CA certificate.'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`vault.crt`：HashiCorp Vault服务器实例的证书。此文件必须由组织CA证书签名。'
+- en: The following instructions describe how to create the certificate and key files
+    using OpenSSL. (If you already have those files, proceed to [HashiCorp Vault Setup](keyring-hashicorp-plugin.html#keyring-hashicorp-vault-configuration
+    "HashiCorp Vault Setup").) The instructions as shown apply to Linux platforms
+    and may require adjustment for other platforms.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下说明描述了如何使用OpenSSL创建证书和密钥文件。（如果您已经有这些文件，请继续进行[HashiCorp Vault设置](keyring-hashicorp-plugin.html#keyring-hashicorp-vault-configuration
+    "HashiCorp Vault Setup")。）所示的说明适用于Linux平台，可能需要调整以适用于其他平台。
+- en: Important
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Certificates generated by these instructions are self-signed, which may not
+    be very secure. After you gain experience using such files, consider obtaining
+    certificate/key material from a registered certificate authority.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据这些说明生成的证书是自签名的，可能不太安全。在使用这些文件获得经验后，考虑从注册的证书颁发机构获取证书/密钥材料。
+- en: Prepare the company and HashiCorp Vault server keys.
+  id: totrans-23
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 准备公司和HashiCorp Vault服务器密钥。
+- en: 'Use the following commands to generate the key files:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用以下命令生成密钥文件：
+- en: '[PRE1]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The commands produce files holding the company private key (`company.key`) and
+    the Vault server private key (`vault.key`). The keys are randomly generated RSA
+    keys of 4,096 and 2,048 bits, respectively.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些命令生成包含公司私钥（`company.key`）和Vault服务器私钥（`vault.key`）的文件。这些密钥分别是随机生成的4,096位和2,048位的RSA密钥。
+- en: Each command prompts for a password. For testing purposes, the password is not
+    required. To disable it, omit the `-aes256` argument.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个命令都会提示输入密码。为了测试目的，密码不是必需的。要禁用密码，请省略`-aes256`参数。
+- en: The key files hold sensitive information and should be stored in a secure location.
+    The password (also sensitive) is required later, so write it down and store it
+    in a secure location.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 密钥文件包含敏感信息，应存储在安全位置。密码（也是敏感信息）稍后会被要求，因此请记下并将其存储在安全位置。
+- en: '(Optional) To check key file content and validity, use the following commands:'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: （可选）使用以下命令检查密钥文件内容和有效性：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Create the company CA certificate.
+  id: totrans-31
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建公司CA证书。
+- en: 'Use the following command to create a company CA certificate file named `company.crt`
+    that is valid for 365 days (enter the command on a single line):'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用以下命令创建一个有效期为365天的名为`company.crt`的公司CA证书文件（在一行上输入命令）：
+- en: '[PRE3]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'If you used the `-aes256` argument to perform key encryption during key generation,
+    you are prompted for the company key password during CA certificate creation.
+    You are also prompted for information about the certificate holder (that is, you
+    or your company), as shown here:'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果在生成密钥时使用了`-aes256`参数进行密钥加密，则在创建CA证书时会提示输入公司密钥密码。还会提示输入有关证书持有者（即您或您的公司）的信息，如下所示：
+- en: '[PRE4]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Answer the prompts with appropriate values.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用适当的值回答提示。
+- en: Create a certificate signing request.
+  id: totrans-37
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建证书签名请求。
+- en: To create a HashiCorp Vault server certificate, a Certificate Signing Request
+    (CSR) must be prepared for the newly created server key. Create a configuration
+    file named `request.conf` containing the following lines. If the HashiCorp Vault
+    server does not run on the local host, substitute appropriate CN and IP values,
+    and make any other changes required.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要为新创建的服务器密钥准备一个HashiCorp Vault服务器证书，必须创建一个名为`request.conf`的配置文件，其中包含以下行。如果HashiCorp
+    Vault服务器不在本地主机上运行，请替换适当的CN和IP值，并进行任何其他必要的更改。
+- en: '[PRE5]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Use this command to create the signing request:'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用以下命令创建签名请求：
+- en: '[PRE6]'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The output file (`request.csr`) is an intermediate file that serves as input
+    for creation of the server certificate.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 输出文件（`request.csr`）是一个中间文件，用作创建服务器证书的输入。
+- en: Create the HashiCorp Vault server certificate.
+  id: totrans-43
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建HashiCorp Vault服务器证书。
+- en: 'Sign the combined information from the HashiCorp Vault server key (`vault.key`)
+    and the CSR (`request.csr`) with the company certificate (`company.crt`) to create
+    the HashiCorp Vault server certificate (`vault.crt`). Use the following command
+    to do this (enter the command on a single line):'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用公司证书（`company.crt`）对HashiCorp Vault服务器密钥（`vault.key`）和CSR（`request.csr`）中的组合信息进行签名，以创建HashiCorp
+    Vault服务器证书（`vault.crt`）。使用以下命令执行此操作（在一行上输入命令）：
+- en: '[PRE7]'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: To make the `vault.crt` server certificate useful, append the contents of the
+    `company.crt` company certificate to it. This is required so that the company
+    certificate is delivered along with the server certificate in requests.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要使 `vault.crt` 服务器证书有效，将 `company.crt` 公司证书的内容附加到其中。这是必需的，以便公司证书在请求中与服务器证书一起传递。
+- en: '[PRE8]'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'If you display the contents of the `vault.crt` file, it should look like this:'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果显示 `vault.crt` 文件的内容，它应该如下所示：
+- en: '[PRE9]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: HashiCorp Vault Setup
+  id: totrans-50
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: HashiCorp Vault 设置
+- en: The following instructions describe how to create a HashiCorp Vault setup that
+    facilitates testing the `keyring_hashicorp` plugin.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下说明描述了如何创建一个 HashiCorp Vault 设置，以便测试 `keyring_hashicorp` 插件。
+- en: Important
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: A test setup is similar to a production setup, but production use of HashiCorp
+    Vault entails additional security considerations such as use of non-self-signed
+    certificates and storing the company certificate in the system trust store. You
+    must implement whatever additional security steps are needed to satisfy your operational
+    requirements.
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 测试设置类似于生产设置，但是 HashiCorp Vault 的生产使用涉及额外的安全考虑，例如使用非自签名证书和将公司证书存储在系统信任存储中。您必须实施任何额外的安全步骤以满足您的运营需求。
+- en: These instructions assume availability of the certificate and key files created
+    in [Certificate and Key Preparation](keyring-hashicorp-plugin.html#keyring-hashicorp-certificate-configuration
+    "Certificate and Key Preparation"). See that section if you do not have those
+    files.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些说明假定在 [证书和密钥准备](keyring-hashicorp-plugin.html#keyring-hashicorp-certificate-configuration
+    "Certificate and Key Preparation") 中创建了证书和密钥文件。如果您没有这些文件，请参阅该部分。
+- en: Fetch the HashiCorp Vault binary.
+  id: totrans-55
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 获取 HashiCorp Vault 二进制文件。
+- en: Download the HashiCorp Vault binary appropriate for your platform from [https://www.vaultproject.io/downloads.html](https://www.vaultproject.io/downloads.html).
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从 [https://www.vaultproject.io/downloads.html](https://www.vaultproject.io/downloads.html)
+    下载适合您平台的 HashiCorp Vault 二进制文件。
+- en: Extract the content of the archive to produce the executable **vault** command,
+    which is used to perform HashiCorp Vault operations. If necessary, add the directory
+    where you install the command to the system path.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 解压缩存档内容以生成可执行的 **vault** 命令，该命令用于执行 HashiCorp Vault 操作。如有必要，将安装该命令的目录添加到系统路径中。
+- en: (Optional) HashiCorp Vault supports autocomplete options that make it easier
+    to use. For more information, see [https://learn.hashicorp.com/vault/getting-started/install#command-completion](https://learn.hashicorp.com/vault/getting-started/install#command-completion).
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: （可选）HashiCorp Vault 支持自动补全选项，使其更易于使用。有关更多信息，请参阅 [https://learn.hashicorp.com/vault/getting-started/install#command-completion](https://learn.hashicorp.com/vault/getting-started/install#command-completion)。
+- en: Create the HashiCorp Vault server configuration file.
+  id: totrans-59
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建 HashiCorp Vault 服务器配置文件。
+- en: Prepare a configuration file named `config.hcl` with the following content.
+    For the `tls_cert_file`, `tls_key_file`, and `path` values, substitute path names
+    appropriate for your system.
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 准备一个名为 `config.hcl` 的配置文件，内容如下。对于 `tls_cert_file`、`tls_key_file` 和 `path` 值，请替换适合您系统的路径名。
+- en: '[PRE10]'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: Start the HashiCorp Vault server.
+  id: totrans-62
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动 HashiCorp Vault 服务器。
+- en: 'To start the Vault server, use the following command, where the `-config` option
+    specifies the path to the configuration file just created:'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要启动 Vault 服务器，请使用以下命令，其中 `-config` 选项指定刚创建的配置文件的路径：
+- en: '[PRE11]'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: During this step, you may be prompted for a password for the Vault server private
+    key stored in the `vault.key` file.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在此步骤中，您可能会被要求为存储在 `vault.key` 文件中的 Vault 服务器私钥输入密码。
+- en: The server should start, displaying some information on the console (IP, port,
+    and so forth).
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 服务器应该启动，并在控制台上显示一些信息（IP、端口等）。
+- en: So that you can enter the remaining commands, put the **vault server** command
+    in the background or open another terminal before continuing.
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了能够输入剩余的命令，请将 **vault server** 命令放在后台运行或在继续之前打开另一个终端。
+- en: Initialize the HashiCorp Vault server.
+  id: totrans-68
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 初始化 HashiCorp Vault 服务器。
+- en: Note
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The operations described in this step are required only when starting Vault
+    the first time, to obtain the unseal key and root token. Subsequent Vault instance
+    restarts require only unsealing using the unseal key.
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在启动 Vault 第一次时，执行本步骤中描述的操作以获取解封密钥和根令牌。后续 Vault 实例重新启动仅需要使用解封密钥进行解封。
+- en: 'Issue the following commands (assuming Bourne shell syntax):'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 发出以下命令（假设 Bourne shell 语法）：
+- en: '[PRE12]'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: The first command enables the **vault** command to temporarily ignore the fact
+    that no company certificate has been added to the system trust store. It compensates
+    for the fact that our self-signed CA is not added to that store. (For production
+    use, such a certificate should be added.)
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 第一个命令使**vault**命令暂时忽略尚未添加到系统信任存储库的公司证书的事实。它弥补了我们的自签名CA未添加到该存储库的事实。（对于生产使用，应添加这样的证书。）
+- en: The second command creates a single unseal key with a requirement for a single
+    unseal key to be present for unsealing. (For production use, an instance would
+    have multiple unseal keys with up to that many keys required to be entered to
+    unseal it. The unseal keys should be delivered to key custodians within the company.
+    Use of a single key might be considered a security issue because that permits
+    the vault to be unsealed by a single key custodian.)
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 第二个命令创建一个具有单个解封密钥的要求，要求一个解封密钥存在以解封。 （对于生产使用，一个实例将具有多个解封密钥，最多需要输入相同数量的密钥来解封。解封密钥应交付给公司内的密钥保管员。使用单个密钥可能被视为安全问题，因为这允许单个密钥保管员解封保险库。）
+- en: 'Vault should reply with information about the unseal key and root token, plus
+    some additional text (the actual unseal key and root token values differ from
+    those shown here):'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: Vault应该回复有关解封密钥和root令牌的信息，以及一些附加文本（实际的解封密钥和root令牌值与此处显示的值不同）：
+- en: '[PRE13]'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Store the unseal key and root token in a secure location.
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将解封密钥和root令牌存储在安全位置。
+- en: Unseal the HashiCorp Vault server.
+  id: totrans-78
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 解封HashiCorp Vault服务器。
+- en: 'Use this command to unseal the Vault server:'
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用此命令解封Vault服务器：
+- en: '[PRE14]'
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: When prompted to enter the unseal key, use the key obtained previously during
+    Vault initialization.
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在提示输入解封密钥时，使用在Vault初始化期间先前获得的密钥。
+- en: Vault should produce output indicating that setup is complete and the vault
+    is unsealed.
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: Vault应该生成指示设置完成并解封保险库的输出。
+- en: Log in to the HashiCorp Vault server and verify its status.
+  id: totrans-83
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 登录到HashiCorp Vault服务器并验证其状态。
+- en: 'Prepare the environment variables required for logging in as root:'
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 准备登录为root所需的环境变量：
+- en: '[PRE15]'
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: For the token value in that command, substitute the content of the root token
+    obtained previously during Vault initialization.
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在该命令中的令牌值中，用之前在Vault初始化期间获得的root令牌的内容替换。
+- en: 'Verify the Vault server status:'
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 验证Vault服务器状态：
+- en: '[PRE16]'
+  id: totrans-88
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'The output should contain these lines (among others):'
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 输出应包含以下行（以及其他内容）：
+- en: '[PRE17]'
+  id: totrans-90
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: Set up HashiCorp Vault authentication and storage.
+  id: totrans-91
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 设置HashiCorp Vault身份验证和存储。
+- en: Note
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The operations described in this step are needed only the first time the Vault
+    instance is run. They need not be repeated afterward.
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在运行Vault实例时，描述的操作仅在第一次运行时需要。之后不需要重复。
+- en: 'Enable the AppRole authentication method and verify that it is in the authentication
+    method list:'
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启用AppRole身份验证方法并验证其是否在身份验证方法列表中：
+- en: '[PRE18]'
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: 'Enable the Vault KeyValue storage engine:'
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启用Vault KeyValue存储引擎：
+- en: '[PRE19]'
+  id: totrans-97
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: 'Create and set up a role for use with the `keyring_hashicorp` plugin (enter
+    the command on a single line):'
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为与`keyring_hashicorp`插件一起使用设置一个角色（在一行上输入命令）：
+- en: '[PRE20]'
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: Add an AppRole security policy.
+  id: totrans-100
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 添加一个AppRole安全策略。
+- en: Note
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The operations described in this step are needed only the first time the Vault
+    instance is run. They need not be repeated afterward.
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在运行Vault实例时，描述的操作仅在第一次运行时需要。之后不需要重复。
+- en: 'Prepare a policy that to permit the previously created role to access appropriate
+    secrets. Create a new file named `mysql.hcl` with the following content:'
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 准备一个策略，以允许先前创建的角色访问适当的机密。创建一个名为`mysql.hcl`的新文件，内容如下：
+- en: '[PRE21]'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: Note
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`kv/mysql/` in this example may need adjustment per your local installation
+    policies and security requirements. If so, make the same adjustment wherever else
+    `kv/mysql/` appears in these instructions.'
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这个示例中，`kv/mysql/`可能需要根据您的本地安装政策和安全要求进行调整。如果需要，无论这些说明中的`kv/mysql/`出现在哪里，都要进行相同的调整。
+- en: 'Import the policy file to the Vault server to create a policy named `mysql-policy`,
+    then assign the policy to the new role:'
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将策略文件导入Vault服务器以创建名为`mysql-policy`的策略，然后将策略分配给新角色：
+- en: '[PRE22]'
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: 'Obtain the ID of the newly created role and store it in a secure location:'
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 获取新创建角色的ID并将其存储在安全位置：
+- en: '[PRE23]'
+  id: totrans-110
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: 'Generate a secret ID for the role and store it in a secure location:'
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为角色生成一个秘密ID，并将其存储在安全位置：
+- en: '[PRE24]'
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: After these AppRole role ID and secret ID credentials are generated, they are
+    expected to remain valid indefinitely. They need not be generated again and the
+    `keyring_hashicorp` plugin can be configured with them for use on an ongoing basis.
+    For more information about AuthRole authentication, visit [https://www.vaultproject.io/docs/auth/approle.html](https://www.vaultproject.io/docs/auth/approle.html).
+  id: totrans-113
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 生成这些AppRole角色ID和密钥ID凭证后，它们预计会无限期保持有效。不需要再次生成它们，`keyring_hashicorp`插件可以配置它们以供持续使用。有关AuthRole身份验证的更多信息，请访问[https://www.vaultproject.io/docs/auth/approle.html](https://www.vaultproject.io/docs/auth/approle.html)。
+- en: keyring_hashicorp Configuration
+  id: totrans-114
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: keyring_hashicorp 配置
+- en: The plugin library file contains the `keyring_hashicorp` plugin and a loadable
+    function, [`keyring_hashicorp_update_config()`](keyring-functions-plugin-specific.html#function_keyring-hashicorp-update-config).
+    When the plugin initializes and terminates, it automatically loads and unloads
+    the function. There is no need to load and unload the function manually.
+  id: totrans-115
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插件库文件包含`keyring_hashicorp`插件和一个可加载的函数，[`keyring_hashicorp_update_config()`](keyring-functions-plugin-specific.html#function_keyring-hashicorp-update-config)。当插件初始化和终止时，它会自动加载和卸载该函数。无需手动加载和卸载该函数。
+- en: The `keyring_hashicorp` plugin supports the configuration parameters shown in
+    the following table. To specify these parameters, assign values to the corresponding
+    system variables.
+  id: totrans-116
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`keyring_hashicorp`插件支持以下表中显示的配置参数。要指定这些参数，请为相应的系统变量赋值。'
+- en: '| Configuration Parameter | System Variable | Mandatory |'
+  id: totrans-117
+  prefs: []
+  type: TYPE_TB
+  zh: '| 配置参数 | 系统变量 | 必须 |'
+- en: '| HashiCorp Server URL | [`keyring_hashicorp_server_url`](keyring-system-variables.html#sysvar_keyring_hashicorp_server_url)
+    | No |'
+  id: totrans-118
+  prefs: []
+  type: TYPE_TB
+  zh: '| HashiCorp服务器URL | [`keyring_hashicorp_server_url`](keyring-system-variables.html#sysvar_keyring_hashicorp_server_url)
+    | 否 |'
+- en: '| AppRole role ID | [`keyring_hashicorp_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_role_id)
+    | Yes |'
+  id: totrans-119
+  prefs: []
+  type: TYPE_TB
+  zh: '| AppRole角色ID | [`keyring_hashicorp_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_role_id)
+    | 是 |'
+- en: '| AppRole secret ID | [`keyring_hashicorp_secret_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_secret_id)
+    | Yes |'
+  id: totrans-120
+  prefs: []
+  type: TYPE_TB
+  zh: '| AppRole密钥ID | [`keyring_hashicorp_secret_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_secret_id)
+    | 是 |'
+- en: '| Store path | [`keyring_hashicorp_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_store_path)
+    | Yes |'
+  id: totrans-121
+  prefs: []
+  type: TYPE_TB
+  zh: '| 存储路径 | [`keyring_hashicorp_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_store_path)
+    | 是 |'
+- en: '| Authorization Path | [`keyring_hashicorp_auth_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_auth_path)
+    | No |'
+  id: totrans-122
+  prefs: []
+  type: TYPE_TB
+  zh: '| 授权路径 | [`keyring_hashicorp_auth_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_auth_path)
+    | 否 |'
+- en: '| CA certificate file path | [`keyring_hashicorp_ca_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_ca_path)
+    | No |'
+  id: totrans-123
+  prefs: []
+  type: TYPE_TB
+  zh: '| CA证书文件路径 | [`keyring_hashicorp_ca_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_ca_path)
+    | 否 |'
+- en: '| Cache control | [`keyring_hashicorp_caching`](keyring-system-variables.html#sysvar_keyring_hashicorp_caching)
+    | No |'
+  id: totrans-124
+  prefs: []
+  type: TYPE_TB
+  zh: '| 缓存控制 | [`keyring_hashicorp_caching`](keyring-system-variables.html#sysvar_keyring_hashicorp_caching)
+    | 否 |'
+- en: 'To be usable during the server startup process, `keyring_hashicorp` must be
+    loaded using the [`--early-plugin-load`](server-options.html#option_mysqld_early-plugin-load)
+    option. As indicated by the preceding table, several plugin-related system variables
+    are mandatory and must also be set. For example, use these lines in the server
+    `my.cnf` file, adjusting the `.so` suffix and file locations for your platform
+    as necessary:'
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了在服务器启动过程中可用，必须使用[`--early-plugin-load`](server-options.html#option_mysqld_early-plugin-load)选项加载`keyring_hashicorp`。如前表所示，还必须设置几个与插件相关的系统变量。例如，在服务器的`my.cnf`文件中使用以下行，根据需要调整`.so`后缀和文件位置：
+- en: '[PRE25]'
+  id: totrans-126
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: Note
+  id: totrans-127
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Per the [HashiCorp documentation](https://www.vaultproject.io/api-docs), all
+    API routes are prefixed with a protocol version (which you can see in the preceding
+    example as `/v1/` in the [`keyring_hashicorp_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_store_path)
+    and [`keyring_hashicorp_auth_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_auth_path)
+    values). If HashiCorp develops new protocol versions, it may be necessary to change
+    `/v1/` to something else in your configuration.
+  id: totrans-128
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据[HashiCorp文档](https://www.vaultproject.io/api-docs)，所有API路由都以协议版本为前缀（在前面的示例中可以看到为`/v1/`，在[`keyring_hashicorp_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_store_path)和[`keyring_hashicorp_auth_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_auth_path)的值中）。如果HashiCorp开发新的协议版本，可能需要在配置中将`/v1/`更改为其他内容。
+- en: MySQL Server authenticates against HashiCorp Vault using AppRole authentication.
+    Successful authentication requires that two secrets be provided to Vault, a role
+    ID and a secret ID, which are similar in concept to user name and password. The
+    role ID and secret ID values to use are those obtained during the HashiCorp Vault
+    setup procedure performed previously. To specify the two IDs, assign their respective
+    values to the [`keyring_hashicorp_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_role_id)
+    and [`keyring_hashicorp_secret_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_secret_id)
+    system variables. The setup procedure also results in a store path of `/v1/kv/mysql`,
+    which is the value to assign to [`keyring_hashicorp_commit_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_commit_store_path).
+  id: totrans-129
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器使用AppRole身份验证对HashiCorp Vault进行身份验证。成功的身份验证需要向Vault提供两个秘密，一个角色ID和一个秘密ID，类似于用户名和密码的概念。要指定这两个ID，将它们的值分配给[`keyring_hashicorp_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_role_id)和[`keyring_hashicorp_secret_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_secret_id)系统变量。设置过程还会导致存储路径为`/v1/kv/mysql`，这个值应分配给[`keyring_hashicorp_commit_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_commit_store_path)。
+- en: At plugin initialization time, `keyring_hashicorp` attempts to connect to the
+    HashiCorp Vault server using the configuration values. If the connection is successful,
+    the plugin stores the values in corresponding system variables that have `_commit_`
+    in their name. For example, upon successful connection, the plugin stores the
+    values of [`keyring_hashicorp_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_role_id)
+    and [`keyring_hashicorp_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_store_path)
+    in [`keyring_hashicorp_commit_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_commit_role_id)
+    and [`keyring_hashicorp_commit_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_commit_store_path).
+  id: totrans-130
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在插件初始化时，`keyring_hashicorp`尝试使用配置数值连接到HashiCorp Vault服务器。如果连接成功，插件会将这些数值存储在相应的系统变量中，这些变量的名称中包含`_commit_`。例如，连接成功后，插件会将[`keyring_hashicorp_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_role_id)和[`keyring_hashicorp_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_store_path)的数值存储在[`keyring_hashicorp_commit_role_id`](keyring-system-variables.html#sysvar_keyring_hashicorp_commit_role_id)和[`keyring_hashicorp_commit_store_path`](keyring-system-variables.html#sysvar_keyring_hashicorp_commit_store_path)中。
+- en: 'Reconfiguration at runtime can be performed with the assistance of the [`keyring_hashicorp_update_config()`](keyring-functions-plugin-specific.html#function_keyring-hashicorp-update-config)
+    function:'
+  id: totrans-131
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以通过[`keyring_hashicorp_update_config()`](keyring-functions-plugin-specific.html#function_keyring-hashicorp-update-config)函数在运行时重新配置：
+- en: Use [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    statements to assign the desired new values to the configuration system variables
+    shown in the preceding table. These assignments in themselves have no effect on
+    ongoing plugin operation.
+  id: totrans-132
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")语句将所需的新值分配给前表中显示的配置系统变量。这些分配本身对正在进行的插件操作没有影响。
+- en: Invoke [`keyring_hashicorp_update_config()`](keyring-functions-plugin-specific.html#function_keyring-hashicorp-update-config)
+    to cause the plugin to reconfigure and reconnect to the HashiCorp Vault server
+    using the new variable values.
+  id: totrans-133
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 调用[`keyring_hashicorp_update_config()`](keyring-functions-plugin-specific.html#function_keyring-hashicorp-update-config)函数会导致插件重新配置并使用新的变量值重新连接到HashiCorp
+    Vault服务器。
+- en: If the connection is successful, the plugin stores the updated configuration
+    values in corresponding system variables that have `_commit_` in their name.
+  id: totrans-134
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果连接成功，插件会将更新后的配置数值存储在相应的系统变量中，这些变量的名称中包含`_commit_`。
+- en: 'For example, if you have reconfigured HashiCorp Vault to listen on port 8201
+    rather than the default 8200, reconfigure `keyring_hashicorp` like this:'
+  id: totrans-135
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，如果已将HashiCorp Vault重新配置为监听端口8201而不是默认的8200，则像这样重新配置`keyring_hashicorp`：
+- en: '[PRE26]'
+  id: totrans-136
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: If the plugin is not able to connect to HashiCorp Vault during initialization
+    or reconfiguration and there was no existing connection, the `_commit_` system
+    variables are set to `'Not committed'` for string-valued variables, and `OFF`
+    for Boolean-valued variables. If the plugin is not able to connect but there was
+    an existing connection, that connection remains active and the `_commit_` variables
+    reflect the values used for it.
+  id: totrans-137
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果插件在初始化或重新配置期间无法连接到HashiCorp Vault，并且没有现有连接，则对于字符串值变量，`_commit_`系统变量将设置为`'Not
+    committed'`，对于布尔值变量，将设置为`OFF`。如果插件无法连接但存在现有连接，则该连接保持活动状态，并且`_commit_`变量反映用于它的值。
+- en: Note
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you do not set the mandatory system variables at server startup, or if some
+    other plugin initialization error occurs, initialization fails. In this case,
+    you can use the runtime reconfiguration procedure to initialize the plugin without
+    restarting the server.
+  id: totrans-139
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在服务器启动时未设置必需的系统变量，或者发生其他插件初始化错误，初始化将失败。在这种情况下，您可以使用运行时重新配置过程来初始化插件，而无需重新启动服务器。
+- en: For additional information about the `keyring_hashicorp` plugin-specific system
+    variables and function, see [Section 8.4.4.19, “Keyring System Variables”](keyring-system-variables.html
+    "8.4.4.19 Keyring System Variables"), and [Section 8.4.4.16, “Plugin-Specific
+    Keyring Key-Management Functions”](keyring-functions-plugin-specific.html "8.4.4.16 Plugin-Specific
+    Keyring Key-Management Functions").
+  id: totrans-140
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关`keyring_hashicorp`插件特定系统变量和功能的其他信息，请参见[Section 8.4.4.19, “Keyring System
+    Variables”](keyring-system-variables.html "8.4.4.19 Keyring System Variables")和[Section 8.4.4.16,
+    “Plugin-Specific Keyring Key-Management Functions”](keyring-functions-plugin-specific.html
+    "8.4.4.16 Plugin-Specific Keyring Key-Management Functions")。

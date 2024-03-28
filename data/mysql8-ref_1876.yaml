@@ -1,0 +1,133 @@
+- en: 27.4.1 Event Scheduler Overview
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 27.4.1 事件调度程序概述
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/events-overview.html](https://dev.mysql.com/doc/refman/8.0/en/events-overview.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/events-overview.html](https://dev.mysql.com/doc/refman/8.0/en/events-overview.html)
+- en: MySQL Events are tasks that run according to a schedule. Therefore, we sometimes
+    refer to them as *scheduled* events. When you create an event, you are creating
+    a named database object containing one or more SQL statements to be executed at
+    one or more regular intervals, beginning and ending at a specific date and time.
+    Conceptually, this is similar to the idea of the Unix `crontab` (also known as
+    a “cron job”) or the Windows Task Scheduler.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 事件是按照时间表运行的任务。因此，我们有时将它们称为*定时*事件。当您创建一个事件时，实际上是创建了一个命名的数据库对象，其中包含一个或多个要在一个或多个常规间隔执行的
+    SQL 语句，开始和结束于特定日期和时间。从概念上讲，这类似于 Unix 的`crontab`（也称为“cron job”）或 Windows 任务计划程序的概念。
+- en: Scheduled tasks of this type are also sometimes known as “temporal triggers”,
+    implying that these are objects that are triggered by the passage of time. While
+    this is essentially correct, we prefer to use the term *events* to avoid confusion
+    with triggers of the type discussed in [Section 27.3, “Using Triggers”](triggers.html
+    "27.3 Using Triggers"). Events should more specifically not be confused with “temporary
+    triggers”. Whereas a trigger is a database object whose statements are executed
+    in response to a specific type of event that occurs on a given table, a (scheduled)
+    event is an object whose statements are executed in response to the passage of
+    a specified time interval.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种类型的定时任务有时也被称为“时间触发器”，暗示这些是由时间流逝触发的对象。虽然这基本上是正确的，但我们更倾向于使用术语*事件*，以避免与[第 27.3
+    节“使用触发器”](triggers.html "27.3 Using Triggers")中讨论的触发器混淆。事件更具体地不应与“临时触发器”混淆。触发器是一个数据库对象，其语句在发生在给定表上的特定类型事件时执行，而（定时）事件是一个对象，其语句在经过指定的时间间隔后执行。
+- en: While there is no provision in the SQL Standard for event scheduling, there
+    are precedents in other database systems, and you may notice some similarities
+    between these implementations and that found in the MySQL Server.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 虽然 SQL 标准中没有关于事件调度的规定，但其他数据库系统中有先例，您可能会注意到这些实现与 MySQL 服务器中的实现之间的一些相似之处。
+- en: 'MySQL Events have the following major features and properties:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 事件具有以下主要特性和属性：
+- en: In MySQL, an event is uniquely identified by its name and the schema to which
+    it is assigned.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 MySQL 中，事件通过其名称和分配给它的模式唯一标识。
+- en: An event performs a specific action according to a schedule. This action consists
+    of an SQL statement, which can be a compound statement in a [`BEGIN ... END`](begin-end.html
+    "15.6.1 BEGIN ... END Compound Statement") block if desired (see [Section 15.6,
+    “Compound Statement Syntax”](sql-compound-statements.html "15.6 Compound Statement
+    Syntax")). An event's timing can be either one-time or recurrent. A one-time event
+    executes one time only. A recurrent event repeats its action at a regular interval,
+    and the schedule for a recurring event can be assigned a specific start day and
+    time, end day and time, both, or neither. (By default, a recurring event's schedule
+    begins as soon as it is created, and continues indefinitely, until it is disabled
+    or dropped.)
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 事件根据时间表执行特定操作。此操作包括一个 SQL 语句，如果需要，可以是一个[`BEGIN ... END`](begin-end.html "15.6.1 BEGIN
+    ... END Compound Statement")块中的复合语句（请参阅[第 15.6 节“复合语句语法”](sql-compound-statements.html
+    "15.6 Compound Statement Syntax")）。事件的时间可以是一次性的或循环的。一次性事件仅执行一次。循环事件在常规间隔重复其操作，并且循环事件的时间表可以分配一个特定的开始日期和时间，结束日期和时间，两者都有，或两者都没有。（默认情况下，循环事件的时间表在创建时立即开始，并持续无限期，直到被禁用或删除。）
+- en: If a repeating event does not terminate within its scheduling interval, the
+    result may be multiple instances of the event executing simultaneously. If this
+    is undesirable, you should institute a mechanism to prevent simultaneous instances.
+    For example, you could use the [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    function, or row or table locking.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果重复事件在其调度间隔内没有终止，则可能会导致多个事件实例同时执行。如果这是不希望的，您应该实施一种机制来防止同时实例。例如，您可以使用[`GET_LOCK()`](locking-functions.html#function_get-lock)函数，或行或表锁定。
+- en: Users can create, modify, and drop scheduled events using SQL statements intended
+    for these purposes. Syntactically invalid event creation and modification statements
+    fail with an appropriate error message. *A user may include statements in an event's
+    action which require privileges that the user does not actually have*. The event
+    creation or modification statement succeeds but the event's action fails. See
+    [Section 27.4.6, “The Event Scheduler and MySQL Privileges”](events-privileges.html
+    "27.4.6 The Event Scheduler and MySQL Privileges") for details.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户可以使用专为此目的设计的 SQL 语句创建、修改和删除计划事件。语法无效的事件创建和修改语句将失败，并显示适当的错误消息。*用户可能在事件的操作中包含需要用户实际上没有的权限的语句*。事件创建或修改语句成功，但事件的操作失败。有关详细信息，请参见
+    [第 27.4.6 节，“事件调度程序和 MySQL 权限”](events-privileges.html "27.4.6 The Event Scheduler
+    and MySQL Privileges")。
+- en: Many of the properties of an event can be set or modified using SQL statements.
+    These properties include the event's name, timing, persistence (that is, whether
+    it is preserved following the expiration of its schedule), status (enabled or
+    disabled), action to be performed, and the schema to which it is assigned. See
+    [Section 15.1.3, “ALTER EVENT Statement”](alter-event.html "15.1.3 ALTER EVENT
+    Statement").
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 许多事件的属性可以使用 SQL 语句进行设置或修改。这些属性包括事件的名称、定时、持久性（即在其计划过期后是否保留）、状态（启用或禁用）、要执行的操作以及分配给它的模式。参见
+    [第 15.1.3 节，“ALTER EVENT 语句”](alter-event.html "15.1.3 ALTER EVENT Statement")。
+- en: The default definer of an event is the user who created the event, unless the
+    event has been altered, in which case the definer is the user who issued the last
+    [`ALTER EVENT`](alter-event.html "15.1.3 ALTER EVENT Statement") statement affecting
+    that event. An event can be modified by any user having the [`EVENT`](privileges-provided.html#priv_event)
+    privilege on the database for which the event is defined. See [Section 27.4.6,
+    “The Event Scheduler and MySQL Privileges”](events-privileges.html "27.4.6 The
+    Event Scheduler and MySQL Privileges").
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 事件的默认定义者是创建事件的用户，除非事件已被修改，在这种情况下，定义者是发出影响该事件的最后一个 [`ALTER EVENT`](alter-event.html
+    "15.1.3 ALTER EVENT Statement") 语句的用户。任何具有对定义事件的数据库上的 [`EVENT`](privileges-provided.html#priv_event)
+    权限的用户都可以修改事件。有关详细信息，请参见 [第 27.4.6 节，“事件调度程序和 MySQL 权限”](events-privileges.html
+    "27.4.6 The Event Scheduler and MySQL Privileges")。
+- en: An event's action statement may include most SQL statements permitted within
+    stored routines. For restrictions, see [Section 27.8, “Restrictions on Stored
+    Programs”](stored-program-restrictions.html "27.8 Restrictions on Stored Programs").
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 事件的操作语句可以包含大多数存储过程中允许的 SQL 语句。有关限制，请参见 [第 27.8 节，“存储程序的限制”](stored-program-restrictions.html
+    "27.8 Restrictions on Stored Programs")。

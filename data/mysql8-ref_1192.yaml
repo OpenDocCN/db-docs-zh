@@ -1,0 +1,90 @@
+- en: 17.7.5 Deadlocks in InnoDB
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.7.5 InnoDB中的死锁
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html)
+- en: '[17.7.5.1 An InnoDB Deadlock Example](innodb-deadlock-example.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[17.7.5.1 InnoDB死锁示例](innodb-deadlock-example.html)'
+- en: '[17.7.5.2 Deadlock Detection](innodb-deadlock-detection.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[17.7.5.2 死锁检测](innodb-deadlock-detection.html)'
+- en: '[17.7.5.3 How to Minimize and Handle Deadlocks](innodb-deadlocks-handling.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[17.7.5.3 如何最小化和处理死锁](innodb-deadlocks-handling.html)'
+- en: A deadlock is a situation where different transactions are unable to proceed
+    because each holds a lock that the other needs. Because both transactions are
+    waiting for a resource to become available, neither ever release the locks it
+    holds.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 死锁是指不同事务由于各自持有对方需要的锁而无法继续进行的情况。因为两个事务都在等待资源可用，所以它们都不会释放自己持有的锁。
+- en: A deadlock can occur when transactions lock rows in multiple tables (through
+    statements such as [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`SELECT
+    ... FOR UPDATE`](select.html "15.2.13 SELECT Statement")), but in the opposite
+    order. A deadlock can also occur when such statements lock ranges of index records
+    and gaps, with each transaction acquiring some locks but not others due to a timing
+    issue. For a deadlock example, see [Section 17.7.5.1, “An InnoDB Deadlock Example”](innodb-deadlock-example.html
+    "17.7.5.1 An InnoDB Deadlock Example").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当事务以相反的顺序锁定多个表中的行（通过诸如[`UPDATE`](update.html "15.2.17 UPDATE语句")或[`SELECT ...
+    FOR UPDATE`](select.html "15.2.13 SELECT语句")等语句）时，可能会发生死锁。当这些语句锁定索引记录和间隙的范围时，也可能发生死锁，因为每个事务由于时间问题而获取了一些锁，但没有获取其他锁。有关死锁示例，请参见[第17.7.5.1节，“InnoDB死锁示例”](innodb-deadlock-example.html
+    "17.7.5.1 InnoDB死锁示例")。
+- en: To reduce the possibility of deadlocks, use transactions rather than [`LOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") statements;
+    keep transactions that insert or update data small enough that they do not stay
+    open for long periods of time; when different transactions update multiple tables
+    or large ranges of rows, use the same order of operations (such as [`SELECT ...
+    FOR UPDATE`](select.html "15.2.13 SELECT Statement")) in each transaction; create
+    indexes on the columns used in [`SELECT ... FOR UPDATE`](select.html "15.2.13 SELECT
+    Statement") and [`UPDATE ... WHERE`](update.html "15.2.17 UPDATE Statement") statements.
+    The possibility of deadlocks is not affected by the isolation level, because the
+    isolation level changes the behavior of read operations, while deadlocks occur
+    because of write operations. For more information about avoiding and recovering
+    from deadlock conditions, see [Section 17.7.5.3, “How to Minimize and Handle Deadlocks”](innodb-deadlocks-handling.html
+    "17.7.5.3 How to Minimize and Handle Deadlocks").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为减少死锁的可能性，请使用事务而不是[`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES和UNLOCK
+    TABLES语句")语句；确保插入或更新数据的事务足够小，不会长时间保持打开状态；当不同事务更新多个表或大范围的行时，在每个事务中使用相同的操作顺序（如[`SELECT
+    ... FOR UPDATE`](select.html "15.2.13 SELECT语句")）；在[`SELECT ... FOR UPDATE`](select.html
+    "15.2.13 SELECT语句")和[`UPDATE ... WHERE`](update.html "15.2.17 UPDATE语句")语句中使用的列上创建索引。死锁的可能性不受隔离级别的影响，因为隔离级别改变了读操作的行为，而死锁是由写操作引起的。有关避免和恢复死锁条件的更多信息，请参见[第17.7.5.3节，“如何最小化和处理死锁”](innodb-deadlocks-handling.html
+    "17.7.5.3 如何最小化和处理死锁")。
+- en: When deadlock detection is enabled (the default) and a deadlock does occur,
+    `InnoDB` detects the condition and rolls back one of the transactions (the victim).
+    If deadlock detection is disabled using the [`innodb_deadlock_detect`](innodb-parameters.html#sysvar_innodb_deadlock_detect)
+    variable, `InnoDB` relies on the [`innodb_lock_wait_timeout`](innodb-parameters.html#sysvar_innodb_lock_wait_timeout)
+    setting to roll back transactions in case of a deadlock. Thus, even if your application
+    logic is correct, you must still handle the case where a transaction must be retried.
+    To view the last deadlock in an `InnoDB` user transaction, use [`SHOW ENGINE INNODB
+    STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement"). If frequent deadlocks
+    highlight a problem with transaction structure or application error handling,
+    enable [`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks)
+    to print information about all deadlocks to the [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") error log. For more information about how deadlocks are automatically
+    detected and handled, see [Section 17.7.5.2, “Deadlock Detection”](innodb-deadlock-detection.html
+    "17.7.5.2 Deadlock Detection").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当死锁检测被启用（默认情况下），并且确实发生了死锁时，`InnoDB`会检测到这种情况，并回滚其中一个事务（受害者）。如果使用[`innodb_deadlock_detect`](innodb-parameters.html#sysvar_innodb_deadlock_detect)变量禁用了死锁检测，`InnoDB`会依赖于[`innodb_lock_wait_timeout`](innodb-parameters.html#sysvar_innodb_lock_wait_timeout)设置来在发生死锁时回滚事务。因此，即使您的应用逻辑是正确的，您仍然必须处理事务必须重试的情况。要查看`InnoDB`用户事务中的最后一个死锁，请使用[`SHOW
+    ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")。如果频繁的死锁突显出事务结构或应用程序错误处理的问题，请启用[`innodb_print_all_deadlocks`](innodb-parameters.html#sysvar_innodb_print_all_deadlocks)以将所有死锁的信息打印到[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")错误日志中。有关死锁如何自动检测和处理的更多信息，请参见[Section 17.7.5.2,
+    “Deadlock Detection”](innodb-deadlock-detection.html "17.7.5.2 Deadlock Detection")。

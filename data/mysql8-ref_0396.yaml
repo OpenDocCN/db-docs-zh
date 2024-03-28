@@ -1,0 +1,745 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/caching-sha2-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/caching-sha2-pluggable-authentication.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/caching-sha2-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/caching-sha2-pluggable-authentication.html)
+- en: 8.4.1.2 Caching SHA-2 Pluggable Authentication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.1.2 缓存SHA-2可插拔身份验证
+- en: 'MySQL provides two authentication plugins that implement SHA-256 hashing for
+    user account passwords:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL提供了两个实现SHA-256哈希用于用户帐户密码的身份验证插件：
+- en: '`sha256_password`: Implements basic SHA-256 authentication.'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`sha256_password`：实现基本的SHA-256身份验证。'
+- en: '`caching_sha2_password`: Implements SHA-256 authentication (like `sha256_password`),
+    but uses caching on the server side for better performance and has additional
+    features for wider applicability.'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`caching_sha2_password`：实现SHA-256身份验证（类似于`sha256_password`），但在服务器端使用缓存以提高性能，并具有更广泛适用性的附加功能。'
+- en: This section describes the caching SHA-2 authentication plugin. For information
+    about the original basic (noncaching) plugin, see [Section 8.4.1.3, “SHA-256 Pluggable
+    Authentication”](sha256-pluggable-authentication.html "8.4.1.3 SHA-256 Pluggable
+    Authentication").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了缓存SHA-2身份验证插件。有关原始基本（非缓存）插件的信息，请参见[第8.4.1.3节，“SHA-256可插拔身份验证”](sha256-pluggable-authentication.html
+    "8.4.1.3 SHA-256 Pluggable Authentication")。
+- en: Important
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: In MySQL 8.0, `caching_sha2_password` is the default authentication plugin rather
+    than `mysql_native_password`. For information about the implications of this change
+    for server operation and compatibility of the server with clients and connectors,
+    see [caching_sha2_password as the Preferred Authentication Plugin](upgrading-from-previous-series.html#upgrade-caching-sha2-password
+    "caching_sha2_password as the Preferred Authentication Plugin").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0中，`caching_sha2_password`是默认的身份验证插件，而不是`mysql_native_password`。有关此更改对服务器操作以及服务器与客户端和连接器的兼容性的影响的信息，请参见[将caching_sha2_password作为首选身份验证插件](upgrading-from-previous-series.html#upgrade-caching-sha2-password
+    "caching_sha2_password as the Preferred Authentication Plugin")。
+- en: Important
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: To connect to the server using an account that authenticates with the `caching_sha2_password`
+    plugin, you must use either a secure connection or an unencrypted connection that
+    supports password exchange using an RSA key pair, as described later in this section.
+    Either way, the `caching_sha2_password` plugin uses MySQL's encryption capabilities.
+    See [Section 8.3, “Using Encrypted Connections”](encrypted-connections.html "8.3 Using
+    Encrypted Connections").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用使用`caching_sha2_password`插件进行身份验证的帐户连接到服务器，必须使用安全连接或支持使用RSA密钥对进行密码交换的未加密连接，如本节后面所述。无论哪种方式，`caching_sha2_password`插件都使用MySQL的加密功能。参见[第8.3节，“使用加密连接”](encrypted-connections.html
+    "8.3 Using Encrypted Connections")。
+- en: Note
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: In the name `sha256_password`, “sha256” refers to the 256-bit digest length
+    the plugin uses for encryption. In the name `caching_sha2_password`, “sha2” refers
+    more generally to the SHA-2 class of encryption algorithms, of which 256-bit encryption
+    is one instance. The latter name choice leaves room for future expansion of possible
+    digest lengths without changing the plugin name.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在`sha256_password`中，“sha256”指的是插件用于加密的256位摘要长度。在`caching_sha2_password`中，“sha2”更普遍地指SHA-2类加密算法，256位加密是其中的一个实例。后者的名称选择为未来扩展可能的摘要长度留出了空间，而无需更改插件名称。
+- en: 'The `caching_sha2_password` plugin has these advantages, compared to `sha256_password`:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与`sha256_password`相比，`caching_sha2_password`插件具有以下优点：
+- en: On the server side, an in-memory cache enables faster reauthentication of users
+    who have connected previously when they connect again.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在服务器端，内存中的缓存使得已连接过的用户再次连接时能够更快地重新验证身份。
+- en: RSA-based password exchange is available regardless of the SSL library against
+    which MySQL is linked.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 基于RSA的密码交换可用，无论MySQL链接到哪个SSL库。
+- en: Support is provided for client connections that use the Unix socket-file and
+    shared-memory protocols.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 支持使用Unix套接字文件和共享内存协议的客户端连接。
+- en: The following table shows the plugin names on the server and client sides.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格显示了服务器端和客户端的插件名称。
+- en: '**Table 8.17 Plugin and Library Names for SHA-2 Authentication**'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表8.17 SHA-2身份验证的插件和库名称**'
+- en: '| Plugin or File | Plugin or File Name |'
+  id: totrans-18
+  prefs: []
+  type: TYPE_TB
+  zh: '| 插件或文件 | 插件或文件名 |'
+- en: '| Server-side plugin | `caching_sha2_password` |'
+  id: totrans-19
+  prefs: []
+  type: TYPE_TB
+  zh: '| 服务器端插件 | `caching_sha2_password` |'
+- en: '| Client-side plugin | `caching_sha2_password` |'
+  id: totrans-20
+  prefs: []
+  type: TYPE_TB
+  zh: '| 客户端插件 | `caching_sha2_password` |'
+- en: '| Library file | None (plugins are built in) |'
+  id: totrans-21
+  prefs: []
+  type: TYPE_TB
+  zh: '| 库文件 | 无（插件内置） |'
+- en: 'The following sections provide installation and usage information specific
+    to caching SHA-2 pluggable authentication:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节提供了特定于缓存SHA-2可插拔身份验证的安装和使用信息：
+- en: '[Installing SHA-2 Pluggable Authentication](caching-sha2-pluggable-authentication.html#caching-sha2-pluggable-authentication-installation
+    "Installing SHA-2 Pluggable Authentication")'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[安装SHA-2可插拔身份验证](caching-sha2-pluggable-authentication.html#caching-sha2-pluggable-authentication-installation
+    "Installing SHA-2 Pluggable Authentication")'
+- en: '[Using SHA-2 Pluggable Authentication](caching-sha2-pluggable-authentication.html#caching-sha2-pluggable-authentication-usage
+    "Using SHA-2 Pluggable Authentication")'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用SHA-2可插拔身份验证](caching-sha2-pluggable-authentication.html#caching-sha2-pluggable-authentication-usage
+    "Using SHA-2 Pluggable Authentication")'
+- en: '[Cache Operation for SHA-2 Pluggable Authentication](caching-sha2-pluggable-authentication.html#caching-sha2-pluggable-authentication-cache-operation
+    "Cache Operation for SHA-2 Pluggable Authentication")'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[SHA-2可插拔身份验证的缓存操作](caching-sha2-pluggable-authentication.html#caching-sha2-pluggable-authentication-cache-operation
+    "Cache Operation for SHA-2 Pluggable Authentication")'
+- en: For general information about pluggable authentication in MySQL, see [Section 8.2.17,
+    “Pluggable Authentication”](pluggable-authentication.html "8.2.17 Pluggable Authentication").
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关MySQL中可插拔身份验证的一般信息，请参阅[第8.2.17节，“可插拔身份验证”](pluggable-authentication.html "8.2.17 Pluggable
+    Authentication")。
+- en: Installing SHA-2 Pluggable Authentication
+  id: totrans-27
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 安装SHA-2可插拔身份验证
+- en: 'The `caching_sha2_password` plugin exists in server and client forms:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`caching_sha2_password`插件以服务器和客户端形式存在：'
+- en: The server-side plugin is built into the server, need not be loaded explicitly,
+    and cannot be disabled by unloading it.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器端插件内置于服务器中，无需显式加载，并且无法通过卸载来禁用。
+- en: The client-side plugin is built into the `libmysqlclient` client library and
+    is available to any program linked against `libmysqlclient`.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端插件内置于`libmysqlclient`客户端库中，并可供链接到`libmysqlclient`的任何程序使用。
+- en: The server-side plugin uses the `sha2_cache_cleaner` audit plugin as a helper
+    to perform password cache management. `sha2_cache_cleaner`, like `caching_sha2_password`,
+    is built in and need not be installed.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端插件使用`sha2_cache_cleaner`审计插件作为辅助工具来执行密码缓存管理。`sha2_cache_cleaner`与`caching_sha2_password`一样，是内置的，无需安装。
+- en: Using SHA-2 Pluggable Authentication
+  id: totrans-32
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用SHA-2可插拔身份验证
+- en: 'To set up an account that uses the `caching_sha2_password` plugin for SHA-256
+    password hashing, use the following statement, where *`password`* is the desired
+    account password:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要设置一个使用`caching_sha2_password`插件进行SHA-256密码哈希的帐户，请使用以下语句，其中*`password`*是所需的帐户密码：
+- en: '[PRE0]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The server assigns the `caching_sha2_password` plugin to the account and uses
+    it to encrypt the password using SHA-256, storing those values in the `plugin`
+    and `authentication_string` columns of the `mysql.user` system table.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器将`caching_sha2_password`插件分配给帐户，并使用它使用SHA-256加密密码，将这些值存储在`mysql.user`系统表的`plugin`和`authentication_string`列中。
+- en: The preceding instructions do not assume that `caching_sha2_password` is the
+    default authentication plugin. If `caching_sha2_password` is the default authentication
+    plugin, a simpler [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    syntax can be used.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前述说明并不假设`caching_sha2_password`是默认的身份验证插件。如果`caching_sha2_password`是默认的身份验证插件，则可以使用更简单的[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")语法。
+- en: 'To start the server with the default authentication plugin set to `caching_sha2_password`,
+    put these lines in the server option file:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将服务器的默认身份验证插件设置为`caching_sha2_password`，请在服务器选项文件中添加以下行：
+- en: '[PRE1]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'That causes the `caching_sha2_password` plugin to be used by default for new
+    accounts. As a result, it is possible to create the account and set its password
+    without naming the plugin explicitly:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这将导致`caching_sha2_password`插件默认用于新帐户。因此，可以创建帐户并设置其密码而无需显式命名插件：
+- en: '[PRE2]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Another consequence of setting [`default_authentication_plugin`](server-system-variables.html#sysvar_default_authentication_plugin)
+    to `caching_sha2_password` is that, to use some other plugin for account creation,
+    you must specify that plugin explicitly. For example, to use the `mysql_native_password`
+    plugin, use this statement:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将[`default_authentication_plugin`](server-system-variables.html#sysvar_default_authentication_plugin)设置为`caching_sha2_password`的另一个后果是，要使用其他插件进行帐户创建，必须明确指定该插件。例如，要使用`mysql_native_password`插件，请使用以下语句：
+- en: '[PRE3]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '`caching_sha2_password` supports connections over secure transport. If you
+    follow the RSA configuration procedure given later in this section, it also supports
+    encrypted password exchange using RSA over unencrypted connections. RSA support
+    has these characteristics:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`caching_sha2_password` 支持通过安全传输进行连接。如果您按照本节后面给出的 RSA 配置过程，它还支持在未加密连接上使用 RSA
+    进行加密密码交换。RSA 支持具有以下特点：'
+- en: 'On the server side, two system variables name the RSA private and public key-pair
+    files: [`caching_sha2_password_private_key_path`](server-system-variables.html#sysvar_caching_sha2_password_private_key_path)
+    and [`caching_sha2_password_public_key_path`](server-system-variables.html#sysvar_caching_sha2_password_public_key_path).
+    The database administrator must set these variables at server startup if the key
+    files to use have names that differ from the system variable default values.'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在服务器端，两个系统变量命名了 RSA 私钥和公钥对文件：[`caching_sha2_password_private_key_path`](server-system-variables.html#sysvar_caching_sha2_password_private_key_path)
+    和 [`caching_sha2_password_public_key_path`](server-system-variables.html#sysvar_caching_sha2_password_public_key_path)。如果要使用与系统变量默认值不同的名称的密钥文件，则数据库管理员必须在服务器启动时设置这些变量。
+- en: The server uses the [`caching_sha2_password_auto_generate_rsa_keys`](server-system-variables.html#sysvar_caching_sha2_password_auto_generate_rsa_keys)
+    system variable to determine whether to automatically generate the RSA key-pair
+    files. See [Section 8.3.3, “Creating SSL and RSA Certificates and Keys”](creating-ssl-rsa-files.html
+    "8.3.3 Creating SSL and RSA Certificates and Keys").
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器使用 [`caching_sha2_password_auto_generate_rsa_keys`](server-system-variables.html#sysvar_caching_sha2_password_auto_generate_rsa_keys)
+    系统变量来确定是否自动生成 RSA 密钥对文件。请参阅 [Section 8.3.3, “Creating SSL and RSA Certificates
+    and Keys”](creating-ssl-rsa-files.html "8.3.3 Creating SSL and RSA Certificates
+    and Keys")。
+- en: The [`Caching_sha2_password_rsa_public_key`](server-status-variables.html#statvar_Caching_sha2_password_rsa_public_key)
+    status variable displays the RSA public key value used by the `caching_sha2_password`
+    authentication plugin.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Caching_sha2_password_rsa_public_key`](server-status-variables.html#statvar_Caching_sha2_password_rsa_public_key)
+    状态变量显示了 `caching_sha2_password` 认证插件使用的 RSA 公钥值。'
+- en: Clients that are in possession of the RSA public key can perform RSA key pair-based
+    password exchange with the server during the connection process, as described
+    later.
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 拥有 RSA 公钥的客户端可以在连接过程中与服务器执行基于 RSA 密钥对的密码交换，如后面所述。
+- en: For connections by accounts that authenticate with `caching_sha2_password` and
+    RSA key pair-based password exchange, the server does not send the RSA public
+    key to clients by default. Clients can use a client-side copy of the required
+    public key, or request the public key from the server.
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用 `caching_sha2_password` 和 RSA 密钥对进行密码交换进行身份验证的帐户的连接，默认情况下服务器不会向客户端发送 RSA
+    公钥。客户端可以使用所需公钥的客户端副本，或者从服务器请求公钥。
+- en: Use of a trusted local copy of the public key enables the client to avoid a
+    round trip in the client/server protocol, and is more secure than requesting the
+    public key from the server. On the other hand, requesting the public key from
+    the server is more convenient (it requires no management of a client-side file)
+    and may be acceptable in secure network environments.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用受信任的本地公钥副本使客户端能够避免在客户端/服务器协议中的往返，并且比从服务器请求公钥更安全。另一方面，从服务器请求公钥更方便（不需要管理客户端文件）并且在安全网络环境中可能是可接受的。
+- en: 'For command-line clients, use the [`--server-public-key-path`](mysql-command-options.html#option_mysql_server-public-key-path)
+    option to specify the RSA public key file. Use the [`--get-server-public-key`](mysql-command-options.html#option_mysql_get-server-public-key)
+    option to request the public key from the server. The following programs support
+    the two options: [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client"), **mysqlsh**, [**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A
+    MySQL Server Administration Program"), [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files"), [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program"), [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program"), [**mysqlimport**](mysqlimport.html
+    "6.5.5 mysqlimport — A Data Import Program"), [**mysqlpump**](mysqlpump.html "6.5.6 mysqlpump
+    — A Database Backup Program"), [**mysqlshow**](mysqlshow.html "6.5.7 mysqlshow
+    — Display Database, Table, and Column Information"), [**mysqlslap**](mysqlslap.html
+    "6.5.8 mysqlslap — A Load Emulation Client"), **mysqltest**, [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables").'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于命令行客户端，请使用[`--server-public-key-path`](mysql-command-options.html#option_mysql_server-public-key-path)选项来指定RSA公钥文件。使用[`--get-server-public-key`](mysql-command-options.html#option_mysql_get-server-public-key)选项从服务器请求公钥。以下程序支持这两个选项：[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")、**mysqlsh**、[**mysqladmin**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")、[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")、[**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program")、[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")、[**mysqlimport**](mysqlimport.html
+    "6.5.5 mysqlimport — A Data Import Program")、[**mysqlpump**](mysqlpump.html "6.5.6 mysqlpump
+    — A Database Backup Program")、[**mysqlshow**](mysqlshow.html "6.5.7 mysqlshow
+    — Display Database, Table, and Column Information")、[**mysqlslap**](mysqlslap.html
+    "6.5.8 mysqlslap — A Load Emulation Client")、**mysqltest**、[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables")。
+- en: For programs that use the C API, call [`mysql_options()`](/doc/c-api/8.0/en/mysql-options.html)
+    to specify the RSA public key file by passing the `MYSQL_SERVER_PUBLIC_KEY` option
+    and the name of the file, or request the public key from the server by passing
+    the `MYSQL_OPT_GET_SERVER_PUBLIC_KEY` option.
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用C API的程序，通过调用[`mysql_options()`](/doc/c-api/8.0/en/mysql-options.html)来指定RSA公钥文件，传递`MYSQL_SERVER_PUBLIC_KEY`选项和文件名，或者通过传递`MYSQL_OPT_GET_SERVER_PUBLIC_KEY`选项从服务器请求公钥。
+- en: For replicas, use the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement (from MySQL 8.0.23)
+    or [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement")
+    statement (before MySQL 8.0.23) with the `SOURCE_PUBLIC_KEY_PATH` | `MASTER_PUBLIC_KEY_PATH`
+    option to specify the RSA public key file, or the `GET_SOURCE_PUBLIC_KEY` | `GET_MASTER_PUBLIC_KEY`
+    option to request the public key from the source. For Group Replication, the [`group_replication_recovery_public_key_path`](group-replication-system-variables.html#sysvar_group_replication_recovery_public_key_path)
+    and [`group_replication_recovery_get_public_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_get_public_key)
+    system variables serve the same purpose.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于副本，使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement")语句（从MySQL 8.0.23开始）或[`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement")语句（在MySQL 8.0.23之前）与`SOURCE_PUBLIC_KEY_PATH`
+    | `MASTER_PUBLIC_KEY_PATH`选项来指定RSA公钥文件，或使用`GET_SOURCE_PUBLIC_KEY` | `GET_MASTER_PUBLIC_KEY`选项从源请求公钥。对于组复制，[`group_replication_recovery_public_key_path`](group-replication-system-variables.html#sysvar_group_replication_recovery_public_key_path)和[`group_replication_recovery_get_public_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_get_public_key)系统变量具有相同的作用。
+- en: In all cases, if the option is given to specify a valid public key file, it
+    takes precedence over the option to request the public key from the server.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在所有情况下，如果给定指定有效公钥文件的选项，则该选项优先于从服务器请求公钥的选项。
+- en: 'For clients that use the `caching_sha2_password` plugin, passwords are never
+    exposed as cleartext when connecting to the server. How password transmission
+    occurs depends on whether a secure connection or RSA encryption is used:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于使用`caching_sha2_password`插件的客户端，在连接到服务器时，密码永远不会以明文形式暴露。密码传输的方式取决于是否使用安全连接或RSA加密：
+- en: If the connection is secure, an RSA key pair is unnecessary and is not used.
+    This applies to TCP connections encrypted using TLS, as well as Unix socket-file
+    and shared-memory connections. The password is sent as cleartext but cannot be
+    snooped because the connection is secure.
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果连接是安全的，则不需要使用RSA密钥对。这适用于使用TLS加密的TCP连接，以及Unix套接字文件和共享内存连接。密码以明文形式发送，但由于连接是安全的，无法窃听。
+- en: If the connection is not secure, an RSA key pair is used. This applies to TCP
+    connections not encrypted using TLS and named-pipe connections. RSA is used only
+    for password exchange between client and server, to prevent password snooping.
+    When the server receives the encrypted password, it decrypts it. A scramble is
+    used in the encryption to prevent repeat attacks.
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果连接不安全，则使用RSA密钥对。这适用于未使用TLS加密的TCP连接和命名管道连接。RSA仅用于客户端和服务器之间的密码交换，以防止密码窗口。当服务器接收到加密密码时，它会对其进行解密。加密中使用了混淆以防止重复攻击。
+- en: 'To enable use of an RSA key pair for password exchange during the client connection
+    process, use the following procedure:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在客户端连接过程中使用RSA密钥对进行密码交换，请使用以下步骤：
+- en: Create the RSA private and public key-pair files using the instructions in [Section 8.3.3,
+    “Creating SSL and RSA Certificates and Keys”](creating-ssl-rsa-files.html "8.3.3 Creating
+    SSL and RSA Certificates and Keys").
+  id: totrans-58
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[Section 8.3.3, “Creating SSL and RSA Certificates and Keys”](creating-ssl-rsa-files.html
+    "8.3.3 Creating SSL and RSA Certificates and Keys")中的说明创建RSA私钥和公钥对文件。
+- en: If the private and public key files are located in the data directory and are
+    named `private_key.pem` and `public_key.pem` (the default values of the [`caching_sha2_password_private_key_path`](server-system-variables.html#sysvar_caching_sha2_password_private_key_path)
+    and [`caching_sha2_password_public_key_path`](server-system-variables.html#sysvar_caching_sha2_password_public_key_path)
+    system variables), the server uses them automatically at startup.
+  id: totrans-59
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果私钥和公钥文件位于数据目录中，并且命名为`private_key.pem`和`public_key.pem`（[`caching_sha2_password_private_key_path`](server-system-variables.html#sysvar_caching_sha2_password_private_key_path)和[`caching_sha2_password_public_key_path`](server-system-variables.html#sysvar_caching_sha2_password_public_key_path)系统变量的默认值），服务器将在启动时自动使用它们。
+- en: 'Otherwise, to name the key files explicitly, set the system variables to the
+    key file names in the server option file. If the files are located in the server
+    data directory, you need not specify their full path names:'
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 否则，要显式命名密钥文件，请在服务器选项文件中将系统变量设置为密钥文件名。如果文件位于服务器数据目录中，则无需指定其完整路径名：
+- en: '[PRE4]'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'If the key files are not located in the data directory, or to make their locations
+    explicit in the system variable values, use full path names:'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果密钥文件不位于数据目录中，或者要在系统变量值中明确指定其位置，请使用完整路径名：
+- en: '[PRE5]'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'If you want to change the number of hash rounds used by `caching_sha2_password`
+    during password generation, set the [`caching_sha2_password_digest_rounds`](server-system-variables.html#sysvar_caching_sha2_password_digest_rounds)
+    system variable. For example:'
+  id: totrans-64
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果要更改`caching_sha2_password`在密码生成过程中使用的哈希轮数，请设置[`caching_sha2_password_digest_rounds`](server-system-variables.html#sysvar_caching_sha2_password_digest_rounds)系统变量。例如：
+- en: '[PRE6]'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Restart the server, then connect to it and check the [`Caching_sha2_password_rsa_public_key`](server-status-variables.html#statvar_Caching_sha2_password_rsa_public_key)
+    status variable value. The value actually displayed differs from that shown here,
+    but should be nonempty:'
+  id: totrans-66
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 重新启动服务器，然后连接到服务器并检查[`Caching_sha2_password_rsa_public_key`](server-status-variables.html#statvar_Caching_sha2_password_rsa_public_key)状态变量值。实际显示的值与此处显示的值不同，但应为非空：
+- en: '[PRE7]'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: If the value is empty, the server found some problem with the key files. Check
+    the error log for diagnostic information.
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果值为空，则服务器发现密钥文件存在问题。检查错误日志以获取诊断信息。
+- en: 'After the server has been configured with the RSA key files, accounts that
+    authenticate with the `caching_sha2_password` plugin have the option of using
+    those key files to connect to the server. As mentioned previously, such accounts
+    can use either a secure connection (in which case RSA is not used) or an unencrypted
+    connection that performs password exchange using RSA. Suppose that an unencrypted
+    connection is used. For example:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器配置了RSA密钥文件后，使用`caching_sha2_password`插件进行身份验证的帐户可以选择使用这些密钥文件连接到服务器。如前所述，这些帐户可以使用安全连接（在这种情况下不使用RSA）或使用RSA执行密码交换的未加密连接。假设使用未加密连接。例如：
+- en: '[PRE8]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'For this connection attempt by `sha2user`, the server determines that `caching_sha2_password`
+    is the appropriate authentication plugin and invokes it (because that was the
+    plugin specified at [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    time). The plugin finds that the connection is not encrypted and thus requires
+    the password to be transmitted using RSA encryption. However, the server does
+    not send the public key to the client, and the client provided no public key,
+    so it cannot encrypt the password and the connection fails:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 `sha2user` 的此连接尝试，服务器确定 `caching_sha2_password` 是适当的认证插件并调用它（因为在 [`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement") 时指定了该插件）。插件发现连接未加密，因此需要使用
+    RSA 加密传输密码。然而，服务器不会将公钥发送给客户端，客户端也未提供公钥，因此无法加密密码，连接失败：
+- en: '[PRE9]'
+  id: totrans-72
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'To request the RSA public key from the server, specify the [`--get-server-public-key`](mysql-command-options.html#option_mysql_get-server-public-key)
+    option:'
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从服务器请求 RSA 公钥，请指定 [`--get-server-public-key`](mysql-command-options.html#option_mysql_get-server-public-key)
+    选项：
+- en: '[PRE10]'
+  id: totrans-74
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: In this case, the server sends the RSA public key to the client, which uses
+    it to encrypt the password and returns the result to the server. The plugin uses
+    the RSA private key on the server side to decrypt the password and accepts or
+    rejects the connection based on whether the password is correct.
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，服务器将 RSA 公钥发送给客户端，客户端使用它加密密码并将结果返回给服务器。插件在服务器端使用 RSA 私钥解密密码，并根据密码是否正确接受或拒绝连接。
+- en: 'Alternatively, if the client has a file containing a local copy of the RSA
+    public key required by the server, it can specify the file using the [`--server-public-key-path`](mysql-command-options.html#option_mysql_server-public-key-path)
+    option:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，如果客户端有包含服务器所需的 RSA 公钥的本地副本的文件，则可以使用 [`--server-public-key-path`](mysql-command-options.html#option_mysql_server-public-key-path)
+    选项指定该文件：
+- en: '[PRE11]'
+  id: totrans-77
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: In this case, the client uses the public key to encrypt the password and returns
+    the result to the server. The plugin uses the RSA private key on the server side
+    to decrypt the password and accepts or rejects the connection based on whether
+    the password is correct.
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，客户端使用公钥加密密码并将结果返回给服务器。插件在服务器端使用 RSA 私钥解密密码，并根据密码是否正确接受或拒绝连接。
+- en: The public key value in the file named by the [`--server-public-key-path`](mysql-command-options.html#option_mysql_server-public-key-path)
+    option should be the same as the key value in the server-side file named by the
+    [`caching_sha2_password_public_key_path`](server-system-variables.html#sysvar_caching_sha2_password_public_key_path)
+    system variable. If the key file contains a valid public key value but the value
+    is incorrect, an access-denied error occurs. If the key file does not contain
+    a valid public key, the client program cannot use it.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`--server-public-key-path`](mysql-command-options.html#option_mysql_server-public-key-path)
+    选项指定的文件中的公钥值应与由 [`caching_sha2_password_public_key_path`](server-system-variables.html#sysvar_caching_sha2_password_public_key_path)
+    系统变量指定的服务器端文件中的密钥值相同。如果密钥文件包含有效的公钥值但该值不正确，则会出现访问被拒绝的错误。如果密钥文件不包含有效的公钥，则客户端程序无法使用它。'
+- en: 'Client users can obtain the RSA public key two ways:'
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端用户可以通过两种方式获取 RSA 公钥：
+- en: The database administrator can provide a copy of the public key file.
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数据库管理员可以提供公钥文件的副本。
+- en: A client user who can connect to the server some other way can use a `SHOW STATUS
+    LIKE 'Caching_sha2_password_rsa_public_key'` statement and save the returned key
+    value in a file.
+  id: totrans-82
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可以连接到服务器的客户端用户可以使用 `SHOW STATUS LIKE 'Caching_sha2_password_rsa_public_key'`
+    语句并将返回的密钥值保存在文件中。
+- en: Cache Operation for SHA-2 Pluggable Authentication
+  id: totrans-83
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: SHA-2 可插拔认证的缓存操作
+- en: 'On the server side, the `caching_sha2_password` plugin uses an in-memory cache
+    for faster authentication of clients who have connected previously. Entries consist
+    of account-name/password-hash pairs. The cache works like this:'
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器端，`caching_sha2_password` 插件使用内存中的缓存来更快地对先前连接过的客户端进行认证。条目由账户名/密码哈希对组成。缓存的工作方式如下：
+- en: When a client connects, `caching_sha2_password` checks whether the client and
+    password match some cache entry. If so, authentication succeeds.
+  id: totrans-85
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当客户端连接时，`caching_sha2_password` 检查客户端和密码是否与某个缓存条目匹配。如果匹配，则认证成功。
+- en: If there is no matching cache entry, the plugin attempts to verify the client
+    against the credentials in the `mysql.user` system table. If this succeeds, `caching_sha2_password`
+    adds an entry for the client to the hash. Otherwise, authentication fails and
+    the connection is rejected.
+  id: totrans-86
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果没有匹配的缓存条目，插件会尝试根据`mysql.user`系统表中的凭证验证客户端。如果成功，`caching_sha2_password`会为客户端添加一个条目到哈希中。否则，认证失败并拒绝连接。
+- en: In this way, when a client first connects, authentication against the `mysql.user`
+    system table occurs. When the client connects subsequently, faster authentication
+    against the cache occurs.
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这样，当客户端首次连接时，会对`mysql.user`系统表进行认证。当客户端随后连接时，会对缓存进行更快的认证。
+- en: 'Password cache operations other than adding entries are handled by the `sha2_cache_cleaner`
+    audit plugin, which performs these actions on behalf of `caching_sha2_password`:'
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了添加条目之外的密码缓存操作由`sha2_cache_cleaner`审计插件处理，该插件代表`caching_sha2_password`执行这些操作：
+- en: It clears the cache entry for any account that is renamed or dropped, or any
+    account for which the credentials or authentication plugin are changed.
+  id: totrans-89
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它清除任何被重命名或删除的账户的缓存条目，或者更改了凭证或认证插件的账户。
+- en: It empties the cache when the [`FLUSH PRIVILEGES`](flush.html#flush-privileges)
+    statement is executed.
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当执行[`FLUSH PRIVILEGES`](flush.html#flush-privileges)语句时，会清空缓存。
+- en: It empties the cache at server shutdown. (This means the cache is not persistent
+    across server restarts.)
+  id: totrans-91
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在服务器关闭时会清空缓存。（这意味着缓存在服务器重新启动时不是持久的。）
+- en: 'Cache clearing operations affect the authentication requirements for subsequent
+    client connections. For each user account, the first client connection for the
+    user after any of the following operations must use a secure connection (made
+    using TCP using TLS credentials, a Unix socket file, or shared memory) or RSA
+    key pair-based password exchange:'
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 清空缓存操作会影响后续客户端连接的认证要求。对于每个用户账户，在以下任何操作之后，用户的第一个客户端连接必须使用安全连接（使用TLS凭证的TCP连接，Unix套接字文件或共享内存）或基于RSA密钥对的密码交换：
+- en: After account creation.
+  id: totrans-93
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在账户创建后。
+- en: After a password change for the account.
+  id: totrans-94
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在账户密码更改后。
+- en: After [`RENAME USER`](rename-user.html "15.7.1.7 RENAME USER Statement") for
+    the account.
+  id: totrans-95
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`RENAME USER`](rename-user.html "15.7.1.7 RENAME USER Statement")后的账户。
+- en: After [`FLUSH PRIVILEGES`](flush.html#flush-privileges).
+  id: totrans-96
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`FLUSH PRIVILEGES`](flush.html#flush-privileges)后。
+- en: '[`FLUSH PRIVILEGES`](flush.html#flush-privileges) clears the entire cache and
+    affects all accounts that use the `caching_sha2_password` plugin. The other operations
+    clear specific cache entries and affect only accounts that are part of the operation.'
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`FLUSH PRIVILEGES`](flush.html#flush-privileges)清空整个缓存并影响所有使用`caching_sha2_password`插件的账户。其他操作清空特定缓存条目并仅影响操作中的账户。'
+- en: Once the user authenticates successfully, the account is entered into the cache
+    and subsequent connections do not require a secure connection or the RSA key pair,
+    until another cache clearing event occurs that affects the account. (When the
+    cache can be used, the server uses a challenge-response mechanism that does not
+    use cleartext password transmission and does not require a secure connection.)
+  id: totrans-98
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦用户成功认证，账户将被输入缓存，后续连接不需要安全连接或RSA密钥对，直到发生影响该账户的另一个清空缓存事件。（当可以使用缓存时，服务器使用一种不使用明文密码传输且不需要安全连接的挑战-响应机制。）

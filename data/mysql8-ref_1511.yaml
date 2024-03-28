@@ -1,0 +1,151 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-member-actions.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-member-actions.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-member-actions.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-member-actions.html)
+- en: 20.5.1.5 Configuring Member Actions
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.5.1.5 配置成员操作
+- en: From MySQL 8.0.26, Group Replication has the capability to set actions for the
+    members of a group to take in specified situations. Member actions can be enabled
+    and disabled individually using functions. The member actions configuration for
+    a server can also be reset to the default after it has left the group.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.26开始，Group Replication具有设置组成员在指定情况下采取的操作的能力。可以使用函数单独启用和禁用成员操作。服务器的成员操作配置在离开组后也可以重置为默认值。
+- en: Administrators (with the [`GROUP_REPLICATION_ADMIN`](privileges-provided.html#priv_group-replication-admin)
+    privilege) can configure a member action on the group’s primary using the [`group_replication_enable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-enable-member-action)
+    or [`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)
+    function. The member actions configuration, consisting of all the member actions
+    and whether they are enabled or disabled, is then propagated to other group members
+    and joining members using Group Replication’s group messages. All group members
+    therefore have the same member actions configuration. You can also configure member
+    actions on a server that is not part of a group, as long as the Group Replication
+    plugin is installed. In that case, the member actions configuration is not propagated
+    to any other servers.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 管理员（具有[`GROUP_REPLICATION_ADMIN`](privileges-provided.html#priv_group-replication-admin)权限）可以使用[`group_replication_enable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-enable-member-action)或[`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)函数在组的主服务器上配置成员操作。然后，成员操作配置（包括所有成员操作以及它们是否启用或禁用）通过Group
+    Replication的组消息传播到其他组成员和加入成员。因此，所有组成员都具有相同的成员操作配置。您还可以在不属于任何组的服务器上配置成员操作，只要安装了Group
+    Replication插件。在这种情况下，成员操作配置不会传播到任何其他服务器。
+- en: If the server where you use the functions to configure a member action is part
+    of a group, it must be the current primary in a group in single-primary mode,
+    and it must be part of the majority. The configuration change is tracked internally
+    by Group Replication, but it is not given a GTID and is not written to the binary
+    log, so it is not propagated to any servers outside the group, such as downstream
+    replicas. Group Replication increments the version number for its member actions
+    configuration each time a member action is enabled or disabled.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在使用函数配置成员操作的服务器是组的一部分，则它必须是单主模式下的当前主服务器，并且必须是大多数的一部分。配置更改在Group Replication内部被跟踪，但不会被赋予GTID，并且不会被写入二进制日志，因此不会传播到任何组外的服务器，如下游复制。每次启用或禁用成员操作时，Group
+    Replication都会增加其成员操作配置的版本号。
+- en: 'The member actions configuration is propagated to members as follows:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 成员操作配置传播给成员的方式如下：
+- en: When starting a group, the member actions configuration of the server that bootstraps
+    the group becomes the configuration for the group.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在启动组时，引导组的服务器的成员操作配置成为组的配置。
+- en: If a group’s lowest MySQL Server version supports member actions, joining members
+    receive the group’s member actions configuration during the state exchange process
+    that takes place when they join. In that case, the joining member replaces its
+    own member actions configuration with the group’s.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果组的最低MySQL Server版本支持成员操作，则加入成员在加入时进行状态交换过程中接收组的成员操作配置。在这种情况下，加入成员将自己的成员操作配置替换为组的配置。
+- en: If a joining member that supports member actions joins a group where the lowest
+    MySQL Server version does not support member actions, it does not receive a member
+    actions configuration when it joins. In that case, the joining member resets its
+    own configuration to the default.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果支持成员操作的加入成员加入一个最低MySQL Server版本不支持成员操作的组，则加入时不会接收成员操作配置。在这种情况下，加入成员将自己的配置重置为默认值。
+- en: A member that does not support member actions cannot join a group that has a
+    member actions configuration, because its MySQL Server version is lower than the
+    lowest version that the existing group members are running.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不支持成员操作的成员无法加入具有成员操作配置的组，因为其MySQL Server版本低于现有组成员运行的最低版本。
+- en: The Performance Schema table [`replication_group_member_actions`](performance-schema-replication-group-member-actions-table.html
+    "29.12.11.13 The replication_group_member_actions Table") lists the member actions
+    that are available in the configuration, the events that trigger them, and whether
+    or not they are currently enabled. Member actions have a priority from 1 to 100,
+    with lower values being actioned first. If an error occurs when the member action
+    is being carried out, the failure of the member action can be logged but otherwise
+    ignored. If the failure of the member action is considered critical, it can be
+    handled according to the policy specified by the [`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action)
+    system variable.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema表[`replication_group_member_actions`](performance-schema-replication-group-member-actions-table.html
+    "29.12.11.13 The replication_group_member_actions Table")列出了配置中可用的成员操作、触发它们的事件以及它们当前是否启用。成员操作的优先级从1到100，较低的值首先执行。如果在执行成员操作时发生错误，则可以记录成员操作的失败，但否则忽略。如果认为成员操作的失败是关键的，则可以根据[`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action)系统变量指定的策略进行处理。
+- en: The `mysql.replication_group_configuration_version` table, which can be viewed
+    using the Performance Schema table [`replication_group_configuration_version`](performance-schema-replication-group-configuration-version-table.html
+    "29.12.11.14 The replication_group_configuration_version Table"), records the
+    current version of the member actions configuration. Whenever a member action
+    is enabled or disabled using the functions, the version number is incremented.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用Performance Schema表[`replication_group_configuration_version`](performance-schema-replication-group-configuration-version-table.html
+    "29.12.11.14 The replication_group_configuration_version Table")查看的`mysql.replication_group_configuration_version`表记录了成员操作配置的当前版本。每当使用函数启用或禁用成员操作时，版本号都会递增。
+- en: The [`group_replication_reset_member_actions`](group-replication-functions-for-member-actions.html#function_group-replication-reset-member-actions)
+    function can only be used on a server that is not part of a group. It resets the
+    member actions configuration to the default settings, and resets its version number
+    to 1\. The server must be writeable (with the [`read_only`](server-system-variables.html#sysvar_read_only)
+    system variable set to `OFF`) and have the Group Replication plugin installed.
+    You can use this function to remove the member actions configuration that a server
+    used when it was part of a group, if you intend to use it as a standalone server
+    with no member actions or different member actions.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`group_replication_reset_member_actions`](group-replication-functions-for-member-actions.html#function_group-replication-reset-member-actions)函数只能在不属于任何组的服务器上使用。它将成员操作配置重置为默认设置，并将其版本号重置为1。服务器必须可写（使用[`read_only`](server-system-variables.html#sysvar_read_only)系统变量设置为`OFF`），并安装了Group
+    Replication插件。您可以使用此函数删除服务器在成为组的一部分时使用的成员操作配置，如果您打算将其用作没有成员操作或具有不同成员操作的独立服务器。'
+- en: 'Member action: `mysql_disable_super_read_only_if_primary`'
+  id: totrans-13
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 成员操作：`mysql_disable_super_read_only_if_primary`
+- en: The member action `mysql_disable_super_read_only_if_primary` can be configured
+    to make a group in single-primary mode stay in super read-only mode when a new
+    primary is elected, so that the group only accepts replicated transactions and
+    does not accept any direct writes from clients. This setup means that when a group’s
+    purpose is to provide a secondary backup to another group for disaster tolerance,
+    you can ensure that the secondary group remains synchronized with the first.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 成员操作`mysql_disable_super_read_only_if_primary`可以配置为使单主模式下的组在选举新主时保持在超级只读模式，以便该组仅接受复制事务，不接受来自客户端的直接写入。这种设置意味着当一个组的目的是为另一个组提供灾难容忍的次要备份时，您可以确保次要组与第一个组保持同步。
+- en: By default, super read-only mode is disabled on the primary when it is elected,
+    so that the primary becomes read-write, and accepts updates from a replication
+    source server and from clients. This is the situation when the member action `mysql_disable_super_read_only_if_primary`
+    is enabled, which is its default setting. If you set the action to disabled using
+    the [`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)
+    function, the primary remains in super read-only mode after election. In this
+    state, it does not accept updates from any clients, even users who have the [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)
+    or [`SUPER`](privileges-provided.html#priv_super) privilege. It does continue
+    to accept updates performed by replication threads.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，当选为主服务器时，超级只读模式在主服务器上被禁用，以便主服务器变为读写，并接受来自复制源服务器和客户端的更新。这是当成员操作`mysql_disable_super_read_only_if_primary`被启用时的情况，这是其默认设置。如果您使用[`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)函数将操作设置为禁用，主服务器在选举后仍然保持在超级只读模式。在这种状态下，它不接受来自任何客户端的更新，甚至是具有[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)或[`SUPER`](privileges-provided.html#priv_super)权限的用户。它仍然会接受由复制线程执行的更新。

@@ -1,0 +1,147 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-tuning.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-tuning.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-tuning.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-tuning.html)
+- en: 17.20.6.3 Tuning InnoDB memcached Plugin Performance
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.20.6.3 调整InnoDB memcached插件性能
+- en: Because using `InnoDB` in combination with **memcached** involves writing all
+    data to disk, whether immediately or sometime later, raw performance is expected
+    to be somewhat slower than using **memcached** by itself. When using the `InnoDB`
+    **memcached** plugin, focus tuning goals for **memcached** operations on achieving
+    better performance than equivalent SQL operations.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为使用`InnoDB`与**memcached**结合涉及将所有数据写入磁盘，无论是立即还是稍后，所以原始性能预计会比单独使用**memcached**略慢。在使用`InnoDB`**memcached**插件时，将**memcached**操作的调整目标集中在实现比等效SQL操作更好的性能上。
+- en: Benchmarks suggest that queries and [DML](glossary.html#glos_dml "DML") operations
+    (inserts, updates, and deletes) that use the **memcached** interface are faster
+    than traditional SQL. DML operations typically see a larger improvements. Therefore,
+    consider adapting write-intensive applications to use the **memcached** interface
+    first. Also consider prioritizing adaptation of write-intensive applications that
+    use fast, lightweight mechanisms that lack reliability.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 基准测试表明，使用**memcached**接口的查询和[DML](glossary.html#glos_dml "DML")操作（插入、更新和删除）比传统SQL更快。DML操作通常会看到更大的改进。因此，首先考虑调整写入密集型应用程序以使用**memcached**接口。还要考虑优先适应使用快速、轻量级机制但缺乏可靠性的写入密集型应用程序。
+- en: Adapting SQL Queries
+  id: totrans-4
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 调整SQL查询
+- en: 'The types of queries that are most suited to simple `GET` requests are those
+    with a single clause or a set of `AND` conditions in the `WHERE` clause:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最适合简单`GET`请求的查询类型是具有单个子句或`WHERE`子句中一组`AND`条件的查询：
+- en: '[PRE0]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Using System Memory
+  id: totrans-7
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 利用系统内存
+- en: For best performance, deploy the `daemon_memcached` plugin on machines that
+    are configured as typical database servers, where the majority of system RAM is
+    devoted to the `InnoDB` [buffer pool](glossary.html#glos_buffer_pool "buffer pool"),
+    through the [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    configuration option. For systems with multi-gigabyte buffer pools, consider raising
+    the value of [`innodb_buffer_pool_instances`](innodb-parameters.html#sysvar_innodb_buffer_pool_instances)
+    for maximum throughput when most operations involve data that is already cached
+    in memory.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了获得最佳性能，请在配置为典型数据库服务器的机器上部署`daemon_memcached`插件，其中大部分系统RAM专用于`InnoDB`[缓冲池](glossary.html#glos_buffer_pool
+    "buffer pool")，通过[`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)配置选项。对于具有多千兆字节缓冲池的系统，考虑提高[`innodb_buffer_pool_instances`](innodb-parameters.html#sysvar_innodb_buffer_pool_instances)的值，以获得大多数操作涉及已缓存在内存中的数据时的最大吞吐量。
+- en: Reducing Redundant I/O
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 减少冗余I/O
+- en: '`InnoDB` has a number of settings that let you choose the balance between high
+    reliability, in case of a crash, and the amount of I/O overhead during high write
+    workloads. For example, consider setting the [`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)
+    to `0` and [`innodb_flush_log_at_trx_commit`](innodb-parameters.html#sysvar_innodb_flush_log_at_trx_commit)
+    to `2`. Measure performance with different [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)
+    settings.'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`有许多设置选项，让您在发生崩溃时可以选择高可靠性，同时在高写入工作负载期间减少I/O开销。例如，考虑将[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)设置为`0`，将[`innodb_flush_log_at_trx_commit`](innodb-parameters.html#sysvar_innodb_flush_log_at_trx_commit)设置为`2`。使用不同的[`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)设置来衡量性能。'
+- en: For other ways to reduce or tune I/O for table operations, see [Section 10.5.8,
+    “Optimizing InnoDB Disk I/O”](optimizing-innodb-diskio.html "10.5.8 Optimizing
+    InnoDB Disk I/O").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 若要减少或调整表操作的I/O的其他方法，请参阅[第10.5.8节，“优化InnoDB磁盘I/O”](optimizing-innodb-diskio.html
+    "10.5.8 Optimizing InnoDB Disk I/O")。
+- en: Reducing Transactional Overhead
+  id: totrans-12
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 减少事务开销
+- en: A default value of 1 for [`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size)
+    and [`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)
+    is intended for maximum reliability of results and safety of stored or updated
+    data.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size)和[`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)的默认值为1，旨在获得最大的结果可靠性和存储或更新数据的安全性。'
+- en: Depending on the type of application, you might increase one or both of these
+    settings to reduce the overhead of frequent [commit](glossary.html#glos_commit
+    "commit") operations. On a busy system, you might increase [`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size),
+    knowing that changes to data made through SQL may not become visible to **memcached**
+    immediately (that is, until *`N`* more `get` operations are processed). When processing
+    data where every write operation must be reliably stored, leave [`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)
+    set to `1`. Increase the setting when processing large numbers of updates intended
+    only for statistical analysis, where losing the last *`N`* updates in an unexpected
+    exit is an acceptable risk.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据应用程序的类型，您可能会增加这两个设置中的一个或两个，以减少频繁[提交](glossary.html#glos_commit "commit")操作的开销。在繁忙的系统上，您可能会增加[`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size)的值，知道通过
+    SQL 对数据的更改可能不会立即对**memcached**可见（也就是说，直到处理了*`N`*次`get`操作）。在处理每个写操作都必须可靠存储的数据时，将[`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)设置为`1`。在处理仅用于统计分析的大量更新时，可以增加该设置，其中在意外退出时丢失最后*`N`*次更新是可以接受的风险。
+- en: For example, imagine a system that monitors traffic crossing a busy bridge,
+    recording data for approximately 100,000 vehicles each day. If the application
+    counts different types of vehicles to analyze traffic patterns, changing [`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)
+    from `1` to `100` reduces I/O overhead for commit operations by 99%. In case of
+    an outage, a maximum of 100 records are lost, which may be an acceptable margin
+    of error. If instead the application performed automated toll collection for each
+    car, you would set [`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)
+    to `1` to ensure that each toll record is immediately saved to disk.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，想象一个监视穿过繁忙桥梁的交通的系统，每天记录大约10万辆车辆的数据。如果应用程序计算不同类型的车辆以分析交通模式，将[`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)从`1`更改为`100`可以将提交操作的I/O开销减少99%。在发生故障时，最多会丢失100条记录，这可能是可以接受的误差范围。如果应用程序执行每辆车的自动收费，您将把[`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)设置为`1`，以确保每个收费记录立即保存到磁盘。
+- en: Because of the way `InnoDB` organizes **memcached** key values on disk, if you
+    have a large number of keys to create, it may be faster to sort the data items
+    by key value in the application and `add` them in sorted order, rather than create
+    keys in arbitrary order.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于`InnoDB`在磁盘上组织**memcached**键值的方式，如果要创建大量键，则在应用程序中按键值对数据项进行排序并按排序顺序`add`它们可能比以任意顺序创建键更快。
+- en: The **memslap** command, which is part of the regular **memcached** distribution
+    but not included with the `daemon_memcached` plugin, can be useful for benchmarking
+    different configurations. It can also be used to generate sample key-value pairs
+    to use in your own benchmarks.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**memslap**命令是常规**memcached**分发的一部分，但不包括在`daemon_memcached`插件中，可用于对不同配置进行基准测试。它还可用于生成样本键值对，以在您自己的基准测试中使用。'

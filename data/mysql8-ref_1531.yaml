@@ -1,0 +1,134 @@
+- en: 20.7 Group Replication Performance and Troubleshooting
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.7 群组复制性能和故障排除
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance.html)
+- en: '[20.7.1 Fine Tuning the Group Communication Thread](group-replication-fine-tuning-the-group-communication-thread.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.1 调整群组通信线程](group-replication-fine-tuning-the-group-communication-thread.html)'
+- en: '[20.7.2 Flow Control](group-replication-flow-control.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.2 流量控制](group-replication-flow-control.html)'
+- en: '[20.7.3 Single Consensus Leader](group-replication-single-consensus-leader.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.3 单一共识领导者](group-replication-single-consensus-leader.html)'
+- en: '[20.7.4 Message Compression](group-replication-message-compression.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.4 消息压缩](group-replication-message-compression.html)'
+- en: '[20.7.5 Message Fragmentation](group-replication-performance-message-fragmentation.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.5 消息分段](group-replication-performance-message-fragmentation.html)'
+- en: '[20.7.6 XCom Cache Management](group-replication-performance-xcom-cache.html)'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.6 XCom 缓存管理](group-replication-performance-xcom-cache.html)'
+- en: '[20.7.7 Responses to Failure Detection and Network Partitioning](group-replication-responses-failure.html)'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.7 对故障检测和网络分区的响应](group-replication-responses-failure.html)'
+- en: '[20.7.8 Handling a Network Partition and Loss of Quorum](group-replication-network-partitioning.html)'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.8 处理网络分区和法定人数丢失](group-replication-network-partitioning.html)'
+- en: '[20.7.9 Monitoring Group Replication Memory Usage with Performance Schema Memory
+    Instrumentation](mysql-gr-memory-monitoring-ps-instruments.html)'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.9 使用性能模式内存工具监控群组复制内存使用情况](mysql-gr-memory-monitoring-ps-instruments.html)'
+- en: Group Replication is designed to create fault-tolerant systems with built-in
+    failure detection and automated recovery. If a member server instance leaves voluntarily
+    or stops communicating with the group, the remaining members agree a reconfiguration
+    of the group between themselves, and choose a new primary if needed. Expelled
+    members automatically attempt to rejoin the group, and are brought up to date
+    by distributed recovery. If a group experiences a level of difficulties such that
+    it cannot contact a majority of its members in order to agree on a decision, it
+    identifies itself as having lost quorum and stops processing transactions. Group
+    Replication also has built-in mechanisms and settings to help the group adapt
+    to and manage variations in workload and message size, and stay within the limitations
+    of the underlying system and networking resources.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 群组复制旨在创建具有内置故障检测和自动恢复功能的容错系统。如果成员服务器实例自愿离开或停止与群组通信，剩余成员将在彼此之间达成群组重新配置的协议，并在需要时选择新的主服务器。被驱逐的成员会自动尝试重新加入群组，并通过分布式恢复使其保持最新。如果一个群组遇到困难，以至于无法与大多数成员联系以达成决策，它会标识自己已失去法定人数并停止处理事务。群组复制还具有内置机制和设置，帮助群组适应和管理工作负载和消息大小的变化，并保持在底层系统和网络资源的限制范围内。
+- en: The default settings for Group Replication’s system variables are designed to
+    maximize a group’s performance and autonomy. The information in this section is
+    to help you configure a replication group to optimize the automatic handling of
+    any recurring issues that you experience on your particular systems, such as transient
+    network outages or workloads and transactions that exceed a server instance’s
+    resources.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 群组复制的系统变量默认设置旨在最大化群组的性能和自主性。本节中的信息旨在帮助您配置一个复制群组，以优化自动处理您在特定系统上遇到的任何经常性问题，例如瞬时网络中断或超出服务器实例资源的工作负载和事务。
+- en: If you find that group members are being expelled and rejoining the group more
+    frequently than you would like, it is possible that Group Replication’s default
+    failure detection settings are too sensitive for your system. This might be the
+    case on slower networks or machines, networks with a high rate of unexpected transient
+    outages, or during planned network outages. For advice on dealing with that situation
+    by adjusting the settings, see [Section 20.7.7, “Responses to Failure Detection
+    and Network Partitioning”](group-replication-responses-failure.html "20.7.7 Responses
+    to Failure Detection and Network Partitioning").
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果发现群组成员被频繁驱逐并重新加入群组，可能是因为群组复制的默认故障检测设置对您的系统过于敏感。这可能发生在较慢的网络或机器上，网络出现高频率的意外瞬时中断，或计划中的网络中断期间。有关通过调整设置处理该情况的建议，请参阅[第20.7.7节“对故障检测和网络分区的响应”](group-replication-responses-failure.html
+    "20.7.7 对故障检测和网络分区的响应")。
+- en: You should only need to intervene manually in a Group Replication setup if something
+    happens that the group cannot deal with automatically. Some key issues that can
+    require administrator intervention are when a member is in `ERROR` status and
+    cannot rejoin the group, or when a network partition causes the group to lose
+    quorum.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有在Group Replication设置中发生组无法自动处理的情况时，您才需要手动干预。一些可能需要管理员干预的关键问题是当成员处于`ERROR`状态且无法重新加入组时，或者当网络分区导致组失去法定人数时。
+- en: If an otherwise correctly functioning and configured member is unable to join
+    or rejoin the group using distributed recovery, and remains in `ERROR` status,
+    [Section 20.5.4.4, “Fault Tolerance for Distributed Recovery”](group-replication-distributed-recovery-fault.html
+    "20.5.4.4 Fault Tolerance for Distributed Recovery"), explains the possible issues.
+    One likely cause is that the joining member has extra transactions that are not
+    present on the existing members of the group. For advice on dealing with that
+    situation, see [Section 20.4.1, “GTIDs and Group Replication”](group-replication-gtids.html
+    "20.4.1 GTIDs and Group Replication").
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个本来正常运行和配置的成员无法使用分布式恢复加入或重新加入组，并且保持在`ERROR`状态，[Section 20.5.4.4, “Fault Tolerance
+    for Distributed Recovery”](group-replication-distributed-recovery-fault.html "20.5.4.4 Fault
+    Tolerance for Distributed Recovery")，解释了可能出现的问题。一个可能的原因是加入成员有额外的事务，这些事务在组的现有成员中不存在。有关处理这种情况的建议，请参阅[Section 20.4.1,
+    “GTIDs and Group Replication”](group-replication-gtids.html "20.4.1 GTIDs and
+    Group Replication")。
+- en: If a group has lost quorum, this may be due to a network partition that divides
+    the group into two parts, or possibly due to the failure of the majority of the
+    servers. For advice on dealing with that situation, see [Section 20.7.8, “Handling
+    a Network Partition and Loss of Quorum”](group-replication-network-partitioning.html
+    "20.7.8 Handling a Network Partition and Loss of Quorum").
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个组失去了法定人数，这可能是由于网络分区将组分成两部分，或者可能是由于大多数服务器的故障。有关处理这种情况的建议，请参阅[Section 20.7.8,
+    “Handling a Network Partition and Loss of Quorum”](group-replication-network-partitioning.html
+    "20.7.8 Handling a Network Partition and Loss of Quorum")。

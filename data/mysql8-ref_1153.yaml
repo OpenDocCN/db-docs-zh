@@ -1,0 +1,543 @@
+- en: 17.5.1 Buffer Pool
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.5.1 缓冲池
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-buffer-pool.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-buffer-pool.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-buffer-pool.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-buffer-pool.html)
+- en: The buffer pool is an area in main memory where `InnoDB` caches table and index
+    data as it is accessed. The buffer pool permits frequently used data to be accessed
+    directly from memory, which speeds up processing. On dedicated servers, up to
+    80% of physical memory is often assigned to the buffer pool.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 缓冲池是主内存中的一个区域，`InnoDB`在访问时缓存表和索引数据。缓冲池允许频繁使用的数据直接从内存中访问，从而加快处理速度。在专用服务器上，通常将物理内存的高达80%分配给缓冲池。
+- en: For efficiency of high-volume read operations, the buffer pool is divided into
+    pages that can potentially hold multiple rows. For efficiency of cache management,
+    the buffer pool is implemented as a linked list of pages; data that is rarely
+    used is aged out of the cache using a variation of the least recently used (LRU)
+    algorithm.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了高效处理高容量读操作，缓冲池被划分为可以潜在地容纳多行的页面。为了高效管理缓存，缓冲池被实现为页面的链表；很少使用的数据通过最近最少使用（LRU）算法的变体从缓存中淘汰。
+- en: Knowing how to take advantage of the buffer pool to keep frequently accessed
+    data in memory is an important aspect of MySQL tuning.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 知道如何利用缓冲池将频繁访问的数据保留在内存中是MySQL调优的重要方面。
+- en: Buffer Pool LRU Algorithm
+  id: totrans-5
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 缓冲池LRU算法
+- en: 'The buffer pool is managed as a list using a variation of the LRU algorithm.
+    When room is needed to add a new page to the buffer pool, the least recently used
+    page is evicted and a new page is added to the middle of the list. This midpoint
+    insertion strategy treats the list as two sublists:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 缓冲池使用LRU算法的变体作为列表进行管理。当需要空间将新页面添加到缓冲池时，最近最少使用的页面会被驱逐，并在列表的中间添加新页面。这种中点插入策略将列表视为两个子列表：
+- en: At the head, a sublist of new (“young”) pages that were accessed recently
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在头部，是最近访问的新（“年轻”）页面的子列表
+- en: At the tail, a sublist of old pages that were accessed less recently
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在尾部，是最近访问较少的旧页面的子列表
+- en: '**Figure 17.2 Buffer Pool List**'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图17.2 缓冲池列表**'
+- en: '![Content is described in the surrounding text.](../Images/0e6028fb9f09b261555198f159e4f6e3.png)'
+  id: totrans-10
+  prefs: []
+  type: TYPE_IMG
+  zh: '![内容在周围的文本中描述。](../Images/0e6028fb9f09b261555198f159e4f6e3.png)'
+- en: The algorithm keeps frequently used pages in the new sublist. The old sublist
+    contains less frequently used pages; these pages are candidates for [eviction](glossary.html#glos_eviction
+    "eviction").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该算法将频繁使用的页面保留在新子列表中。旧子列表包含不太频繁使用的页面；这些页面是[驱逐](glossary.html#glos_eviction "eviction")的候选页面。
+- en: 'By default, the algorithm operates as follows:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，算法的操作如下：
+- en: 3/8 of the buffer pool is devoted to the old sublist.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 缓冲池的3/8专门用于旧子列表。
+- en: The midpoint of the list is the boundary where the tail of the new sublist meets
+    the head of the old sublist.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 列表的中点是新子列表的尾部与旧子列表的头部相遇的边界。
+- en: When `InnoDB` reads a page into the buffer pool, it initially inserts it at
+    the midpoint (the head of the old sublist). A page can be read because it is required
+    for a user-initiated operation such as an SQL query, or as part of a [read-ahead](glossary.html#glos_read_ahead
+    "read-ahead") operation performed automatically by `InnoDB`.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当`InnoDB`将页面读入缓冲池时，它最初将其插入到中点（旧子列表的头部）。页面可以被读取，因为它是用户发起的操作（如SQL查询）所需，或者作为`InnoDB`自动执行的[预读取](glossary.html#glos_read_ahead
+    "read-ahead")操作的一部分。
+- en: Accessing a page in the old sublist makes it “young”, moving it to the head
+    of the new sublist. If the page was read because it was required by a user-initiated
+    operation, the first access occurs immediately and the page is made young. If
+    the page was read due to a read-ahead operation, the first access does not occur
+    immediately and might not occur at all before the page is evicted.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 访问旧子列表中的页面会使其“年轻”，将其移动到新子列表的头部。如果页面是因为用户发起的操作而被读取，第一次访问会立即发生并使页面变为年轻。如果页面是由于预读取操作而被读取，第一次访问不会立即发生，并且在页面被驱逐之前可能根本不会发生。
+- en: As the database operates, pages in the buffer pool that are not accessed “age”
+    by moving toward the tail of the list. Pages in both the new and old sublists
+    age as other pages are made new. Pages in the old sublist also age as pages are
+    inserted at the midpoint. Eventually, a page that remains unused reaches the tail
+    of the old sublist and is evicted.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 随着数据库的运行，缓冲池中未被访问的页面会“老化”，向列表的尾部移动。随着其他页面变为新页面，新旧子列表中的页面都会老化。随着页面在中点插入，旧子列表中的页面也会老化。最终，一个保持未使用状态的页面到达旧子列表的尾部并被驱逐。
+- en: By default, pages read by queries are immediately moved into the new sublist,
+    meaning they stay in the buffer pool longer. A table scan, performed for a [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") operation or a `SELECT` statement
+    with no `WHERE` clause, for example, can bring a large amount of data into the
+    buffer pool and evict an equivalent amount of older data, even if the new data
+    is never used again. Similarly, pages that are loaded by the read-ahead background
+    thread and accessed only once are moved to the head of the new list. These situations
+    can push frequently used pages to the old sublist where they become subject to
+    eviction. For information about optimizing this behavior, see [Section 17.8.3.3,
+    “Making the Buffer Pool Scan Resistant”](innodb-performance-midpoint_insertion.html
+    "17.8.3.3 Making the Buffer Pool Scan Resistant"), and [Section 17.8.3.4, “Configuring
+    InnoDB Buffer Pool Prefetching (Read-Ahead)”](innodb-performance-read_ahead.html
+    "17.8.3.4 Configuring InnoDB Buffer Pool Prefetching (Read-Ahead)").
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，由查询读取的页面立即移动到新子列表中，这意味着它们在缓冲池中停留的时间更长。例如，为了进行[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")操作或没有`WHERE`子句的`SELECT`语句执行表扫描，可能会将大量数据带入缓冲池并驱逐相同数量的旧数据，即使新数据永远不会再次使用。类似地，由预读后台线程加载并仅访问一次的页面被移动到新列表的开头。这些情况可能会将经常使用的页面推到旧子列表，使其成为可能被驱逐的对象。有关优化此行为的信息，请参见[第17.8.3.3节，“使缓冲池具有扫描抵抗性”](innodb-performance-midpoint_insertion.html
+    "17.8.3.3 使缓冲池具有扫描抵抗性")和[第17.8.3.4节，“配置InnoDB缓冲池预取（预读）”](innodb-performance-read_ahead.html
+    "17.8.3.4 配置InnoDB缓冲池预取（预读）")。
+- en: '`InnoDB` Standard Monitor output contains several fields in the `BUFFER POOL
+    AND MEMORY` section regarding operation of the buffer pool LRU algorithm. For
+    details, see [Monitoring the Buffer Pool Using the InnoDB Standard Monitor](innodb-buffer-pool.html#innodb-buffer-pool-monitoring
+    "Monitoring the Buffer Pool Using the InnoDB Standard Monitor").'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`标准监视器输出包含关于缓冲池LRU算法操作的`BUFFER POOL AND MEMORY`部分中的几个字段。详情请参见[使用InnoDB标准监视器监视缓冲池](innodb-buffer-pool.html#innodb-buffer-pool-monitoring
+    "使用InnoDB标准监视器监视缓冲池")。'
+- en: Buffer Pool Configuration
+  id: totrans-20
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 缓冲池配置
+- en: You can configure the various aspects of the buffer pool to improve performance.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以配置缓冲池的各个方面以提高性能。
+- en: Ideally, you set the size of the buffer pool to as large a value as practical,
+    leaving enough memory for other processes on the server to run without excessive
+    paging. The larger the buffer pool, the more `InnoDB` acts like an in-memory database,
+    reading data from disk once and then accessing the data from memory during subsequent
+    reads. See [Section 17.8.3.1, “Configuring InnoDB Buffer Pool Size”](innodb-buffer-pool-resize.html
+    "17.8.3.1 Configuring InnoDB Buffer Pool Size").
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 理想情况下，您应将缓冲池的大小设置为尽可能大的值，同时留出足够的内存供服务器上的其他进程运行，以避免过多的分页。缓冲池越大，`InnoDB`就越像一个内存数据库，从磁盘读取数据一次，然后在后续读取中从内存访问数据。请参见[第17.8.3.1节，“配置InnoDB缓冲池大小”](innodb-buffer-pool-resize.html
+    "17.8.3.1 配置InnoDB缓冲池大小")。
+- en: On 64-bit systems with sufficient memory, you can split the buffer pool into
+    multiple parts to minimize contention for memory structures among concurrent operations.
+    For details, see [Section 17.8.3.2, “Configuring Multiple Buffer Pool Instances”](innodb-multiple-buffer-pools.html
+    "17.8.3.2 Configuring Multiple Buffer Pool Instances").
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在具有足够内存的64位系统上，您可以将缓冲池分割为多个部分，以减少并发操作之间对内存结构的争用。详情请参见[第17.8.3.2节，“配置多个缓冲池实例”](innodb-multiple-buffer-pools.html
+    "17.8.3.2 配置多个缓冲池实例")。
+- en: You can keep frequently accessed data in memory regardless of sudden spikes
+    of activity from operations that would bring large amounts of infrequently accessed
+    data into the buffer pool. For details, see [Section 17.8.3.3, “Making the Buffer
+    Pool Scan Resistant”](innodb-performance-midpoint_insertion.html "17.8.3.3 Making
+    the Buffer Pool Scan Resistant").
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 无论有大量不经常访问的数据进入缓冲池的操作突然激增，您都可以将经常访问的数据保留在内存中。详情请参见[第17.8.3.3节，“使缓冲池具有扫描抵抗性”](innodb-performance-midpoint_insertion.html
+    "17.8.3.3 使缓冲池具有扫描抵抗性")。
+- en: You can control how and when to perform read-ahead requests to prefetch pages
+    into the buffer pool asynchronously in anticipation of impending need for them.
+    For details, see [Section 17.8.3.4, “Configuring InnoDB Buffer Pool Prefetching
+    (Read-Ahead)”](innodb-performance-read_ahead.html "17.8.3.4 Configuring InnoDB
+    Buffer Pool Prefetching (Read-Ahead)").
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以控制何时以及如何执行预读取请求，以异步地将页面预取到缓冲池中，以便提前满足对它们的需求。有关详细信息，请参见[第17.8.3.4节，“配置InnoDB缓冲池预读取（预读取）”](innodb-performance-read_ahead.html
+    "17.8.3.4 配置InnoDB缓冲池预读取（预读取）")。
+- en: You can control when background flushing occurs and whether or not the rate
+    of flushing is dynamically adjusted based on workload. For details, see [Section 17.8.3.5,
+    “Configuring Buffer Pool Flushing”](innodb-buffer-pool-flushing.html "17.8.3.5 Configuring
+    Buffer Pool Flushing").
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以控制后台刷新发生的时间以及刷新速率是否根据工作负载动态调整。有关详细信息，请参见[第17.8.3.5节，“配置缓冲池刷新”](innodb-buffer-pool-flushing.html
+    "17.8.3.5 配置缓冲池刷新")。
+- en: You can configure how `InnoDB` preserves the current buffer pool state to avoid
+    a lengthy warmup period after a server restart. For details, see [Section 17.8.3.6,
+    “Saving and Restoring the Buffer Pool State”](innodb-preload-buffer-pool.html
+    "17.8.3.6 Saving and Restoring the Buffer Pool State").
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以配置`InnoDB`如何保留当前缓冲池状态，以避免服务器重新启动后出现漫长的热身期。有关详细信息，请参见[第17.8.3.6节，“保存和恢复缓冲池状态”](innodb-preload-buffer-pool.html
+    "17.8.3.6 保存和恢复缓冲池状态")。
+- en: Monitoring the Buffer Pool Using the InnoDB Standard Monitor
+  id: totrans-28
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 使用InnoDB标准监视器监视缓冲池
+- en: '`InnoDB` Standard Monitor output, which can be accessed using [`SHOW ENGINE
+    INNODB STATUS`](innodb-standard-monitor.html "17.17.3 InnoDB Standard Monitor
+    and Lock Monitor Output"), provides metrics regarding operation of the buffer
+    pool. Buffer pool metrics are located in the `BUFFER POOL AND MEMORY` section
+    of `InnoDB` Standard Monitor output:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`标准监视器输出可以通过[`SHOW ENGINE INNODB STATUS`](innodb-standard-monitor.html
+    "17.17.3 InnoDB标准监视器和锁监视器输出")访问，提供有关缓冲池操作的指标。缓冲池指标位于`InnoDB`标准监视器输出的`BUFFER POOL
+    AND MEMORY`部分：'
+- en: '[PRE0]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The following table describes buffer pool metrics reported by the `InnoDB` Standard
+    Monitor.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格描述了`InnoDB`标准监视器报告的缓冲池指标。
+- en: Per second averages provided in `InnoDB` Standard Monitor output are based on
+    the elapsed time since `InnoDB` Standard Monitor output was last printed.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`标准监视器输出中提供的每秒平均值是基于自上次打印`InnoDB`标准监视器输出以来的经过时间。'
+- en: '**Table 17.2 InnoDB Buffer Pool Metrics**'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表17.2 InnoDB缓冲池指标**'
+- en: '| Name | Description |'
+  id: totrans-34
+  prefs: []
+  type: TYPE_TB
+  zh: '| 名称 | 描述 |'
+- en: '| Total memory allocated | The total memory allocated for the buffer pool in
+    bytes. |'
+  id: totrans-35
+  prefs: []
+  type: TYPE_TB
+  zh: '| 总分配内存 | 缓冲池分配的总内存（以字节为单位）。 |'
+- en: '| Dictionary memory allocated | The total memory allocated for the `InnoDB`
+    data dictionary in bytes. |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| 分配的字典内存 | `InnoDB`数据字典分配的总内存（以字节为单位）。 |'
+- en: '| Buffer pool size | The total size in pages allocated to the buffer pool.
+    |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| 缓冲池大小 | 分配给缓冲池的总页数。 |'
+- en: '| Free buffers | The total size in pages of the buffer pool free list. |'
+  id: totrans-38
+  prefs: []
+  type: TYPE_TB
+  zh: '| 空闲缓冲区 | 缓冲池空闲列表的总页数。 |'
+- en: '| Database pages | The total size in pages of the buffer pool LRU list. |'
+  id: totrans-39
+  prefs: []
+  type: TYPE_TB
+  zh: '| 数据库页面 | 缓冲池LRU列表的总页数。 |'
+- en: '| Old database pages | The total size in pages of the buffer pool old LRU sublist.
+    |'
+  id: totrans-40
+  prefs: []
+  type: TYPE_TB
+  zh: '| 旧数据库页面 | 缓冲池旧LRU子列表的总页数。 |'
+- en: '| Modified db pages | The current number of pages modified in the buffer pool.
+    |'
+  id: totrans-41
+  prefs: []
+  type: TYPE_TB
+  zh: '| 修改的数据库页面 | 缓冲池中当前修改的页面数。 |'
+- en: '| Pending reads | The number of buffer pool pages waiting to be read into the
+    buffer pool. |'
+  id: totrans-42
+  prefs: []
+  type: TYPE_TB
+  zh: '| 待读取 | 等待读入缓冲池的缓冲池页面数。 |'
+- en: '| Pending writes LRU | The number of old dirty pages within the buffer pool
+    to be written from the bottom of the LRU list. |'
+  id: totrans-43
+  prefs: []
+  type: TYPE_TB
+  zh: '| 待写入LRU | 缓冲池中旧脏页的数量，将从LRU列表底部写入。 |'
+- en: '| Pending writes flush list | The number of buffer pool pages to be flushed
+    during checkpointing. |'
+  id: totrans-44
+  prefs: []
+  type: TYPE_TB
+  zh: '| 待写入刷新列表 | 在检查点期间刷新的缓冲池页面数。 |'
+- en: '| Pending writes single page | The number of pending independent page writes
+    within the buffer pool. |'
+  id: totrans-45
+  prefs: []
+  type: TYPE_TB
+  zh: '| 待写入单页 | 缓冲池内独立页面写入的待处理数量。 |'
+- en: '| Pages made young | The total number of pages made young in the buffer pool
+    LRU list (moved to the head of sublist of “new” pages). |'
+  id: totrans-46
+  prefs: []
+  type: TYPE_TB
+  zh: '| 年轻化的页面 | 缓冲池LRU列表中年轻化的页面总数（移动到“新”页面子列表的头部）。 |'
+- en: '| Pages made not young | The total number of pages not made young in the buffer
+    pool LRU list (pages that have remained in the “old” sublist without being made
+    young). |'
+  id: totrans-47
+  prefs: []
+  type: TYPE_TB
+  zh: '| 未年轻化的页面 | 缓冲池LRU列表中未年轻化的页面总数（保持在“旧”子列表中未年轻化的页面）。 |'
+- en: '| youngs/s | The per second average of accesses to old pages in the buffer
+    pool LRU list that have resulted in making pages young. See the notes that follow
+    this table for more information. |'
+  id: totrans-48
+  prefs: []
+  type: TYPE_TB
+  zh: '| 年轻化/s | 缓冲池LRU列表中对旧页面的每秒平均访问次数，导致页面变年轻。有关更多信息，请参阅表后的注释。 |'
+- en: '| non-youngs/s | The per second average of accesses to old pages in the buffer
+    pool LRU list that have resulted in not making pages young. See the notes that
+    follow this table for more information. |'
+  id: totrans-49
+  prefs: []
+  type: TYPE_TB
+  zh: '| 非年轻化/s | 缓冲池LRU列表中对旧页面的每秒平均访问次数，导致页面不变年轻。有关更多信息，请参阅表后的注释。 |'
+- en: '| Pages read | The total number of pages read from the buffer pool. |'
+  id: totrans-50
+  prefs: []
+  type: TYPE_TB
+  zh: '| 读取的页面 | 从缓冲池中读取的页面总数。 |'
+- en: '| Pages created | The total number of pages created within the buffer pool.
+    |'
+  id: totrans-51
+  prefs: []
+  type: TYPE_TB
+  zh: '| 创建的页面 | 在缓冲池内创建的页面总数。 |'
+- en: '| Pages written | The total number of pages written from the buffer pool. |'
+  id: totrans-52
+  prefs: []
+  type: TYPE_TB
+  zh: '| 写入的页面 | 从缓冲池中写入的页面总数。 |'
+- en: '| reads/s | The per second average number of buffer pool page reads per second.
+    |'
+  id: totrans-53
+  prefs: []
+  type: TYPE_TB
+  zh: '| 读取/s | 每秒缓冲池页面读取的平均数量。 |'
+- en: '| creates/s | The average number of buffer pool pages created per second. |'
+  id: totrans-54
+  prefs: []
+  type: TYPE_TB
+  zh: '| 创建/s | 每秒创建的缓冲池页面的平均数量。 |'
+- en: '| writes/s | The average number of buffer pool page writes per second. |'
+  id: totrans-55
+  prefs: []
+  type: TYPE_TB
+  zh: '| 写入/s | 每秒缓冲池页面写入的平均数量。 |'
+- en: '| Buffer pool hit rate | The buffer pool page hit rate for pages read from
+    the buffer pool vs from disk storage. |'
+  id: totrans-56
+  prefs: []
+  type: TYPE_TB
+  zh: '| 缓冲池命中率 | 从缓冲池读取的页面与从磁盘存储读取的页面的缓冲池页面命中率。 |'
+- en: '| young-making rate | The average hit rate at which page accesses have resulted
+    in making pages young. See the notes that follow this table for more information.
+    |'
+  id: totrans-57
+  prefs: []
+  type: TYPE_TB
+  zh: '| 年轻化率 | 页面访问导致页面变年轻的平均命中率。有关更多信息，请参阅表后的注释。 |'
+- en: '| not (young-making rate) | The average hit rate at which page accesses have
+    not resulted in making pages young. See the notes that follow this table for more
+    information. |'
+  id: totrans-58
+  prefs: []
+  type: TYPE_TB
+  zh: '| 非（年轻化率） | 页面访问未导致页面变年轻的平均命中率。有关更多信息，请参阅表后的注释。 |'
+- en: '| Pages read ahead | The per second average of read ahead operations. |'
+  id: totrans-59
+  prefs: []
+  type: TYPE_TB
+  zh: '| 预读取的页面 | 预读取操作的每秒平均次数。 |'
+- en: '| Pages evicted without access | The per second average of the pages evicted
+    without being accessed from the buffer pool. |'
+  id: totrans-60
+  prefs: []
+  type: TYPE_TB
+  zh: '| 未访问而被驱逐的页面 | 每秒从缓冲池中未被访问而被驱逐的页面的平均数量。 |'
+- en: '| Random read ahead | The per second average of random read ahead operations.
+    |'
+  id: totrans-61
+  prefs: []
+  type: TYPE_TB
+  zh: '| 随机读取预读 | 随机读取预读操作的每秒平均次数。 |'
+- en: '| LRU len | The total size in pages of the buffer pool LRU list. |'
+  id: totrans-62
+  prefs: []
+  type: TYPE_TB
+  zh: '| LRU长度 | 缓冲池LRU列表的总大小（以页面为单位）。 |'
+- en: '| unzip_LRU len | The length (in pages) of the buffer pool unzip_LRU list.
+    |'
+  id: totrans-63
+  prefs: []
+  type: TYPE_TB
+  zh: '| unzip_LRU长度 | 缓冲池unzip_LRU列表的长度（以页面为单位）。 |'
+- en: '| I/O sum | The total number of buffer pool LRU list pages accessed. |'
+  id: totrans-64
+  prefs: []
+  type: TYPE_TB
+  zh: '| I/O sum | 访问的缓冲池LRU列表页面总数。 |'
+- en: '| I/O cur | The total number of buffer pool LRU list pages accessed in the
+    current interval. |'
+  id: totrans-65
+  prefs: []
+  type: TYPE_TB
+  zh: '| I/O cur | 当前间隔内访问的缓冲池LRU列表页面总数。 |'
+- en: '| I/O unzip sum | The total number of buffer pool unzip_LRU list pages decompressed.
+    |'
+  id: totrans-66
+  prefs: []
+  type: TYPE_TB
+  zh: '| I/O unzip sum | 解压缩的缓冲池unzip_LRU列表页面总数。 |'
+- en: '| I/O unzip cur | The total number of buffer pool unzip_LRU list pages decompressed
+    in the current interval. |'
+  id: totrans-67
+  prefs: []
+  type: TYPE_TB
+  zh: '| I/O unzip cur | 当前间隔内解压缩缓冲池unzip_LRU列表页面的总数。 |'
+- en: '| Name | Description |'
+  id: totrans-68
+  prefs: []
+  type: TYPE_TB
+  zh: '| 名称 | 描述 |'
+- en: '**Notes**:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**注释**:'
+- en: The `youngs/s` metric is applicable only to old pages. It is based on the number
+    of page accesses. There can be multiple accesses for a given page, all of which
+    are counted. If you see very low `youngs/s` values when there are no large scans
+    occurring, consider reducing the delay time or increasing the percentage of the
+    buffer pool used for the old sublist. Increasing the percentage makes the old
+    sublist larger so that it takes longer for pages in that sublist to move to the
+    tail, which increases the likelihood that those pages are accessed again and made
+    young. See [Section 17.8.3.3, “Making the Buffer Pool Scan Resistant”](innodb-performance-midpoint_insertion.html
+    "17.8.3.3 Making the Buffer Pool Scan Resistant").
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`youngs/s` 指标仅适用于旧页面。它基于页面访问次数。对于给定页面可能有多次访问，所有这些访问都会计数。如果在没有进行大型扫描时看到非常低的
+    `youngs/s` 值，请考虑减少延迟时间或增加用于旧子列表的缓冲池百分比。增加百分比会使旧子列表变大，使得该子列表中的页面移动到尾部所需的时间更长，从而增加这些页面再次被访问并变年轻的可能性。请参阅[第17.8.3.3节，“使缓冲池具有扫描抵抗性”](innodb-performance-midpoint_insertion.html
+    "17.8.3.3 使缓冲池具有扫描抵抗性")。'
+- en: The `non-youngs/s` metric is applicable only to old pages. It is based on the
+    number of page accesses. There can be multiple accesses for a given page, all
+    of which are counted. If you do not see a higher `non-youngs/s` value when performing
+    large table scans (and a higher `youngs/s` value), increase the delay value. See
+    [Section 17.8.3.3, “Making the Buffer Pool Scan Resistant”](innodb-performance-midpoint_insertion.html
+    "17.8.3.3 Making the Buffer Pool Scan Resistant").
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`non-youngs/s` 指标仅适用于旧页面。它基于页面访问次数。对于给定页面可能会有多次访问，所有这些都会被计算。如果在执行大表扫描时看不到更高的
+    `non-youngs/s` 值（以及更高的 `youngs/s` 值），请增加延迟值。参见 [Section 17.8.3.3, “使缓冲池具有扫描抵抗力”](innodb-performance-midpoint_insertion.html
+    "17.8.3.3 使缓冲池具有扫描抵抗力")。'
+- en: The `young-making` rate accounts for all buffer pool page accesses, not just
+    accesses for pages in the old sublist. The `young-making` rate and `not` rate
+    do not normally add up to the overall buffer pool hit rate. Page hits in the old
+    sublist cause pages to move to the new sublist, but page hits in the new sublist
+    cause pages to move to the head of the list only if they are a certain distance
+    from the head.
+  id: totrans-72
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`young-making` 率考虑了所有缓冲池页面访问，而不仅仅是旧子列表中页面的访问。`young-making` 率和 `not` 率通常不会加起来等于整体缓冲池命中率。旧子列表中的页面命中会导致页面移动到新子列表，但新子列表中的页面命中只有在它们距离头部一定距离时才会导致页面移动到头部。'
+- en: '`not (young-making rate)` is the average hit rate at which page accesses have
+    not resulted in making pages young due to the delay defined by [`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)
+    not being met, or due to page hits in the new sublist that did not result in pages
+    being moved to the head. This rate accounts for all buffer pool page accesses,
+    not just accesses for pages in the old sublist.'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`not (young-making rate)` 是页面访问未导致页面由于未达到由 [`innodb_old_blocks_time`](innodb-parameters.html#sysvar_innodb_old_blocks_time)
+    定义的延迟，或由于新子列表中的页面命中未导致页面移动到头部的平均命中率。此率考虑了所有缓冲池页面访问，而不仅仅是旧子列表中页面的访问。'
+- en: Buffer pool [server status variables](server-status-variables.html "7.1.10 Server
+    Status Variables") and the [`INNODB_BUFFER_POOL_STATS`](information-schema-innodb-buffer-pool-stats-table.html
+    "28.4.4 The INFORMATION_SCHEMA INNODB_BUFFER_POOL_STATS Table") table provide
+    many of the same buffer pool metrics found in `InnoDB` Standard Monitor output.
+    For more information, see [Example 17.10, “Querying the INNODB_BUFFER_POOL_STATS
+    Table”](innodb-information-schema-buffer-pool-tables.html#innodb-information-schema-buffer-pool-stats-example
+    "Example 17.10 Querying the INNODB_BUFFER_POOL_STATS Table").
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 缓冲池 [服务器状态变量](server-status-variables.html "7.1.10 服务器状态变量") 和 [`INNODB_BUFFER_POOL_STATS`](information-schema-innodb-buffer-pool-stats-table.html
+    "28.4.4 INFORMATION_SCHEMA INNODB_BUFFER_POOL_STATS 表") 表提供了许多与 `InnoDB` 标准监视器输出中找到的缓冲池指标相同的信息。有关更多信息，请参见
+    [Example 17.10, “查询 INNODB_BUFFER_POOL_STATS 表”](innodb-information-schema-buffer-pool-tables.html#innodb-information-schema-buffer-pool-stats-example
+    "Example 17.10 查询 INNODB_BUFFER_POOL_STATS 表")。

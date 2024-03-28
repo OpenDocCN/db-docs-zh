@@ -1,0 +1,146 @@
+- en: 19.2.5 How Servers Evaluate Replication Filtering Rules
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.2.5 服务器如何评估复制过滤规则
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rules.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rules.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rules.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rules.html)
+- en: '[19.2.5.1 Evaluation of Database-Level Replication and Binary Logging Options](replication-rules-db-options.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.5.1 数据库级复制和二进制日志选项的评估](replication-rules-db-options.html)'
+- en: '[19.2.5.2 Evaluation of Table-Level Replication Options](replication-rules-table-options.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.5.2 表级复制选项的评估](replication-rules-table-options.html)'
+- en: '[19.2.5.3 Interactions Between Replication Filtering Options](replication-rules-examples.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.5.3 复制过滤选项之间的交互](replication-rules-examples.html)'
+- en: '[19.2.5.4 Replication Channel Based Filters](replication-rules-channel-based-filters.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.2.5.4 基于复制通道的过滤器](replication-rules-channel-based-filters.html)'
+- en: If a replication source server does not write a statement to its binary log,
+    the statement is not replicated. If the server does log the statement, the statement
+    is sent to all replicas and each replica determines whether to execute it or ignore
+    it.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果复制源服务器不将语句写入其二进制日志，则该语句不会被复制。如果服务器记录了该语句，则该语句将发送到所有复制端，每个复制端确定是否执行或忽略它。
+- en: On the source, you can control which databases to log changes for by using the
+    [`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)
+    and [`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)
+    options to control binary logging. For a description of the rules that servers
+    use in evaluating these options, see [Section 19.2.5.1, “Evaluation of Database-Level
+    Replication and Binary Logging Options”](replication-rules-db-options.html "19.2.5.1 Evaluation
+    of Database-Level Replication and Binary Logging Options"). You should not use
+    these options to control which databases and tables are replicated. Instead, use
+    filtering on the replica to control the events that are executed on the replica.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在源端，您可以通过使用[`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)和[`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)选项来控制要记录更改的数据库。有关服务器在评估这些选项时使用的规则的描述，请参阅[第19.2.5.1节，“数据库级复制和二进制日志选项的评估”](replication-rules-db-options.html
+    "19.2.5.1 数据库级复制和二进制日志选项的评估")。您不应该使用这些选项来控制要复制的数据库和表。相反，使用复制端的过滤器来控制在复制端执行的事件。
+- en: On the replica side, decisions about whether to execute or ignore statements
+    received from the source are made according to the `--replicate-*` options that
+    the replica was started with. (See [Section 19.1.6, “Replication and Binary Logging
+    Options and Variables”](replication-options.html "19.1.6 Replication and Binary
+    Logging Options and Variables").) The filters governed by these options can also
+    be set dynamically using the `CHANGE REPLICATION FILTER` statement. The rules
+    governing such filters are the same whether they are created on startup using
+    `--replicate-*` options or while the replica server is running by `CHANGE REPLICATION
+    FILTER`. Note that replication filters cannot be used on Group Replication-specific
+    channels on a MySQL server instance that is configured for Group Replication,
+    because filtering transactions on some servers would make the group unable to
+    reach agreement on a consistent state.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在复制端，关于是否执行或忽略从源端接收到的语句的决定是根据复制端启动时使用的`--replicate-*`选项进行的。（请参阅[第19.1.6节，“复制和二进制日志选项和变量”](replication-options.html
+    "19.1.6 复制和二进制日志选项和变量")。）这些选项管理的过滤器也可以使用`CHANGE REPLICATION FILTER`语句动态设置。管理这些过滤器的规则无论是在启动时使用`--replicate-*`选项创建还是在复制服务器运行时使用`CHANGE
+    REPLICATION FILTER`创建，都是相同的。请注意，不能在配置为组复制的MySQL服务器实例上的组复制特定通道上使用复制过滤器，因为在某些服务器上过滤事务会使组无法达成一致状态。
+- en: In the simplest case, when there are no `--replicate-*` options, the replica
+    executes all statements that it receives from the source. Otherwise, the result
+    depends on the particular options given.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在最简单的情况下，当没有`--replicate-*`选项时，复制端执行从源端接收到的所有语句。否则，结果取决于给定的特定选项。
+- en: Database-level options ([`--replicate-do-db`](replication-options-replica.html#option_mysqld_replicate-do-db),
+    [`--replicate-ignore-db`](replication-options-replica.html#option_mysqld_replicate-ignore-db))
+    are checked first; see [Section 19.2.5.1, “Evaluation of Database-Level Replication
+    and Binary Logging Options”](replication-rules-db-options.html "19.2.5.1 Evaluation
+    of Database-Level Replication and Binary Logging Options"), for a description
+    of this process. If no database-level options are used, option checking proceeds
+    to any table-level options that may be in use (see [Section 19.2.5.2, “Evaluation
+    of Table-Level Replication Options”](replication-rules-table-options.html "19.2.5.2 Evaluation
+    of Table-Level Replication Options"), for a discussion of these). If one or more
+    database-level options are used but none are matched, the statement is not replicated.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数据库级选项([`--replicate-do-db`](replication-options-replica.html#option_mysqld_replicate-do-db),
+    [`--replicate-ignore-db`](replication-options-replica.html#option_mysqld_replicate-ignore-db))首先进行检查；请参阅[Section 19.2.5.1,
+    “数据库级复制和二进制日志选项的评估”](replication-rules-db-options.html "19.2.5.1 数据库级复制和二进制日志选项的评估")，了解此过程的描述。如果没有使用数据库级选项，则选项检查将继续到可能正在使用的任何表级选项（参见[Section 19.2.5.2,
+    “表级复制选项的评估”](replication-rules-table-options.html "19.2.5.2 表级复制选项的评估")，讨论这些选项）。如果使用了一个或多个数据库级选项但没有匹配的选项，则该语句不会被复制。
+- en: For statements affecting databases only (that is, [`CREATE DATABASE`](create-database.html
+    "15.1.12 CREATE DATABASE Statement"), [`DROP DATABASE`](drop-database.html "15.1.24 DROP
+    DATABASE Statement"), and [`ALTER DATABASE`](alter-database.html "15.1.2 ALTER
+    DATABASE Statement")), database-level options always take precedence over any
+    [`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)
+    options. In other words, for such statements, [`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)
+    options are checked if and only if there are no database-level options that apply.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对仅影响数据库的语句（即，[`CREATE DATABASE`](create-database.html "15.1.12 CREATE DATABASE
+    语句"), [`DROP DATABASE`](drop-database.html "15.1.24 DROP DATABASE 语句"), 和 [`ALTER
+    DATABASE`](alter-database.html "15.1.2 ALTER DATABASE 语句"))，数据库级选项始终优先于任何[`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)选项。换句话说，对于这样的语句，只有在没有适用的数据库级选项时才会检查[`--replicate-wild-do-table`](replication-options-replica.html#option_mysqld_replicate-wild-do-table)选项。
+- en: To make it easier to determine what effect a given set of options has, it is
+    recommended that you avoid mixing `do-*` and `ignore-*` options, or options containing
+    wildcards with options which do not.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了更容易确定给定选项集的影响，建议避免混合使用`do-*`和`ignore-*`选项，或包含通配符的选项与不包含通配符的选项混合使用。
+- en: If any [`--replicate-rewrite-db`](replication-options-replica.html#option_mysqld_replicate-rewrite-db)
+    options were specified, they are applied before the `--replicate-*` filtering
+    rules are tested.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果指定了任何[`--replicate-rewrite-db`](replication-options-replica.html#option_mysqld_replicate-rewrite-db)选项，则它们会在测试`--replicate-*`过滤规则之前应用。
+- en: Note
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: All replication filtering options follow the same rules for case sensitivity
+    that apply to names of databases and tables elsewhere in the MySQL server, including
+    the effects of the [`lower_case_table_names`](server-system-variables.html#sysvar_lower_case_table_names)
+    system variable.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有复制过滤选项遵循与MySQL服务器中其他地方的数据库和表名称相同的大小写敏感规则，包括[`lower_case_table_names`](server-system-variables.html#sysvar_lower_case_table_names)系统变量的影响。
+- en: Beginning with MySQL 8.0.31, filtering rules are applied before performing any
+    privilege checks; if a transaction is filtered out, no privilege check is performed
+    for that transaction, and thus no error can be raised by it. See [Section 19.5.1.29,
+    “Replica Errors During Replication”](replication-features-errors.html "19.5.1.29 Replica
+    Errors During Replication"), for more information.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.31开始，在执行任何权限检查之前会应用过滤规则；如果事务被过滤掉，则不会为该事务执行任何权限检查，因此不会引发任何错误。更多信息请参阅[Section 19.5.1.29,
+    “复制期间的复制错误”](replication-features-errors.html "19.5.1.29 复制期间的复制错误")。

@@ -1,0 +1,129 @@
+- en: 17.19 InnoDB and MySQL Replication
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.19 InnoDB和MySQL复制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-and-mysql-replication.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-and-mysql-replication.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-and-mysql-replication.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-and-mysql-replication.html)
+- en: It is possible to use replication in a way where the storage engine on the replica
+    is not the same as the storage engine on the source. For example, you can replicate
+    modifications to an `InnoDB` table on the source to a `MyISAM` table on the replica.
+    For more information see, [Section 19.4.4, “Using Replication with Different Source
+    and Replica Storage Engines”](replication-solutions-diffengines.html "19.4.4 Using
+    Replication with Different Source and Replica Storage Engines").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以以副本上的存储引擎与源端不同的方式使用复制。例如，您可以将对源端上的`InnoDB`表的修改复制到副本上的`MyISAM`表。有关更多信息，请参见[第19.4.4节，“使用不同源和副本存储引擎的复制”](replication-solutions-diffengines.html
+    "19.4.4 Using Replication with Different Source and Replica Storage Engines")。
+- en: For information about setting up a replica, see [Section 19.1.2.6, “Setting
+    Up Replicas”](replication-setup-replicas.html "19.1.2.6 Setting Up Replicas"),
+    and [Section 19.1.2.5, “Choosing a Method for Data Snapshots”](replication-snapshot-method.html
+    "19.1.2.5 Choosing a Method for Data Snapshots"). To make a new replica without
+    taking down the source or an existing replica, use the [MySQL Enterprise Backup](mysql-enterprise-backup.html
+    "32.1 MySQL Enterprise Backup Overview") product.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关设置副本的信息，请参见[第19.1.2.6节，“设置副本”](replication-setup-replicas.html "19.1.2.6 Setting
+    Up Replicas")和[第19.1.2.5节，“选择数据快照方法”](replication-snapshot-method.html "19.1.2.5 Choosing
+    a Method for Data Snapshots")。要创建一个新的副本而不关闭源端或现有副本，请使用[MySQL企业备份](mysql-enterprise-backup.html
+    "32.1 MySQL Enterprise Backup Overview")产品。
+- en: Transactions that fail on the source do not affect replication. MySQL replication
+    is based on the binary log where MySQL writes SQL statements that modify data.
+    A transaction that fails (for example, because of a foreign key violation, or
+    because it is rolled back) is not written to the binary log, so it is not sent
+    to replicas. See [Section 15.3.1, “START TRANSACTION, COMMIT, and ROLLBACK Statements”](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在源端失败的事务不会影响复制。MySQL复制基于二进制日志，MySQL在其中写入修改数据的SQL语句。失败的事务（例如，由于外键违反或回滚而失败）不会被写入二进制日志，因此不会被发送到副本。参见[第15.3.1节，“START
+    TRANSACTION，COMMIT和ROLLBACK语句”](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements")。
+- en: '**Replication and CASCADE. ** Cascading actions for `InnoDB` tables on the
+    source are executed on the replica *only* if the tables sharing the foreign key
+    relation use `InnoDB` on both the source and replica. This is true whether you
+    are using statement-based or row-based replication. Suppose that you have started
+    replication, and then create two tables on the source, where `InnoDB` is defined
+    as the default storage engine, using the following [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statements:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**复制和级联。** 仅当源端和副本上共享外键关系的表都使用`InnoDB`时，源端上`InnoDB`表的级联操作才会在副本上执行。无论您使用基于语句还是基于行的复制，这都是正确的。假设您已经开始了复制，然后在源端创建两个表，其中`InnoDB`被定义为默认存储引擎，使用以下[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句：'
+- en: '[PRE0]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'If the replica has `MyISAM` defined as the default storage engine, the same
+    tables are created on the replica, but they use the `MyISAM` storage engine, and
+    the `FOREIGN KEY` option is ignored. Now we insert some rows into the tables on
+    the source:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果副本将`MyISAM`定义为默认存储引擎，则在副本上创建相同的表，但它们使用`MyISAM`存储引擎，并且`FOREIGN KEY`选项被忽略。现在我们在源端的表中插入一些行：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'At this point, on both the source and the replica, table `fc1` contains 2 rows,
+    and table `fc2` contains 3 rows, as shown here:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此时，在源端和副本上，`fc1`表包含2行，`fc2`表包含3行，如下所示：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Now suppose that you perform the following [`DELETE`](delete.html "15.2.2 DELETE
+    Statement") statement on the source:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在假设您在源端执行以下[`DELETE`](delete.html "15.2.2 DELETE Statement")语句：
+- en: '[PRE3]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Due to the cascade, table `fc2` on the source now contains only 1 row:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于级联，源端的`fc2`表现在只包含1行：
+- en: '[PRE4]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'However, the cascade does not propagate on the replica because on the replica
+    the [`DELETE`](delete.html "15.2.2 DELETE Statement") for `fc1` deletes no rows
+    from `fc2`. The replica''s copy of `fc2` still contains all of the rows that were
+    originally inserted:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，在副本上级联不会传播，因为在副本上对`fc1`的[`DELETE`](delete.html "15.2.2 DELETE Statement")不会从`fc2`中删除任何行。副本中的`fc2`的副本仍然包含最初插入的所有行：
+- en: '[PRE5]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: This difference is due to the fact that the cascading deletes are handled internally
+    by the `InnoDB` storage engine, which means that none of the changes are logged.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种差异是由于级联删除是由`InnoDB`存储引擎内部处理的，这意味着没有任何更改被记录。

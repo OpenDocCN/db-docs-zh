@@ -1,0 +1,205 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/correlated-subqueries.html](https://dev.mysql.com/doc/refman/8.0/en/correlated-subqueries.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/correlated-subqueries.html](https://dev.mysql.com/doc/refman/8.0/en/correlated-subqueries.html)
+- en: 15.2.15.7 Correlated Subqueries
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.2.15.7 相关子查询
+- en: 'A *correlated subquery* is a subquery that contains a reference to a table
+    that also appears in the outer query. For example:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*相关子查询* 是一个包含对外部查询中也出现的表的引用的子查询。例如：'
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Notice that the subquery contains a reference to a column of `t1`, even though
+    the subquery's `FROM` clause does not mention a table `t1`. So, MySQL looks outside
+    the subquery, and finds `t1` in the outer query.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意，子查询包含对 `t1` 列的引用，即使子查询的 `FROM` 子句没有提及表 `t1`。因此，MySQL 查找子查询外部，在外部查询中找到 `t1`。
+- en: Suppose that table `t1` contains a row where `column1 = 5` and `column2 = 6`;
+    meanwhile, table `t2` contains a row where `column1 = 5` and `column2 = 7`. The
+    simple expression `... WHERE column1 = ANY (SELECT column1 FROM t2)` would be
+    `TRUE`, but in this example, the `WHERE` clause within the subquery is `FALSE`
+    (because `(5,6)` is not equal to `(5,7)`), so the expression as a whole is `FALSE`.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设表 `t1` 包含一行，其中 `column1 = 5` 和 `column2 = 6`；同时，表 `t2` 包含一行，其中 `column1 =
+    5` 和 `column2 = 7`。简单表达式 `... WHERE column1 = ANY (SELECT column1 FROM t2)` 将是
+    `TRUE`，但在这个例子中，子查询中的 `WHERE` 子句是 `FALSE`（因为 `(5,6)` 不等于 `(5,7)`），因此整个表达式是 `FALSE`。
+- en: '**Scoping rule:** MySQL evaluates from inside to outside. For example:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**作用域规则：** MySQL 从内到外进行评估。例如：'
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: In this statement, `x.column2` must be a column in table `t2` because `SELECT
+    column1 FROM t2 AS x ...` renames `t2`. It is not a column in table `t1` because
+    `SELECT column1 FROM t1 ...` is an outer query that is *farther out*.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个语句中，`x.column2` 必须是表 `t2` 中的一列，因为 `SELECT column1 FROM t2 AS x ...` 重命名了
+    `t2`。它不是表 `t1` 中的一列，因为 `SELECT column1 FROM t1 ...` 是一个*更远处*的外部查询。
+- en: 'Beginning with MySQL 8.0.24, the optimizer can transform a correlated scalar
+    subquery to a derived table when the [`subquery_to_derived`](switchable-optimizations.html#optflag_subquery-to-derived)
+    flag of the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    variable is enabled. Consider the query shown here:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.24 开始，当 [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    变量的 [`subquery_to_derived`](switchable-optimizations.html#optflag_subquery-to-derived)
+    标志启用时，优化器可以将相关标量子查询转换为派生表。考虑这里显示的查询：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To avoid materializing several times for a given derived table, we can instead
+    materialize—once—a derived table which adds a grouping on the join column from
+    the table referenced in the inner query (`t2.a`) and then an outer join on the
+    lifted predicate (`t1.a = derived.a`) in order to select the correct group to
+    match up with the outer row. (If the subquery already has an explicit grouping,
+    the extra grouping is added to the end of the grouping list.) The query previously
+    shown can thus be rewritten like this:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免为给定的派生表多次实例化，我们可以代替多次实例化一个派生表，该派生表在内部查询中引用的表（`t2.a`）上添加一个分组，然后在提升的谓词（`t1.a
+    = derived.a`）上进行外连接，以选择正确的组与外部行匹配。 （如果子查询已经有明确的分组，则额外的分组将添加到分组列表的末尾。）因此，先前显示的查询可以像这样重写：
+- en: '[PRE3]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: In the rewritten query, `REJECT_IF()` represents an internal function which
+    tests a given condition (here, the comparison `ct > 1`) and raises a given error
+    (in this case, [`ER_SUBQUERY_NO_1_ROW`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_subquery_no_1_row))
+    if the condition is true. This reflects the cardinality check that the optimizer
+    performs as part of evaluating the `JOIN` or `WHERE` clause, prior to evaluating
+    any lifted predicate, which is done only if the subquery does not return more
+    than one row.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在重写的查询中，`REJECT_IF()` 表示一个内部函数，用于测试给定条件（这里是比较 `ct > 1`）并在条件为真时引发给定错误（在本例中是 [`ER_SUBQUERY_NO_1_ROW`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_subquery_no_1_row)）。这反映了优化器在评估
+    `JOIN` 或 `WHERE` 子句之前执行的基数检查，之后才评估任何提升的谓词，只有在子查询不返回多于一行时才执行。
+- en: 'This type of transformation can be performed, provided the following conditions
+    are met:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有满足以下条件时，才能执行这种类型的转换：
+- en: The subquery can be part of a [`SELECT`](select.html "15.2.13 SELECT Statement")
+    list, `WHERE` condition, or `HAVING` condition, but cannot be part of a [`JOIN`](join.html
+    "15.2.13.2 JOIN Clause") condition, and cannot contain a `LIMIT` or `OFFSET` clause.
+    In addition, the subquery cannot contain any set operations such as [`UNION`](union.html
+    "15.2.18 UNION Clause").
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 子查询可以是[`SELECT`](select.html "15.2.13 SELECT Statement")列表、`WHERE`条件或`HAVING`条件的一部分，但不能是[`JOIN`](join.html
+    "15.2.13.2 JOIN Clause")条件的一部分，并且不能包含`LIMIT`或`OFFSET`子句。此外，子查询不能包含任何集合操作，如[`UNION`](union.html
+    "15.2.18 UNION Clause")。
+- en: The `WHERE` clause may contain one or more predicates, combined with `AND`.
+    If the `WHERE` clause contains an `OR` clause, it cannot be transformed. At least
+    one of the `WHERE` clause predicates must be eligible for transformation, and
+    none of them may reject transformation.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`WHERE` 子句可以包含一个或多个谓词，并用`AND`组合。如果`WHERE` 子句包含一个`OR`子句，则无法进行转换。`WHERE` 子句中至少有一个谓词必须符合转换条件，且没有一个谓词可以拒绝转换。'
+- en: To be eligible for transformation, a `WHERE` clause predicate must be an equality
+    predicate in which each operand should be a simple column reference. No other
+    predicates—including other comparison predicates—are eligible for transformation.
+    The predicate must employ the equality operator [`=`](comparison-operators.html#operator_equal)
+    for making the comparison; the null-safe [`≪=>`](comparison-operators.html#operator_equal-to)
+    operator is not supported in this context.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要符合转换的条件，`WHERE` 子句谓词必须是一个等式谓词，其中每个操作数都应该是一个简单的列引用。没有其他谓词—包括其他比较谓词—符合转换条件。该谓词必须使用等号操作符[`=`](comparison-operators.html#operator_equal)进行比较；在这种情况下，不支持空安全[`≪=>`](comparison-operators.html#operator_equal-to)操作符。
+- en: A `WHERE` clause predicate that contains only inner references is not eligible
+    for transformation, since it can be evaluated before the grouping. A `WHERE` clause
+    predicate that contains only outer references is eligible for transformation,
+    even though it can be lifted up to the outer query block. This is made possible
+    by adding a cardinality check without grouping in the derived table.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只包含内部引用的`WHERE`子句谓词不符合转换条件，因为它可以在分组之前进行评估。只包含外部引用的`WHERE`子句谓词符合转换条件，即使它可以提升到外部查询块。这是通过在派生表中添加一个不带分组的基数检查来实现的。
+- en: To be eligible, a `WHERE` clause predicate must have one operand that contains
+    only inner references and one operand that contains only outer references. If
+    the predicate is not eligible due to this rule, transformation of the query is
+    rejected.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要符合条件，`WHERE` 子句谓词必须有一个操作数仅包含内部引用，另一个操作数仅包含外部引用。如果由于此规则而使谓词不符合条件，则拒绝转换查询。
+- en: A correlated column can be present only in the subquery's `WHERE` clause (and
+    not in the `SELECT` list, a `JOIN` or `ORDER BY` clause, a `GROUP BY` list, or
+    a `HAVING` clause). Nor can there be any correlated column inside a derived table
+    in the subquery's `FROM` list.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相关列只能存在于子查询的`WHERE`子句中（而不是`SELECT`列表、`JOIN`或`ORDER BY`子句、`GROUP BY`列表或`HAVING`子句）。子查询的`FROM`列表中也不能有任何相关列。
+- en: A correlated column can not be contained in an aggregate function's list of
+    arguments.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相关列不能包含在聚合函数的参数列表中。
+- en: A correlated column must be resolved in the query block directly containing
+    the subquery being considered for transformation.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相关列必须在直接包含待转换子查询的查询块中解析。
+- en: A correlated column cannot be present in a nested scalar subquery in the `WHERE`
+    clause.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`WHERE`子句中的嵌套标量子查询中不能存在相关列。
+- en: The subquery cannot contain any window functions, and must not contain any aggregate
+    function which aggregates in a query block outer to the subquery. A [`COUNT()`](aggregate-functions.html#function_count)
+    aggregate function, if contained in the `SELECT` list element of the subquery,
+    must be at the topmost level, and cannot be part of an expression.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 子查询不能包含任何窗口函数，并且不能包含在子查询外部的查询块中聚合的任何聚合函数。如果`SELECT`列表元素中包含[`COUNT()`](aggregate-functions.html#function_count)聚合函数，则必须在最高级别，并且不能是表达式的一部分。
+- en: See also [Section 15.2.15.8, “Derived Tables”](derived-tables.html "15.2.15.8 Derived
+    Tables").
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另请参阅[第15.2.15.8节，“派生表”](derived-tables.html "15.2.15.8 Derived Tables")。

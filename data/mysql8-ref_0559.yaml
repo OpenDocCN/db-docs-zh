@@ -1,0 +1,228 @@
+- en: 10.3.8 InnoDB and MyISAM Index Statistics Collection
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.3.8 InnoDB和MyISAM索引统计收集
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-statistics.html](https://dev.mysql.com/doc/refman/8.0/en/index-statistics.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-statistics.html](https://dev.mysql.com/doc/refman/8.0/en/index-statistics.html)
+- en: Storage engines collect statistics about tables for use by the optimizer. Table
+    statistics are based on value groups, where a value group is a set of rows with
+    the same key prefix value. For optimizer purposes, an important statistic is the
+    average value group size.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存储引擎收集关于表的统计信息供优化器使用。表统计信息基于值组，其中值组是具有相同键前缀值的行集。对于优化器而言，一个重要的统计量是平均值组大小。
+- en: 'MySQL uses the average value group size in the following ways:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL使用平均值组大小的方式如下：
+- en: To estimate how many rows must be read for each [`ref`](explain-output.html#jointype_ref)
+    access
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 估计每次[`ref`](explain-output.html#jointype_ref)访问必须读取多少行
+- en: To estimate how many rows a partial join produces, that is, the number of rows
+    produced by an operation of the form
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 估计部分连接产生多少行，即由形式为的操作产生的行数
+- en: '[PRE0]'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'As the average value group size for an index increases, the index is less useful
+    for those two purposes because the average number of rows per lookup increases:
+    For the index to be good for optimization purposes, it is best that each index
+    value target a small number of rows in the table. When a given index value yields
+    a large number of rows, the index is less useful and MySQL is less likely to use
+    it.'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 随着索引的平均值组大小增加，索引对这两个目的的用处减少，因为每次查找的平均行数增加：为了优化目的，最好是每个索引值都针对表中的少量行。当给定的索引值产生大量行时，索引的用处减少，MySQL不太可能使用它。
+- en: The average value group size is related to table cardinality, which is the number
+    of value groups. The [`SHOW INDEX`](show-index.html "15.7.7.22 SHOW INDEX Statement")
+    statement displays a cardinality value based on *`N/S`*, where *`N`* is the number
+    of rows in the table and *`S`* is the average value group size. That ratio yields
+    an approximate number of value groups in the table.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 平均值组大小与表基数有关，即值组的数量。[`SHOW INDEX`](show-index.html "15.7.7.22 SHOW INDEX Statement")语句显示基于*`N/S`*的基数值，其中*`N`*是表中的行数，*`S`*是平均值组大小。该比率产生表中值组的近似数量。
+- en: 'For a join based on the `<=>` comparison operator, `NULL` is not treated differently
+    from any other value: `NULL <=> NULL`, just as `*`N`* <=> *`N`*` for any other
+    *`N`*.'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于基于`<=>`比较运算符的连接，`NULL`与任何其他值没有区别：`NULL <=> NULL`，就像对于任何其他*`N`*，`*`N`* <=>
+    *`N`*`一样。
+- en: 'However, for a join based on the `=` operator, `NULL` is different from non-`NULL`
+    values: `*`expr1`* = *`expr2`*` is not true when *`expr1`* or *`expr2`* (or both)
+    are `NULL`. This affects [`ref`](explain-output.html#jointype_ref) accesses for
+    comparisons of the form `*`tbl_name.key`* = *`expr`*`: MySQL does not access the
+    table if the current value of *`expr`* is `NULL`, because the comparison cannot
+    be true.'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，对于基于`=`运算符的连接，`NULL`与非`NULL`值不同：当*`expr1`*或*`expr2`*（或两者）为`NULL`时，`*`expr1`*
+    = *`expr2`*`不成立。这影响了形式为`*`tbl_name.key`* = *`expr`*`的比较的[`ref`](explain-output.html#jointype_ref)访问：如果*`expr`*的当前值为`NULL`，则MySQL不访问表，因为比较不可能为真。
+- en: For `=` comparisons, it does not matter how many `NULL` values are in the table.
+    For optimization purposes, the relevant value is the average size of the non-`NULL`
+    value groups. However, MySQL does not currently enable that average size to be
+    collected or used.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`=`比较，表中有多少`NULL`值并不重要。为了优化，相关值是非`NULL`值组的平均大小。然而，MySQL目前不允许收集或使用该平均大小。
+- en: 'For `InnoDB` and `MyISAM` tables, you have some control over collection of
+    table statistics by means of the [`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method)
+    and [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    system variables, respectively. These variables have three possible values, which
+    differ as follows:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`InnoDB`和`MyISAM`表，您可以通过[`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method)和[`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)系统变量来控制表统计信息的收集。这些变量有三个可能的值，区别如下：
+- en: When the variable is set to `nulls_equal`, all `NULL` values are treated as
+    identical (that is, they all form a single value group).
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当变量设置为`nulls_equal`时，所有`NULL`值被视为相同（即，它们都形成一个单一的值组）。
+- en: If the `NULL` value group size is much higher than the average non-`NULL` value
+    group size, this method skews the average value group size upward. This makes
+    index appear to the optimizer to be less useful than it really is for joins that
+    look for non-`NULL` values. Consequently, the `nulls_equal` method may cause the
+    optimizer not to use the index for [`ref`](explain-output.html#jointype_ref) accesses
+    when it should.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果`NULL`值组大小远高于平均非`NULL`值组大小，这种方法会使平均值组大小向上偏移。这会使索引在优化器看来比实际上对查找非`NULL`值的连接不那么有用。因此，`nulls_equal`方法可能会导致优化器在应该使用索引进行
+    [`ref`](explain-output.html#jointype_ref) 访问时不使用索引。
+- en: When the variable is set to `nulls_unequal`, `NULL` values are not considered
+    the same. Instead, each `NULL` value forms a separate value group of size 1.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当变量设置为`nulls_unequal`时，`NULL`值不被视为相同。相反，每个`NULL`值形成一个大小为1的单独值组。
+- en: If you have many `NULL` values, this method skews the average value group size
+    downward. If the average non-`NULL` value group size is large, counting `NULL`
+    values each as a group of size 1 causes the optimizer to overestimate the value
+    of the index for joins that look for non-`NULL` values. Consequently, the `nulls_unequal`
+    method may cause the optimizer to use this index for [`ref`](explain-output.html#jointype_ref)
+    lookups when other methods may be better.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果有许多`NULL`值，这种方法会使平均值组大小向下偏移。如果平均非`NULL`值组大小较大，将每个`NULL`值计为大小为1的组会导致优化器高估用于查找非`NULL`值的连接的索引的价值。因此，`nulls_unequal`方法可能会导致优化器在其他方法更好的情况下使用此索引进行
+    [`ref`](explain-output.html#jointype_ref) 查找。
+- en: When the variable is set to `nulls_ignored`, `NULL` values are ignored.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当变量设置为`nulls_ignored`时，`NULL`值被忽略。
+- en: If you tend to use many joins that use `<=>` rather than `=`, `NULL` values
+    are not special in comparisons and one `NULL` is equal to another. In this case,
+    `nulls_equal` is the appropriate statistics method.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你倾向于使用许多使用`<=>`而不是`=`的连接，`NULL`值在比较中并不特殊，一个`NULL`等于另一个`NULL`。在这种情况下，`nulls_equal`是适当的统计方法。
+- en: The [`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method)
+    system variable has a global value; the [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    system variable has both global and session values. Setting the global value affects
+    statistics collection for tables from the corresponding storage engine. Setting
+    the session value affects statistics collection only for the current client connection.
+    This means that you can force a table's statistics to be regenerated with a given
+    method without affecting other clients by setting the session value of [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method).
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method)
+    系统变量具有全局值；[`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    系统变量具有全局值和会话值。设置全局值会影响相应存储引擎的表的统计信息收集。设置会话值仅影响当前客户端连接的统计信息收集。这意味着你可以通过设置 [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    的会话值，强制重新生成表的统计信息。'
+- en: 'To regenerate `MyISAM` table statistics, you can use any of the following methods:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要重新生成`MyISAM`表的统计信息，你可以使用以下任何方法：
+- en: Execute [**myisamchk --stats_method=*`method_name`* --analyze**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行 [**myisamchk --stats_method=*`method_name`* --analyze**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")
+- en: Change the table to cause its statistics to go out of date (for example, insert
+    a row and then delete it), and then set [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    and issue an [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement")
+    statement
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更改表以使其统计信息过时（例如，插入一行然后删除它），然后设置 [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    并发出 [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE Statement") 语句
+- en: 'Some caveats regarding the use of [`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method)
+    and [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method):'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于使用 [`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method)
+    和 [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    的一些建议：
+- en: You can force table statistics to be collected explicitly, as just described.
+    However, MySQL may also collect statistics automatically. For example, if during
+    the course of executing statements for a table, some of those statements modify
+    the table, MySQL may collect statistics. (This may occur for bulk inserts or deletes,
+    or some [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statements,
+    for example.) If this happens, the statistics are collected using whatever value
+    [`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method) or
+    [`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)
+    has at the time. Thus, if you collect statistics using one method, but the system
+    variable is set to the other method when a table's statistics are collected automatically
+    later, the other method is used.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以强制显式收集表统计信息，就像刚才描述的那样。但是，MySQL也可能自动收集统计信息。例如，如果在执行表的语句过程中，其中一些语句修改了表，MySQL可能会收集统计信息。（例如，这可能发生在大量插入或删除，或一些[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句中。）如果发生这种情况，统计信息将使用[`innodb_stats_method`](innodb-parameters.html#sysvar_innodb_stats_method)或[`myisam_stats_method`](server-system-variables.html#sysvar_myisam_stats_method)在那时的任何值进行收集。因此，如果您使用一种方法收集统计信息，但在以后自动收集表统计信息时系统变量设置为另一种方法，则将使用另一种方法。
+- en: There is no way to tell which method was used to generate statistics for a given
+    table.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有办法知道为给定表生成统计信息时使用了哪种方法。
+- en: These variables apply only to `InnoDB` and `MyISAM` tables. Other storage engines
+    have only one method for collecting table statistics. Usually it is closer to
+    the `nulls_equal` method.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这些变量仅适用于`InnoDB`和`MyISAM`表。其他存储引擎只有一种收集表统计信息的方法。通常它更接近`nulls_equal`方法。

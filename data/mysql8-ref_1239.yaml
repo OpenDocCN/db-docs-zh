@@ -1,0 +1,434 @@
+- en: 17.12.2 Online DDL Performance and Concurrency
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.12.2 在线 DDL 性能和并发性
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-performance.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-performance.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-performance.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-performance.html)
+- en: 'Online DDL improves several aspects of MySQL operation:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在线 DDL 改进了 MySQL 操作的几个方面：
+- en: Applications that access the table are more responsive because queries and DML
+    operations on the table can proceed while the DDL operation is in progress. Reduced
+    locking and waiting for MySQL server resources leads to greater scalability, even
+    for operations that are not involved in the DDL operation.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 访问表的应用程序更具响应性，因为在 DDL 操作进行时，表上的查询和 DML 操作可以继续进行。减少对 MySQL 服务器资源的锁定和等待会导致更大的可伸缩性，即使对于不涉及
+    DDL 操作的操作也是如此。
+- en: Instant operations only modify metadata in the data dictionary. An exclusive
+    metadata lock on the table may be taken briefly during the execution phase of
+    the operation. Table data is unaffected, making operations instantaneous. Concurrent
+    DML is permitted.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 即时操作仅修改数据字典中的元数据。在操作执行阶段可能会短暂地获取表的独占元数据锁。表数据不受影响，使操作瞬间完成。允许并发 DML。
+- en: Online operations avoid the disk I/O and CPU cycles associated with the table-copy
+    method, which minimizes overall load on the database. Minimizing load helps maintain
+    good performance and high throughput during the DDL operation.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在线操作避免了与表复制方法相关的磁盘 I/O 和 CPU 周期，从而最小化了数据库的整体负载。减少负载有助于在 DDL 操作期间保持良好的性能和高吞吐量。
+- en: Online operations read less data into the buffer pool than table-copy operations,
+    which reduces purging of frequently accessed data from memory. Purging of frequently
+    accessed data can cause a temporary performance dip after a DDL operation.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在线操作读取的数据比表复制操作少，这减少了频繁访问数据从内存中清除的次数。频繁访问数据的清除可能导致 DDL 操作后的临时性能下降。
+- en: The LOCK clause
+  id: totrans-7
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: LOCK 子句
+- en: 'By default, MySQL uses as little locking as possible during a DDL operation.
+    The `LOCK` clause can be specified for in-place operations and some copy operations
+    to enforce more restrictive locking, if required. If the `LOCK` clause specifies
+    a less restrictive level of locking than is permitted for a particular DDL operation,
+    the statement fails with an error. `LOCK` clauses are described below, in order
+    of least to most restrictive:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '默认情况下，MySQL 在 DDL 操作期间尽可能少地使用锁定。如果需要，可以为原地操作和一些复制操作指定`LOCK`子句以强制执行更严格的锁定。如果`LOCK`子句指定的锁定级别比特定
+    DDL 操作允许的锁定级别更不严格，则语句将失败并显示错误。下面按照从最不严格到最严格的顺序描述了`LOCK`子句： '
+- en: '`LOCK=NONE`:'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LOCK=NONE`:'
+- en: Permits concurrent queries and DML.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 允许并发查询和 DML。
+- en: For example, use this clause for tables involving customer signups or purchases,
+    to avoid making the tables unavailable during lengthy DDL operations.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，对涉及客户注册或购买的表使用此子句，以避免在长时间的 DDL 操作期间使表不可用。
+- en: '`LOCK=SHARED`:'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LOCK=SHARED`:'
+- en: Permits concurrent queries but blocks DML.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 允许并发查询但阻止 DML。
+- en: For example, use this clause on data warehouse tables, where you can delay data
+    load operations until the DDL operation is finished, but queries cannot be delayed
+    for long periods.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，在数据仓库表上使用此子句，可以延迟数据加载操作直到 DDL 操作完成，但查询不能被延迟太长时间。
+- en: '`LOCK=DEFAULT`:'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LOCK=DEFAULT`:'
+- en: Permits as much concurrency as possible (concurrent queries, DML, or both).
+    Omitting the `LOCK` clause is the same as specifying `LOCK=DEFAULT`.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 允许尽可能多的并发性（并发查询、DML或两者兼有）。省略`LOCK`子句与指定`LOCK=DEFAULT`相同。
+- en: Use this clause when you do not expect the default locking level of the DDL
+    statement to cause any availability problems for the table.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当您不希望 DDL 语句的默认锁定级别对表造成任何可用性问题时，请使用此子句。
+- en: '`LOCK=EXCLUSIVE`:'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LOCK=EXCLUSIVE`:'
+- en: Blocks concurrent queries and DML.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 阻止并发查询和DML。
+- en: Use this clause if the primary concern is finishing the DDL operation in the
+    shortest amount of time possible, and concurrent query and DML access is not necessary.
+    You might also use this clause if the server is supposed to be idle, to avoid
+    unexpected table accesses.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果主要关注尽快完成 DDL 操作，并且不需要并发查询和 DML 访问，则使用此子句。如果服务器应该处于空闲状态，以避免意外的表访问，也可以使用此子句。
+- en: Online DDL and Metadata Locks
+  id: totrans-21
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 在线 DDL 和元数据锁
+- en: 'Online DDL operations can be viewed as having three phases:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在线 DDL 操作可以看作有三个阶段：
+- en: '*Phase 1: Initialization*'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*阶段 1：初始化*'
+- en: In the initialization phase, the server determines how much concurrency is permitted
+    during the operation, taking into account storage engine capabilities, operations
+    specified in the statement, and user-specified `ALGORITHM` and `LOCK` options.
+    During this phase, a shared upgradeable metadata lock is taken to protect the
+    current table definition.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在初始化阶段，服务器确定操作期间允许多少并发性，考虑到存储引擎的能力、语句中指定的操作以及用户指定的`ALGORITHM`和`LOCK`选项。在此阶段，会获取一个共享可升级的元数据锁以保护当前表定义。
+- en: '*Phase 2: Execution*'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*阶段 2: 执行*'
+- en: In this phase, the statement is prepared and executed. Whether the metadata
+    lock is upgraded to exclusive depends on the factors assessed in the initialization
+    phase. If an exclusive metadata lock is required, it is only taken briefly during
+    statement preparation.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在此阶段，语句被准备和执行。元数据锁是否升级为独占取决于初始化阶段评估的因素。如果需要独占元数据锁，则仅在语句准备期间短暂获取。
+- en: '*Phase 3: Commit Table Definition*'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*阶段 3: 提交表定义*'
+- en: In the commit table definition phase, the metadata lock is upgraded to exclusive
+    to evict the old table definition and commit the new one. Once granted, the duration
+    of the exclusive metadata lock is brief.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在提交表定义阶段，元数据锁被升级为独占，以清除旧表定义并提交新表定义。一旦授予，独占元数据锁的持续时间很短。
+- en: Due to the exclusive metadata lock requirements outlined above, an online DDL
+    operation may have to wait for concurrent transactions that hold metadata locks
+    on the table to commit or rollback. Transactions started before or during the
+    DDL operation can hold metadata locks on the table being altered. In the case
+    of a long running or inactive transaction, an online DDL operation can time out
+    waiting for an exclusive metadata lock. Additionally, a pending exclusive metadata
+    lock requested by an online DDL operation blocks subsequent transactions on the
+    table.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于上述独占元数据锁要求，在线DDL操作可能需要等待对表上持有元数据锁的并发事务进行提交或回滚。在DDL操作之前或期间启动的事务可以在正在更改的表上持有元数据锁。在长时间运行或不活动事务的情况下，在线DDL操作可能会因等待独占元数据锁而超时。此外，在线DDL操作请求的待处理独占元数据锁会阻止表上的后续事务。
+- en: The following example demonstrates an online DDL operation waiting for an exclusive
+    metadata lock, and how a pending metadata lock blocks subsequent transactions
+    on the table.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了一个在线DDL操作等待独占元数据锁的情况，以及待处理元数据锁如何阻止表上的后续事务。
+- en: 'Session 1:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '会话 1:'
+- en: '[PRE0]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The session 1 [`SELECT`](select.html "15.2.13 SELECT Statement") statement takes
+    a shared metadata lock on table t1.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话 1的[`SELECT`](select.html "15.2.13 SELECT Statement")语句在表 t1 上获取了一个共享元数据锁。
+- en: 'Session 2:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '会话 2:'
+- en: '[PRE1]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The online DDL operation in session 2, which requires an exclusive metadata
+    lock on table t1 to commit table definition changes, must wait for the session
+    1 transaction to commit or roll back.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话 2中的在线DDL操作需要在表 t1 上获取独占元数据锁以提交表定义更改，必须等待会话 1 的事务提交或回滚。
+- en: 'Session 3:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '会话 3:'
+- en: '[PRE2]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The [`SELECT`](select.html "15.2.13 SELECT Statement") statement issued in session
+    3 is blocked waiting for the exclusive metadata lock requested by the [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") operation in session
+    2 to be granted.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话 3中发出的[`SELECT`](select.html "15.2.13 SELECT Statement")语句正在等待会话 2中的[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")操作请求的独占元数据锁被授予。
+- en: You can use [`SHOW FULL PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW
+    PROCESSLIST Statement") to determine if transactions are waiting for a metadata
+    lock.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[`SHOW FULL PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW PROCESSLIST
+    Statement")来确定事务是否在等待元数据锁。
+- en: '[PRE3]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Metadata lock information is also exposed through the Performance Schema [`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table") table, which provides information about
+    metadata lock dependencies between sessions, the metadata lock a session is waiting
+    for, and the session that currently holds the metadata lock. For more information,
+    see [Section 29.12.13.3, “The metadata_locks Table”](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table").
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 元数据锁信息也通过性能模式[`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table")表暴露出来，该表提供了关于会话之间的元数据锁依赖关系、会话正在等待的元数据锁以及当前持有元数据锁的会话的信息。更多信息，请参见[Section 29.12.13.3,
+    “The metadata_locks Table”](performance-schema-metadata-locks-table.html "29.12.13.3 The
+    metadata_locks Table")。
+- en: Online DDL Performance
+  id: totrans-43
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 在线DDL性能
+- en: The performance of a DDL operation is largely determined by whether the operation
+    is performed instantly, in place, and whether it rebuilds the table.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: DDL操作的性能在很大程度上取决于操作是立即执行、原地执行还是重建表。
+- en: To assess the relative performance of a DDL operation, you can compare results
+    using `ALGORITHM=INSTANT`, `ALGORITHM=INPLACE`, and `ALGORITHM=COPY`. A statement
+    can also be run with [`old_alter_table`](server-system-variables.html#sysvar_old_alter_table)
+    enabled to force the use of `ALGORITHM=COPY`.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要评估DDL操作的相对性能，可以比较使用`ALGORITHM=INSTANT`、`ALGORITHM=INPLACE`和`ALGORITHM=COPY`的结果。还可以启用[`old_alter_table`](server-system-variables.html#sysvar_old_alter_table)运行语句以强制使用`ALGORITHM=COPY`。
+- en: 'For DDL operations that modify table data, you can determine whether a DDL
+    operation performs changes in place or performs a table copy by looking at the
+    “rows affected” value displayed after the command finishes. For example:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于修改表数据的DDL操作，您可以通过查看命令完成后显示的“受影响行数”值来确定DDL操作是在原地执行还是执行表复制。例如：
+- en: 'Changing the default value of a column (fast, does not affect the table data):'
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更改列的默认值（快速，不影响表数据）：
+- en: '[PRE4]'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Adding an index (takes time, but `0 rows affected` shows that the table is
+    not copied):'
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 添加索引（需要时间，但`0 rows affected`表明表没有被复制）：
+- en: '[PRE5]'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Changing the data type of a column (takes substantial time and requires rebuilding
+    all the rows of the table):'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更改列的数据类型（需要大量时间，并需要重建表的所有行）：
+- en: '[PRE6]'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Before running a DDL operation on a large table, check whether the operation
+    is fast or slow as follows:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在大表上运行DDL操作之前，请按以下方式检查操作是快还是慢：
+- en: Clone the table structure.
+  id: totrans-54
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 克隆表结构。
+- en: Populate the cloned table with a small amount of data.
+  id: totrans-55
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用少量数据填充克隆表。
+- en: Run the DDL operation on the cloned table.
+  id: totrans-56
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在克隆表上运行DDL操作。
+- en: Check whether the “rows affected” value is zero or not. A nonzero value means
+    the operation copies table data, which might require special planning. For example,
+    you might do the DDL operation during a period of scheduled downtime, or on each
+    replica server one at a time.
+  id: totrans-57
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查“受影响行数”值是否为零。非零值表示操作复制表数据，这可能需要特殊规划。例如，您可以在计划的停机期间执行DDL操作，或者逐个在每个副本服务器上执行。
+- en: Note
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: For a greater understanding of the MySQL processing associated with a DDL operation,
+    examine Performance Schema and `INFORMATION_SCHEMA` tables related to `InnoDB`
+    before and after DDL operations to see the number of physical reads, writes, memory
+    allocations, and so on.
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要更好地了解与DDL操作相关的MySQL处理，可以在DDL操作之前和之后检查与`InnoDB`相关的性能模式和`INFORMATION_SCHEMA`表，以查看物理读取、写入、内存分配等的数量。
+- en: Performance Schema stage events can be used to monitor [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") progress. See [Section 17.16.1, “Monitoring ALTER
+    TABLE Progress for InnoDB Tables Using Performance Schema”](monitor-alter-table-performance-schema.html
+    "17.16.1 Monitoring ALTER TABLE Progress for InnoDB Tables Using Performance Schema").
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用性能模式阶段事件来监视[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")的进度。请参阅[第17.16.1节，“使用性能模式监视InnoDB表的ALTER
+    TABLE进度”](monitor-alter-table-performance-schema.html "17.16.1 Monitoring ALTER
+    TABLE Progress for InnoDB Tables Using Performance Schema")。
+- en: Because there is some processing work involved with recording the changes made
+    by concurrent DML operations, then applying those changes at the end, an online
+    DDL operation could take longer overall than the table-copy mechanism that blocks
+    table access from other sessions. The reduction in raw performance is balanced
+    against better responsiveness for applications that use the table. When evaluating
+    the techniques for changing table structure, consider end-user perception of performance,
+    based on factors such as load times for web pages.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于记录并发DML操作所做的更改涉及一些处理工作，然后在最后应用这些更改，因此在线DDL操作的总体时间可能比阻止其他会话访问表的表复制机制更长。原始性能的降低与对使用表的应用程序更好的响应性之间取得平衡。在评估更改表结构的技术时，考虑基于诸如网页加载时间等因素的终端用户对性能的感知。

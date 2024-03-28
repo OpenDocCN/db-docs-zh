@@ -1,0 +1,582 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/order-by-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/order-by-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/order-by-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/order-by-optimization.html)
+- en: 10.2.1.16 ORDER BY Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.16 ORDER BY优化
+- en: This section describes when MySQL can use an index to satisfy an `ORDER BY`
+    clause, the `filesort` operation used when an index cannot be used, and execution
+    plan information available from the optimizer about `ORDER BY`.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了MySQL何时可以使用索引来满足`ORDER BY`子句，当无法使用索引时使用的`filesort`操作，以及优化器提供的关于`ORDER BY`的执行计划信息。
+- en: An `ORDER BY` with and without `LIMIT` may return rows in different orders,
+    as discussed in [Section 10.2.1.19, “LIMIT Query Optimization”](limit-optimization.html
+    "10.2.1.19 LIMIT Query Optimization").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 带有和不带有`LIMIT`的`ORDER BY`可能以不同的顺序返回行，如[第10.2.1.19节，“LIMIT查询优化”](limit-optimization.html
+    "10.2.1.19 LIMIT查询优化")中讨论的那样。
+- en: '[Use of Indexes to Satisfy ORDER BY](order-by-optimization.html#order-by-index-use
+    "Use of Indexes to Satisfy ORDER BY")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用索引满足ORDER BY](order-by-optimization.html#order-by-index-use "使用索引满足ORDER
+    BY")'
+- en: '[Use of filesort to Satisfy ORDER BY](order-by-optimization.html#order-by-filesort
+    "Use of filesort to Satisfy ORDER BY")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用filesort满足ORDER BY](order-by-optimization.html#order-by-filesort "使用filesort满足ORDER
+    BY")'
+- en: '[Influencing ORDER BY Optimization](order-by-optimization.html#order-by-optimizer-control
+    "Influencing ORDER BY Optimization")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[影响ORDER BY优化](order-by-optimization.html#order-by-optimizer-control "影响ORDER
+    BY优化")'
+- en: '[ORDER BY Execution Plan Information Available](order-by-optimization.html#order-by-diagnostic-information
+    "ORDER BY Execution Plan Information Available")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[ORDER BY执行计划信息可用](order-by-optimization.html#order-by-diagnostic-information
+    "ORDER BY执行计划信息可用")'
+- en: Use of Indexes to Satisfy ORDER BY
+  id: totrans-8
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用索引满足ORDER BY
+- en: In some cases, MySQL may use an index to satisfy an `ORDER BY` clause and avoid
+    the extra sorting involved in performing a `filesort` operation.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些情况下，MySQL可能使用索引来满足`ORDER BY`子句，并避免执行`filesort`操作所涉及的额外排序。
+- en: The index may also be used even if the `ORDER BY` does not match the index exactly,
+    as long as all unused portions of the index and all extra `ORDER BY` columns are
+    constants in the `WHERE` clause. If the index does not contain all columns accessed
+    by the query, the index is used only if index access is cheaper than other access
+    methods.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只要`ORDER BY`与索引不完全匹配，只要索引的所有未使用部分和所有额外的`ORDER BY`列在`WHERE`子句中都是常量，索引也可以被使用。如果索引不包含查询访问的所有列，那么只有在索引访问比其他访问方法更便宜时才会使用索引。
+- en: Assuming that there is an index on `(*`key_part1`*, *`key_part2`*)`, the following
+    queries may use the index to resolve the `ORDER BY` part. Whether the optimizer
+    actually does so depends on whether reading the index is more efficient than a
+    table scan if columns not in the index must also be read.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设在`(*`key_part1`*, *`key_part2`*)`上有一个索引，以下查询可能使用索引来解决`ORDER BY`部分。优化器是否实际这样做取决于如果索引不包含的列也必须被读取，那么读取索引是否比表扫描更有效。
+- en: 'In this query, the index on `(*`key_part1`*, *`key_part2`*)` enables the optimizer
+    to avoid sorting:'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在这个查询中，对`(*`key_part1`*, *`key_part2`*)`的索引使得优化器可以避免排序：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: However, the query uses `SELECT *`, which may select more columns than *`key_part1`*
+    and *`key_part2`*. In that case, scanning an entire index and looking up table
+    rows to find columns not in the index may be more expensive than scanning the
+    table and sorting the results. If so, the optimizer probably does not use the
+    index. If `SELECT *` selects only the index columns, the index is used and sorting
+    avoided.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 然而，该查询使用了`SELECT *`，可能选择的列比*`key_part1`*和*`key_part2`*多。在这种情况下，扫描整个索引并查找表行以找到不在索引中的列可能比扫描表并对结果进行排序更昂贵。如果是这样，优化器可能不使用索引。如果`SELECT
+    *`只选择索引列，那么索引会被使用，避免排序。
+- en: 'If `t1` is an `InnoDB` table, the table primary key is implicitly part of the
+    index, and the index can be used to resolve the `ORDER BY` for this query:'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果`t1`是一个`InnoDB`表，表主键隐式地是索引的一部分，索引可以用于解决此查询的`ORDER BY`：
+- en: '[PRE1]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'In this query, *`key_part1`* is constant, so all rows accessed through the
+    index are in *`key_part2`* order, and an index on `(*`key_part1`*, *`key_part2`*)`
+    avoids sorting if the `WHERE` clause is selective enough to make an index range
+    scan cheaper than a table scan:'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在这个查询中，*`key_part1`*是常量，因此通过索引访问的所有行都按*`key_part2`*顺序排列，而且在`WHERE`子句足够选择性的情况下，`(*`key_part1`*,
+    *`key_part2`*)`上的索引避免排序比表扫描更便宜：
+- en: '[PRE2]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'In the next two queries, whether the index is used is similar to the same queries
+    without `DESC` shown previously:'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在接下来的两个查询中，是否使用索引与之前显示的没有`DESC`的相同查询类似：
+- en: '[PRE3]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Two columns in an `ORDER BY` can sort in the same direction (both `ASC`, or
+    both `DESC`) or in opposite directions (one `ASC`, one `DESC`). A condition for
+    index use is that the index must have the same homogeneity, but need not have
+    the same actual direction.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ORDER BY`中的两列可以按相同方向排序（都是`ASC`或都是`DESC`），也可以按相反方向排序（一个`ASC`，一个`DESC`）。索引使用的条件是索引必须具有相同的同质性，但实际方向不必相同。'
+- en: 'If a query mixes `ASC` and `DESC`, the optimizer can use an index on the columns
+    if the index also uses corresponding mixed ascending and descending columns:'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果查询混合使用`ASC`和`DESC`，优化器可以在索引上使用这些列，如果索引也使用相应的混合升序和降序列：
+- en: '[PRE4]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The optimizer can use an index on (*`key_part1`*, *`key_part2`*) if *`key_part1`*
+    is descending and *`key_part2`* is ascending. It can also use an index on those
+    columns (with a backward scan) if *`key_part1`* is ascending and *`key_part2`*
+    is descending. See [Section 10.3.13, “Descending Indexes”](descending-indexes.html
+    "10.3.13 Descending Indexes").
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果`key_part1`是降序的，而`key_part2`是升序的，优化器可以在(*`key_part1`*, *`key_part2`*)上使用索引。如果`key_part1`是升序的，而`key_part2`是降序的，它也可以使用这些列的索引（进行反向扫描）。参见[Section 10.3.13,
+    “Descending Indexes”](descending-indexes.html "10.3.13 Descending Indexes")。
+- en: 'In the next two queries, *`key_part1`* is compared to a constant. The index
+    is used if the `WHERE` clause is selective enough to make an index range scan
+    cheaper than a table scan:'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在接下来的两个查询中，*`key_part1`*与一个常量进行比较。如果`WHERE`子句足够选择性，使得索引范围扫描比表扫描更便宜，则会使用索引：
+- en: '[PRE5]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'In the next query, the `ORDER BY` does not name *`key_part1`*, but all rows
+    selected have a constant *`key_part1`* value, so the index can still be used:'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在下一个查询中，`ORDER BY`没有命名*`key_part1`*，但所选的所有行都具有常量*`key_part1`*值，因此仍然可以使用索引：
+- en: '[PRE6]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'In some cases, MySQL *cannot* use indexes to resolve the `ORDER BY`, although
+    it may still use indexes to find the rows that match the `WHERE` clause. Examples:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些情况下，MySQL *无法* 使用索引解析`ORDER BY`，尽管仍然可以使用索引找到与`WHERE`子句匹配的行。例如：
+- en: 'The query uses `ORDER BY` on different indexes:'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询在不同的索引上使用`ORDER BY`：
+- en: '[PRE7]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The query uses `ORDER BY` on nonconsecutive parts of an index:'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询在索引的非连续部分上使用`ORDER BY`：
+- en: '[PRE8]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'The index used to fetch the rows differs from the one used in the `ORDER BY`:'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于获取行的索引与`ORDER BY`中使用的索引不同：
+- en: '[PRE9]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'The query uses `ORDER BY` with an expression that includes terms other than
+    the index column name:'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询使用包含除索引列名之外的项的表达式进行`ORDER BY`：
+- en: '[PRE10]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: The query joins many tables, and the columns in the `ORDER BY` are not all from
+    the first nonconstant table that is used to retrieve rows. (This is the first
+    table in the [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output that
+    does not have a [`const`](explain-output.html#jointype_const) join type.)
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询涉及多个表，并且`ORDER BY`中的列并非全部来自用于检索行的第一个非常量表（这是[`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement")输出中第一个没有[`const`](explain-output.html#jointype_const)连接类型的表）。
+- en: The query has different `ORDER BY` and `GROUP BY` expressions.
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询具有不同的`ORDER BY`和`GROUP BY`表达式。
+- en: There is an index on only a prefix of a column named in the `ORDER BY` clause.
+    In this case, the index cannot be used to fully resolve the sort order. For example,
+    if only the first 10 bytes of a [`CHAR(20)`](char.html "13.3.2 The CHAR and VARCHAR
+    Types") column are indexed, the index cannot distinguish values past the 10th
+    byte and a `filesort` is needed.
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`ORDER BY`子句中只有列名的前缀上有索引。在这种情况下，索引无法完全解析排序顺序。例如，如果只对[`CHAR(20)`](char.html
+    "13.3.2 The CHAR and VARCHAR Types")列的前10个字节建立索引，则索引无法区分第10个字节之后的值，需要使用`filesort`。
+- en: The index does not store rows in order. For example, this is true for a `HASH`
+    index in a `MEMORY` table.
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 索引不按顺序存储行。例如，在`MEMORY`表中的`HASH`索引是如此。
+- en: 'Availability of an index for sorting may be affected by the use of column aliases.
+    Suppose that the column `t1.a` is indexed. In this statement, the name of the
+    column in the select list is `a`. It refers to `t1.a`, as does the reference to
+    `a` in the `ORDER BY`, so the index on `t1.a` can be used:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 排序的索引可用性可能受到列别名的影响。假设列`t1.a`已建立索引。在此语句中，选择列表中的列名为`a`。它指的是`t1.a`，与`ORDER BY`中对`a`的引用一样，因此可以使用`t1.a`上的索引：
+- en: '[PRE11]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'In this statement, the name of the column in the select list is also `a`, but
+    it is the alias name. It refers to `ABS(a)`, as does the reference to `a` in the
+    `ORDER BY`, so the index on `t1.a` cannot be used:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此语句中，选择列表中的列名也是`a`，但它是别名。它指的是`ABS(a)`，与`ORDER BY`中对`a`的引用一样，因此无法使用`t1.a`上的索引：
+- en: '[PRE12]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: In the following statement, the `ORDER BY` refers to a name that is not the
+    name of a column in the select list. But there is a column in `t1` named `a`,
+    so the `ORDER BY` refers to `t1.a` and the index on `t1.a` can be used. (The resulting
+    sort order may be completely different from the order for `ABS(a)`, of course.)
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以下语句中，`ORDER BY` 指的是选择列表中不是列名的名称。但是在 `t1` 中有一个名为 `a` 的列，因此 `ORDER BY` 指的是 `t1.a`，并且可以使用在
+    `t1.a` 上的索引。（当然，生成的排序顺序可能与 `ABS(a)` 的顺序完全不同。）
+- en: '[PRE13]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Previously (MySQL 5.7 and lower), `GROUP BY` sorted implicitly under certain
+    conditions. In MySQL 8.0, that no longer occurs, so specifying `ORDER BY NULL`
+    at the end to suppress implicit sorting (as was done previously) is no longer
+    necessary. However, query results may differ from previous MySQL versions. To
+    produce a given sort order, provide an `ORDER BY` clause.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以前（MySQL 5.7及更低版本），在某些条件下，`GROUP BY` 会隐式排序。在 MySQL 8.0 中，不再发生这种情况，因此不再需要在末尾指定
+    `ORDER BY NULL` 来抑制隐式排序（如以前所做）。但是，查询结果可能与以前的 MySQL 版本不同。为了产生给定的排序顺序，请提供一个 `ORDER
+    BY` 子句。
+- en: Use of filesort to Satisfy ORDER BY
+  id: totrans-49
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用 filesort 满足 ORDER BY
+- en: If an index cannot be used to satisfy an `ORDER BY` clause, MySQL performs a
+    `filesort` operation that reads table rows and sorts them. A `filesort` constitutes
+    an extra sorting phase in query execution.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果无法使用索引满足 `ORDER BY` 子句，MySQL 执行一个 `filesort` 操作，读取表行并对其进行排序。`filesort` 在查询执行中构成额外的排序阶段。
+- en: To obtain memory for `filesort` operations, as of MySQL 8.0.12, the optimizer
+    allocates memory buffers incrementally as needed, up to the size indicated by
+    the [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    system variable, rather than allocating a fixed amount of [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    bytes up front, as was done prior to MySQL 8.0.12\. This enables users to set
+    [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size) to
+    larger values to speed up larger sorts, without concern for excessive memory use
+    for small sorts. (This benefit may not occur for multiple concurrent sorts on
+    Windows, which has a weak multithreaded `malloc`.)
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.12 开始，为了获取 `filesort` 操作的内存，优化器根据需要逐步分配内存缓冲区，直到达到 [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    系统变量指示的大小，而不是像在 MySQL 8.0.12 之前那样一次性分配固定数量的 [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    字节。这使用户可以将 [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    设置为较大的值，以加快较大的排序，而不必担心小排序的过度内存使用。（在 Windows 上，对于多个并发排序，这种好处可能不会发生，因为 Windows 具有弱多线程
+    `malloc`。）
+- en: 'A `filesort` operation uses temporary disk files as necessary if the result
+    set is too large to fit in memory. Some types of queries are particularly suited
+    to completely in-memory `filesort` operations. For example, the optimizer can
+    use `filesort` to efficiently handle in memory, without temporary files, the `ORDER
+    BY` operation for queries (and subqueries) of the following form:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`filesort` 操作根据需要使用临时磁盘文件，如果结果集太大而无法放入内存中。某些类型的查询特别适合完全在内存中进行 `filesort` 操作。例如，优化器可以使用
+    `filesort` 来有效地处理内存中的 `ORDER BY` 操作，而无需临时文件，对于以下形式的查询（和子查询）：'
+- en: '[PRE14]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'Such queries are common in web applications that display only a few rows from
+    a larger result set. Examples:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些查询在仅显示较大结果集中的几行的 Web 应用程序中很常见。例如：
+- en: '[PRE15]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Influencing ORDER BY Optimization
+  id: totrans-56
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 影响 ORDER BY 优化
+- en: For slow `ORDER BY` queries for which `filesort` is not used, try lowering the
+    [`max_length_for_sort_data`](server-system-variables.html#sysvar_max_length_for_sort_data)
+    system variable to a value that is appropriate to trigger a `filesort`. (A symptom
+    of setting the value of this variable too high is a combination of high disk activity
+    and low CPU activity.) This technique applies only before MySQL 8.0.20\. As of
+    8.0.20, [`max_length_for_sort_data`](server-system-variables.html#sysvar_max_length_for_sort_data)
+    is deprecated due to optimizer changes that make it obsolete and of no effect.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于慢的 `ORDER BY` 查询，如果不使用 `filesort`，请尝试降低 [`max_length_for_sort_data`](server-system-variables.html#sysvar_max_length_for_sort_data)
+    系统变量的值，以触发 `filesort`。 （设置此变量值过高的症状是高磁盘活动和低 CPU 活动的组合。）这种技术仅适用于 MySQL 8.0.20 之前。从
+    8.0.20 开始，由于优化器的更改使其过时且无效，[`max_length_for_sort_data`](server-system-variables.html#sysvar_max_length_for_sort_data)
+    已被弃用。
+- en: 'To increase `ORDER BY` speed, check whether you can get MySQL to use indexes
+    rather than an extra sorting phase. If this is not possible, try the following
+    strategies:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了提高 `ORDER BY` 的速度，请检查是否可以让 MySQL 使用索引而不是额外的排序阶段。如果不可能，请尝试以下策略：
+- en: Increase the [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    variable value. Ideally, the value should be large enough for the entire result
+    set to fit in the sort buffer (to avoid writes to disk and merge passes).
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 增加[`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)变量值。理想情况下，该值应足够大，以使整个结果集适合排序缓冲区（以避免写入磁盘和合并操作）。
+- en: Take into account that the size of column values stored in the sort buffer is
+    affected by the [`max_sort_length`](server-system-variables.html#sysvar_max_sort_length)
+    system variable value. For example, if tuples store values of long string columns
+    and you increase the value of [`max_sort_length`](server-system-variables.html#sysvar_max_sort_length),
+    the size of sort buffer tuples increases as well and may require you to increase
+    [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size).
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 请注意，存储在排序缓冲区中的列值的大小受[`max_sort_length`](server-system-variables.html#sysvar_max_sort_length)系统变量值的影响。例如，如果元组存储长字符串列的值，并增加[`max_sort_length`](server-system-variables.html#sysvar_max_sort_length)的值，则排序缓冲区元组的大小也会增加，可能需要您增加[`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)。
+- en: To monitor the number of merge passes (to merge temporary files), check the
+    [`Sort_merge_passes`](server-status-variables.html#statvar_Sort_merge_passes)
+    status variable.
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要监视合并临时文件的合并次数，请检查[`Sort_merge_passes`](server-status-variables.html#statvar_Sort_merge_passes)状态变量。
+- en: Increase the [`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)
+    variable value so that more rows are read at a time.
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 增加[`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)变量值，以便一次读取更多行。
+- en: Change the [`tmpdir`](server-system-variables.html#sysvar_tmpdir) system variable
+    to point to a dedicated file system with large amounts of free space. The variable
+    value can list several paths that are used in round-robin fashion; you can use
+    this feature to spread the load across several directories. Separate the paths
+    by colon characters (`:`) on Unix and semicolon characters (`;`) on Windows. The
+    paths should name directories in file systems located on different *physical*
+    disks, not different partitions on the same disk.
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将[`tmpdir`](server-system-variables.html#sysvar_tmpdir)系统变量更改为指向具有大量可用空间的专用文件系统。变量值可以列出几个路径，以轮询方式使用；您可以使用此功能将负载分散到几个目录中。在Unix上用冒号字符（`:`）分隔路径，在Windows上用分号字符（`;`）分隔。这些路径应命名位于不同*物理*磁盘上的文件系统中的目录，而不是同一磁盘上的不同分区。
+- en: ORDER BY Execution Plan Information Available
+  id: totrans-64
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: ORDER BY执行计划信息可用
+- en: 'With [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") (see [Section 10.8.1,
+    “Optimizing Queries with EXPLAIN”](using-explain.html "10.8.1 Optimizing Queries
+    with EXPLAIN")), you can check whether MySQL can use indexes to resolve an `ORDER
+    BY` clause:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")（参见[Section 10.8.1，“使用EXPLAIN优化查询”](using-explain.html
+    "10.8.1 使用EXPLAIN优化查询"）），您可以检查MySQL是否可以使用索引来解析`ORDER BY`子句：
+- en: If the `Extra` column of [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")
+    output does not contain `Using filesort`, the index is used and a `filesort` is
+    not performed.
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出的`Extra`列不包含`Using filesort`，则使用索引，不执行`filesort`。
+- en: If the `Extra` column of [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")
+    output contains `Using filesort`, the index is not used and a `filesort` is performed.
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出的`Extra`列包含`Using filesort`，则未使用索引并执行`filesort`。
+- en: 'In addition, if a `filesort` is performed, optimizer trace output includes
+    a `filesort_summary` block. For example:'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，如果执行了`filesort`，优化器跟踪输出将包括一个`filesort_summary`块。例如：
+- en: '[PRE16]'
+  id: totrans-69
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: '`peak_memory_used` indicates the maximum memory used at any one time during
+    the sort. This is a value up to but not necessarily as large as the value of the
+    [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size) system
+    variable. Prior to MySQL 8.0.12, the output shows `sort_buffer_size` instead,
+    indicating the value of [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size).
+    (Prior to MySQL 8.0.12, the optimizer always allocates [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    bytes for the sort buffer. As of 8.0.12, the optimizer allocates sort-buffer memory
+    incrementally, beginning with a small amount and adding more as necessary, up
+    to [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    bytes.)'
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`peak_memory_used` 表示在排序过程中任意时间点使用的最大内存。这个值可能与 [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    系统变量的值一样大，但不一定。在 MySQL 8.0.12 之前，输出显示的是 `sort_buffer_size`，表示 [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    的值。（在 MySQL 8.0.12 之前，优化器总是为排序缓冲区分配 [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    字节。从 8.0.12 开始，优化器逐渐分配排序缓冲区内存，从一个小量开始，根据需要逐渐增加，直到 [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    字节。）'
+- en: 'The `sort_mode` value provides information about the contents of tuples in
+    the sort buffer:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`sort_mode` 值提供有关排序缓冲区中元组内容的信息：'
+- en: '`<sort_key, rowid>`: This indicates that sort buffer tuples are pairs that
+    contain the sort key value and row ID of the original table row. Tuples are sorted
+    by sort key value and the row ID is used to read the row from the table.'
+  id: totrans-72
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<sort_key, rowid>`：表示排序缓冲区元组是包含排序键值和原始表行的行 ID 的对。元组按排序键值排序，行 ID 用于从表中读取行。'
+- en: '`<sort_key, additional_fields>`: This indicates that sort buffer tuples contain
+    the sort key value and columns referenced by the query. Tuples are sorted by sort
+    key value and column values are read directly from the tuple.'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<sort_key, additional_fields>`：表示排序缓冲区元组包含排序键值和查询引用的列。元组按排序键值排序，列值直接从元组中读取。'
+- en: '`<sort_key, packed_additional_fields>`: Like the previous variant, but the
+    additional columns are packed tightly together instead of using a fixed-length
+    encoding.'
+  id: totrans-74
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<sort_key, packed_additional_fields>`：与前一种变体类似，但附加列紧密打包在一起，而不是使用固定长度编码。'
+- en: '[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") does not distinguish whether
+    the optimizer does or does not perform a `filesort` in memory. Use of an in-memory
+    `filesort` can be seen in optimizer trace output. Look for `filesort_priority_queue_optimization`.
+    For information about the optimizer trace, see [MySQL Internals: Tracing the Optimizer](/doc/internals/en/optimizer-tracing.html).'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") 无法区分优化器是否在内存中执行 `filesort`。内存中的
+    `filesort` 使用可以在优化器跟踪输出中看到。查找 `filesort_priority_queue_optimization`。有关优化器跟踪的信息，请参阅
+    [MySQL Internals: Tracing the Optimizer](/doc/internals/en/optimizer-tracing.html)。'

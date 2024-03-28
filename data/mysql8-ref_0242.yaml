@@ -1,0 +1,328 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/connection-interfaces.html](https://dev.mysql.com/doc/refman/8.0/en/connection-interfaces.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/connection-interfaces.html](https://dev.mysql.com/doc/refman/8.0/en/connection-interfaces.html)
+- en: 7.1.12.1 Connection Interfaces
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.1.12.1 连接接口
+- en: This section describes aspects of how the MySQL server manages client connections.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了 MySQL 服务器管理客户端连接的方面。
+- en: '[Network Interfaces and Connection Manager Threads](connection-interfaces.html#connection-interfaces-interfaces
+    "Network Interfaces and Connection Manager Threads")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[网络接口和连接管理器线程](connection-interfaces.html#connection-interfaces-interfaces
+    "网络接口和连接管理器线程")'
+- en: '[Client Connection Thread Management](connection-interfaces.html#connection-interfaces-thread-management
+    "Client Connection Thread Management")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[客户端连接线程管理](connection-interfaces.html#connection-interfaces-thread-management
+    "客户端连接线程管理")'
+- en: '[Connection Volume Management](connection-interfaces.html#connection-interfaces-volume-management
+    "Connection Volume Management")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[连接量管理](connection-interfaces.html#connection-interfaces-volume-management
+    "连接量管理")'
+- en: Network Interfaces and Connection Manager Threads
+  id: totrans-6
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 网络接口和连接管理器线程
+- en: 'The server is capable of listening for client connections on multiple network
+    interfaces. Connection manager threads handle client connection requests on the
+    network interfaces that the server listens to:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器能够在多个网络接口上监听客户端连接。连接管理器线程处理服务器监听的网络接口上的客户端连接请求：
+- en: On all platforms, one manager thread handles TCP/IP connection requests.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在所有平台上，一个管理器线程处理 TCP/IP 连接请求。
+- en: On Unix, the same manager thread also handles Unix socket file connection requests.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 Unix 上，同一个管理器线程还处理 Unix 套接字文件连接请求。
+- en: On Windows, one manager thread handles shared-memory connection requests, and
+    another handles named-pipe connection requests.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 Windows 上，一个管理器线程处理共享内存连接请求，另一个处理命名管道连接请求。
+- en: On all platforms, an additional network interface may be enabled to accept administrative
+    TCP/IP connection requests. This interface can use the manager thread that handles
+    “ordinary” TCP/IP requests, or a separate thread.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在所有平台上，可以启用额外的网络接口以接受管理 TCP/IP 连接请求。此接口可以使用处理“普通”TCP/IP请求的管理器线程，或者使用单独的线程。
+- en: The server does not create threads to handle interfaces that it does not listen
+    to. For example, a Windows server that does not have support for named-pipe connections
+    enabled does not create a thread to handle them.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器不会创建用于处理其未监听的接口的线程。例如，未启用对命名管道连接的支持的 Windows 服务器不会创建用于处理它们的线程。
+- en: 'Individual server plugins or components may implement their own connection
+    interface:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 单独的服务器插件或组件可能会实现自己的连接接口：
+- en: X Plugin enables MySQL Server to communicate with clients using X Protocol.
+    See [Section 22.5, “X Plugin”](x-plugin.html "22.5 X Plugin").
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: X 插件使 MySQL 服务器能够使用 X 协议与客户端通信。请参阅[第 22.5 节，“X 插件”](x-plugin.html "22.5 X 插件")。
+- en: Client Connection Thread Management
+  id: totrans-15
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 客户端连接线程管理
+- en: Connection manager threads associate each client connection with a thread dedicated
+    to it that handles authentication and request processing for that connection.
+    Manager threads create a new thread when necessary but try to avoid doing so by
+    consulting the thread cache first to see whether it contains a thread that can
+    be used for the connection. When a connection ends, its thread is returned to
+    the thread cache if the cache is not full.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 连接管理器线程将每个客户端连接与专用于处理该连接的线程关联起来，负责认证和请求处理。管理器线程在必要时创建新线程，但会首先查看线程缓存，以查看是否有可用于连接的线程，以避免创建新线程。当连接结束时，如果缓存未满，则将其线程返回到线程缓存中。
+- en: In this connection thread model, there are as many threads as there are clients
+    currently connected, which has some disadvantages when server workload must scale
+    to handle large numbers of connections. For example, thread creation and disposal
+    becomes expensive. Also, each thread requires server and kernel resources, such
+    as stack space. To accommodate a large number of simultaneous connections, the
+    stack size per thread must be kept small, leading to a situation where it is either
+    too small or the server consumes large amounts of memory. Exhaustion of other
+    resources can occur as well, and scheduling overhead can become significant.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种连接线程模型中，当前连接的客户端数量与线程数量相同，当服务器工作负载必须扩展以处理大量连接时，会出现一些缺点。例如，线程的创建和销毁变得昂贵。此外，每个线程都需要服务器和内核资源，如堆栈空间。为了容纳大量同时连接，必须保持每个线程的堆栈大小较小，导致堆栈大小要么太小，要么服务器消耗大量内存。其他资源的耗尽也可能发生，并且调度开销可能变得显著。
+- en: MySQL Enterprise Edition includes a thread pool plugin that provides an alternative
+    thread-handling model designed to reduce overhead and improve performance. It
+    implements a thread pool that increases server performance by efficiently managing
+    statement execution threads for large numbers of client connections. See [Section 7.6.3,
+    “MySQL Enterprise Thread Pool”](thread-pool.html "7.6.3 MySQL Enterprise Thread
+    Pool").
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL企业版包括一个线程池插件，提供了一种旨在减少开销并提高性能的替代线程处理模型。它实现了一个线程池，通过有效管理大量客户端连接的语句执行线程来提高服务器性能。请参阅[第7.6.3节，“MySQL企业线程池”](thread-pool.html
+    "7.6.3 MySQL企业线程池")。
+- en: To control and monitor how the server manages threads that handle client connections,
+    several system and status variables are relevant. (See [Section 7.1.8, “Server
+    System Variables”](server-system-variables.html "7.1.8 Server System Variables"),
+    and [Section 7.1.10, “Server Status Variables”](server-status-variables.html "7.1.10 Server
+    Status Variables").)
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要控制和监视服务器如何管理处理客户端连接的线程，有几个相关的系统和状态变量。（请参阅[第7.1.8节，“服务器系统变量”](server-system-variables.html
+    "7.1.8 服务器系统变量")和[第7.1.10节，“服务器状态变量”](server-status-variables.html "7.1.10 服务器状态变量")。）
+- en: The [`thread_cache_size`](server-system-variables.html#sysvar_thread_cache_size)
+    system variable determines the thread cache size. By default, the server autosizes
+    the value at startup, but it can be set explicitly to override this default. A
+    value of 0 disables caching, which causes a thread to be set up for each new connection
+    and disposed of when the connection terminates. To enable *`N`* inactive connection
+    threads to be cached, set [`thread_cache_size`](server-system-variables.html#sysvar_thread_cache_size)
+    to *`N`* at server startup or at runtime. A connection thread becomes inactive
+    when the client connection with which it was associated terminates.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`thread_cache_size`](server-system-variables.html#sysvar_thread_cache_size)系统变量确定线程缓存大小。默认情况下，服务器在启动时自动调整该值，但可以显式设置以覆盖此默认值。值为0会禁用缓存，这会导致每个新连接都设置一个线程，并在连接终止时将其销毁。要启用*`N`*个非活动连接线程缓存，请在服务器启动时或运行时将[`thread_cache_size`](server-system-variables.html#sysvar_thread_cache_size)设置为*`N`*。当与其关联的客户端连接终止时，连接线程变为非活动状态。'
+- en: To monitor the number of threads in the cache and how many threads have been
+    created because a thread could not be taken from the cache, check the [`Threads_cached`](server-status-variables.html#statvar_Threads_cached)
+    and [`Threads_created`](server-status-variables.html#statvar_Threads_created)
+    status variables.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要监视缓存中的线程数以及由于无法从缓存中获取线程而创建的线程数，请检查[`Threads_cached`](server-status-variables.html#statvar_Threads_cached)和[`Threads_created`](server-status-variables.html#statvar_Threads_created)状态变量。
+- en: When the thread stack is too small, this limits the complexity of the SQL statements
+    the server can handle, the recursion depth of stored procedures, and other memory-consuming
+    actions. To set a stack size of *`N`* bytes for each thread, start the server
+    with [`thread_stack`](server-system-variables.html#sysvar_thread_stack) set to
+    *`N`*.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当线程堆栈太小时，这限制了服务器可以处理的SQL语句的复杂性，存储过程的递归深度以及其他消耗内存的操作。要为每个线程设置*`N`*字节的堆栈大小，请使用[`thread_stack`](server-system-variables.html#sysvar_thread_stack)设置为*`N`*来启动服务器。
+- en: Connection Volume Management
+  id: totrans-23
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 连接数量管理
+- en: To control the maximum number of clients the server permits to connect simultaneously,
+    set the [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    system variable at server startup or at runtime. It may be necessary to increase
+    [`max_connections`](server-system-variables.html#sysvar_max_connections) if more
+    clients attempt to connect simultaneously then the server is configured to handle
+    (see [Section B.3.2.5, “Too many connections”](too-many-connections.html "B.3.2.5 Too
+    many connections")). If the server refuses a connection because the [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    limit is reached, it increments the [`Connection_errors_max_connections`](server-status-variables.html#statvar_Connection_errors_max_connections)
+    status variable.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要控制服务器允许同时连接的最大客户端数，请在服务器启动或运行时设置 [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    系统变量。如果更多客户端尝试同时连接，而服务器配置为处理的数量不够，则可能需要增加 [`max_connections`](server-system-variables.html#sysvar_max_connections)（请参阅
+    [Section B.3.2.5, “Too many connections”](too-many-connections.html "B.3.2.5 Too
+    many connections")）。如果服务器因达到 [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    限制而拒绝连接，则会增加 [`Connection_errors_max_connections`](server-status-variables.html#statvar_Connection_errors_max_connections)
+    状态变量。
+- en: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") actually permits
+    [`max_connections`](server-system-variables.html#sysvar_max_connections) + 1 client
+    connections. The extra connection is reserved for use by accounts that have the
+    [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin) privilege
+    (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege).
+    By granting the privilege to administrators and not to normal users (who should
+    not need it), an administrator can connect to the server and use [`SHOW PROCESSLIST`](show-processlist.html
+    "15.7.7.29 SHOW PROCESSLIST Statement") to diagnose problems even if the maximum
+    number of unprivileged clients are connected. See [Section 15.7.7.29, “SHOW PROCESSLIST
+    Statement”](show-processlist.html "15.7.7.29 SHOW PROCESSLIST Statement").'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 实际上允许 [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    + 1 个客户端连接。额外的连接保留供具有 [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)
+    权限（或已弃用的 [`SUPER`](privileges-provided.html#priv_super) 权限）的帐户使用。通过将权限授予管理员而不授予普通用户（不应该需要该权限），管理员可以连接到服务器并使用
+    [`SHOW PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW PROCESSLIST Statement")
+    来诊断问题，即使已连接了最大数量的非特权客户端。参见 [Section 15.7.7.29, “SHOW PROCESSLIST Statement”](show-processlist.html
+    "15.7.7.29 SHOW PROCESSLIST Statement")。'
+- en: As of MySQL 8.0.14, the server also permits administrative connections on an
+    administrative network interface, which you can set up using a dedicated IP address
+    and port. See [Section 7.1.12.2, “Administrative Connection Management”](administrative-connection-interface.html
+    "7.1.12.2 Administrative Connection Management").
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.14 开始，服务器还允许在管理网络接口上进行管理连接，您可以使用专用 IP 地址和端口进行设置。参见 [Section 7.1.12.2,
+    “Administrative Connection Management”](administrative-connection-interface.html
+    "7.1.12.2 Administrative Connection Management")。
+- en: The Group Replication plugin interacts with MySQL Server using internal sessions
+    to perform SQL API operations. In releases to MySQL 8.0.18, these sessions count
+    towards the client connections limit specified by the [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    server system variable. In those releases, if the server has reached the [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    limit when Group Replication is started or attempts to perform an operation, the
+    operation is unsuccessful and Group Replication or the server itself might stop.
+    From MySQL 8.0.19, Group Replication's internal sessions are handled separately
+    from client connections, so they do not count towards the [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    limit and are not refused if the server has reached this limit.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication 插件通过内部会话与 MySQL Server 进行交互，执行 SQL API 操作。在 MySQL 8.0.18 版本中，这些会话计入由
+    [`max_connections`](server-system-variables.html#sysvar_max_connections) 服务器系统变量指定的客户端连接限制。在这些版本中，如果服务器在启动
+    Group Replication 或尝试执行操作时已达到 [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    限制，则操作将失败，Group Replication 或服务器本身可能会停止。从 MySQL 8.0.19 开始，Group Replication 的内部会话与客户端连接分开处理，因此它们不计入
+    [`max_connections`](server-system-variables.html#sysvar_max_connections) 限制，并且如果服务器达到此限制，则不会被拒绝。
+- en: 'The maximum number of client connections MySQL supports (that is, the maximum
+    value to which [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    can be set) depends on several factors:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL支持的客户端连接的最大数量（即可以设置为的[`max_connections`](server-system-variables.html#sysvar_max_connections)的最大值）取决于几个因素：
+- en: The quality of the thread library on a given platform.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 给定平台上线程库的质量。
+- en: The amount of RAM available.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可用的RAM量。
+- en: The amount of RAM is used for each connection.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个连接使用的RAM量。
+- en: The workload from each connection.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个连接的工作负载。
+- en: The desired response time.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 期望的响应时间。
+- en: The number of file descriptors available.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可用的文件描述符数量。
+- en: Linux or Solaris should be able to support at least 500 to 1000 simultaneous
+    connections routinely and as many as 10,000 connections if you have many gigabytes
+    of RAM available and the workload from each is low or the response time target
+    undemanding.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Linux或Solaris应该能够常规支持至少500到1000个同时连接，并且如果你有许多GB的可用RAM并且每个连接的工作负载较低或响应时间目标不苛刻，那么可以支持多达10,000个连接。
+- en: Increasing the [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    value increases the number of file descriptors that [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") requires. If the required number of descriptors are not available,
+    the server reduces the value of [`max_connections`](server-system-variables.html#sysvar_max_connections).
+    For comments on file descriptor limits, see [Section 10.4.3.1, “How MySQL Opens
+    and Closes Tables”](table-cache.html "10.4.3.1 How MySQL Opens and Closes Tables").
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 增加[`max_connections`](server-system-variables.html#sysvar_max_connections)值会增加[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")需要的文件描述符数量。如果所需的描述符数量不可用，服务器会降低[`max_connections`](server-system-variables.html#sysvar_max_connections)的值。有关文件描述符限制的评论，请参见[Section 10.4.3.1,
+    “How MySQL Opens and Closes Tables”](table-cache.html "10.4.3.1 How MySQL Opens
+    and Closes Tables")。
+- en: Increasing the [`open_files_limit`](server-system-variables.html#sysvar_open_files_limit)
+    system variable may be necessary, which may also require raising the operating
+    system limit on how many file descriptors can be used by MySQL. Consult your operating
+    system documentation to determine whether it is possible to increase the limit
+    and how to do so. See also [Section B.3.2.16, “File Not Found and Similar Errors”](not-enough-file-handles.html
+    "B.3.2.16 File Not Found and Similar Errors").
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可能需要增加[`open_files_limit`](server-system-variables.html#sysvar_open_files_limit)系统变量，这可能还需要提高操作系统对MySQL可以使用多少文件描述符的限制。请参阅您的操作系统文档，以确定是否可以增加限制以及如何操作。另请参见[Section B.3.2.16,
+    “File Not Found and Similar Errors”](not-enough-file-handles.html "B.3.2.16 File
+    Not Found and Similar Errors")。

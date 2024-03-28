@@ -1,0 +1,255 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-moving-data-files-offline.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-moving-data-files-offline.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-moving-data-files-offline.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-moving-data-files-offline.html)
+- en: 17.6.3.6 Moving Tablespace Files While the Server is Offline
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.6.3.6 在服务器离线时移动表空间文件
+- en: The [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    variable, which defines directories to scan at startup for tablespace files, supports
+    moving or restoring tablespace files to a new location while the server is offline.
+    During startup, discovered tablespace files are used instead those referenced
+    in the data dictionary, and the data dictionary is updated to reference the relocated
+    files. If duplicate tablespace files are discovered by the scan, startup fails
+    with an error indicating that multiple files were found for the same tablespace
+    ID.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 定义在启动时用于扫描表空间文件的[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)变量支持在服务器离线时将表空间文件移动或恢复到新位置。在启动过程中，发现的表空间文件将被用于数据字典中引用的文件，并且数据字典将被更新以引用已重新定位的文件。如果扫描发现重复的表空间文件，则启动将失败，并显示错误，指示找到了相同表空间ID的多个文件。
+- en: The directories defined by the [`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir),
+    [`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory),
+    and [`datadir`](server-system-variables.html#sysvar_datadir) variables are automatically
+    appended to the [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    argument value. These directories are scanned at startup regardless of whether
+    an [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories) setting
+    is specified explicitly. The implicit addition of these directories permits moving
+    system tablespace files, the data directory, or undo tablespace files without
+    configuring the [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    setting. However, settings must be updated when directories change. For example,
+    after relocating the data directory, you must update the [`--datadir`](server-system-variables.html#sysvar_datadir)
+    setting before restarting the server.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由[`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)、[`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory)和[`datadir`](server-system-variables.html#sysvar_datadir)变量定义的目录会自动附加到[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)参数值中。这些目录在启动时会被扫描，无论是否明确指定了[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)设置。这些目录的隐式添加允许移动系统表空间文件、数据目录或撤销表空间文件，而无需配置[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)设置。但是，当目录发生变化时，必须更新设置。例如，在重新定位数据目录后，必须在重新启动服务器之前更新[`--datadir`](server-system-variables.html#sysvar_datadir)设置。
+- en: The [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    variable can be specified in a startup command or MySQL option file. Quotes are
+    used around the argument value because a semicolon (;) is interpreted as a special
+    character by some command interpreters. (Unix shells treat it as a command terminator,
+    for example.)
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)变量可以在启动命令或MySQL选项文件中指定。由于分号（;）被一些命令解释器解释为特殊字符，因此在参数值周围使用引号。
+    （例如，Unix shell将其视为命令终止符。）'
+- en: 'Startup command:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 启动命令：
+- en: '[PRE0]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'MySQL option file:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL选项文件：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The following procedure is applicable to moving individual [file-per-table](glossary.html#glos_file_per_table
+    "file-per-table") and [general tablespace](glossary.html#glos_general_tablespace
+    "general tablespace") files, [system tablespace](glossary.html#glos_system_tablespace
+    "system tablespace") files, [undo tablespace](glossary.html#glos_undo_tablespace
+    "undo tablespace") files, or the data directory. Before moving files or directories,
+    review the usage notes that follow.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下过程适用于移动单个[file-per-table](glossary.html#glos_file_per_table "file-per-table")和[general
+    tablespace](glossary.html#glos_general_tablespace "general tablespace")文件、[system
+    tablespace](glossary.html#glos_system_tablespace "system tablespace")文件、[undo
+    tablespace](glossary.html#glos_undo_tablespace "undo tablespace")文件或数据目录。在移动文件或目录之前，请查看以下使用说明。
+- en: Stop the server.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止服务器。
+- en: Move the tablespace files or directories to the desired location.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将表空间文件或目录移动到所需位置。
+- en: Make the new directory known to `InnoDB`.
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使`InnoDB`知道新目录。
+- en: If moving individual [file-per-table](glossary.html#glos_file_per_table "file-per-table")
+    or [general tablespace](glossary.html#glos_general_tablespace "general tablespace")
+    files, add unknown directories to the [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    value.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果移动单个[file-per-table](glossary.html#glos_file_per_table "file-per-table")或[通用表空间](glossary.html#glos_general_tablespace
+    "general tablespace")文件，请将未知目录添加到[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)的值中。
+- en: The directories defined by the [`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir),
+    [`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory),
+    and [`datadir`](server-system-variables.html#sysvar_datadir) variables are automatically
+    appended to the [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    argument value, so you need not specify these.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由[`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)、[`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory)和[`datadir`](server-system-variables.html#sysvar_datadir)变量定义的目录会自动附加到[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)参数值中，因此无需指定这些目录。
+- en: A file-per-table tablespace file can only be moved to a directory with same
+    name as the schema. For example, if the `actor` table belongs to the `sakila`
+    schema, then the `actor.ibd` data file can only be moved to a directory named
+    `sakila`.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个file-per-table表空间文件只能移动到与模式同名的目录中。例如，如果`actor`表属于`sakila`模式，则`actor.ibd`数据文件只能移动到名为`sakila`的目录中。
+- en: General tablespace files cannot be moved to the data directory or a subdirectory
+    of the data directory.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通用表空间文件不能移动到数据目录或数据目录的子目录中。
+- en: If moving system tablespace files, undo tablespaces, or the data directory,
+    update the [`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir),
+    [`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory),
+    and [`datadir`](server-system-variables.html#sysvar_datadir) settings, as necessary.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果移动系统表空间文件、撤销表空间或数据目录，请根据需要更新[`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)、[`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory)和[`datadir`](server-system-variables.html#sysvar_datadir)设置。
+- en: Restart the server.
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 重新启动服务器。
+- en: Usage Notes
+  id: totrans-19
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用说明
+- en: Wildcard expressions cannot be used in the [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    argument value.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不能在[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)参数值中使用通配符表达式。
+- en: The [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    scan also traverses subdirectories of specified directories. Duplicate directories
+    and subdirectories are discarded from the list of directories to be scanned.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)扫描还会遍历指定目录的子目录。重复的目录和子目录将从要扫描的目录列表中丢弃。'
+- en: '[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories) supports
+    moving `InnoDB` tablespace files. Moving files that belong to a storage engine
+    other than `InnoDB` is not supported. This restriction also applies when moving
+    the entire data directory.'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)支持移动`InnoDB`表空间文件。不支持移动属于`InnoDB`以外存储引擎的文件。当移动整个数据目录时，此限制也适用。'
+- en: '[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories) supports
+    renaming of tablespace files when moving files to a scanned directory. It also
+    supports moving tablespaces files to other supported operating systems.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)支持在将文件移动到扫描目录时重命名表空间文件。它还支持将表空间文件移动到其他支持的操作系统。'
+- en: When moving tablespace files to a different operating system, ensure that tablespace
+    file names do not include prohibited characters or characters with a special meaning
+    on the destination system.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在将表空间文件移动到不同操作系统时，请确保表空间文件名不包含目标系统上具有特殊含义或特殊含义的字符。
+- en: When moving a data directory from a Windows operating system to a Linux operating
+    system, modify the binary log file paths in the binary log index file to use backward
+    slashes instead of forward slashes. By default, the binary log index file has
+    the same base name as the binary log file, with the extension '`.index`'. The
+    location of the binary log index file is defined by [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin).
+    The default location is the data directory.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将数据目录从Windows操作系统移动到Linux操作系统时，请修改二进制日志文件路径在二进制日志索引文件中使用反斜杠而不是正斜杠。默认情况下，二进制日志索引文件与二进制日志文件具有相同的基本名称，扩展名为'`.index`'。二进制日志索引文件的位置由[`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)定义。默认位置是数据目录。
+- en: If moving tablespace files to a different operating system introduces cross-platform
+    replication, it is the database administrator's responsibility to ensure proper
+    replication of DDL statements that contain platform-specific directories. Statements
+    that permit specifying directories include [`CREATE TABLE ... DATA DIRECTORY`](create-table.html
+    "15.1.20 CREATE TABLE Statement") and [`CREATE TABLESPACE ... ADD DATAFILE`](create-tablespace.html
+    "15.1.21 CREATE TABLESPACE Statement").
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果将表空间文件移动到不同操作系统会引入跨平台复制，那么数据库管理员有责任确保包含特定平台目录的DDL语句的正确复制。允许指定目录的语句包括[`CREATE
+    TABLE ... DATA DIRECTORY`](create-table.html "15.1.20 CREATE TABLE语句")和[`CREATE
+    TABLESPACE ... ADD DATAFILE`](create-tablespace.html "15.1.21 CREATE TABLESPACE语句")。
+- en: Add the directories of file-per-table and general tablespaces created with an
+    absolute path or in a location outside of the data directory to the [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)
+    setting. Otherwise, `InnoDB` is not able to locate the files during recovery.
+    For related information, see [Tablespace Discovery During Crash Recovery](innodb-recovery.html#innodb-recovery-tablespace-discovery
+    "Tablespace Discovery During Crash Recovery").
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将使用绝对路径或位于数据目录之外的位置创建的文件-每表和通用表空间的目录添加到[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)设置中。否则，在恢复过程中，`InnoDB`将无法定位这些文件。有关更多信息，请参阅[崩溃恢复期间的表空间发现](innodb-recovery.html#innodb-recovery-tablespace-discovery
+    "崩溃恢复期间的表空间发现")。
+- en: 'To view tablespace file locations, query the Information Schema [`FILES`](information-schema-files-table.html
+    "28.3.15 The INFORMATION_SCHEMA FILES Table") table:'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要查看表空间文件位置，请查询信息模式[`FILES`](information-schema-files-table.html "28.3.15 INFORMATION_SCHEMA
+    FILES表")表：
+- en: '[PRE2]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'

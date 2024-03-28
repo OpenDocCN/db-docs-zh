@@ -1,0 +1,435 @@
+- en: '8.2.6 Access Control, Stage 1: Connection Verification'
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.2.6 访问控制，阶段1：连接验证
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/connection-access.html](https://dev.mysql.com/doc/refman/8.0/en/connection-access.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/connection-access.html](https://dev.mysql.com/doc/refman/8.0/en/connection-access.html)
+- en: 'When you attempt to connect to a MySQL server, the server accepts or rejects
+    the connection based on these conditions:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当你尝试连接到MySQL服务器时，服务器根据以下条件接受或拒绝连接：
+- en: Your identity and whether you can verify it by supplying the proper credentials.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你的身份以及是否可以通过提供适当的凭证来验证。
+- en: Whether your account is locked or unlocked.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你的帐户是锁定还是解锁的。
+- en: The server checks credentials first, then account locking state. A failure at
+    either step causes the server to deny access to you completely. Otherwise, the
+    server accepts the connection, and then enters Stage 2 and waits for requests.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器首先检查凭证，然后检查帐户锁定状态。任一步骤失败都会导致服务器完全拒绝您的访问。否则，服务器接受连接，然后进入阶段2并等待请求。
+- en: 'The server performs identity and credentials checking using columns in the
+    `user` table, accepting the connection only if these conditions are satisfied:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用`user`表中的列执行身份和凭证检查，仅当满足以下条件时才接受连接：
+- en: The client host name and user name match the `Host` and `User` columns in some
+    `user` table row. For the rules governing permissible `Host` and `User` values,
+    see [Section 8.2.4, “Specifying Account Names”](account-names.html "8.2.4 Specifying
+    Account Names").
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端主机名和用户名与某个`user`表行中的`Host`和`User`列匹配。有关允许的`Host`和`User`值的规则，请参见[Section 8.2.4,
+    “Specifying Account Names”](account-names.html "8.2.4 Specifying Account Names")。
+- en: The client supplies the credentials specified in the row (for example, a password),
+    as indicated by the `authentication_string` column. Credentials are interpreted
+    using the authentication plugin named in the `plugin` column.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端提供行中指定的凭证（例如，密码），如`authentication_string`列所示。凭证使用`plugin`列中命名的身份验证插件进行解释。
+- en: The row indicates that the account is unlocked. Locking state is recorded in
+    the `account_locked` column, which must have a value of `'N'`. Account locking
+    can be set or changed with the [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") or [`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER Statement")
+    statement.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 该行指示帐户未锁定。锁定状态记录在`account_locked`列中，其值必须为`'N'`。可以使用[`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement")或[`ALTER USER`](alter-user.html "15.7.1.1 ALTER
+    USER Statement")语句设置或更改帐户锁定。
+- en: 'Your identity is based on two pieces of information:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你的身份基于两个信息：
+- en: Your MySQL user name.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你的MySQL用户名。
+- en: The client host from which you connect.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你连接的客户端主机。
+- en: If the `User` column value is nonblank, the user name in an incoming connection
+    must match exactly. If the `User` value is blank, it matches any user name. If
+    the `user` table row that matches an incoming connection has a blank user name,
+    the user is considered to be an anonymous user with no name, not a user with the
+    name that the client actually specified. This means that a blank user name is
+    used for all further access checking for the duration of the connection (that
+    is, during Stage 2).
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`User`列的值非空，则传入连接中的用户名必须完全匹配。如果`User`值为空，则匹配任何用户名。如果与传入连接匹配的`user`表行具有空白用户名，则该用户被视为没有名称的匿名用户，而不是客户端实际指定的用户名。这意味着在连接期间（即在阶段2期间）使用空白用户名进行所有进一步的访问检查。
+- en: The `authentication_string` column can be blank. This is not a wildcard and
+    does not mean that any password matches. It means that the user must connect without
+    specifying a password. The authentication method implemented by the plugin that
+    authenticates the client may or may not use the password in the `authentication_string`
+    column. In this case, it is possible that an external password is also used to
+    authenticate to the MySQL server.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`authentication_string`列可以为空。这不是通配符，也不意味着任何密码都匹配。这意味着用户必须在不指定密码的情况下连接。验证客户端的插件实现的身份验证方法可能会或可能不会使用`authentication_string`列中的密码。在这种情况下，可能还会使用外部密码来对MySQL服务器进行身份验证。'
+- en: Nonblank password values stored in the `authentication_string` column of the
+    `user` table are encrypted. MySQL does not store passwords as cleartext for anyone
+    to see. Rather, the password supplied by a user who is attempting to connect is
+    encrypted (using the password hashing method implemented by the account authentication
+    plugin). The encrypted password then is used during the connection process when
+    checking whether the password is correct. This is done without the encrypted password
+    ever traveling over the connection. See [Section 8.2.1, “Account User Names and
+    Passwords”](user-names.html "8.2.1 Account User Names and Passwords").
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存储在`user`表的`authentication_string`列中的非空密码值已加密。MySQL不会将密码以明文形式存储供任何人查看。相反，尝试连接的用户提供的密码会被加密（使用帐户认证插件实现的密码哈希方法）。然后，在检查密码是否正确的连接过程中使用加密密码。这样做时，加密密码永远不会通过连接传输。参见[Section 8.2.1,
+    “Account User Names and Passwords”](user-names.html "8.2.1 Account User Names
+    and Passwords")。
+- en: From the MySQL server's point of view, the encrypted password is the *real*
+    password, so you should never give anyone access to it. In particular, *do not
+    give nonadministrative users read access to tables in the `mysql` system database*.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL服务器的角度来看，加密密码是*真实*密码，因此您不应该向任何人提供访问权限。特别是*不要向非管理员用户提供对`mysql`系统数据库中表的读取权限*。
+- en: The following table shows how various combinations of `User` and `Host` values
+    in the `user` table apply to incoming connections.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格显示了`user`表中各种`User`和`Host`值的组合如何应用于传入连接。
+- en: '| `User` Value | `Host` Value | Permissible Connections |'
+  id: totrans-18
+  prefs: []
+  type: TYPE_TB
+  zh: '| `User`值 | `Host`值 | 允许的连接 |'
+- en: '| `''fred''` | `''h1.example.net''` | `fred`, connecting from `h1.example.net`
+    |'
+  id: totrans-19
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''fred''` | `''h1.example.net''` | `fred`，从`h1.example.net`连接 |'
+- en: '| `''''` | `''h1.example.net''` | Any user, connecting from `h1.example.net`
+    |'
+  id: totrans-20
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''''` | `''h1.example.net''` | 任何用户，从`h1.example.net`连接 |'
+- en: '| `''fred''` | `''%''` | `fred`, connecting from any host |'
+  id: totrans-21
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''fred''` | `''%''` | `fred`，从任何主机连接 |'
+- en: '| `''''` | `''%''` | Any user, connecting from any host |'
+  id: totrans-22
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''''` | `''%''` | 任何用户，从任何主机连接 |'
+- en: '| `''fred''` | `''%.example.net''` | `fred`, connecting from any host in the
+    `example.net` domain |'
+  id: totrans-23
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''fred''` | `''%.example.net''` | `fred`，从`example.net`域中的任何主机连接 |'
+- en: '| `''fred''` | `''x.example.%''` | `fred`, connecting from `x.example.net`,
+    `x.example.com`, `x.example.edu`, and so on; this is probably not useful |'
+  id: totrans-24
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''fred''` | `''x.example.%''` | `fred`，从`x.example.net`，`x.example.com`，`x.example.edu`等连接；这可能没有用处
+    |'
+- en: '| `''fred''` | `''198.51.100.177''` | `fred`, connecting from the host with
+    IP address `198.51.100.177` |'
+  id: totrans-25
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''fred''` | `''198.51.100.177''` | `fred`，从具有IP地址`198.51.100.177`的主机连接 |'
+- en: '| `''fred''` | `''198.51.100.%''` | `fred`, connecting from any host in the
+    `198.51.100` class C subnet |'
+  id: totrans-26
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''fred''` | `''198.51.100.%''` | `fred`，从`198.51.100`类C子网中的任何主机连接 |'
+- en: '| `''fred''` | `''198.51.100.0/255.255.255.0''` | Same as previous example
+    |'
+  id: totrans-27
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''fred''` | `''198.51.100.0/255.255.255.0''` | 与前一个示例相同 |'
+- en: 'It is possible for the client host name and user name of an incoming connection
+    to match more than one row in the `user` table. The preceding set of examples
+    demonstrates this: Several of the entries shown match a connection from `h1.example.net`
+    by `fred`.'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端主机名和用户名可能与`user`表中的多行匹配。前面的示例集演示了这一点：所示的几个条目与`fred`通过`h1.example.net`的连接匹配。
+- en: 'When multiple matches are possible, the server must determine which of them
+    to use. It resolves this issue as follows:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当存在多个匹配项时，服务器必须确定使用哪个。它解决此问题如下：
+- en: Whenever the server reads the `user` table into memory, it sorts the rows.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每当服务器将`user`表读入内存时，它会对行进行排序。
+- en: When a client attempts to connect, the server looks through the rows in sorted
+    order.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当客户端尝试连接时，服务器按顺序查看行。
+- en: The server uses the first row that matches the client host name and user name.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器使用与客户端主机名和用户名匹配的第一行。
+- en: 'The server uses sorting rules that order rows with the most-specific `Host`
+    values first:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用排序规则，首先按最具体的`Host`值对行进行排序：
+- en: Literal IP addresses and host names are the most specific.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 字面IP地址和主机名是最具体的。
+- en: 'Prior to MySQL 8.0.23, the specificity of a literal IP address is not affected
+    by whether it has a netmask, so `198.51.100.13` and `198.51.100.0/255.255.255.0`
+    are considered equally specific. As of MySQL 8.0.23, accounts with an IP address
+    in the host part have this order of specificity:'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.23之前，字面IP地址的特异性不受其是否具有网络掩码的影响，因此`198.51.100.13`和`198.51.100.0/255.255.255.0`被视为同等特异性。从MySQL
+    8.0.23开始，主机部分带有IP地址的帐户具有以下特异性顺序：
+- en: 'Accounts that have the host part given as an IP address:'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 具有IP地址作为主机部分的帐户：
+- en: '[PRE0]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Accounts that have the host part given as an IP address using CIDR notation:'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 具有使用CIDR表示法给定IP地址作为主机部分的帐户：
+- en: '[PRE1]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Accounts that have the host part given as an IP address with a subnet mask:'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 具有给定子网掩码的IP地址作为主机部分的帐户：
+- en: '[PRE2]'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The pattern `'%'` means “any host” and is least specific.
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 模式`'%'`表示“任何主机”，是最不具体的。
+- en: The empty string `''` also means “any host” but sorts after `'%'`.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 空字符串`''`也表示“任何主机”，但在`'%'`之后排序。
+- en: Non-TCP (socket file, named pipe, and shared memory) connections are treated
+    as local connections and match a host part of `localhost` if there are any such
+    accounts, or host parts with wildcards that match `localhost` otherwise (for example,
+    `local%`, `l%`, `%`).
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非 TCP（套接字文件、命名管道和共享内存）连接被视为本地连接，并且如果存在这样的帐户，则与`localhost`的主机部分匹配，否则与匹配`localhost`的通配符主机部分匹配（例如，`local%`，`l%`，`%`）。
+- en: The treatment of `'%'` as equivalent to `localhost` is deprecated as of MySQL
+    8.0.35, and you should expect this behavior to removed from a future version of
+    MySQL.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将`'%'`视为等同于`localhost`的处理在 MySQL 8.0.35 中已弃用，您应该期望这种行为在将来的 MySQL 版本中被移除。
+- en: Rows with the same `Host` value are ordered with the most-specific `User` values
+    first. A blank `User` value means “any user” and is least specific, so for rows
+    with the same `Host` value, nonanonymous users sort before anonymous users.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 具有相同`Host`值的行按照最具体的`User`值首先排序。空白的`User`值表示“任何用户”，是最不具体的，因此对于具有相同`Host`值的行，非匿名用户排在匿名用户之前。
+- en: For rows with equally-specific `Host` and `User` values, the order is nondeterministic.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于具有同等特定`Host`和`User`值的行，顺序是不确定的。
+- en: 'To see how this works, suppose that the `user` table looks like this:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要了解这是如何工作的，假设`user`表如下所示：
+- en: '[PRE3]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'When the server reads the table into memory, it sorts the rows using the rules
+    just described. The result after sorting looks like this:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当服务器将表读入内存时，使用刚才描述的规则对行进行排序。排序后的结果如下所示：
+- en: '[PRE4]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'When a client attempts to connect, the server looks through the sorted rows
+    and uses the first match found. For a connection from `localhost` by `jeffrey`,
+    two of the rows from the table match: the one with `Host` and `User` values of
+    `''localhost''` and `''''`, and the one with values of `''%''` and `''jeffrey''`.
+    The `''localhost''` row appears first in sorted order, so that is the one the
+    server uses.'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当客户端尝试连接时，服务器会浏览排序后的行，并使用找到的第一个匹配项。对于由`jeffrey`从`localhost`连接的连接，表中的两行匹配：具有`Host`和`User`值为`'localhost'`和`''`的行，以及具有值为`'%'`和`'jeffrey'`的行。`'localhost'`行在排序顺序中首先出现，因此服务器使用该行。
+- en: 'Here is another example. Suppose that the `user` table looks like this:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里是另一个例子。假设`user`表如下所示：
+- en: '[PRE5]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'The sorted table looks like this:'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 排序后的表如下所示：
+- en: '[PRE6]'
+  id: totrans-56
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The first row matches a connection by any user from `h1.example.net`, whereas
+    the second row matches a connection by `jeffrey` from any host.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一行匹配来自`h1.example.net`的任何用户的连接，而第二行匹配来自任何主机的`jeffrey`的连接。
+- en: Note
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: It is a common misconception to think that, for a given user name, all rows
+    that explicitly name that user are used first when the server attempts to find
+    a match for the connection. This is not true. The preceding example illustrates
+    this, where a connection from `h1.example.net` by `jeffrey` is first matched not
+    by the row containing `'jeffrey'` as the `User` column value, but by the row with
+    no user name. As a result, `jeffrey` is authenticated as an anonymous user, even
+    though he specified a user name when connecting.
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个常见的误解是认为，对于给定的用户名，当服务器尝试找到连接匹配时，所有明确命名该用户的行都会首先使用。这是不正确的。前面的例子说明了这一点，其中来自`h1.example.net`的`jeffrey`的连接首先匹配的不是包含`'jeffrey'`作为`User`列值的行，而是没有用户名的行。结果，`jeffrey`被认证为匿名用户，即使他在连接时指定了用户名。
+- en: 'If you are able to connect to the server, but your privileges are not what
+    you expect, you probably are being authenticated as some other account. To find
+    out what account the server used to authenticate you, use the [`CURRENT_USER()`](information-functions.html#function_current-user)
+    function. (See [Section 14.15, “Information Functions”](information-functions.html
+    "14.15 Information Functions").) It returns a value in `*`user_name`*@*`host_name`*`
+    format that indicates the `User` and `Host` values from the matching `user` table
+    row. Suppose that `jeffrey` connects and issues the following query:'
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您能够连接到服务器，但您的权限不符合您的期望，那么您可能正在以其他帐户进行身份验证。要找出服务器用于对您进行身份验证的帐户，请使用[`CURRENT_USER()`](information-functions.html#function_current-user)函数。
+    (参见[第14.15节，“信息函数”](information-functions.html "14.15 信息函数").) 它以`*`user_name`*@*`host_name`*`格式返回一个值，指示匹配的`user`表行中的`User`和`Host`值。假设`jeffrey`连接并发出以下查询：
+- en: '[PRE7]'
+  id: totrans-61
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: The result shown here indicates that the matching `user` table row had a blank
+    `User` column value. In other words, the server is treating `jeffrey` as an anonymous
+    user.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里显示的结果表明，匹配的`user`表行具有空白的`User`列值。换句话说，服务器将`jeffrey`视为匿名用户。
+- en: Another way to diagnose authentication problems is to print out the `user` table
+    and sort it by hand to see where the first match is being made.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 诊断身份验证问题的另一种方法是打印出`user`表，并手动按照顺序排列，以查看第一个匹配是在哪里进行的。

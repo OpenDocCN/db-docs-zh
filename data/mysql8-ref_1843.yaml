@@ -1,0 +1,344 @@
+- en: 26.2.1 RANGE Partitioning
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 26.2.1 范围分区
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-range.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-range.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-range.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-range.html)
+- en: 'A table that is partitioned by range is partitioned in such a way that each
+    partition contains rows for which the partitioning expression value lies within
+    a given range. Ranges should be contiguous but not overlapping, and are defined
+    using the `VALUES LESS THAN` operator. For the next few examples, suppose that
+    you are creating a table such as the following to hold personnel records for a
+    chain of 20 video stores, numbered 1 through 20:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过范围进行分区的表是这样分区的，即每个分区包含分区表达式值位于给定范围内的行。范围应该是连续的但不重叠，并且使用`VALUES LESS THAN`运算符定义。在接下来的几个示例中，假设你正在创建一个类似以下内容的表，用于保存一家由1到20号店编号的连锁视频店的人事记录：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `employees` table used here has no primary or unique keys. While the examples
+    work as shown for purposes of the present discussion, you should keep in mind
+    that tables are extremely likely in practice to have primary keys, unique keys,
+    or both, and that allowable choices for partitioning columns depend on the columns
+    used for these keys, if any are present. For a discussion of these issues, see
+    [Section 26.6.1, “Partitioning Keys, Primary Keys, and Unique Keys”](partitioning-limitations-partitioning-keys-unique-keys.html
+    "26.6.1 Partitioning Keys, Primary Keys, and Unique Keys").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里使用的`employees`表没有主键或唯一键。虽然示例在当前讨论的目的上可以正常工作，但你应该记住，在实践中，表极有可能具有主键、唯一键或两者，而用于分区列的可选选择取决于用于这些键的列，如果有的话。有关这些问题的讨论，请参阅[Section 26.6.1,
+    “Partitioning Keys, Primary Keys, and Unique Keys”](partitioning-limitations-partitioning-keys-unique-keys.html
+    "26.6.1 Partitioning Keys, Primary Keys, and Unique Keys")。
+- en: 'This table can be partitioned by range in a number of ways, depending on your
+    needs. One way would be to use the `store_id` column. For instance, you might
+    decide to partition the table 4 ways by adding a `PARTITION BY RANGE` clause as
+    shown here:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个表可以根据你的需求以多种方式进行范围分区。一种方法是使用`store_id`列。例如，你可以决定通过添加如下所示的`PARTITION BY RANGE`子句将表分区为4部分：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: In this partitioning scheme, all rows corresponding to employees working at
+    stores 1 through 5 are stored in partition `p0`, to those employed at stores 6
+    through 10 are stored in partition `p1`, and so on. Each partition is defined
+    in order, from lowest to highest. This is a requirement of the `PARTITION BY RANGE`
+    syntax; you can think of it as being analogous to a series of `if ... elseif ...`
+    statements in C or Java in this regard.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个分区方案中，所有在1到5号店工作的员工对应的行都存储在`p0`分区中，而在6到10号店工作的员工对应的行存储在`p1`分区中，依此类推。每个分区按顺序定义，从最低到最高。这是`PARTITION
+    BY RANGE`语法的要求；在这方面，你可以将其类比为C或Java中一系列`if ... elseif ...`语句。
+- en: 'It is easy to determine that a new row containing the data `(72, ''Mitchell'',
+    ''Wilson'', ''1998-06-25'', DEFAULT, 7, 13)` is inserted into partition `p2`,
+    but what happens when your chain adds a 21^(st) store? Under this scheme, there
+    is no rule that covers a row whose `store_id` is greater than 20, so an error
+    results because the server does not know where to place it. You can keep this
+    from occurring by using a “catchall” `VALUES LESS THAN` clause in the [`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") statement that provides
+    for all values greater than the highest value explicitly named:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 很容易确定包含数据`(72, 'Mitchell', 'Wilson', '1998-06-25', DEFAULT, 7, 13)`的新行被插入到`p2`分区中，但当你的连锁店增加到第21家店时会发生什么？在这个方案下，没有覆盖`store_id`大于20的行的规则，因此会导致错误，因为服务器不知道将其放在哪里。你可以通过在[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句中使用“catchall”`VALUES
+    LESS THAN`子句来避免这种情况，提供所有大于明确命名的最高值的值：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: (As with the other examples in this chapter, we assume that the default storage
+    engine is `InnoDB`.)
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: （与本章中的其他示例一样，我们假设默认存储引擎是`InnoDB`。）
+- en: Another way to avoid an error when no matching value is found is to use the
+    `IGNORE` keyword as part of the [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    statement. For an example, see [Section 26.2.2, “LIST Partitioning”](partitioning-list.html
+    "26.2.2 LIST Partitioning").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 避免找不到匹配值时出现错误的另一种方法是在[`INSERT`](insert.html "15.2.7 INSERT Statement")语句中使用`IGNORE`关键字。有关示例，请参见[Section 26.2.2,
+    “LIST Partitioning”](partitioning-list.html "26.2.2 LIST Partitioning")。
+- en: '`MAXVALUE` represents an integer value that is always greater than the largest
+    possible integer value (in mathematical language, it serves as a least upper bound).
+    Now, any rows whose `store_id` column value is greater than or equal to 16 (the
+    highest value defined) are stored in partition `p3`. At some point in the future—when
+    the number of stores has increased to 25, 30, or more—you can use an [`ALTER TABLE`](alter-table-partition-operations.html
+    "15.1.9.1 ALTER TABLE Partition Operations") statement to add new partitions for
+    stores 21-25, 26-30, and so on (see [Section 26.3, “Partition Management”](partitioning-management.html
+    "26.3 Partition Management"), for details of how to do this).'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`MAXVALUE`表示一个始终大于最大可能整数值的整数值（在数学语言中，它充当最小上界）。现在，任何`store_id`列值大于或等于16（定义的最高值）的行都存储在分区`p3`中。在将来的某个时候——当店铺数量增加到25、30或更多时，您可以使用[`ALTER
+    TABLE`](alter-table-partition-operations.html "15.1.9.1 ALTER TABLE Partition
+    Operations")语句为21-25、26-30等店铺添加新分区（有关如何执行此操作的详细信息，请参见[第26.3节，“分区管理”](partitioning-management.html
+    "26.3 分区管理")）。'
+- en: 'In much the same fashion, you could partition the table based on employee job
+    codes—that is, based on ranges of `job_code` column values. For example—assuming
+    that two-digit job codes are used for regular (in-store) workers, three-digit
+    codes are used for office and support personnel, and four-digit codes are used
+    for management positions—you could create the partitioned table using the following
+    statement:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以类似的方式，可以根据员工工作代码对表进行分区，即根据`job_code`列值的范围进行分区。例如——假设两位数的工作代码用于普通（店内）工人，三位数的代码用于办公室和支持人员，四位数的代码用于管理职位——可以使用以下语句创建分区表：
+- en: '[PRE3]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: In this instance, all rows relating to in-store workers would be stored in partition
+    `p0`, those relating to office and support staff in `p1`, and those relating to
+    managers in partition `p2`.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，所有与店内工人相关的行将存储在分区`p0`中，与办公室和支持人员相关的行将存储在`p1`中，与管理人员相关的行将存储在分区`p2`中。
+- en: It is also possible to use an expression in `VALUES LESS THAN` clauses. However,
+    MySQL must be able to evaluate the expression's return value as part of a `LESS
+    THAN` (`<`) comparison.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以在`VALUES LESS THAN`子句中使用表达式。但是，MySQL必须能够将表达式的返回值作为`LESS THAN`（`<`）比较的一部分进行评估。
+- en: 'Rather than splitting up the table data according to store number, you can
+    use an expression based on one of the two [`DATE`](datetime.html "13.2.2 The DATE,
+    DATETIME, and TIMESTAMP Types") columns instead. For example, let us suppose that
+    you wish to partition based on the year that each employee left the company; that
+    is, the value of [`YEAR(separated)`](date-and-time-functions.html#function_year).
+    An example of a [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    statement that implements such a partitioning scheme is shown here:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以根据两个[`DATE`](datetime.html "13.2.2 日期、时间和时间戳类型")列中的一个基于表达式来进行分区，而不是根据店铺编号拆分表数据。例如，假设您希望根据每位员工离开公司的年份进行分区；也就是说，基于[`YEAR(separated)`](date-and-time-functions.html#function_year)的值。下面显示了实现这种分区方案的[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句示例：
+- en: '[PRE4]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: In this scheme, for all employees who left before 1991, the rows are stored
+    in partition `p0`; for those who left in the years 1991 through 1995, in `p1`;
+    for those who left in the years 1996 through 2000, in `p2`; and for any workers
+    who left after the year 2000, in `p3`.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此方案中，所有在1991年之前离开的员工的行存储在分区`p0`中；在1991年至1995年离开的员工中，存储在`p1`中；在1996年至2000年离开的员工中，存储在`p2`中；而在2000年之后离开的任何工人中，存储在`p3`中。
+- en: 'It is also possible to partition a table by `RANGE`, based on the value of
+    a [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    column, using the [`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp)
+    function, as shown in this example:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以根据[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")列的值，使用[`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp)函数，基于`RANGE`对表进行分区，如下例所示：
+- en: '[PRE5]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Any other expressions involving [`TIMESTAMP`](datetime.html "13.2.2 The DATE,
+    DATETIME, and TIMESTAMP Types") values are not permitted. (See Bug #42849.)'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '不允许使用涉及[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")值的任何其他表达式（请参见Bug #42849）。'
+- en: 'Range partitioning is particularly useful when one or more of the following
+    conditions is true:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 范围分区在以下情况之一或多个情况为真时特别有用：
+- en: You want or need to delete “old” data. If you are using the partitioning scheme
+    shown previously for the `employees` table, you can simply use `ALTER TABLE employees
+    DROP PARTITION p0;` to delete all rows relating to employees who stopped working
+    for the firm prior to 1991\. (See [Section 15.1.9, “ALTER TABLE Statement”](alter-table.html
+    "15.1.9 ALTER TABLE Statement"), and [Section 26.3, “Partition Management”](partitioning-management.html
+    "26.3 Partition Management"), for more information.) For a table with a great
+    many rows, this can be much more efficient than running a [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") query such as `DELETE FROM employees WHERE YEAR(separated)
+    <= 1990;`.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您希望或需要删除“旧”数据。如果您正在使用先前显示的用于 `employees` 表的分区方案，您可以简单地使用 `ALTER TABLE employees
+    DROP PARTITION p0;` 来删除所有在 1991 年之前停止为公司工作的员工的行。（有关更多信息，请参见 [第 15.1.9 节“ALTER
+    TABLE 语句”](alter-table.html "15.1.9 ALTER TABLE 语句") 和 [第 26.3 节“分区管理”](partitioning-management.html
+    "26.3 分区管理")。）对于行数众多的表，这比运行类似于 `DELETE FROM employees WHERE YEAR(separated) <=
+    1990;` 的 [`DELETE`](delete.html "15.2.2 DELETE 语句") 查询要高效得多。
+- en: You want to use a column containing date or time values, or containing values
+    arising from some other series.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您希望使用包含日期或时间值的列，或包含从其他系列产生的值。
+- en: You frequently run queries that depend directly on the column used for partitioning
+    the table. For example, when executing a query such as [`EXPLAIN SELECT COUNT(*)
+    FROM employees WHERE separated BETWEEN '2000-01-01' AND '2000-12-31' GROUP BY
+    store_id;`](explain.html "15.8.2 EXPLAIN Statement"), MySQL can quickly determine
+    that only partition `p2` needs to be scanned because the remaining partitions
+    cannot contain any records satisfying the `WHERE` clause. See [Section 26.4, “Partition
+    Pruning”](partitioning-pruning.html "26.4 Partition Pruning"), for more information
+    about how this is accomplished.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您经常运行依赖于用于对表进行分区的列的查询。例如，当执行类似于 [`EXPLAIN SELECT COUNT(*) FROM employees WHERE
+    separated BETWEEN '2000-01-01' AND '2000-12-31' GROUP BY store_id;`](explain.html
+    "15.8.2 EXPLAIN 语句") 的查询时，MySQL 可以快速确定只需要扫描分区 `p2`，因为其余分区不可能包含任何满足 `WHERE` 子句的记录。有关如何实现这一点的更多信息，请参见
+    [第 26.4 节“分区修剪”](partitioning-pruning.html "26.4 分区修剪")。
+- en: A variant on this type of partitioning is `RANGE COLUMNS` partitioning. Partitioning
+    by `RANGE COLUMNS` makes it possible to employ multiple columns for defining partitioning
+    ranges that apply both to placement of rows in partitions and for determining
+    the inclusion or exclusion of specific partitions when performing partition pruning.
+    See [Section 26.2.3.1, “RANGE COLUMNS partitioning”](partitioning-columns-range.html
+    "26.2.3.1 RANGE COLUMNS partitioning"), for more information.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种分区的变体是 `RANGE COLUMNS` 分区。通过 `RANGE COLUMNS` 分区，可以使用多个列来定义适用于将行放置在分区中以及确定在执行分区修剪时包含或排除特定分区的分区范围。有关更多信息，请参见
+    [第 26.2.3.1 节“RANGE COLUMNS 分区”](partitioning-columns-range.html "26.2.3.1 RANGE
+    COLUMNS 分区")。
+- en: '**Partitioning schemes based on time intervals. ** If you wish to implement
+    a partitioning scheme based on ranges or intervals of time in MySQL 8.0, you have
+    two options:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**基于时间间隔的分区方案。** 如果您希望在 MySQL 8.0 中实现基于时间范围或间隔的分区方案，您有两个选项：'
+- en: 'Partition the table by `RANGE`, and for the partitioning expression, employ
+    a function operating on a [`DATE`](datetime.html "13.2.2 The DATE, DATETIME, and
+    TIMESTAMP Types"), [`TIME`](time.html "13.2.3 The TIME Type"), or [`DATETIME`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") column and returning an integer
+    value, as shown here:'
+  id: totrans-30
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过 `RANGE` 对表进行分区，并对分区表达式使用在 [`DATE`](datetime.html "13.2.2 日期、时间和时间戳类型")、[`TIME`](time.html
+    "13.2.3 时间类型") 或 [`DATETIME`](datetime.html "13.2.2 日期、时间和时间戳类型") 列上操作并返回整数值的函数，如下所示：
+- en: '[PRE6]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'In MySQL 8.0, it is also possible to partition a table by `RANGE` based on
+    the value of a [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP
+    Types") column, using the [`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp)
+    function, as shown in this example:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0 中，还可以根据 [`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型") 列的值使用
+    `RANGE` 对表进行分区，使用 [`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp)
+    函数，如下例所示：
+- en: '[PRE7]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'In MySQL 8.0, any other expressions involving [`TIMESTAMP`](datetime.html "13.2.2 The
+    DATE, DATETIME, and TIMESTAMP Types") values are not permitted. (See Bug #42849.)'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '在 MySQL 8.0 中，不允许使用涉及 [`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型") 值的任何其他表达式。（参见
+    Bug #42849。）'
+- en: Note
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: It is also possible in MySQL 8.0 to use [`UNIX_TIMESTAMP(timestamp_column)`](date-and-time-functions.html#function_unix-timestamp)
+    as a partitioning expression for tables that are partitioned by `LIST`. However,
+    it is usually not practical to do so.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0 中，也可以使用[`UNIX_TIMESTAMP(timestamp_column)`](date-and-time-functions.html#function_unix-timestamp)作为按`LIST`分区的表的分区表达式。然而，通常不太实用。
+- en: 'Partition the table by `RANGE COLUMNS`, using a [`DATE`](datetime.html "13.2.2 The
+    DATE, DATETIME, and TIMESTAMP Types") or [`DATETIME`](datetime.html "13.2.2 The
+    DATE, DATETIME, and TIMESTAMP Types") column as the partitioning column. For example,
+    the `members` table could be defined using the `joined` column directly, as shown
+    here:'
+  id: totrans-37
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过`RANGE COLUMNS`按[`DATE`](datetime.html "13.2.2 DATE、DATETIME 和 TIMESTAMP 类型")或[`DATETIME`](datetime.html
+    "13.2.2 DATE、DATETIME 和 TIMESTAMP 类型")列作为分区列对表进行分区。例如，`members`表可以直接使用`joined`列定义，如下所示：
+- en: '[PRE8]'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Note
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The use of partitioning columns employing date or time types other than [`DATE`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") or [`DATETIME`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") is not supported with `RANGE
+    COLUMNS`.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用日期或时间类型的分区列，而不是[`DATE`](datetime.html "13.2.2 DATE、DATETIME 和 TIMESTAMP 类型")或[`DATETIME`](datetime.html
+    "13.2.2 DATE、DATETIME 和 TIMESTAMP 类型")，在`RANGE COLUMNS`中不受支持。

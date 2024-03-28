@@ -1,0 +1,577 @@
+- en: 17.7.1 InnoDB Locking
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.7.1 InnoDB 锁定
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html)
+- en: This section describes lock types used by `InnoDB`.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了 `InnoDB` 使用的锁类型。
+- en: '[Shared and Exclusive Locks](innodb-locking.html#innodb-shared-exclusive-locks
+    "Shared and Exclusive Locks")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[共享锁和独占锁](innodb-locking.html#innodb-shared-exclusive-locks "共享锁和独占锁")'
+- en: '[Intention Locks](innodb-locking.html#innodb-intention-locks "Intention Locks")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[意向锁](innodb-locking.html#innodb-intention-locks "意向锁")'
+- en: '[Record Locks](innodb-locking.html#innodb-record-locks "Record Locks")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[记录锁](innodb-locking.html#innodb-record-locks "记录锁")'
+- en: '[Gap Locks](innodb-locking.html#innodb-gap-locks "Gap Locks")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[间隙锁](innodb-locking.html#innodb-gap-locks "间隙锁")'
+- en: '[Next-Key Locks](innodb-locking.html#innodb-next-key-locks "Next-Key Locks")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[Next-Key 锁](innodb-locking.html#innodb-next-key-locks "Next-Key 锁")'
+- en: '[Insert Intention Locks](innodb-locking.html#innodb-insert-intention-locks
+    "Insert Intention Locks")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[插入意向锁](innodb-locking.html#innodb-insert-intention-locks "插入意向锁")'
+- en: '[AUTO-INC Locks](innodb-locking.html#innodb-auto-inc-locks "AUTO-INC Locks")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[自增锁](innodb-locking.html#innodb-auto-inc-locks "自增锁")'
+- en: '[Predicate Locks for Spatial Indexes](innodb-locking.html#innodb-predicate-locks
+    "Predicate Locks for Spatial Indexes")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[空间索引的谓词锁](innodb-locking.html#innodb-predicate-locks "空间索引的谓词锁")'
+- en: Shared and Exclusive Locks
+  id: totrans-11
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 共享锁和独占锁
+- en: '`InnoDB` implements standard row-level locking where there are two types of
+    locks, [shared (`S`) locks](glossary.html#glos_shared_lock "shared lock") and
+    [exclusive (`X`) locks](glossary.html#glos_exclusive_lock "exclusive lock").'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 实现标准的行级锁定，其中有两种类型的锁，[共享 (`S`) 锁](glossary.html#glos_shared_lock "共享锁")
+    和 [独占 (`X`) 锁](glossary.html#glos_exclusive_lock "独占锁")。'
+- en: A [shared (`S`) lock](glossary.html#glos_shared_lock "shared lock") permits
+    the transaction that holds the lock to read a row.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个[共享 (`S`) 锁](glossary.html#glos_shared_lock "共享锁") 允许持有锁的事务读取一行。
+- en: An [exclusive (`X`) lock](glossary.html#glos_exclusive_lock "exclusive lock")
+    permits the transaction that holds the lock to update or delete a row.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个[独占 (`X`) 锁](glossary.html#glos_exclusive_lock "独占锁")允许持有锁的事务更新或删除一行。
+- en: 'If transaction `T1` holds a shared (`S`) lock on row `r`, then requests from
+    some distinct transaction `T2` for a lock on row `r` are handled as follows:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果事务 `T1` 持有行 `r` 上的共享 (`S`) 锁，则来自某个不同事务 `T2` 对行 `r` 的锁的请求处理如下：
+- en: A request by `T2` for an `S` lock can be granted immediately. As a result, both
+    `T1` and `T2` hold an `S` lock on `r`.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`T2` 请求 `S` 锁可以立即被授予。因此，`T1` 和 `T2` 都持有 `r` 上的 `S` 锁。'
+- en: A request by `T2` for an `X` lock cannot be granted immediately.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`T2` 对 `r` 的 `X` 锁请求无法立即被授予。'
+- en: If a transaction `T1` holds an exclusive (`X`) lock on row `r`, a request from
+    some distinct transaction `T2` for a lock of either type on `r` cannot be granted
+    immediately. Instead, transaction `T2` has to wait for transaction `T1` to release
+    its lock on row `r`.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果事务 `T1` 持有行 `r` 上的独占 (`X`) 锁，则来自某个不同事务 `T2` 对 `r` 上的任一类型锁的请求无法立即被授予。相反，事务
+    `T2` 必须等待事务 `T1` 释放 `r` 上的锁。
+- en: Intention Locks
+  id: totrans-19
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 意向锁
+- en: '`InnoDB` supports *multiple granularity locking* which permits coexistence
+    of row locks and table locks. For example, a statement such as [`LOCK TABLES ...
+    WRITE`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") takes
+    an exclusive lock (an `X` lock) on the specified table. To make locking at multiple
+    granularity levels practical, `InnoDB` uses [intention locks](glossary.html#glos_intention_lock
+    "intention lock"). Intention locks are table-level locks that indicate which type
+    of lock (shared or exclusive) a transaction requires later for a row in a table.
+    There are two types of intention locks:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 支持*多粒度锁定*，允许行锁和表锁共存。例如，像[`LOCK TABLES ... WRITE`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") 这样的语句在指定的表上获取一个独占锁（`X` 锁）。为了使多粒度级别的锁定实用，`InnoDB`
+    使用[意向锁](glossary.html#glos_intention_lock "意向锁")。意向锁是表级锁，指示事务后续需要对表中的行请求哪种类型的锁（共享或独占）。有两种类型的意向锁：'
+- en: An [intention shared lock](glossary.html#glos_intention_shared_lock "intention
+    shared lock") (`IS`) indicates that a transaction intends to set a *shared* lock
+    on individual rows in a table.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个[意向共享锁](glossary.html#glos_intention_shared_lock "意向共享锁") (`IS`) 表示事务打算在表中的各个行上设置*共享*锁。
+- en: An [intention exclusive lock](glossary.html#glos_intention_exclusive_lock "intention
+    exclusive lock") (`IX`) indicates that a transaction intends to set an exclusive
+    lock on individual rows in a table.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[意向排他锁](glossary.html#glos_intention_exclusive_lock "intention exclusive lock")（`IX`）表示一个事务打算在表中的单个行上设置排他锁。'
+- en: For example, [`SELECT ... FOR SHARE`](select.html "15.2.13 SELECT Statement")
+    sets an `IS` lock, and [`SELECT ... FOR UPDATE`](select.html "15.2.13 SELECT Statement")
+    sets an `IX` lock.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，[`SELECT ... FOR SHARE`](select.html "15.2.13 SELECT Statement")设置一个`IS`锁，而[`SELECT
+    ... FOR UPDATE`](select.html "15.2.13 SELECT Statement")设置一个`IX`锁。
+- en: 'The intention locking protocol is as follows:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 意向锁定协议如下：
+- en: Before a transaction can acquire a shared lock on a row in a table, it must
+    first acquire an `IS` lock or stronger on the table.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在事务可以在表中的行上获取共享锁之前，必须首先在表上获取一个`IS`锁或更强的锁。
+- en: Before a transaction can acquire an exclusive lock on a row in a table, it must
+    first acquire an `IX` lock on the table.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在事务可以在表中的行上获取排他锁之前，必须首先在表上获取一个`IX`锁。
+- en: Table-level lock type compatibility is summarized in the following matrix.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表级锁类型兼容性总结如下矩阵。
+- en: '|  | `X` | `IX` | `S` | `IS` |'
+  id: totrans-28
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | `X` | `IX` | `S` | `IS` |'
+- en: '| `X` | Conflict | Conflict | Conflict | Conflict |'
+  id: totrans-29
+  prefs: []
+  type: TYPE_TB
+  zh: '| `X` | 冲突 | 冲突 | 冲突 | 冲突 |'
+- en: '| `IX` | Conflict | Compatible | Conflict | Compatible |'
+  id: totrans-30
+  prefs: []
+  type: TYPE_TB
+  zh: '| `IX` | 冲突 | 兼容 | 冲突 | 兼容 |'
+- en: '| `S` | Conflict | Conflict | Compatible | Compatible |'
+  id: totrans-31
+  prefs: []
+  type: TYPE_TB
+  zh: '| `S` | 冲突 | 冲突 | 兼容 | 兼容 |'
+- en: '| `IS` | Conflict | Compatible | Compatible | Compatible |'
+  id: totrans-32
+  prefs: []
+  type: TYPE_TB
+  zh: '| `IS` | 冲突 | 兼容 | 兼容 | 兼容 |'
+- en: A lock is granted to a requesting transaction if it is compatible with existing
+    locks, but not if it conflicts with existing locks. A transaction waits until
+    the conflicting existing lock is released. If a lock request conflicts with an
+    existing lock and cannot be granted because it would cause [deadlock](glossary.html#glos_deadlock
+    "deadlock"), an error occurs.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果请求的事务与现有锁兼容，则授予锁，但如果与现有锁冲突，则不授予锁。事务会等待，直到冲突的现有锁被释放。如果锁请求与现有锁冲突，并且由于会导致[死锁](glossary.html#glos_deadlock
+    "deadlock")而无法授予锁，则会发生错误。
+- en: Intention locks do not block anything except full table requests (for example,
+    [`LOCK TABLES ... WRITE`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")). The main purpose of intention locks is to show that someone is
+    locking a row, or going to lock a row in the table.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 意向锁不会阻塞任何东西，除了完整的表请求（例如，[`LOCK TABLES ... WRITE`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements")）。意向锁的主要目的是显示某人正在锁定一行，或者将要在表中锁定一行。
+- en: 'Transaction data for an intention lock appears similar to the following in
+    [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")
+    and [InnoDB monitor](innodb-standard-monitor.html "17.17.3 InnoDB Standard Monitor
+    and Lock Monitor Output") output:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 意向锁的事务数据在[`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE
+    Statement")和[InnoDB monitor](innodb-standard-monitor.html "17.17.3 InnoDB Standard
+    Monitor and Lock Monitor Output")输出中看起来类似于以下内容：
+- en: '[PRE0]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Record Locks
+  id: totrans-37
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 记录锁
+- en: A record lock is a lock on an index record. For example, `SELECT c1 FROM t WHERE
+    c1 = 10 FOR UPDATE;` prevents any other transaction from inserting, updating,
+    or deleting rows where the value of `t.c1` is `10`.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 记录锁是对索引记录的锁定。例如，`SELECT c1 FROM t WHERE c1 = 10 FOR UPDATE;`阻止任何其他事务插入、更新或删除`c1`值为`10`的行。
+- en: Record locks always lock index records, even if a table is defined with no indexes.
+    For such cases, `InnoDB` creates a hidden clustered index and uses this index
+    for record locking. See [Section 17.6.2.1, “Clustered and Secondary Indexes”](innodb-index-types.html
+    "17.6.2.1 Clustered and Secondary Indexes").
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 记录锁总是锁定索引记录，即使一个表被定义为没有索引。对于这种情况，`InnoDB`会创建一个隐藏的聚簇索引，并将此索引用于记录锁定。参见 [Section 17.6.2.1,
+    “Clustered and Secondary Indexes”](innodb-index-types.html "17.6.2.1 Clustered
+    and Secondary Indexes")。
+- en: 'Transaction data for a record lock appears similar to the following in [`SHOW
+    ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement") and
+    [InnoDB monitor](innodb-standard-monitor.html "17.17.3 InnoDB Standard Monitor
+    and Lock Monitor Output") output:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 记录锁的事务数据在[`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE
+    Statement")和[InnoDB monitor](innodb-standard-monitor.html "17.17.3 InnoDB Standard
+    Monitor and Lock Monitor Output")输出中看起来类似于以下内容：
+- en: '[PRE1]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Gap Locks
+  id: totrans-42
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 间隙锁
+- en: A gap lock is a lock on a gap between index records, or a lock on the gap before
+    the first or after the last index record. For example, `SELECT c1 FROM t WHERE
+    c1 BETWEEN 10 and 20 FOR UPDATE;` prevents other transactions from inserting a
+    value of `15` into column `t.c1`, whether or not there was already any such value
+    in the column, because the gaps between all existing values in the range are locked.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 间隙锁是索引记录之间的间隙上的锁，或者是第一个索引记录之前或最后一个索引记录之后的间隙上的锁。例如，`SELECT c1 FROM t WHERE c1
+    BETWEEN 10 and 20 FOR UPDATE;`阻止其他事务将值`15`插入到列`t.c1`中，无论该列中是否已经存在任何这样的值，因为范围内所有现有值之间的间隙都被锁定。
+- en: A gap might span a single index value, multiple index values, or even be empty.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个间隙可能跨越单个索引值，多个索引值，甚至为空。
+- en: Gap locks are part of the tradeoff between performance and concurrency, and
+    are used in some transaction isolation levels and not others.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 间隙锁是性能和并发性之间的权衡的一部分，并且在某些事务隔离级别中使用，在其他事务隔离级别中不使用。
+- en: 'Gap locking is not needed for statements that lock rows using a unique index
+    to search for a unique row. (This does not include the case that the search condition
+    includes only some columns of a multiple-column unique index; in that case, gap
+    locking does occur.) For example, if the `id` column has a unique index, the following
+    statement uses only an index-record lock for the row having `id` value 100 and
+    it does not matter whether other sessions insert rows in the preceding gap:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用唯一索引锁定行以搜索唯一行的语句不需要间隙锁定。（这不包括搜索条件仅包含多列唯一索引的某些列的情况；在这种情况下，确实会发生间隙锁定。）例如，如果`id`列有一个唯一索引，下面的语句仅对具有`id`值100的行使用索引记录锁定，而其他会话是否在前面的间隙中插入行并不重要：
+- en: '[PRE2]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: If `id` is not indexed or has a nonunique index, the statement does lock the
+    preceding gap.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`id`没有被索引或具有非唯一索引，则该语句确实锁定了前面的间隙。
+- en: It is also worth noting here that conflicting locks can be held on a gap by
+    different transactions. For example, transaction A can hold a shared gap lock
+    (gap S-lock) on a gap while transaction B holds an exclusive gap lock (gap X-lock)
+    on the same gap. The reason conflicting gap locks are allowed is that if a record
+    is purged from an index, the gap locks held on the record by different transactions
+    must be merged.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还值得注意的是，不同事务可以在同一间隙上持有冲突的锁。例如，事务A可以在一个间隙上持有共享间隙锁（间隙S锁），而事务B可以在同一间隙上持有独占间隙锁（间隙X锁）。允许冲突的间隙锁的原因是，如果从索引中清除记录，则不同事务持有的记录上的间隙锁必须合并。
+- en: Gap locks in `InnoDB` are “purely inhibitive”, which means that their only purpose
+    is to prevent other transactions from inserting to the gap. Gap locks can co-exist.
+    A gap lock taken by one transaction does not prevent another transaction from
+    taking a gap lock on the same gap. There is no difference between shared and exclusive
+    gap locks. They do not conflict with each other, and they perform the same function.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在`InnoDB`中，间隙锁是“纯粹抑制性的”，这意味着它们的唯一目的是防止其他事务向间隙中插入数据。间隙锁可以共存。一个事务获取的间隙锁不会阻止另一个事务在同一间隙上获取间隙锁。共享间隙锁和独占间隙锁之间没有区别。它们不会相互冲突，执行相同的功能。
+- en: Gap locking can be disabled explicitly. This occurs if you change the transaction
+    isolation level to [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed).
+    In this case, gap locking is disabled for searches and index scans and is used
+    only for foreign-key constraint checking and duplicate-key checking.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 间隙锁定可以被显式禁用。如果将事务隔离级别更改为[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)，则会发生这种情况。在这种情况下，间隙锁定对搜索和索引扫描被禁用，仅用于外键约束检查和重复键检查。
+- en: There are also other effects of using the [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    isolation level. Record locks for nonmatching rows are released after MySQL has
+    evaluated the `WHERE` condition. For `UPDATE` statements, `InnoDB` does a “semi-consistent”
+    read, such that it returns the latest committed version to MySQL so that MySQL
+    can determine whether the row matches the `WHERE` condition of the [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement").
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)隔离级别还有其他影响。对于不匹配行的记录锁在MySQL评估完`WHERE`条件后被释放。对于`UPDATE`语句，`InnoDB`执行“半一致性”读取，以便将最新提交的版本返回给MySQL，以便MySQL可以确定行是否与[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")的`WHERE`条件匹配。
+- en: Next-Key Locks
+  id: totrans-53
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 下一个键锁
+- en: A next-key lock is a combination of a record lock on the index record and a
+    gap lock on the gap before the index record.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下一个键锁是在索引记录上设置记录锁和在索引记录之前的间隙上设置间隙锁的组合。
+- en: '`InnoDB` performs row-level locking in such a way that when it searches or
+    scans a table index, it sets shared or exclusive locks on the index records it
+    encounters. Thus, the row-level locks are actually index-record locks. A next-key
+    lock on an index record also affects the “gap” before that index record. That
+    is, a next-key lock is an index-record lock plus a gap lock on the gap preceding
+    the index record. If one session has a shared or exclusive lock on record `R`
+    in an index, another session cannot insert a new index record in the gap immediately
+    before `R` in the index order.'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 以一种使得当搜索或扫描表索引时，在遇到的索引记录上设置共享或排他锁的方式执行行级锁定。因此，行级锁实际上是索引记录锁。对索引记录的下一个键锁也会影响该索引记录之前的“间隙”。也就是说，下一个键锁是索引记录锁加上索引记录之前的间隙锁。如果一个会话在索引中的记录
+    `R` 上有共享或排他锁，则另一个会话不能在索引顺序中的 `R` 紧前的间隙中插入新的索引记录。'
+- en: 'Suppose that an index contains the values 10, 11, 13, and 20. The possible
+    next-key locks for this index cover the following intervals, where a round bracket
+    denotes exclusion of the interval endpoint and a square bracket denotes inclusion
+    of the endpoint:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设一个索引包含值 10、11、13 和 20。对于该索引的可能的下一个键锁覆盖以下区间，其中圆括号表示排除区间端点，方括号表示包含端点：
+- en: '[PRE3]'
+  id: totrans-57
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: For the last interval, the next-key lock locks the gap above the largest value
+    in the index and the “supremum” pseudo-record having a value higher than any value
+    actually in the index. The supremum is not a real index record, so, in effect,
+    this next-key lock locks only the gap following the largest index value.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于最后一个区间，下一个键锁锁定了索引中最大值上方的间隙和具有高于索引中任何实际值的“最大值”伪记录。最大值不是真正的索引记录，因此，实际上，这个下一个键锁只锁定了紧随最大索引值后的间隙。
+- en: By default, `InnoDB` operates in [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    transaction isolation level. In this case, `InnoDB` uses next-key locks for searches
+    and index scans, which prevents phantom rows (see [Section 17.7.4, “Phantom Rows”](innodb-next-key-locking.html
+    "17.7.4 Phantom Rows")).
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，`InnoDB` 在 [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    事务隔离级别下运行。在这种情况下，`InnoDB` 对搜索和索引扫描使用下一个键锁，以防止幻影行（参见 [第 17.7.4 节，“幻影行”](innodb-next-key-locking.html
+    "17.7.4 幻影行")）。
+- en: 'Transaction data for a next-key lock appears similar to the following in [`SHOW
+    ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement") and
+    [InnoDB monitor](innodb-standard-monitor.html "17.17.3 InnoDB Standard Monitor
+    and Lock Monitor Output") output:'
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下一个键锁的事务数据在 [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE
+    Statement") 和 [InnoDB 监视器](innodb-standard-monitor.html "17.17.3 InnoDB Standard
+    Monitor and Lock Monitor Output") 输出中类似于以下内容：
+- en: '[PRE4]'
+  id: totrans-61
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Insert Intention Locks
+  id: totrans-62
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 插入意向锁
+- en: An insert intention lock is a type of gap lock set by [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") operations prior to row insertion. This lock signals
+    the intent to insert in such a way that multiple transactions inserting into the
+    same index gap need not wait for each other if they are not inserting at the same
+    position within the gap. Suppose that there are index records with values of 4
+    and 7\. Separate transactions that attempt to insert values of 5 and 6, respectively,
+    each lock the gap between 4 and 7 with insert intention locks prior to obtaining
+    the exclusive lock on the inserted row, but do not block each other because the
+    rows are nonconflicting.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插入意向锁是在 [`INSERT`](insert.html "15.2.7 INSERT Statement") 操作插入行之前设置的一种间隙锁。此锁表示以一种插入的意图插入，即使多个插入到相同索引间隙的事务不需要等待对方，如果它们不是在间隙内的相同位置插入。假设存在值为
+    4 和 7 的索引记录。试图分别插入值为 5 和 6 的单独事务，在获取插入行的排他锁之前，都会在值为 4 和 7 之间的间隙上设置插入意向锁，但不会相互阻塞，因为这些行是非冲突的。
+- en: The following example demonstrates a transaction taking an insert intention
+    lock prior to obtaining an exclusive lock on the inserted record. The example
+    involves two clients, A and B.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了一个事务在获取插入记录的排他锁之前获取插入意向锁。该示例涉及两个客户端，A 和 B。
+- en: 'Client A creates a table containing two index records (90 and 102) and then
+    starts a transaction that places an exclusive lock on index records with an ID
+    greater than 100\. The exclusive lock includes a gap lock before record 102:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端 A 创建一个包含两个索引记录（90 和 102）的表，然后启动一个事务，对 ID 大于 100 的索引记录进行排他锁定。在记录 102 之前，排他锁包括一个间隙锁：
+- en: '[PRE5]'
+  id: totrans-66
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Client B begins a transaction to insert a record into the gap. The transaction
+    takes an insert intention lock while it waits to obtain an exclusive lock.
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端 B 开始一个事务，向间隙中插入一条记录。该事务在等待获取排他锁时会获取插入意向锁。
+- en: '[PRE6]'
+  id: totrans-68
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Transaction data for an insert intention lock appears similar to the following
+    in [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")
+    and [InnoDB monitor](innodb-standard-monitor.html "17.17.3 InnoDB Standard Monitor
+    and Lock Monitor Output") output:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插入意向锁的事务数据在 [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE
+    Statement") 和 [InnoDB 监视器](innodb-standard-monitor.html "17.17.3 InnoDB Standard
+    Monitor and Lock Monitor Output") 输出中类似于以下内容：
+- en: '[PRE7]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: AUTO-INC Locks
+  id: totrans-71
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: AUTO-INC 锁
+- en: An `AUTO-INC` lock is a special table-level lock taken by transactions inserting
+    into tables with `AUTO_INCREMENT` columns. In the simplest case, if one transaction
+    is inserting values into the table, any other transactions must wait to do their
+    own inserts into that table, so that rows inserted by the first transaction receive
+    consecutive primary key values.
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`AUTO-INC` 锁是由插入具有 `AUTO_INCREMENT` 列的表的事务获取的特殊表级锁。在最简单的情况下，如果一个事务正在向表中插入值，任何其他事务必须等待进行自己的插入，以便由第一个事务插入的行接收连续的主键值。'
+- en: The [`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    variable controls the algorithm used for auto-increment locking. It allows you
+    to choose how to trade off between predictable sequences of auto-increment values
+    and maximum concurrency for insert operations.
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_autoinc_lock_mode`](innodb-parameters.html#sysvar_innodb_autoinc_lock_mode)
+    变量控制自增锁定的算法。它允许您选择如何在可预测的自增值序列和插入操作的最大并发性之间进行权衡。'
+- en: For more information, see [Section 17.6.1.6, “AUTO_INCREMENT Handling in InnoDB”](innodb-auto-increment-handling.html
+    "17.6.1.6 AUTO_INCREMENT Handling in InnoDB").
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见 [第 17.6.1.6 节，“InnoDB 中的 AUTO_INCREMENT 处理”](innodb-auto-increment-handling.html
+    "17.6.1.6 AUTO_INCREMENT Handling in InnoDB")。
+- en: Predicate Locks for Spatial Indexes
+  id: totrans-75
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 空间索引的谓词锁
+- en: '`InnoDB` supports `SPATIAL` indexing of columns containing spatial data (see
+    [Section 13.4.9, “Optimizing Spatial Analysis”](optimizing-spatial-analysis.html
+    "13.4.9 Optimizing Spatial Analysis")).'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 支持包含空间数据的列的 `SPATIAL` 索引（参见 [第 13.4.9 节，“优化空间分析”](optimizing-spatial-analysis.html
+    "13.4.9 Optimizing Spatial Analysis")）。'
+- en: To handle locking for operations involving `SPATIAL` indexes, next-key locking
+    does not work well to support [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    or [`SERIALIZABLE`](innodb-transaction-isolation-levels.html#isolevel_serializable)
+    transaction isolation levels. There is no absolute ordering concept in multidimensional
+    data, so it is not clear which is the “next” key.
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为处理涉及 `SPATIAL` 索引的操作的锁定，下一个键锁定不适合支持 [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    或 [`SERIALIZABLE`](innodb-transaction-isolation-levels.html#isolevel_serializable)
+    事务隔离级别。在多维数据中没有绝对排序概念，因此不清楚哪个是“下一个”键。
+- en: To enable support of isolation levels for tables with `SPATIAL` indexes, `InnoDB`
+    uses predicate locks. A `SPATIAL` index contains minimum bounding rectangle (MBR)
+    values, so `InnoDB` enforces consistent read on the index by setting a predicate
+    lock on the MBR value used for a query. Other transactions cannot insert or modify
+    a row that would match the query condition.
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了支持具有 `SPATIAL` 索引的表的隔离级别，`InnoDB` 使用谓词锁。`SPATIAL` 索引包含最小边界矩形（MBR）值，因此 `InnoDB`
+    通过在查询中使用的 MBR 值上设置谓词锁来强制对索引进行一致读取。其他事务无法插入或修改与查询条件匹配的行。

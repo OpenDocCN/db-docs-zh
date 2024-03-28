@@ -1,0 +1,165 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mrr-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/mrr-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mrr-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/mrr-optimization.html)
+- en: 10.2.1.11 Multi-Range Read Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.11 多范围读取优化
+- en: Reading rows using a range scan on a secondary index can result in many random
+    disk accesses to the base table when the table is large and not stored in the
+    storage engine's cache. With the Disk-Sweep Multi-Range Read (MRR) optimization,
+    MySQL tries to reduce the number of random disk access for range scans by first
+    scanning the index only and collecting the keys for the relevant rows. Then the
+    keys are sorted and finally the rows are retrieved from the base table using the
+    order of the primary key. The motivation for Disk-sweep MRR is to reduce the number
+    of random disk accesses and instead achieve a more sequential scan of the base
+    table data.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用二级索引进行范围扫描读取行时，当表很大且未存储在存储引擎的缓存中时，可能会导致许多随机磁盘访问。通过磁盘扫描多范围读取（MRR）优化，MySQL 尝试通过首先仅扫描索引并收集相关行的键来减少范围扫描的随机磁盘访问次数。然后对键进行排序，最后根据主键的顺序从基表中检索行。磁盘扫描
+    MRR 的动机是减少随机磁盘访问次数，而是实现对基表数据的更顺序扫描。
+- en: 'The Multi-Range Read optimization provides these benefits:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多范围读取优化提供以下好处：
+- en: MRR enables data rows to be accessed sequentially rather than in random order,
+    based on index tuples. The server obtains a set of index tuples that satisfy the
+    query conditions, sorts them according to data row ID order, and uses the sorted
+    tuples to retrieve data rows in order. This makes data access more efficient and
+    less expensive.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MRR 使数据行能够按顺序访问，而不是按随机顺序，基于索引元组。服务器获取满足查询条件的一组索引元组，根据数据行 ID 顺序对其进行排序，并使用排序后的元组按顺序检索数据行。这使数据访问更高效，成本更低。
+- en: MRR enables batch processing of requests for key access for operations that
+    require access to data rows through index tuples, such as range index scans and
+    equi-joins that use an index for the join attribute. MRR iterates over a sequence
+    of index ranges to obtain qualifying index tuples. As these results accumulate,
+    they are used to access the corresponding data rows. It is not necessary to acquire
+    all index tuples before starting to read data rows.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MRR 可以批量处理对需要通过索引元组访问数据行的操作的请求，例如范围索引扫描和使用索引进行等值连接的操作。MRR 遍历一系列索引范围以获取符合条件的索引元组。随着这些结果的累积，它们被用于访问相应的数据行。在开始读取数据行之前，不需要获取所有索引元组。
+- en: The MRR optimization is not supported with secondary indexes created on virtual
+    generated columns. `InnoDB` supports secondary indexes on virtual generated columns.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MRR 优化不支持在虚拟生成列上创建的二级索引。`InnoDB` 支持在虚拟生成列上的二级索引。
+- en: 'The following scenarios illustrate when MRR optimization can be advantageous:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下情景说明了何时可以优化 MRR：
+- en: 'Scenario A: MRR can be used for `InnoDB` and `MyISAM` tables for index range
+    scans and equi-join operations.'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 情景 A：MRR 可以用于 `InnoDB` 和 `MyISAM` 表进行索引范围扫描和等值连接操作。
+- en: A portion of the index tuples are accumulated in a buffer.
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 一部分索引元组被累积在缓冲区中。
+- en: The tuples in the buffer are sorted by their data row ID.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 缓冲区中的元组按其数据行 ID 进行排序。
+- en: Data rows are accessed according to the sorted index tuple sequence.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 数据行根据排序的索引元组序列进行访问。
+- en: 'Scenario B: MRR can be used for [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") tables for multiple-range index scans or when performing an
+    equi-join by an attribute.'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 情景 B：MRR 可以用于 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    表，用于多范围索引扫描或通过属性执行等值连接。
+- en: A portion of ranges, possibly single-key ranges, is accumulated in a buffer
+    on the central node where the query is submitted.
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 一部分范围，可能是单键范围，在提交查询的中央节点上累积在缓冲区中。
+- en: The ranges are sent to the execution nodes that access data rows.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 范围被发送到访问数据行的执行节点。
+- en: The accessed rows are packed into packages and sent back to the central node.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 访问的行被打包成数据包发送回中央节点。
+- en: The received packages with data rows are placed in a buffer.
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 收到的带有数据行的数据包被放置在缓冲区中。
+- en: Data rows are read from the buffer.
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 数据行从缓冲区中读取。
+- en: When MRR is used, the `Extra` column in [`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement") output shows `Using MRR`.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用 MRR 时，[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") 输出中的 `Extra`
+    列显示 `Using MRR`。
+- en: '`InnoDB` and `MyISAM` do not use MRR if full table rows need not be accessed
+    to produce the query result. This is the case if results can be produced entirely
+    on the basis on information in the index tuples (through a [covering index](glossary.html#glos_covering_index
+    "covering index")); MRR provides no benefit.'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果不需要访问完整的表行即可生成查询结果，则`InnoDB`和`MyISAM`不使用MRR。如果结果可以完全基于索引元组中的信息生成（通过[覆盖索引](glossary.html#glos_covering_index
+    "覆盖索引")）；MRR提供不了任何好处。
+- en: Two [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable flags provide an interface to the use of MRR optimization. The
+    [`mrr`](switchable-optimizations.html#optflag_mrr) flag controls whether MRR is
+    enabled. If [`mrr`](switchable-optimizations.html#optflag_mrr) is enabled (`on`),
+    the [`mrr_cost_based`](switchable-optimizations.html#optflag_mrr-cost-based) flag
+    controls whether the optimizer attempts to make a cost-based choice between using
+    and not using MRR (`on`) or uses MRR whenever possible (`off`). By default, [`mrr`](switchable-optimizations.html#optflag_mrr)
+    is `on` and [`mrr_cost_based`](switchable-optimizations.html#optflag_mrr-cost-based)
+    is `on`. See [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations").
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量标志提供了使用MRR优化的接口。[`mrr`](switchable-optimizations.html#optflag_mrr)标志控制是否启用MRR。如果[`mrr`](switchable-optimizations.html#optflag_mrr)被启用（`on`），[`mrr_cost_based`](switchable-optimizations.html#optflag_mrr-cost-based)标志控制优化器是否尝试在使用和不使用MRR之间做出基于成本的选择（`on`），或者在可能的情况下始终使用MRR（`off`）。默认情况下，[`mrr`](switchable-optimizations.html#optflag_mrr)为`on`，[`mrr_cost_based`](switchable-optimizations.html#optflag_mrr-cost-based)为`on`。请参阅[第10.9.2节，“可切换的优化”](switchable-optimizations.html
+    "10.9.2 可切换的优化")。
+- en: For MRR, a storage engine uses the value of the [`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)
+    system variable as a guideline for how much memory it can allocate for its buffer.
+    The engine uses up to [`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)
+    bytes and determines the number of ranges to process in a single pass.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于MRR，存储引擎使用[`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)系统变量的值作为其缓冲区可以分配多少内存的指导。引擎最多使用[`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)字节，并确定在单次传递中要处理的范围数量。

@@ -1,0 +1,235 @@
+- en: 25.7.8 Implementing Failover with NDB Cluster Replication
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.7.8 使用NDB集群复制实现故障转移
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-failover.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-failover.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-failover.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-failover.html)
+- en: In the event that the primary Cluster replication process fails, it is possible
+    to switch over to the secondary replication channel. The following procedure describes
+    the steps required to accomplish this.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果主要集群复制过程失败，可以切换到次要复制通道。以下过程描述了完成此操作所需的步骤。
+- en: 'Obtain the time of the most recent global checkpoint (GCP). That is, you need
+    to determine the most recent epoch from the `ndb_apply_status` table on the replica
+    cluster, which can be found using the following query:'
+  id: totrans-3
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 获取最近全局检查点（GCP）的时间。也就是说，您需要确定副本集群上的`ndb_apply_status`表中的最新时代，可以使用以下查询找到：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: In a circular replication topology, with a source and a replica running on each
+    host, when you are using `ndb_log_apply_status=1`, NDB Cluster epochs are written
+    in the replicas' binary logs. This means that the `ndb_apply_status` table contains
+    information for the replica on this host as well as for any other host which acts
+    as a replica of the replication source server running on this host.
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在循环复制拓扑中，每个主机上都运行源和副本时，当您使用`ndb_log_apply_status=1`时，NDB集群时代会写入副本的二进制日志中。这意味着`ndb_apply_status`表包含了此主机上的副本以及任何其他充当此主机上运行的复制源服务器的副本的主机的信息。
+- en: 'In this case, you need to determine the latest epoch on this replica to the
+    exclusion of any epochs from any other replicas in this replica''s binary log
+    that were not listed in the `IGNORE_SERVER_IDS` options of the [`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement") statement used to set up this replica. The reason for excluding
+    such epochs is that rows in the `mysql.ndb_apply_status` table whose server IDs
+    have a match in the `IGNORE_SERVER_IDS` list from the [`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement") | `CHANGE MASTER TO` statement used to prepare this replicas''s source
+    are also considered to be from local servers, in addition to those having the
+    replica''s own server ID. You can retrieve this list as `Replicate_Ignore_Server_Ids`
+    from the output of [`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW
+    REPLICA STATUS Statement"). We assume that you have obtained this list and are
+    substituting it for *`ignore_server_ids`* in the query shown here, which like
+    the previous version of the query, selects the greatest epoch into a variable
+    named `@latest`:'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，您需要确定此副本上的最新时代，排除在此副本的二进制日志中未列在[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement")语句的`IGNORE_SERVER_IDS`选项中的任何其他副本的时代。排除这些时代的原因是，`mysql.ndb_apply_status`表中具有与`IGNORE_SERVER_IDS`列表中的匹配的服务器ID的行，从[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement") | `CHANGE MASTER TO`语句中的本副本的源准备的行也被视为来自本地服务器，除了具有副本自身服务器ID的行。您可以从[`SHOW
+    REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")的输出中检索此列表作为`Replicate_Ignore_Server_Ids`。我们假设您已经获得了此列表，并将其替换为此处显示的查询中的*`ignore_server_ids`*，该查询与上一个查询的版本一样，将最大时代选择到名为`@latest`的变量中：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: In some cases, it may be simpler or more efficient (or both) to use a list of
+    the server IDs to be included and `server_id IN *`server_id_list`*` in the `WHERE`
+    condition of the preceding query.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在某些情况下，使用要包含的服务器ID列表和在前述查询的`WHERE`条件中的`server_id IN *`server_id_list`*`可能更简单或更有效（或两者兼有）。
+- en: Using the information obtained from the query shown in Step 1, obtain the corresponding
+    records from the `ndb_binlog_index` table on the source cluster.
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用第1步中显示的查询获取的信息，从源集群的`ndb_binlog_index`表中获取相应的记录。
+- en: 'You can use the following query to obtain the needed records from the `ndb_binlog_index`
+    table on the source:'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以使用以下查询从源集群的`ndb_binlog_index`表中获取所需的记录：
+- en: '[PRE2]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: These are the records saved on the source since the failure of the primary replication
+    channel. We have employed a user variable `@latest` here to represent the value
+    obtained in Step 1\. Of course, it is not possible for one [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") instance to access user variables set on another
+    server instance directly. These values must be “plugged in” to the second query
+    manually or by an application.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些是自主要复制通道故障以来在源上保存的记录。我们在这里使用了一个用户变量 `@latest` 来表示第 1 步中获得的值。当然，一个 [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") 实例无法直接访问在另一个服务器实例上设置的用户变量。这些值必须手动或通过应用程序“插入”到第二个查询中。
+- en: Important
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: You must ensure that the replica [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server") is started with [`--slave-skip-errors=ddl_exist_errors`](replication-options-replica.html#option_mysqld_slave-skip-errors)
+    before executing [`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA
+    Statement"). Otherwise, replication may stop with duplicate DDL errors.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在执行[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement")之前，您必须确保副本[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")使用[`--slave-skip-errors=ddl_exist_errors`](replication-options-replica.html#option_mysqld_slave-skip-errors)启动。否则，复制可能因重复的
+    DDL 错误而停止。
+- en: 'Now it is possible to synchronize the secondary channel by running the following
+    query on the secondary replica server:'
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在可以通过在次要副本服务器上运行以下查询来同步次要通道：
+- en: '[PRE3]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'In NDB 8.0.23 and later, you can also use the statement shown here:'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 NDB 8.0.23 及更高版本中，您还可以使用此处显示的语句：
+- en: '[PRE4]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Again we have employed user variables (in this case `@file` and `@pos`) to represent
+    the values obtained in Step 2 and applied in Step 3; in practice these values
+    must be inserted manually or using an application that can access both of the
+    servers involved.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 再次我们使用了用户变量（在这种情况下是 `@file` 和 `@pos`）来表示第 2 步中获得的值，并在第 3 步中应用；在实践中，这些值必须手动插入或使用能够访问涉及的两个服务器的应用程序。
+- en: Note
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`@file` is a string value such as `''/var/log/mysql/replication-source-bin.00001''`,
+    and so must be quoted when used in SQL or application code. However, the value
+    represented by `@pos` must *not* be quoted. Although MySQL normally attempts to
+    convert strings to numbers, this case is an exception.'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`@file` 是一个字符串值，例如 `''/var/log/mysql/replication-source-bin.00001''`，因此在 SQL
+    或应用程序代码中使用时必须加引号。然而，由 `@pos` 表示的值则不应加引号。尽管 MySQL 通常会尝试将字符串转换为数字，但这种情况是一个例外。'
+- en: 'You can now initiate replication on the secondary channel by issuing the appropriate
+    command on the secondary replica [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server"):'
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 您现在可以通过在次要副本上发出适当的命令来启动次要通道的复制[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server")：
+- en: '[PRE5]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'In NDB 8.0.22 or later, you can also use the following statement:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 NDB 8.0.22 或更高版本中，您还可以使用以下语句：
+- en: '[PRE6]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Once the secondary replication channel is active, you can investigate the failure
+    of the primary and effect repairs. The precise actions required to do this depend
+    upon the reasons for which the primary channel failed.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦次要复制通道激活，您可以调查主要通道的故障并进行修复。执行这些精确的操作取决于主要通道失败的原因。
+- en: Warning
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: The secondary replication channel is to be started only if and when the primary
+    replication channel has failed. Running multiple replication channels simultaneously
+    can result in unwanted duplicate records being created on the replicas.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有在主要复制通道失败时才应启动次要复制通道。同时运行多个复制通道可能导致副本上创建不需要的重复记录。
+- en: If the failure is limited to a single server, it should in theory be possible
+    to replicate from *`S`* to *`R'`*, or from *`S'`* to *`R`*.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果故障仅限于单个服务器，则理论上应该可以从 *`S`* 复制到 *`R'`*，或者从 *`S'`* 复制到 *`R`*。

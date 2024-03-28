@@ -1,0 +1,386 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-internals.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-internals.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-internals.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-internals.html)
+- en: 17.9.1.5 How Compression Works for InnoDB Tables
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.9.1.5 InnoDB表的压缩工作原理
+- en: This section describes some internal implementation details about [compression](glossary.html#glos_compression
+    "compression") for InnoDB tables. The information presented here may be helpful
+    in tuning for performance, but is not necessary to know for basic use of compression.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了InnoDB表的[压缩](glossary.html#glos_compression "compression")的一些内部实现细节。这里提供的信息可能有助于性能调优，但对于基本的压缩使用并非必须了解。
+- en: Compression Algorithms
+  id: totrans-3
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 压缩算法
+- en: Some operating systems implement compression at the file system level. Files
+    are typically divided into fixed-size blocks that are compressed into variable-size
+    blocks, which easily leads into fragmentation. Every time something inside a block
+    is modified, the whole block is recompressed before it is written to disk. These
+    properties make this compression technique unsuitable for use in an update-intensive
+    database system.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些操作系统在文件系统级别实现了压缩。文件通常被分成固定大小的块，这些块被压缩成可变大小的块，这很容易导致碎片化。每次修改块内的内容时，整个块都会在写入磁盘之前重新压缩。这些特性使得这种压缩技术不适合在更新密集型数据库系统中使用。
+- en: MySQL implements compression with the help of the well-known [zlib library](http://www.zlib.net/),
+    which implements the LZ77 compression algorithm. This compression algorithm is
+    mature, robust, and efficient in both CPU utilization and in reduction of data
+    size. The algorithm is “lossless”, so that the original uncompressed data can
+    always be reconstructed from the compressed form. LZ77 compression works by finding
+    sequences of data that are repeated within the data to be compressed. The patterns
+    of values in your data determine how well it compresses, but typical user data
+    often compresses by 50% or more.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL借助著名的[zlib库](http://www.zlib.net/)实现了压缩，该库实现了LZ77压缩算法。这种压缩算法成熟、稳健，并且在CPU利用率和数据大小减少方面非常高效。该算法是“无损”的，因此始终可以从压缩形式重构原始未压缩数据。LZ77压缩通过查找在待压缩数据中重复的数据序列来工作。数据中的值模式决定了它的压缩效果，但典型的用户数据通常可以压缩50%或更多。
+- en: Unlike compression performed by an application, or compression features of some
+    other database management systems, InnoDB compression applies both to user data
+    and to indexes. In many cases, indexes can constitute 40-50% or more of the total
+    database size, so this difference is significant. When compression is working
+    well for a data set, the size of the InnoDB data files (the [file-per-table](glossary.html#glos_file_per_table
+    "file-per-table") tablespace or [general tablespace](glossary.html#glos_general_tablespace
+    "general tablespace") `.ibd` files) is 25% to 50% of the uncompressed size or
+    possibly smaller. Depending on the [workload](glossary.html#glos_workload "workload"),
+    this smaller database can in turn lead to a reduction in I/O, and an increase
+    in throughput, at a modest cost in terms of increased CPU utilization. You can
+    adjust the balance between compression level and CPU overhead by modifying the
+    [`innodb_compression_level`](innodb-parameters.html#sysvar_innodb_compression_level)
+    configuration option.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与应用程序执行的压缩或其他一些数据库管理系统的压缩功能不同，InnoDB压缩同时适用于用户数据和索引。在许多情况下，索引可以占据总数据库大小的40-50%甚至更多，因此这种差异是显著的。当压缩对数据集有效时，InnoDB数据文件的大小（[每表一个文件](glossary.html#glos_file_per_table
+    "file-per-table")表空间或[通用表空间](glossary.html#glos_general_tablespace "general tablespace")
+    `.ibd`文件）为未压缩大小的25%至50%甚至更小。根据[工作负载](glossary.html#glos_workload "workload")的不同，这种较小的数据库可以进一步减少I/O，提高吞吐量，以较小的CPU利用率成本。您可以通过修改[`innodb_compression_level`](innodb-parameters.html#sysvar_innodb_compression_level)配置选项来调整压缩级别和CPU开销之间的平衡。
+- en: InnoDB Data Storage and Compression
+  id: totrans-7
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB数据存储和压缩
+- en: All user data in InnoDB tables is stored in pages comprising a [B-tree](glossary.html#glos_b_tree
+    "B-tree") index (the [clustered index](glossary.html#glos_clustered_index "clustered
+    index")). In some other database systems, this type of index is called an “index-organized
+    table”. Each row in the index node contains the values of the (user-specified
+    or system-generated) [primary key](glossary.html#glos_primary_key "primary key")
+    and all the other columns of the table.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: InnoDB 表中的所有用户数据都存储在包含[B 树](glossary.html#glos_b_tree "B-tree")索引（[聚簇索引](glossary.html#glos_clustered_index
+    "clustered index")）的页面中。在其他一些数据库系统中，这种类型的索引被称为“索引组织表”。索引节点中的每一行包含（用户指定或系统生成的）[主键](glossary.html#glos_primary_key
+    "primary key")的值和表的所有其他列的值。
+- en: '[Secondary indexes](glossary.html#glos_secondary_index "secondary index") in
+    InnoDB tables are also B-trees, containing pairs of values: the index key and
+    a pointer to a row in the clustered index. The pointer is in fact the value of
+    the primary key of the table, which is used to access the clustered index if columns
+    other than the index key and primary key are required. Secondary index records
+    must always fit on a single B-tree page.'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: InnoDB 表中的[二级索引](glossary.html#glos_secondary_index "secondary index")也是 B 树，包含值对：索引键和指向聚簇索引中行的指针。该指针实际上是表的主键值，用于访问聚簇索引，如果需要除索引键和主键之外的列。二级索引记录必须始终适合单个
+    B 树页面。
+- en: The compression of B-tree nodes (of both clustered and secondary indexes) is
+    handled differently from compression of [overflow pages](glossary.html#glos_overflow_page
+    "overflow page") used to store long `VARCHAR`, `BLOB`, or `TEXT` columns, as explained
+    in the following sections.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: B 树节点（包括聚簇索引和二级索引）的压缩处理与用于存储长 `VARCHAR`、`BLOB` 或 `TEXT` 列的[溢出页](glossary.html#glos_overflow_page
+    "overflow page")的压缩处理不同，如下节所述。
+- en: Compression of B-Tree Pages
+  id: totrans-11
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: B 树页面的压缩
+- en: Because they are frequently updated, B-tree pages require special treatment.
+    It is important to minimize the number of times B-tree nodes are split, as well
+    as to minimize the need to uncompress and recompress their content.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于 B 树页面经常更新，因此需要特殊处理。重要的是要尽量减少 B 树节点分裂的次数，以及尽量减少解压缩和重新压缩它们的内容的需求。
+- en: One technique MySQL uses is to maintain some system information in the B-tree
+    node in uncompressed form, thus facilitating certain in-place updates. For example,
+    this allows rows to be delete-marked and deleted without any compression operation.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 使用的一种技术是在未压缩形式的 B 树节点中维护一些系统信息，从而方便某些原地更新。例如，这允许行被标记为删除并删除，而无需进行任何压缩操作。
+- en: In addition, MySQL attempts to avoid unnecessary uncompression and recompression
+    of index pages when they are changed. Within each B-tree page, the system keeps
+    an uncompressed “modification log” to record changes made to the page. Updates
+    and inserts of small records may be written to this modification log without requiring
+    the entire page to be completely reconstructed.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另外，MySQL 尝试在更改索引页面时避免不必要的解压缩和重新压缩。在每个 B 树页面中，系统保留一个未压缩的“修改日志”来记录对页面所做的更改。小记录的更新和插入可以写入此修改日志，而无需完全重建整个页面。
+- en: When the space for the modification log runs out, InnoDB uncompresses the page,
+    applies the changes and recompresses the page. If recompression fails (a situation
+    known as a [compression failure](glossary.html#glos_compression_failure "compression
+    failure")), the B-tree nodes are split and the process is repeated until the update
+    or insert succeeds.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当修改日志的空间用尽时，InnoDB 解压缩页面，应用更改并重新压缩页面。如果重新压缩失败（称为[压缩失败](glossary.html#glos_compression_failure
+    "compression failure")的情况），则 B 树节点将被分裂，并重复该过程，直到更新或插入成功。
+- en: To avoid frequent compression failures in write-intensive workloads, such as
+    for [OLTP](glossary.html#glos_oltp "OLTP") applications, MySQL sometimes reserves
+    some empty space (padding) in the page, so that the modification log fills up
+    sooner and the page is recompressed while there is still enough room to avoid
+    splitting it. The amount of padding space left in each page varies as the system
+    keeps track of the frequency of page splits. On a busy server doing frequent writes
+    to compressed tables, you can adjust the [`innodb_compression_failure_threshold_pct`](innodb-parameters.html#sysvar_innodb_compression_failure_threshold_pct),
+    and [`innodb_compression_pad_pct_max`](innodb-parameters.html#sysvar_innodb_compression_pad_pct_max)
+    configuration options to fine-tune this mechanism.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免在写密集型工作负载中频繁出现压缩失败，例如[OLTP](glossary.html#glos_oltp "OLTP")应用程序，MySQL有时会在页面中保留一些空间（填充），以便修改日志更快地填满，并在仍有足够空间避免分割页面时重新压缩页面。每个页面中留下的填充空间量因系统跟踪页面分割频率而异。在频繁向压缩表写入的繁忙服务器上，您可以调整[`innodb_compression_failure_threshold_pct`](innodb-parameters.html#sysvar_innodb_compression_failure_threshold_pct)和[`innodb_compression_pad_pct_max`](innodb-parameters.html#sysvar_innodb_compression_pad_pct_max)配置选项来微调此机制。
+- en: 'Generally, MySQL requires that each B-tree page in an InnoDB table can accommodate
+    at least two records. For compressed tables, this requirement has been relaxed.
+    Leaf pages of B-tree nodes (whether of the primary key or secondary indexes) only
+    need to accommodate one record, but that record must fit, in uncompressed form,
+    in the per-page modification log. If [`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode)
+    is `ON`, MySQL checks the maximum row size during [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") or [`CREATE INDEX`](create-index.html "15.1.15 CREATE
+    INDEX Statement"). If the row does not fit, the following error message is issued:
+    `ERROR HY000: Too big row`.'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '通常，MySQL要求InnoDB表中的每个B树页面至少能容纳两条记录。对于压缩表，此要求已经放宽。B树节点的叶子页面（无论是主键还是辅助索引）只需要容纳一条记录，但该记录必须以未压缩形式适合于每页修改日志。如果[`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode)为`ON`，MySQL在[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")或[`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement")期间检查最大行大小。如果行不适合，将发出以下错误消息：`ERROR HY000: Too
+    big row`。'
+- en: 'If you create a table when [`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode)
+    is OFF, and a subsequent `INSERT` or `UPDATE` statement attempts to create an
+    index entry that does not fit in the size of the compressed page, the operation
+    fails with `ERROR 42000: Row size too large`. (This error message does not name
+    the index for which the record is too large, or mention the length of the index
+    record or the maximum record size on that particular index page.) To solve this
+    problem, rebuild the table with [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") and select a larger compressed page size (`KEY_BLOCK_SIZE`),
+    shorten any column prefix indexes, or disable compression entirely with `ROW_FORMAT=DYNAMIC`
+    or `ROW_FORMAT=COMPACT`.'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '如果在[`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode)为OFF时创建表，并且随后的`INSERT`或`UPDATE`语句尝试创建一个在压缩页面大小内不适合的索引条目，则操作将失败，并显示`ERROR
+    42000: Row size too large`。（此错误消息不会指定记录过大的索引，也不会提及索引记录的长度或特定索引页面上的最大记录大小。）要解决此问题，请使用[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")重建表，并选择更大的压缩页面大小（`KEY_BLOCK_SIZE`），缩短任何列前缀索引，或完全禁用压缩，使用`ROW_FORMAT=DYNAMIC`或`ROW_FORMAT=COMPACT`。'
+- en: '[`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode) is
+    not applicable to general tablespaces, which also support compressed tables. Tablespace
+    management rules for general tablespaces are strictly enforced independently of
+    [`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode). For
+    more information, see [Section 15.1.21, “CREATE TABLESPACE Statement”](create-tablespace.html
+    "15.1.21 CREATE TABLESPACE Statement").'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode)不适用于通用表空间，通用表空间也支持压缩表。通用表空间的表空间管理规则严格执行，与[`innodb_strict_mode`](innodb-parameters.html#sysvar_innodb_strict_mode)独立执行。有关更多信息，请参见[第15.1.21节，“CREATE
+    TABLESPACE Statement”](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")。'
+- en: Compressing BLOB, VARCHAR, and TEXT Columns
+  id: totrans-20
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 压缩BLOB、VARCHAR和TEXT列
+- en: In an InnoDB table, [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types"), [`VARCHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types"), and [`TEXT`](blob.html "13.3.4 The BLOB
+    and TEXT Types") columns that are not part of the primary key may be stored on
+    separately allocated [overflow pages](glossary.html#glos_overflow_page "overflow
+    page"). We refer to these columns as [off-page columns](glossary.html#glos_off_page_column
+    "off-page column"). Their values are stored on singly-linked lists of overflow
+    pages.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在InnoDB表中，不是主键的[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")、[`VARCHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")和[`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")列可能存储在单独分配的[溢出页](glossary.html#glos_overflow_page
+    "溢出页")上。我们将这些列称为[页外列](glossary.html#glos_off_page_column "页外列")。它们的值存储在溢出页的单链表上。
+- en: For tables created in `ROW_FORMAT=DYNAMIC` or `ROW_FORMAT=COMPRESSED`, the values
+    of [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types"), [`TEXT`](blob.html "13.3.4 The
+    BLOB and TEXT Types"), or [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types")
+    columns may be stored fully off-page, depending on their length and the length
+    of the entire row. For columns that are stored off-page, the clustered index record
+    only contains 20-byte pointers to the overflow pages, one per column. Whether
+    any columns are stored off-page depends on the page size and the total size of
+    the row. When the row is too long to fit entirely within the page of the clustered
+    index, MySQL chooses the longest columns for off-page storage until the row fits
+    on the clustered index page. As noted above, if a row does not fit by itself on
+    a compressed page, an error occurs.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于使用`ROW_FORMAT=DYNAMIC`或`ROW_FORMAT=COMPRESSED`创建的表，根据它们的长度和整行的长度，[`BLOB`](blob.html
+    "13.3.4 BLOB和TEXT类型")、[`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")或[`VARCHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")列的值可能完全存储在页外。对于存储在页外的列，聚集索引记录仅包含指向溢出页的20字节指针，每列一个。是否存储任何列在页外取决于页大小和整行的总大小。当整行长度过长无法完全适应聚集索引页时，MySQL会选择最长的列进行页外存储，直到整行适应聚集索引页。如上所述，如果一行无法适应压缩页，将会出现错误。
+- en: Note
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: For tables created in `ROW_FORMAT=DYNAMIC` or `ROW_FORMAT=COMPRESSED`, [`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types") and [`BLOB`](blob.html "13.3.4 The BLOB and
+    TEXT Types") columns that are less than or equal to 40 bytes are always stored
+    in-line.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于使用`ROW_FORMAT=DYNAMIC`或`ROW_FORMAT=COMPRESSED`创建的表，长度小于或等于40字节的[`TEXT`](blob.html
+    "13.3.4 BLOB和TEXT类型")和[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")列始终存储在内部。
+- en: Tables that use `ROW_FORMAT=REDUNDANT` and `ROW_FORMAT=COMPACT` store the first
+    768 bytes of [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types"), [`VARCHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types"), and [`TEXT`](blob.html "13.3.4 The BLOB
+    and TEXT Types") columns in the clustered index record along with the primary
+    key. The 768-byte prefix is followed by a 20-byte pointer to the overflow pages
+    that contain the rest of the column value.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`ROW_FORMAT=REDUNDANT`和`ROW_FORMAT=COMPACT`的表将[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")、[`VARCHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")和[`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")列的前768字节存储在聚集索引记录中，以及主键。768字节前缀后跟一个指向包含列其余部分值的溢出页的20字节指针。
+- en: When a table is in `COMPRESSED` format, all data written to overflow pages is
+    compressed “as is”; that is, MySQL applies the zlib compression algorithm to the
+    entire data item. Other than the data, compressed overflow pages contain an uncompressed
+    header and trailer comprising a page checksum and a link to the next overflow
+    page, among other things. Therefore, very significant storage savings can be obtained
+    for longer `BLOB`, `TEXT`, or `VARCHAR` columns if the data is highly compressible,
+    as is often the case with text data. Image data, such as `JPEG`, is typically
+    already compressed and so does not benefit much from being stored in a compressed
+    table; the double compression can waste CPU cycles for little or no space savings.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当表处于`COMPRESSED`格式时，写入溢出页的所有数据都会被压缩“原样”；也就是说，MySQL会对整个数据项应用zlib压缩算法。除数据外，压缩的溢出页包含一个未压缩的页头和页尾，其中包括页校验和指向下一个溢出页的链接，等等。因此，如果数据高度可压缩，通常情况下文本数据会获得非常显著的存储节省，对于较长的`BLOB`、`TEXT`或`VARCHAR`列。图像数据，如`JPEG`，通常已经被压缩，因此将其存储在压缩表中并不会带来太大好处；双重压缩可能会浪费CPU周期而几乎不节省空间。
+- en: The overflow pages are of the same size as other pages. A row containing ten
+    columns stored off-page occupies ten overflow pages, even if the total length
+    of the columns is only 8K bytes. In an uncompressed table, ten uncompressed overflow
+    pages occupy 160K bytes. In a compressed table with an 8K page size, they occupy
+    only 80K bytes. Thus, it is often more efficient to use compressed table format
+    for tables with long column values.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 溢出页与其他页的大小相同。存储在页外的包含十列的行占用十个溢出页，即使列的总长度只有 8K 字节。在未压缩的表中，十个未压缩的溢出页占用 160K 字节。在具有
+    8K 页大小的压缩表中，它们只占用 80K 字节。因此，对于具有长列值的表，通常更有效使用压缩表格式。
+- en: For [file-per-table](glossary.html#glos_file_per_table "file-per-table") tablespaces,
+    using a 16K compressed page size can reduce storage and I/O costs for [`BLOB`](blob.html
+    "13.3.4 The BLOB and TEXT Types"), [`VARCHAR`](char.html "13.3.2 The CHAR and
+    VARCHAR Types"), or [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") columns,
+    because such data often compress well, and might therefore require fewer overflow
+    pages, even though the B-tree nodes themselves take as many pages as in the uncompressed
+    form. General tablespaces do not support a 16K compressed page size (`KEY_BLOCK_SIZE`).
+    For more information, see [Section 17.6.3.3, “General Tablespaces”](general-tablespaces.html
+    "17.6.3.3 General Tablespaces").
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[file-per-table](glossary.html#glos_file_per_table "file-per-table")表空间，使用
+    16K 压缩页大小可以减少[`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types")、[`VARCHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types")或[`TEXT`](blob.html "13.3.4 The BLOB and TEXT
+    Types")列的存储和 I/O 成本，因为这些数据通常压缩效果良好，可能需要较少的溢出页，即使 B 树节点本身占用的页数与未压缩形式相同。通用表空间不支持
+    16K 压缩页大小（`KEY_BLOCK_SIZE`）。有关更多信息，请参见[Section 17.6.3.3，“通用表空间”](general-tablespaces.html
+    "17.6.3.3 General Tablespaces")。
+- en: Compression and the InnoDB Buffer Pool
+  id: totrans-29
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 压缩和 InnoDB 缓冲池
+- en: In a compressed `InnoDB` table, every compressed page (whether 1K, 2K, 4K or
+    8K) corresponds to an uncompressed page of 16K bytes (or a smaller size if [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    is set). To access the data in a page, MySQL reads the compressed page from disk
+    if it is not already in the [buffer pool](glossary.html#glos_buffer_pool "buffer
+    pool"), then uncompresses the page to its original form. This section describes
+    how `InnoDB` manages the buffer pool with respect to pages of compressed tables.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在压缩的`InnoDB`表中，每个压缩页（无论是 1K、2K、4K 还是 8K）对应于一个 16K 字节的未压缩页（如果设置了[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)，则大小可能更小）。要访问页中的数据，MySQL
+    从磁盘读取压缩页（如果尚未在[缓冲池](glossary.html#glos_buffer_pool "buffer pool")中），然后将页解压缩为其原始形式。本节描述了`InnoDB`在处理压缩表的页时如何管理缓冲池。
+- en: To minimize I/O and to reduce the need to uncompress a page, at times the buffer
+    pool contains both the compressed and uncompressed form of a database page. To
+    make room for other required database pages, MySQL can [evict](glossary.html#glos_eviction
+    "eviction") from the buffer pool an uncompressed page, while leaving the compressed
+    page in memory. Or, if a page has not been accessed in a while, the compressed
+    form of the page might be written to disk, to free space for other data. Thus,
+    at any given time, the buffer pool might contain both the compressed and uncompressed
+    forms of the page, or only the compressed form of the page, or neither.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了最小化 I/O 并减少解压缩页的需求，有时缓冲池同时包含数据库页的压缩和未压缩形式。为了为其他所需的数据库页腾出空间，MySQL 可以从缓冲池中驱逐一个未压缩页，同时保留压缩页在内存中。或者，如果某个页已经有一段时间没有被访问，该页的压缩形式可能会被写入磁盘，以释放其他数据的空间。因此，在任何给定时间，缓冲池可能同时包含页的压缩和未压缩形式，或仅包含页的压缩形式，或两者都不包含。
+- en: MySQL keeps track of which pages to keep in memory and which to evict using
+    a least-recently-used ([LRU](glossary.html#glos_lru "LRU")) list, so that [hot](glossary.html#glos_hot
+    "hot") (frequently accessed) data tends to stay in memory. When compressed tables
+    are accessed, MySQL uses an adaptive LRU algorithm to achieve an appropriate balance
+    of compressed and uncompressed pages in memory. This adaptive algorithm is sensitive
+    to whether the system is running in an [I/O-bound](glossary.html#glos_io_bound
+    "I/O-bound") or [CPU-bound](glossary.html#glos_cpu_bound "CPU-bound") manner.
+    The goal is to avoid spending too much processing time uncompressing pages when
+    the CPU is busy, and to avoid doing excess I/O when the CPU has spare cycles that
+    can be used for uncompressing compressed pages (that may already be in memory).
+    When the system is I/O-bound, the algorithm prefers to evict the uncompressed
+    copy of a page rather than both copies, to make more room for other disk pages
+    to become memory resident. When the system is CPU-bound, MySQL prefers to evict
+    both the compressed and uncompressed page, so that more memory can be used for
+    “hot” pages and reducing the need to uncompress data in memory only in compressed
+    form.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL使用最近最少使用（[LRU](glossary.html#glos_lru "LRU")）列表跟踪要保留在内存中的页面和要驱逐的页面，以便[热](glossary.html#glos_hot
+    "热")（频繁访问）数据倾向于保留在内存中。当访问压缩表时，MySQL使用自适应LRU算法在内存中实现压缩和未压缩页面的适当平衡。这种自适应算法对系统是否以[I/O绑定](glossary.html#glos_io_bound
+    "I/O绑定")或[CPU绑定](glossary.html#glos_cpu_bound "CPU绑定")方式运行敏感。目标是在CPU繁忙时避免花费过多的处理时间解压页面，并在CPU有空闲周期可以用于解压已经在内存中的压缩页面时避免做过多的I/O。当系统处于I/O绑定状态时，该算法更倾向于驱逐页面的未压缩副本而不是两者，以便为其他磁盘页面腾出更多的内存空间。当系统处于CPU绑定状态时，MySQL更倾向于同时驱逐压缩和未压缩页面，以便更多的内存用于“热”页面，并减少仅以压缩形式在内存中解压数据的需求。
+- en: Compression and the InnoDB Redo Log Files
+  id: totrans-33
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 压缩和InnoDB重做日志文件
+- en: Before a compressed page is written to a [data file](glossary.html#glos_data_files
+    "data files"), MySQL writes a copy of the page to the redo log (if it has been
+    recompressed since the last time it was written to the database). This is done
+    to ensure that redo logs are usable for [crash recovery](glossary.html#glos_crash_recovery
+    "crash recovery"), even in the unlikely case that the `zlib` library is upgraded
+    and that change introduces a compatibility problem with the compressed data. Therefore,
+    some increase in the size of [log files](glossary.html#glos_log_file "log file"),
+    or a need for more frequent [checkpoints](glossary.html#glos_checkpoint "checkpoint"),
+    can be expected when using compression. The amount of increase in the log file
+    size or checkpoint frequency depends on the number of times compressed pages are
+    modified in a way that requires reorganization and recompression.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在将压缩页写入[数据文件](glossary.html#glos_data_files "数据文件")之前，MySQL会将页面的副本写入重做日志（如果自上次写入数据库以来已重新压缩）。这样做是为了确保即使在`zlib`库升级并且该更改引入与压缩数据不兼容的问题的极少数情况下，重做日志也可以用于[崩溃恢复](glossary.html#glos_crash_recovery
+    "崩溃恢复")。因此，在使用压缩时，可以预期[日志文件](glossary.html#glos_log_file "日志文件")的大小会增加，或者需要更频繁的[检查点](glossary.html#glos_checkpoint
+    "检查点")。日志文件大小或检查点频率的增加量取决于压缩页被修改的次数，这些修改需要重新组织和重新压缩。
+- en: To create a compressed table in a file-per-table tablespace, [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    must be enabled. There is no dependence on the [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    setting when creating a compressed table in a general tablespace. For more information,
+    see [Section 17.6.3.3, “General Tablespaces”](general-tablespaces.html "17.6.3.3 General
+    Tablespaces").
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在每个表的表空间中创建一个压缩表，必须启用[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)。在创建一个压缩表时，不依赖于[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)设置在一般表空间中。有关更多信息，请参见[第17.6.3.3节，“一般表空间”](general-tablespaces.html
+    "17.6.3.3 一般表空间")。

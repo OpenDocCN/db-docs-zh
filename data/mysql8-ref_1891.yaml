@@ -1,0 +1,184 @@
+- en: 27.9 Restrictions on Views
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 27.9 视图的限制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/view-restrictions.html](https://dev.mysql.com/doc/refman/8.0/en/view-restrictions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/view-restrictions.html](https://dev.mysql.com/doc/refman/8.0/en/view-restrictions.html)
+- en: The maximum number of tables that can be referenced in the definition of a view
+    is 61.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在视图定义中引用的表的最大数量为 61。
+- en: 'View processing is not optimized:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图处理未经优化：
+- en: It is not possible to create an index on a view.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不可能在视图上创建索引。
+- en: Indexes can be used for views processed using the merge algorithm. However,
+    a view that is processed with the temptable algorithm is unable to take advantage
+    of indexes on its underlying tables (although indexes can be used during generation
+    of the temporary tables).
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用合并算法处理的视图可以使用索引。然而，使用 temptable 算法处理的视图无法利用其基础表的索引（尽管在生成临时表时可以使用索引）。
+- en: There is a general principle that you cannot modify a table and select from
+    the same table in a subquery. See [Section 15.2.15.12, “Restrictions on Subqueries”](subquery-restrictions.html
+    "15.2.15.12 Restrictions on Subqueries").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有一个普遍原则，即您不能在子查询中修改表并从同一表中进行选择。参见[Section 15.2.15.12, “子查询的限制”](subquery-restrictions.html
+    "15.2.15.12 子查询的限制")。
+- en: 'The same principle also applies if you select from a view that selects from
+    the table, if the view selects from the table in a subquery and the view is evaluated
+    using the merge algorithm. Example:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您从选择表的视图中选择，如果视图从子查询中选择表，并且使用合并算法评估视图，则也适用相同原则。例如：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: If the view is evaluated using a temporary table, you *can* select from the
+    table in the view subquery and still modify that table in the outer query. In
+    this case, the view is stored in a temporary table and thus you are not really
+    selecting from the table in a subquery and modifying it at the same time. (This
+    is another reason you might wish to force MySQL to use the temptable algorithm
+    by specifying `ALGORITHM = TEMPTABLE` in the view definition.)
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果视图使用临时表进行评估，您*可以*从视图子查询中选择表，并在外部查询中修改该表。在这种情况下，视图存储在临时表中，因此您实际上并没有同时从子查询中选择表并修改它。（这是您可能希望通过在视图定义中指定
+    `ALGORITHM = TEMPTABLE` 强制 MySQL 使用 temptable 算法的另一个原因。）
+- en: You can use [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") or
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") to drop or alter
+    a table that is used in a view definition. No warning results from the `DROP`
+    or `ALTER` operation, even though this invalidates the view. Instead, an error
+    occurs later, when the view is used. [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK
+    TABLE Statement") can be used to check for views that have been invalidated by
+    `DROP` or `ALTER` operations.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用 [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE 语句") 或 [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE 语句") 删除或更改视图定义中使用的表。即使这使视图无效，`DROP` 或 `ALTER` 操作也不会产生警告。相反，在使用视图时会稍后出现错误。可以使用
+    [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE 语句") 来检查已被 `DROP` 或 `ALTER`
+    操作使无效的视图。
+- en: With regard to view updatability, the overall goal for views is that if any
+    view is theoretically updatable, it should be updatable in practice. Many theoretically
+    updatable views can be updated now, but limitations still exist. For details,
+    see [Section 27.5.3, “Updatable and Insertable Views”](view-updatability.html
+    "27.5.3 Updatable and Insertable Views").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于视图的可更新性，视图的总体目标是，如果任何视图在理论上是可更新的，那么在实践中它应该是可更新的。许多在理论上可更新的视图现在可以更新，但仍然存在限制。有关详细信息，请参见[Section 27.5.3,
+    “可更新和可插入的视图”](view-updatability.html "27.5.3 可更新和可插入的视图")。
+- en: There exists a shortcoming with the current implementation of views. If a user
+    is granted the basic privileges necessary to create a view (the [`CREATE VIEW`](privileges-provided.html#priv_create-view)
+    and [`SELECT`](privileges-provided.html#priv_select) privileges), that user cannot
+    call [`SHOW CREATE VIEW`](show-create-view.html "15.7.7.13 SHOW CREATE VIEW Statement")
+    on that object unless the user is also granted the [`SHOW VIEW`](privileges-provided.html#priv_show-view)
+    privilege.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当前视图实现存在一个缺陷。如果用户被授予创建视图所需的基本权限（[`CREATE VIEW`](privileges-provided.html#priv_create-view)
+    和 [`SELECT`](privileges-provided.html#priv_select) 权限），那么该用户除非也被授予 [`SHOW VIEW`](privileges-provided.html#priv_show-view)
+    权限，否则不能调用 [`SHOW CREATE VIEW`](show-create-view.html "15.7.7.13 SHOW CREATE VIEW
+    语句") 查看该对象。
+- en: 'That shortcoming can lead to problems backing up a database with [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program"), which may fail due to insufficient
+    privileges. This problem is described in Bug #22062.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '这个缺陷可能导致使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program")备份数据库时出现问题，可能由于权限不足而失败。这个问题在Bug #22062中有描述。'
+- en: The workaround to the problem is for the administrator to manually grant the
+    [`SHOW VIEW`](privileges-provided.html#priv_show-view) privilege to users who
+    are granted [`CREATE VIEW`](privileges-provided.html#priv_create-view), since
+    MySQL doesn't grant it implicitly when views are created.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 解决这个问题的方法是管理员手动授予[`SHOW VIEW`](privileges-provided.html#priv_show-view)权限给被授予[`CREATE
+    VIEW`](privileges-provided.html#priv_create-view)权限的用户，因为MySQL在创建视图时不会隐式授予该权限。
+- en: Views do not have indexes, so index hints do not apply. Use of index hints when
+    selecting from a view is not permitted.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图没有索引，因此索引提示不适用。在从视图中进行选择时，不允许使用索引提示。
+- en: '[`SHOW CREATE VIEW`](show-create-view.html "15.7.7.13 SHOW CREATE VIEW Statement")
+    displays view definitions using an `AS *`alias_name`*` clause for each column.
+    If a column is created from an expression, the default alias is the expression
+    text, which can be quite long. Aliases for column names in [`CREATE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement") statements are checked against the maximum column
+    length of 64 characters (not the maximum alias length of 256 characters). As a
+    result, views created from the output of [`SHOW CREATE VIEW`](show-create-view.html
+    "15.7.7.13 SHOW CREATE VIEW Statement") fail if any column alias exceeds 64 characters.
+    This can cause problems in the following circumstances for views with too-long
+    aliases:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SHOW CREATE VIEW`](show-create-view.html "15.7.7.13 SHOW CREATE VIEW Statement")使用`AS
+    *alias_name*`子句显示视图定义中的每个列。如果列是从表达式创建的，则默认别名是表达式文本，可能会很长。在[`CREATE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement")语句中，列名的别名会被检查是否超过64个字符的最大列长度（而不是256个字符的最大别名长度）。因此，如果任何列别名超过64个字符，则从[`SHOW
+    CREATE VIEW`](show-create-view.html "15.7.7.13 SHOW CREATE VIEW Statement")输出创建的视图会失败。这可能会导致以下情况的问题，对于具有过长别名的视图：'
+- en: View definitions fail to replicate to newer replicas that enforce the column-length
+    restriction.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 视图定义无法复制到强制执行列长度限制的新副本中。
+- en: Dump files created with [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A
+    Database Backup Program") cannot be loaded into servers that enforce the column-length
+    restriction.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")创建的转储文件无法加载到强制执行列长度限制的服务器中。
+- en: A workaround for either problem is to modify each problematic view definition
+    to use aliases that provide shorter column names. Then the view replicates properly,
+    and can be dumped and reloaded without causing an error. To modify the definition,
+    drop and create the view again with [`DROP VIEW`](drop-view.html "15.1.35 DROP
+    VIEW Statement") and [`CREATE VIEW`](create-view.html "15.1.23 CREATE VIEW Statement"),
+    or replace the definition with [`CREATE OR REPLACE VIEW`](create-view.html "15.1.23 CREATE
+    VIEW Statement").
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了解决这两个问题，一个解决方法是修改每个有问题的视图定义，使用提供更短列名的别名。然后视图就能正确复制，并且可以在不引起错误的情况下进行转储和重新加载。要修改定义，可以使用[`DROP
+    VIEW`](drop-view.html "15.1.35 DROP VIEW Statement")和[`CREATE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement")重新创建视图，或者用[`CREATE OR REPLACE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement")替换定义。
+- en: For problems that occur when reloading view definitions in dump files, another
+    workaround is to edit the dump file to modify its [`CREATE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement") statements. However, this does not change the
+    original view definitions, which may cause problems for subsequent dump operations.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于在转储文件中重新加载视图定义时出现的问题，另一个解决方法是编辑转储文件以修改其[`CREATE VIEW`](create-view.html "15.1.23 CREATE
+    VIEW Statement")语句。然而，这并不会改变原始视图定义，这可能会导致后续转储操作出现问题。

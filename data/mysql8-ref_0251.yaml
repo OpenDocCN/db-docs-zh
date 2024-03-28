@@ -1,0 +1,641 @@
+- en: 7.1.14 Network Namespace Support
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.1.14 网络命名空间支持
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/network-namespace-support.html](https://dev.mysql.com/doc/refman/8.0/en/network-namespace-support.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/network-namespace-support.html](https://dev.mysql.com/doc/refman/8.0/en/network-namespace-support.html)
+- en: A network namespace is a logical copy of the network stack from the host system.
+    Network namespaces are useful for setting up containers or virtual environments.
+    Each namespace has its own IP addresses, network interfaces, routing tables, and
+    so forth. The default or global namespace is the one in which the host system
+    physical interfaces exist.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 网络命名空间是主机系统网络堆栈的逻辑副本。网络命名空间适用于设置容器或虚拟环境。每个命名空间都有自己的IP地址、网络接口、路由表等。默认或全局命名空间是主机系统物理接口存在的命名空间。
+- en: 'Namespace-specific address spaces can lead to problems when MySQL connections
+    cross namespaces. For example, the network address space for a MySQL instance
+    running in a container or virtual network may differ from the address space of
+    the host machine. This can produce phenomena such as a client connection from
+    an address in one namespace appearing to the MySQL server to be coming from a
+    different address, even for client and server running on the same machine. Suppose
+    that both processes run on a host with IP address `203.0.113.10` but use different
+    namespaces. A connection may produce a result like this:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 命名空间特定的地址空间可能会导致MySQL连接跨越命名空间时出现问题。例如，在容器或虚拟网络中运行的MySQL实例的网络地址空间可能与主机机器的地址空间不同。这可能会导致诸如来自一个命名空间中的地址的客户端连接似乎来自不同地址的MySQL服务器，即使客户端和服务器在同一台机器上运行。假设两个进程都在具有IP地址`203.0.113.10`的主机上运行，但使用不同的命名空间。连接可能产生如下结果：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: In this case, the expected [`USER()`](information-functions.html#function_user)
+    value is `admin@203.0.113.10`. Such behavior can make it difficult to assign account
+    permissions properly if the address from which an connection originates is not
+    what it appears.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，预期的[`USER()`](information-functions.html#function_user)值为`admin@203.0.113.10`。如果连接发起的地址与其表面不符，这种行为可能会使正确分配帐户权限变得困难。
+- en: To address this issue, MySQL enables specifying the network namespace to use
+    for TCP/IP connections, so that both endpoints of connections use an agreed-upon
+    common address space.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为解决此问题，MySQL允许指定用于TCP/IP连接的网络命名空间，以便连接的两端使用约定的共同地址空间。
+- en: 'MySQL 8.0.22 and higher supports network namespaces on platforms that implement
+    them. Support within MySQL applies to:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.22及更高版本支持实现网络命名空间的平台上的网络命名空间。MySQL内的支持适用于：
+- en: The MySQL server, [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server").
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL服务器，[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器")。
+- en: X Plugin.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: X插件。
+- en: The [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client
+    and the **mysqlxtest** test suite client. (Other clients are not supported. They
+    must be invoked from within the network namespace of the server to which they
+    are to connect.)
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysql**](mysql.html "6.5.1 mysql — MySQL命令行客户端")客户端和**mysqlxtest**测试套件客户端。（不支持其他客户端。它们必须从要连接的服务器的网络命名空间内调用。）'
+- en: Regular replication.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 常规复制。
+- en: Group Replication, only when using the MySQL communication stack to establish
+    group communication connections (from MySQL 8.0.27).
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 组复制，仅在使用MySQL通信堆栈建立组通信连接时（从MySQL 8.0.27开始）。
+- en: 'The following sections describe how to use network namespaces in MySQL:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下部分描述了如何在MySQL中使用网络命名空间：
+- en: '[Host System Prerequisites](network-namespace-support.html#network-namespaces-host-prerequisites
+    "Host System Prerequisites")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[主机系统先决条件](network-namespace-support.html#network-namespaces-host-prerequisites
+    "主机系统先决条件")'
+- en: '[MySQL Configuration](network-namespace-support.html#network-namespaces-mysql-configuration
+    "MySQL Configuration")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[MySQL配置](network-namespace-support.html#network-namespaces-mysql-configuration
+    "MySQL配置")'
+- en: '[Network Namespace Monitoring](network-namespace-support.html#network-namespaces-monitoring
+    "Network Namespace Monitoring")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[网络命名空间监控](network-namespace-support.html#network-namespaces-monitoring "网络命名空间监控")'
+- en: Host System Prerequisites
+  id: totrans-17
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 主机系统先决条件
+- en: 'Prior to using network namespace support in MySQL, these host system prerequisites
+    must be satisfied:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL中使用网络命名空间支持之前，必须满足这些主机系统先决条件：
+- en: The host operating system must support network namespaces. (For example, Linux.)
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 主机操作系统必须支持网络命名空间。（例如，Linux。）
+- en: Any network namespace to be used by MySQL must first be created on the host
+    system.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL要使用的任何网络命名空间必须首先在主机系统上创建。
+- en: Host name resolution must be configured by the system administrator to support
+    network namespaces.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 主机名解析必须由系统管理员配置以支持网络命名空间。
+- en: Note
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: A known limitation is that, within MySQL, host name resolution does not work
+    for names specified in network namespace-specific host files. For example, if
+    the address for a host name in the `red` namespace is specified in the `/etc/netns/red/hosts`
+    file, binding to the name fails on both the server and client sides. The workaround
+    is to use the IP address rather than the host name.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 已知的限制是，在MySQL中，主机名解析对于在特定网络命名空间主机文件中指定的名称不起作用。例如，如果在`red`命名空间中的主机名的地址在`/etc/netns/red/hosts`文件中指定，那么在服务器和客户端端都无法绑定到该名称。解决方法是使用IP地址而不是主机名。
+- en: The system administrator must enable the `CAP_SYS_ADMIN` operating system privilege
+    for the MySQL binaries that support network namespaces ([**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server"), [**mysql**](mysql.html "6.5.1 mysql — The
+    MySQL Command-Line Client"), **mysqlxtest**).
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 系统管理员必须为支持网络命名空间的MySQL二进制文件启用`CAP_SYS_ADMIN`操作系统特权（[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")，[**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client")，**mysqlxtest**）。
+- en: Important
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Enabling `CAP_SYS_ADMIN` is a security sensitive operation because it enables
+    a process to perform other privileged actions in addition to setting namespaces.
+    For a description of its effects, see [https://man7.org/linux/man-pages/man7/capabilities.7.html](https://man7.org/linux/man-pages/man7/capabilities.7.html).
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启用`CAP_SYS_ADMIN`是一个安全敏感的操作，因为它使进程能够执行其他特权操作，除了设置命名空间。有关其影响的描述，请参见[https://man7.org/linux/man-pages/man7/capabilities.7.html](https://man7.org/linux/man-pages/man7/capabilities.7.html)。
+- en: Because `CAP_SYS_ADMIN` must be enabled explicitly by the system administrator,
+    MySQL binaries by default do not have network namespace support enabled. The system
+    administrator should evaluate the security implications of running MySQL processes
+    with `CAP_SYS_ADMIN` before enabling it.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为`CAP_SYS_ADMIN`必须由系统管理员显式启用，所以默认情况下MySQL二进制文件不具有启用网络命���空间支持。在启用之前，系统管理员应评估使用`CAP_SYS_ADMIN`运行MySQL进程的安全性影响。
+- en: The instructions in the following example set up network namespaces named `red`
+    and `blue`. The names you choose may differ, as may the network addresses and
+    interfaces on your host system.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例中的说明设置了名为`red`和`blue`的网络命名空间。您选择的名称可能不同，主机系统上的网络地址和接口也可能不同。
+- en: Invoke the commands shown here either as the `root` operating system user or
+    by prefixing each command with **sudo**. For example, to invoke the **ip** or
+    **setcap** command if you are not `root`, use **sudo ip** or **sudo setcap**.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在此处显示的命令要么作为`root`操作系统用户调用，要么在每个命令前加上**sudo**前缀。例如，如果你不是`root`用户，要调用**ip**或**setcap**命令，使用**sudo
+    ip**或**sudo setcap**。
+- en: 'To configure network namespaces, use the **ip** command. For some operations,
+    the **ip** command must execute within a particular namespace (which must already
+    exist). In such cases, begin the command like this:'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要配置网络命名空间，请使用**ip**命令。对于某些操作，**ip**命令必须在特定的命名空间内执行（该命名空间必须已经存在）。在这种情况下，命令应该这样开始：
+- en: '[PRE1]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'For example, this command executes within the `red` namespace to bring up the
+    loopback interface:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，此命令在`red`命名空间内执行以启动环回接口：
+- en: '[PRE2]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To add namespaces named `red` and `blue`, each with its own virtual Ethernet
+    device used as a link between namespaces and its own loopback interface:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要添加名为`red`和`blue`的命名空间，每个命名空间都有自己的虚拟以太网设备用作命名空间之间的链接以及自己的环回接口：
+- en: '[PRE3]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'A diagram of the links between namespaces looks like this:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '命名空间之间链接的图示如下： '
+- en: '[PRE4]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'To check which namespaces and links exist:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要检查存在哪些命名空间和链接：
+- en: '[PRE5]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'To see the routing tables for the global and named namespaces:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看全局和命名空间的路由表：
+- en: '[PRE6]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'To remove the `red` and `blue` links and namespaces:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要删除`red`和`blue`的链接和命名空间：
+- en: '[PRE7]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'So that the MySQL binaries that include network namespace support can actually
+    use namespaces, you must grant them the `CAP_SYS_ADMIN` capability. The following
+    **setcap** commands assume that you have changed location to the directory containing
+    your MySQL binaries (adjust the pathname for your system as necessary):'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了使包含网络命名空间支持的MySQL二进制文件实际上可以使用命名空间，您必须授予它们`CAP_SYS_ADMIN`权限。以下**setcap**命令假定您已更改位置到包含MySQL二进制文件的目录（根据需要调整系统的路径名）：
+- en: '[PRE8]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'To grant `CAP_SYS_ADMIN` capability to the appropriate binaries:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将`CAP_SYS_ADMIN`权限授予适当的二进制文件：
+- en: '[PRE9]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'To check `CAP_SYS_ADMIN` capability:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要检查`CAP_SYS_ADMIN`权限：
+- en: '[PRE10]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'To remove `CAP_SYS_ADMIN` capability:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要删除`CAP_SYS_ADMIN`权限：
+- en: '[PRE11]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: Important
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: 'If you reinstall binaries to which you have previously applied **setcap**,
+    you must use **setcap** again. For example, if you perform an in-place MySQL upgrade,
+    failure to grant the `CAP_SYS_ADMIN` capability again results in namespace-related
+    failures. The server fails with this error for attempts to bind to an address
+    with a named namespace:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果重新安装之前已应用**setcap**的二进制文件，则必须再次使用**setcap**。例如，如果执行原地 MySQL 升级，未再次授予`CAP_SYS_ADMIN`权限将导致与命名空间相关的失败。服务器在尝试绑定到具有命名空间的地址���将失败，并显示此错误：
+- en: '[PRE12]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'A client invoked with the [`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)
+    option fails like this:'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)选项调用的客户端会失败，如下所示：
+- en: '[PRE13]'
+  id: totrans-56
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: MySQL Configuration
+  id: totrans-57
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MySQL 配置
+- en: Assuming that the preceding host system prerequisites have been satisfied, MySQL
+    enables configuring the server-side namespace for the listening (inbound) side
+    of connections and the client-side namespace for the outbound side of connections.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设前述主机系统先决条件已满足，MySQL 可以配置服务器端命名空间以监听（入站）连接的一侧，以及客户端端命名空间以进行出站连接。
+- en: 'On the server side, the [`bind_address`](server-system-variables.html#sysvar_bind_address),
+    [`admin_address`](server-system-variables.html#sysvar_admin_address), and [`mysqlx_bind_address`](x-plugin-options-system-variables.html#sysvar_mysqlx_bind_address)
+    system variables have extended syntax for specifying the network namespace to
+    use for a given IP address or host name on which to listen for incoming connections.
+    To specify a namespace for an address, add a slash and the namespace name. For
+    example, a server `my.cnf` file might contain these lines:'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器端，[`bind_address`](server-system-variables.html#sysvar_bind_address)、[`admin_address`](server-system-variables.html#sysvar_admin_address)和[`mysqlx_bind_address`](x-plugin-options-system-variables.html#sysvar_mysqlx_bind_address)系统变量具有扩展语法，用于指定用于给定
+    IP 地址或主机名监听传入连接的网络命名空间。要为地址指定命名空间，请添加斜杠和命名空间名称。例如，服务器的`my.cnf`文件可能包含以下行：
+- en: '[PRE14]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'These rules apply:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些规则适用：
+- en: A network namespace can be specified for an IP address or a host name.
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可以为 IP 地址或主机名指定网络命名空间。
+- en: A network namespace cannot be specified for a wildcard IP address.
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 无法为通配符 IP 地址指定网络命名空间。
+- en: For a given address, the network namespace is optional. If given, it must be
+    specified as a `/*`ns`*` suffix immediately following the address.
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于给定的地址，网络命名空间是可选的。如果指定了，必须在地址后面立即添加`/*`ns`*`后缀。
+- en: An address with no `/*`ns`*` suffix uses the host system global namespace. The
+    global namespace is therefore the default.
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有`/*`ns`*`后缀的地址使用主机系统的全局命名空间。因此，全局命名空间是默认值。
+- en: An address with a `/*`ns`*` suffix uses the namespace named *`ns`*.
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 带有`/*`ns`*`后缀的地址使用名为*`ns`*的命名空间。
+- en: The host system must support network namespaces and each named namespace must
+    previously have been set up. Naming a nonexistent namespace produces an error.
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 主机系统必须支持网络命名空间，并且每个命名命名空间必须事先设置好。命名不存在的命名空间会产生错误。
+- en: '[`bind_address`](server-system-variables.html#sysvar_bind_address) and (as
+    of MySQL 8.0.21) [`mysqlx_bind_address`](x-plugin-options-system-variables.html#sysvar_mysqlx_bind_address)
+    accept a list of multiple comma-separated addresses, the variable value can specify
+    addresses in the global namespace, in named namespaces, or a mix.'
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`bind_address`](server-system-variables.html#sysvar_bind_address)和（自 MySQL
+    8.0.21 起）[`mysqlx_bind_address`](x-plugin-options-system-variables.html#sysvar_mysqlx_bind_address)接受多个逗号分隔地址的列表，变量值可以指定全局命名空间中的地址、命名命名空间中的地址或混合地址。'
+- en: If an error occurs during server startup for attempts to use a namespace, the
+    server does not start. If errors occur for X Plugin during plugin initialization
+    such that it is unable to bind to any address, the plugin fails its initialization
+    sequence and the server does not load it.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在服务器启动过程中发生错误，尝试使用命名空间，则服务器将无法启动。如果在插件初始化过程中发生 X 插件的错误，导致无法绑定到任何地址，插件将在初始化序列中失败，服务器将无法加载它。
+- en: 'On the client side, a network namespace can be specified in these contexts:'
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在客户端端，可以在以下情境中指定网络命名空间：
+- en: 'For the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    client and the **mysqlxtest** test suite client, use the [`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)
+    option. For example:'
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")客户端和**mysqlxtest**测试套件客户端，使用[`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)选项。例如：
+- en: '[PRE15]'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: If the [`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)
+    option is omitted, the connection uses the default (global) namespace.
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果省略了[`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)选项，连接将使用默认（全局）命名空间。
+- en: 'For replication connections from replica servers to source servers, use the
+    [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") statement (from MySQL 8.0.23) or [`CHANGE MASTER
+    TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement") statement (before
+    MySQL 8.0.23) and specify the `NETWORK_NAMESPACE` option. For example:'
+  id: totrans-74
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于从副本服务器到源服务器的复制连接，请使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement")语句（从 MySQL 8.0.23 开始）或[`CHANGE
+    MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement")语句（MySQL
+    8.0.23 之前），并指定`NETWORK_NAMESPACE`选项。例如：
+- en: '[PRE16]'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: If the `NETWORK_NAMESPACE` option is omitted, replication connections use the
+    default (global) namespace.
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果省略了`NETWORK_NAMESPACE`选项，复制连接将使用默认（全局）命名空间。
+- en: The following example sets up a MySQL server that listens for connections in
+    the global, `red`, and `blue` namespaces, and shows how to configure accounts
+    that connect from the `red` and `blue` namespaces. It is assumed that the `red`
+    and `blue` namespaces have already been created as shown in [Host System Prerequisites](network-namespace-support.html#network-namespaces-host-prerequisites
+    "Host System Prerequisites").
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例设置了一个 MySQL 服务器，监听全局、`red` 和 `blue` 命名空间中的连接，并展示了如何配置从`red` 和 `blue` 命名空间连接的帐户。假设`red`
+    和 `blue` 命名空间已经像[主机系统先决条件](network-namespace-support.html#network-namespaces-host-prerequisites
+    "Host System Prerequisites")中所示创建。
+- en: 'Configure the server to listen on addresses in multiple namespaces. Put these
+    lines in the server `my.cnf` file and start the server:'
+  id: totrans-78
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 配置服务器以在多个命名空间中监听地址。将这些行放入服务器的`my.cnf`文件中并启动服务器：
+- en: '[PRE17]'
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: The value tells the server to listen on the loopback address `127.0.0.1` in
+    the global namespace, the address `192.0.2.2` in the `red` namespace, and the
+    address `198.51.100.2` in the `blue` namespace.
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 该值告诉服务器在全局命名空间中监听回环地址`127.0.0.1`，在`red`命名空间中监听地址`192.0.2.2`，在`blue`命名空间中监听地址`198.51.100.2`。
+- en: 'Connect to the server in the global namespace and create accounts that have
+    permission to connect from an address in the address space of each named namespace:'
+  id: totrans-81
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 连接到全局命名空间中的服务器，并创建具有连接权限的帐户，这些帐户可以从每个命名空间的地址空间连接：
+- en: '[PRE18]'
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: 'Verify that you can connect to the server in each named namespace:'
+  id: totrans-83
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证您是否可以连接到每个命名空间中的服务器：
+- en: '[PRE19]'
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: '[PRE20]'
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: Note
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: You might see different results from [`USER()`](information-functions.html#function_user),
+    which can return a value that includes a host name rather than an IP address if
+    your DNS is configured to be able to resolve the address to the corresponding
+    host name and the server is not run with the [`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)
+    system variable enabled.
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`USER()`](information-functions.html#function_user)可能返回不同的结果，如果您的 DNS 配置能够将地址解析为相应的主机名，而服务器未启用[`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)系统变量，则可能返回包含主机名而不是
+    IP 地址的值。'
+- en: You might also try invoking [**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client") without the [`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)
+    option to see whether the connection attempt succeeds, and, if so, how the [`USER()`](information-functions.html#function_user)
+    value is affected.
+  id: totrans-88
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您也可以尝试在不使用[`--network-namespace`](mysql-command-options.html#option_mysql_network-namespace)选项的情况下调用[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")，以查看连接尝试是否成功，以及[`USER()`](information-functions.html#function_user)值如何受到影响。
+- en: Network Namespace Monitoring
+  id: totrans-89
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 网络命名空间监控
+- en: 'For replication monitoring purposes, these information sources have a column
+    that displays the applicable network namespace for connections:'
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了复制监控目的，这些信息源具有显示连接适用的网络命名空间的列：
+- en: The Performance Schema `replication_connection_configuration` table. See [Section 29.12.11.1,
+    “The replication_connection_configuration Table”](performance-schema-replication-connection-configuration-table.html
+    "29.12.11.1 The replication_connection_configuration Table").
+  id: totrans-91
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Performance Schema `replication_connection_configuration` 表。参见[Section 29.12.11.1,
+    “The replication_connection_configuration Table”](performance-schema-replication-connection-configuration-table.html
+    "29.12.11.1 The replication_connection_configuration Table")。
+- en: The replica server connection metadata repository. See [Section 19.2.4.2, “Replication
+    Metadata Repositories”](replica-logs-status.html "19.2.4.2 Replication Metadata
+    Repositories").
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 复制服务器连接元数据存储库。参见[第19.2.4.2节，“复制元数据存储库”](replica-logs-status.html "19.2.4.2 复制元数据存储库")。
+- en: The [`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA
+    STATUS Statement") (or before MySQL 8.0.22, [`SHOW SLAVE STATUS`](show-slave-status.html
+    "15.7.7.36 SHOW SLAVE | REPLICA STATUS Statement")) statement. See [Section 15.7.7.35,
+    “SHOW REPLICA STATUS Statement”](show-replica-status.html "15.7.7.35 SHOW REPLICA
+    STATUS Statement").
+  id: totrans-93
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS语句")（或在MySQL
+    8.0.22之前，[`SHOW SLAVE STATUS`](show-slave-status.html "15.7.7.36 SHOW SLAVE |
+    REPLICA STATUS语句")）语句。参见[第15.7.7.35节，“SHOW REPLICA STATUS语句”](show-replica-status.html
+    "15.7.7.35 SHOW REPLICA STATUS语句")。'

@@ -1,0 +1,317 @@
+- en: 26.5 Partition Selection
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 26.5 分区选择
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-selection.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-selection.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-selection.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-selection.html)
+- en: 'Explicit selection of partitions and subpartitions for rows matching a given
+    `WHERE` condition is supported. Partition selection is similar to partition pruning,
+    in that only specific partitions are checked for matches, but differs in two key
+    respects:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 支持为匹配给定`WHERE`条件的行显式选择分区和子分区。分区选择类似于分区修剪，只检查特定分区是否匹配，但在两个关键方面有所不同：
+- en: The partitions to be checked are specified by the issuer of the statement, unlike
+    partition pruning, which is automatic.
+  id: totrans-3
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要检查的分区由语句的发出者指定，与自动分区修剪不同。
+- en: Whereas partition pruning applies only to queries, explicit selection of partitions
+    is supported for both queries and a number of DML statements.
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 分区修剪仅适用于查询，而显式选择分区支持查询和一些DML语句。
+- en: 'SQL statements supporting explicit partition selection are listed here:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 支持显式分区选择的SQL语句列在此处：
+- en: '[`SELECT`](select.html "15.2.13 SELECT Statement")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SELECT`](select.html "15.2.13 SELECT Statement")'
+- en: '[`DELETE`](delete.html "15.2.2 DELETE Statement")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`DELETE`](delete.html "15.2.2 DELETE Statement")'
+- en: '[`INSERT`](insert.html "15.2.7 INSERT Statement")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INSERT`](insert.html "15.2.7 INSERT Statement")'
+- en: '[`REPLACE`](replace.html "15.2.12 REPLACE Statement")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`REPLACE`](replace.html "15.2.12 REPLACE Statement")'
+- en: '[`UPDATE`](update.html "15.2.17 UPDATE Statement")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`UPDATE`](update.html "15.2.17 UPDATE Statement")'
+- en: '[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement").'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")。'
+- en: '[`LOAD XML`](load-xml.html "15.2.10 LOAD XML Statement").'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`LOAD XML`](load-xml.html "15.2.10 LOAD XML Statement")。'
+- en: The remainder of this section discusses explicit partition selection as it applies
+    generally to the statements just listed, and provides some examples.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节的其余部分讨论了显式分区选择，通常适用于刚刚列出的语句，并提供了一些示例。
+- en: 'Explicit partition selection is implemented using a `PARTITION` option. For
+    all supported statements, this option uses the syntax shown here:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 显式分区选择是使用`PARTITION`选项实现的。对于所有支持的语句，此选项使用以下语法：
+- en: '[PRE0]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: This option always follows the name of the table to which the partition or partitions
+    belong. *`partition_names`* is a comma-separated list of partitions or subpartitions
+    to be used. Each name in this list must be the name of an existing partition or
+    subpartition of the specified table; if any of the partitions or subpartitions
+    are not found, the statement fails with an error (partition '*`partition_name`*'
+    doesn't exist). Partitions and subpartitions named in *`partition_names`* may
+    be listed in any order, and may overlap.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此选项始终跟随分区或子分区所属的表的名称。*`partition_names`*是要使用的分区或子分区的逗号分隔列表。此列表中的每个名称必须是指定表的现有分区或子分区的名称；如果找不到任何分区或子分区，则该语句将失败并显示错误（分区'*`partition_name`*'不存在）。*`partition_names`*中列出的分区和子分区可以以任何顺序列出，并且可以重叠。
+- en: 'When the `PARTITION` option is used, only the partitions and subpartitions
+    listed are checked for matching rows. This option can be used in a [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statement to determine which rows belong to a given
+    partition. Consider a partitioned table named `employees`, created and populated
+    using the statements shown here:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`PARTITION`选项时，仅检查列出的分区和子分区以匹配行。此选项可用于[`SELECT`](select.html "15.2.13 SELECT
+    Statement")语句，以确定哪些行属于给定分区。考虑一个名为`employees`的分区表，使用以下语句创建和填充：
+- en: '[PRE1]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'You can see which rows are stored in partition `p1` like this:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以这样查看存储在分区`p1`中的行：
+- en: '[PRE2]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The result is the same as obtained by the query `SELECT * FROM employees WHERE
+    id BETWEEN 5 AND 9`.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 结果与通过查询`SELECT * FROM employees WHERE id BETWEEN 5 AND 9`获得的结果相同。
+- en: To obtain rows from multiple partitions, supply their names as a comma-delimited
+    list. For example, `SELECT * FROM employees PARTITION (p1, p2)` returns all rows
+    from partitions `p1` and `p2` while excluding rows from the remaining partitions.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从多个分区获取行，请将它们的名称作为逗号分隔的列表提供。例如，`SELECT * FROM employees PARTITION (p1, p2)`返回分区`p1`和`p2`中的所有行，同时排除其余分区的行。
+- en: 'Any valid query against a partitioned table can be rewritten with a `PARTITION`
+    option to restrict the result to one or more desired partitions. You can use `WHERE`
+    conditions, `ORDER BY` and `LIMIT` options, and so on. You can also use aggregate
+    functions with `HAVING` and `GROUP BY` options. Each of the following queries
+    produces a valid result when run on the `employees` table as previously defined:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对分区表的任何有效查询都可以通过`PARTITION`选项重写，以限制结果为一个或多个所需的分区。您可以使用`WHERE`条件、`ORDER BY`和`LIMIT`选项等。您还可以使用带有`HAVING`和`GROUP
+    BY`选项的聚合函数。在先前定义的`employees`表上运行以下每个查询都会产生有效结果：
+- en: '[PRE3]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Statements using partition selection can be employed with tables using any
+    of the supported partitioning types. When a table is created using `[LINEAR] HASH`
+    or `[LINEAR] KEY` partitioning and the names of the partitions are not specified,
+    MySQL automatically names the partitions `p0`, `p1`, `p2`, ..., `p*`N-1`*`, where
+    *`N`* is the number of partitions. For subpartitions not explicitly named, MySQL
+    assigns automatically to the subpartitions in each partition `p*`X`*` the names
+    `p*`X`*sp0`, `p*`X`*sp1`, `p*`X`*sp2`, ..., `p*`X`*sp*`M-1`*`, where *`M`* is
+    the number of subpartitions. When executing against this table a [`SELECT`](select.html
+    "15.2.13 SELECT Statement") (or other SQL statement for which explicit partition
+    selection is allowed), you can use these generated names in a `PARTITION` option,
+    as shown here:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用分区选择的语句可以与使用任何支持的分区类型的表一起使用。当使用`[LINEAR] HASH`或`[LINEAR] KEY`分区创建表时，如果未指定分区的名称，MySQL会自动将分区命名为`p0`、`p1`、`p2`、...、`p*`N-1`*`，其中*`N`*是分区的数量。对于未明确命名的子分区，MySQL会自动为每个分区`p*`X`*`中的子分区分配名称`p*`X`*sp0`、`p*`X`*sp1`、`p*`X`*sp2`、...、`p*`X`*sp*`M-1`*`，其中*`M`*是子分区的数量。在针对这个表执行[`SELECT`](select.html
+    "15.2.13 SELECT Statement")（或其他允许显式分区选择的SQL语句）时，您可以在`PARTITION`选项中使用这些生成的名称，如下所示：
+- en: '[PRE4]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'You may also use a `PARTITION` option in the [`SELECT`](select.html "15.2.13 SELECT
+    Statement") portion of an [`INSERT ... SELECT`](insert-select.html "15.2.7.1 INSERT
+    ... SELECT Statement") statement, as shown here:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以在[`SELECT`](select.html "15.2.13 SELECT Statement")部分的[`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement")语句中使用`PARTITION`选项，如下所示：
+- en: '[PRE5]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Partition selection can also be used with joins. Suppose we create and populate
+    two tables using the statements shown here:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分区选择也可以与连接一起使用。假设我们使用以下语句创建和填充了两个表：
+- en: '[PRE6]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'You can explicitly select partitions (or subpartitions, or both) from any or
+    all of the tables in a join. (The `PARTITION` option used to select partitions
+    from a given table immediately follows the name of the table, before all other
+    options, including any table alias.) For example, the following query gets the
+    name, employee ID, department, and city of all employees who work in the Sales
+    or Delivery department (partition `p1` of the `departments` table) at the stores
+    in either of the cities of Nambucca and Bellingen (partition `p0` of the `stores`
+    table):'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以明确地从连接中的任何或所有表中选择分区（或子分区，或两者）。（用于从给定表中选择分区的`PARTITION`选项紧随表名之后，位于所有其他选项之前，包括任何表别名。）例如，以下查询获取所有在销售或交付部门（`departments`表的分区`p1`）中的商店（`stores`表的分区`p0`）中工作的员工的姓名、员工ID、部门和城市：
+- en: '[PRE7]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: For general information about joins in MySQL, see [Section 15.2.13.2, “JOIN
+    Clause”](join.html "15.2.13.2 JOIN Clause").
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关MySQL中连接的一般信息，请参见[第15.2.13.2节，“JOIN Clause”](join.html "15.2.13.2 JOIN Clause")。
+- en: 'When the `PARTITION` option is used with [`DELETE`](delete.html "15.2.2 DELETE
+    Statement") statements, only those partitions (and subpartitions, if any) listed
+    with the option are checked for rows to be deleted. Any other partitions are ignored,
+    as shown here:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当`PARTITION`选项与[`DELETE`](delete.html "15.2.2 DELETE Statement")语句一起使用时，只有在选项中列出的那些分区（和子分区，如果有）会被检查以删除行。任何其他分区都会被忽略，如下所示：
+- en: '[PRE8]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Only the two rows in partitions `p0` and `p1` matching the `WHERE` condition
+    were deleted. As you can see from the result when the [`SELECT`](select.html "15.2.13 SELECT
+    Statement") is run a second time, there remains a row in the table matching the
+    `WHERE` condition, but residing in a different partition (`p2`).
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有与`WHERE`条件匹配的`p0`和`p1`分区中的两行被删除。从第二次运行[`SELECT`](select.html "15.2.13 SELECT
+    Statement")时的结果中可以看到，表中仍然存在一行与`WHERE`条件匹配，但位于不同的分区（`p2`）。
+- en: '[`UPDATE`](update.html "15.2.17 UPDATE Statement") statements using explicit
+    partition selection behave in the same way; only rows in the partitions referenced
+    by the `PARTITION` option are considered when determining the rows to be updated,
+    as can be seen by executing the following statements:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用显式分区选择的[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句的行为相同；只有在确定要更新的行时，才考虑`PARTITION`选项引用的分区中的行，可以通过执行以下语句来查看：
+- en: '[PRE9]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: In the same way, when `PARTITION` is used with [`DELETE`](delete.html "15.2.2 DELETE
+    Statement"), only rows in the partition or partitions named in the partition list
+    are checked for deletion.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 同样，当与[`DELETE`](delete.html "15.2.2 DELETE Statement")一起使用`PARTITION`时，只有在分区列表中命名的分区中的行才会被检查删除。
+- en: 'For statements that insert rows, the behavior differs in that failure to find
+    a suitable partition causes the statement to fail. This is true for both [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") and [`REPLACE`](replace.html "15.2.12 REPLACE Statement")
+    statements, as shown here:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于插入行的语句，行为有所不同，找不到合适分区会导致语句失败。这对于[`INSERT`](insert.html "15.2.7 INSERT Statement")和[`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement")语句都是适用的，如下所示：
+- en: '[PRE10]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'For statements that write multiple rows to a partitioned table that using the
+    [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    storage engine: If any row in the list following `VALUES` cannot be written to
+    one of the partitions specified in the *`partition_names`* list, the entire statement
+    fails and no rows are written. This is shown for [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statements in the following example, reusing the `employees` table
+    created previously:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于使用[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")存储引擎的分区表写入多行的语句：如果`VALUES`后面的列表中的任何行无法写入到*`partition_names`*列表中指定的分区之一，则整个语句将失败，不会写入任何行。这在下面的示例中展示了[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句，重用了之前创建的`employees`表：
+- en: '[PRE11]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: The preceding is true for both [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    statements and [`REPLACE`](replace.html "15.2.12 REPLACE Statement") statements
+    that write multiple rows.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于写入多行的[`INSERT`](insert.html "15.2.7 INSERT Statement")语句和[`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement")语句，上述内容都是适用的。
+- en: Partition selection is disabled for tables employing a storage engine that supplies
+    automatic partitioning, such as `NDB`.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于使用提供自动分区的存储引擎（如`NDB`）的表，分区选择被禁用。

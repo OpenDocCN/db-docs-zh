@@ -1,0 +1,968 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-shm-definition.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-shm-definition.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-shm-definition.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-shm-definition.html)
+- en: 25.4.3.12 NDB Cluster Shared-Memory Connections
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.4.3.12 NDB 集群共享内存连接
+- en: 'Communications between NDB cluster nodes are normally handled using TCP/IP.
+    The shared memory (SHM) transporter is distinguished by the fact that signals
+    are transmitted by writing in memory rather than on a socket. The shared-memory
+    transporter (SHM) can improve performance by negating up to 20% of the overhead
+    required by a TCP connection when running an API node (usually an SQL node) and
+    a data node together on the same host. You can enable a shared memory connection
+    in either of the two ways listed here:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB 集群节点之间的通信通常使用 TCP/IP 处理。共享内存（SHM）传输器的特点是通过在内存中写入信号而不是在套接字上传输来区分。共享内存传输器（SHM）可以在将
+    API 节点（通常是 SQL 节点）和数据节点一起运行在同一主机上时，通过消除 TCP 连接所需的高达 20% 的开销来提高性能。您可以通过以下两种方式之一启用共享内存连接：
+- en: By setting the [`UseShm`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-useshm)
+    data node configuration parameter to `1`, and setting [`HostName`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-hostname)
+    for the data node and [`HostName`](mysql-cluster-api-definition.html#ndbparam-api-hostname)
+    for the API node to the same value.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过将数据节点配置参数 [`UseShm`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-useshm)
+    设置为 `1`，并将数据节点的 [`HostName`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-hostname)
+    和 API 节点的 [`HostName`](mysql-cluster-api-definition.html#ndbparam-api-hostname)
+    设置为相同值。
+- en: By using `[shm]` sections in the cluster configuration file, each containing
+    settings for [`NodeId1`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid1)
+    and [`NodeId2`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid2). This
+    method is described in more detail later in this section.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过在集群配置文件中使用包含 [`NodeId1`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid1)
+    和 [`NodeId2`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid2) 设置的 `[shm]`
+    部分。稍后在本节中将更详细地描述这种方法。
+- en: 'Suppose a cluster is running a data node which has node ID 1 and an SQL node
+    having node ID 51 on the same host computer at 10.0.0.1\. To enable an SHM connection
+    between these two nodes, all that is necessary is to insure that the following
+    entries are included in the cluster configuration file:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设一个集群在同一主机计算机上运行具有节点 ID 1 的数据节点和具有节点 ID 51 的 SQL 节点，IP 地址为 10.0.0.1\. 要在这两个节点之间启用
+    SHM 连接，只需确保集群配置文件中包含以下条目：
+- en: '[PRE0]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Important
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: The two entries just shown are in addition to any other entries and parameter
+    settings needed by the cluster. A more complete example is shown later in this
+    section.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 刚刚显示的两个条目是在集群中需要的任何其他条目和参数设置之外的。稍后在本节中将展示一个更完整的示例。
+- en: Before starting data nodes that use SHM connections, it is also necessary to
+    make sure that the operating system on each computer hosting such a data node
+    has sufficient memory allocated to shared memory segments. See the documentation
+    for your operating platform for information regarding this. In setups where multiple
+    hosts are each running a data node and an API node, it is possible to enable shared
+    memory on all such hosts by setting `UseShm` in the `[ndbd default]` section of
+    the configuration file. This is shown in the example later in this section.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在启动使用 SHM 连接的数据节点之前，还需要确保托管此类数据节点的每台计算机的操作系统为共享内存段分配了足够的内存。有关此信息，请参阅您操作平台的文档。在每个运行数据节点和
+    API 节点的多个主机的设置中，可以通过在配置文件的 `[ndbd default]` 部分中设置 `UseShm` 来在所有这些主机上启用共享内存。稍后在本节中将展示示例。
+- en: 'While not strictly required, tuning for all SHM connections in the cluster
+    can be done by setting one or more of the following parameters in the `[shm default]`
+    section of the cluster configuration (`config.ini`) file:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 虽然不是严格要求，但可以通过在集群配置（`config.ini`）文件的 `[shm default]` 部分中设置以下一个或多个参数来调整集群中所有
+    SHM 连接：
+- en: '[`ShmSize`](mysql-cluster-shm-definition.html#ndbparam-shm-shmsize): Shared
+    memory size'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`ShmSize`](mysql-cluster-shm-definition.html#ndbparam-shm-shmsize)：共享内存大小'
+- en: '[`ShmSpinTime`](mysql-cluster-shm-definition.html#ndbparam-shm-shmspintime):
+    Time in µs to spin before sleeping'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`ShmSpinTime`](mysql-cluster-shm-definition.html#ndbparam-shm-shmspintime)：在休眠之前旋转的时间（以微秒为单位）'
+- en: '[`SendBufferMemory`](mysql-cluster-shm-definition.html#ndbparam-shm-sendbuffermemory):
+    Size of buffer for signals sent from this node, in bytes.'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SendBufferMemory`](mysql-cluster-shm-definition.html#ndbparam-shm-sendbuffermemory)：从此节点发送的信号的缓冲区大小，以字节为单位。'
+- en: '[`SendSignalId`](mysql-cluster-shm-definition.html#ndbparam-shm-sendsignalid):
+    Indicates that a signal ID is included in each signal sent through the transporter.'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SendSignalId`](mysql-cluster-shm-definition.html#ndbparam-shm-sendsignalid)：表示每个通过传输器发送的信号中都包含信号
+    ID。'
+- en: '[`Checksum`](mysql-cluster-shm-definition.html#ndbparam-shm-checksum): Indicates
+    that a checksum is included in each signal sent through the transporter.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Checksum`](mysql-cluster-shm-definition.html#ndbparam-shm-checksum)：表示每个通过传输器发送的信号中都包含校验和。'
+- en: '[`PreSendChecksum`](mysql-cluster-shm-definition.html#ndbparam-shm-presendchecksum):
+    Checks of the checksum are made prior to sending the signal; Checksum must also
+    be enabled for this to work'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`PreSendChecksum`](mysql-cluster-shm-definition.html#ndbparam-shm-presendchecksum)：在发送信号之前进行校验和检查；此功能也需要启用校验和。'
+- en: 'This example shows a simple setup with SHM connections defined on multiple
+    hosts, in an NDB Cluster using 3 computers listed here by host name, hosting the
+    node types shown:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个例子展示了在多个主机上定义的 SHM 连接的简单设置，在一个使用 3 台计算机列出的 NDB 集群中，托管了所示节点类型的主机名：
+- en: '`10.0.0.0`: The management server'
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '`10.0.0.0`：管理服务器'
+- en: '`10.0.0.1`: A data node and an SQL node'
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '`10.0.0.1`：一个数据节点和一个 SQL 节点'
+- en: '`10.0.0.2`: A data node and an SQL node'
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '`10.0.0.2`：一个数据节点和一个 SQL 节点'
+- en: 'In this scenario, each data node communicates with both the management server
+    and the other data node using TCP transporters; each SQL node uses a shared memory
+    transporter to communicate with the data nodes that is local to it, and a TCP
+    transporter to communicate with the remote data node. A basic configuration reflecting
+    this setup is enabled by the config.ini file whose contents are shown here:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，每个数据节点使用 TCP 传输器与管理服务器和其他数据节点通信；每个 SQL 节点使用共享内存传输器与本地数据节点通信，并使用 TCP 传输器与远程数据节点通信。反映此设置的基本配置由
+    config.ini 文件启用，其内容如下所示：
+- en: '[PRE1]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Parameters affecting all shared memory transporters are set in the `[shm default]`
+    section; these can be overridden on a per-connection basis in one or more `[shm]`
+    sections. Each such section must be associated with a given SHM connection using
+    [`NodeId1`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid1) and [`NodeId2`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid2);
+    the values required for these parameters are the node IDs of the two nodes connected
+    by the transporter. You can also identify the nodes by host name using [`HostName1`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname1)
+    and [`HostName2`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname2), but
+    these parameters are not required.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 影响所有共享内存传输器的参数在 `[shm default]` 部分设置；这些可以在一个或多个 `[shm]` 部分中按连接覆盖。每个这样的部分必须使用
+    [`NodeId1`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid1) 和 [`NodeId2`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid2)
+    关联给定 SHM 连接的节点 ID；也可以使用 [`HostName1`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname1)
+    和 [`HostName2`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname2) 通过主机名标识节点，但这些参数不是必需的。
+- en: The API nodes for which no host names are set use the TCP transporter to communicate
+    with data nodes independent of the hosts on which they are started; the parameters
+    and values set in the `[tcp default]` section of the configuration file apply
+    to all TCP transporters in the cluster.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于未设置主机名的 API 节点，使用 TCP 传输器与数据节点通信，独立于它们启动的主机；配置文件中 `[tcp default]` 部分设置的参数和值适用于集群中的所有
+    TCP 传输器。
+- en: For optimum performance, you can define a spin time for the SHM transporter
+    ([`ShmSpinTime`](mysql-cluster-shm-definition.html#ndbparam-shm-shmspintime) parameter);
+    this affects both the data node receiver thread and the poll owner (receive thread
+    or user thread) in `NDB`.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了获得最佳性能，您可以为 SHM 传输器定义一个自旋时间（[`ShmSpinTime`](mysql-cluster-shm-definition.html#ndbparam-shm-shmspintime)
+    参数）；这会影响数据节点接收线程和 `NDB` 中的轮询所有者（接收线程或用户线程）。
+- en: '`Checksum`'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Checksum`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高版本） | NDB 8.0.13 |'
+- en: '| Type or units | boolean |'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 布尔型 |'
+- en: '| Default | true |'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认 | true |'
+- en: '| Range | true, false |'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | true, false |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行
+    NDB 集群的滚动重启")。 (NDB 8.0.13) |'
+- en: This parameter is a boolean (`Y`/`N`) parameter which is disabled by default.
+    When it is enabled, checksums for all messages are calculated before being placed
+    in the send buffer.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个参数是一个布尔型（`Y`/`N`）参数，默认情况下是禁用的。启用后，在将消息放入发送缓冲区之前会计算所有消息的校验和。
+- en: This feature prevents messages from being corrupted while waiting in the send
+    buffer. It also serves as a check against data being corrupted during transport.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此功能可防止消息在等待发送缓冲区时被损坏。它还可用作在传输过程中检查数据是否被损坏的检查。
+- en: '`Group`'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`组`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高版本） | NDB 8.0.13 |'
+- en: '| Type or units | unsigned |'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 无符号 |'
+- en: '| Default | 35 |'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | 35 |'
+- en: '| Range | 0 - 200 |'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 0 - 200 |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")（NDB
+    8.0.13） |'
+- en: Determines the group proximity; a smaller value is interpreted as being closer.
+    The default value is sufficient for most conditions.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 确定组的接近程度；较小的值被解释为更接近。默认值对大多数情况足够。
+- en: '`HostName1`'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`HostName1`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高版本） | NDB 8.0.13 |'
+- en: '| Type or units | name or IP address |'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 名称或IP地址 |'
+- en: '| Default | [...] |'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | [...] |'
+- en: '| Range | ... |'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | ... |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")（NDB
+    8.0.13） |'
+- en: The `HostName1` and [`HostName2`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname2)
+    parameters can be used to specify specific network interfaces to be used for a
+    given SHM connection between two nodes. The values used for these parameters can
+    be host names or IP addresses.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`HostName1`和[`HostName2`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname2)参数可用于指定用于两个节点之间给定SHM连接的特定网络接口。这些参数的值可以是主机名或IP地址。'
+- en: '`HostName2`'
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`HostName2`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高版本） | NDB 8.0.13 |'
+- en: '| Type or units | name or IP address |'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 名称或IP地址 |'
+- en: '| Default | [...] |'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | [...] |'
+- en: '| Range | ... |'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | ... |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")（NDB
+    8.0.13） |'
+- en: The [`HostName1`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname1)
+    and `HostName2` parameters can be used to specify specific network interfaces
+    to be used for a given SHM connection between two nodes. The values used for these
+    parameters can be host names or IP addresses.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`HostName1`](mysql-cluster-shm-definition.html#ndbparam-shm-hostname1)和`HostName2`参数可用于指定用于两个节点之间给定SHM连接的特定网络接口。这些参数的值可以是主机名或IP地址。'
+- en: '`NodeId1`'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NodeId1`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高版本） | NDB 8.0.13 |'
+- en: '| Type or units | numeric |'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 数字 |'
+- en: '| Default | [none] |'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | [无] |'
+- en: '| Range | 1 - 255 |'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 1 - 255 |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")（NDB
+    8.0.13） |'
+- en: To identify a connection between two nodes it is necessary to provide node identifiers
+    for each of them, as `NodeId1` and [`NodeId2`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid2).
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要识别两个节点之间的连接，需要为每个节点提供节点标识符，如`NodeId1`和[`NodeId2`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid2)。
+- en: '`NodeId2`'
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NodeId2`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高版本） | NDB 8.0.13 |'
+- en: '| Type or units | numeric |'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 数字 |'
+- en: '| Default | [none] |'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | [无] |'
+- en: '| Range | 1 - 255 |'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 1 - 255 |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")（NDB
+    8.0.13） |'
+- en: To identify a connection between two nodes it is necessary to provide node identifiers
+    for each of them, as [`NodeId1`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid1)
+    and `NodeId2`.
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要识别两个节点之间的连接，需要为每个节点提供节点标识符，如[`NodeId1`](mysql-cluster-shm-definition.html#ndbparam-shm-nodeid1)和`NodeId2`。
+- en: '`NodeIdServer`'
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NodeIdServer`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高版本） | NDB 8.0.13 |'
+- en: '| Type or units | numeric |'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 数字 |'
+- en: '| Default | [none] |'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | [无] |'
+- en: '| Range | 1 - 63 |'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 1 - 63 |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")。
+    (NDB 8.0.13) |'
+- en: Identify the server end of a shared memory connection. By default, this is the
+    node ID of the data node.
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 识别共享内存连接的服务器端。默认情况下，这是数据节点的节点ID。
+- en: '`OverloadLimit`'
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OverloadLimit`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | bytes |'
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 字节 |'
+- en: '| Default | 0 |'
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | 0 |'
+- en: '| Range | 0 - 4294967039 (0xFFFFFEFF) |'
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 0 - 4294967039 (0xFFFFFEFF) |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")。
+    (NDB 8.0.13) |'
+- en: When more than this many unsent bytes are in the send buffer, the connection
+    is considered overloaded. See [Section 25.4.3.14, “Configuring NDB Cluster Send
+    Buffer Parameters”](mysql-cluster-config-send-buffers.html "25.4.3.14 Configuring
+    NDB Cluster Send Buffer Parameters"), and [Section 25.6.16.65, “The ndbinfo transporters
+    Table”](mysql-cluster-ndbinfo-transporters.html "25.6.16.65 The ndbinfo transporters
+    Table"), for more information.
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当发送缓冲区中有超过这么多未发送字节时，连接被视为过载。有关更多信息，请参阅[第25.4.3.14节，“配置NDB集群发送缓冲区参数”](mysql-cluster-config-send-buffers.html
+    "25.4.3.14 配置NDB集群发送缓冲区参数")和[第25.6.16.65节，“ndbinfo transporters表”](mysql-cluster-ndbinfo-transporters.html
+    "25.6.16.65 ndbinfo transporters表")。
+- en: '[`PreSendChecksum`](mysql-cluster-shm-definition.html#ndbparam-shm-presendchecksum)'
+  id: totrans-83
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`PreSendChecksum`](mysql-cluster-shm-definition.html#ndbparam-shm-presendchecksum)'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | boolean |'
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 布尔值 |'
+- en: '| Default | false |'
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | false |'
+- en: '| Range | true, false |'
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 真，假 |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-88
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")。
+    (NDB 8.0.13) |'
+- en: If this parameter and [`Checksum`](mysql-cluster-shm-definition.html#ndbparam-shm-checksum)
+    are both enabled, perform pre-send checksum checks, and check all SHM signals
+    between nodes for errors. Has no effect if `Checksum` is not also enabled.
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果启用此参数和[`Checksum`](mysql-cluster-shm-definition.html#ndbparam-shm-checksum)，则执行预发送校验和检查所有节点之间的所有SHM信号是否存在错误。如果未启用`Checksum`，则不起作用。
+- en: '[`SendBufferMemory`](mysql-cluster-shm-definition.html#ndbparam-shm-sendbuffermemory)'
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SendBufferMemory`](mysql-cluster-shm-definition.html#ndbparam-shm-sendbuffermemory)'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | integer |'
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 整数 |'
+- en: '| Default | 2M |'
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | 2M |'
+- en: '| Range | 256K - 4294967039 (0xFFFFFEFF) |'
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 256K - 4294967039 (0xFFFFFEFF) |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")。
+    (NDB 8.0.13) |'
+- en: Size (in bytes) of the shared memory buffer for signals sent from this node
+    using a shared memory connection.
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从此节点使用共享内存连接发送的信号的共享内存缓冲区大小（以字节为单位）。
+- en: '`SendSignalId`'
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SendSignalId`'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | boolean |'
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 布尔值 |'
+- en: '| Default | false |'
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | false |'
+- en: '| Range | true, false |'
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 真，假 |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行NDB集群的滚动重启")。
+    (NDB 8.0.13) |'
+- en: To retrace the path of a distributed message, it is necessary to provide each
+    message with a unique identifier. Setting this parameter to `Y` causes these message
+    IDs to be transported over the network as well. This feature is disabled by default
+    in production builds, and enabled in `-debug` builds.
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了追踪分布式消息的路径，需要为每个消息提供唯一标识符。将此参数设置为`Y`会导致这些消息ID也通过网络传输。此功能在生产构建中默认禁用，在`-debug`构建中启用。
+- en: '[`ShmKey`](mysql-cluster-shm-definition.html#ndbparam-shm-shmkey)'
+  id: totrans-104
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`ShmKey`](mysql-cluster-shm-definition.html#ndbparam-shm-shmkey)'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | unsigned |'
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 无符号 |'
+- en: '| Default | 0 |'
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | 0 |'
+- en: '| Range | 0 - 4294967039 (0xFFFFFEFF) |'
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 0 - 4294967039 (0xFFFFFEFF) |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行
+    NDB 集群的滚动重启")。 (NDB 8.0.13) |'
+- en: When setting up shared memory segments, a node ID, expressed as an integer,
+    is used to identify uniquely the shared memory segment to use for the communication.
+    There is no default value. If [`UseShm`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-useshm)
+    is enabled, the shared memory key is calculated automatically by `NDB`.
+  id: totrans-110
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在设置共享内存段时，使用一个表示为整数的节点 ID 来唯一标识用于通信的共享内存段。没有默认值。如果启用了[`UseShm`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-useshm)，则共享内存键会由`NDB`自动计算。
+- en: '[`ShmSize`](mysql-cluster-shm-definition.html#ndbparam-shm-shmsize)'
+  id: totrans-111
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`ShmSize`](mysql-cluster-shm-definition.html#ndbparam-shm-shmsize)'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | bytes |'
+  id: totrans-113
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 字节 |'
+- en: '| Default | 4M |'
+  id: totrans-114
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认 | 4M |'
+- en: '| Range | 64K - 4294967039 (0xFFFFFEFF) |'
+  id: totrans-115
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 64K - 4294967039 (0xFFFFFEFF) |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-116
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行
+    NDB 集群的滚动重启")。 (NDB 8.0.13) |'
+- en: Each SHM connection has a shared memory segment where messages between nodes
+    are placed by the sender and read by the reader. The size of this segment is defined
+    by [`ShmSize`](mysql-cluster-shm-definition.html#ndbparam-shm-shmsize). The default
+    value is 4MB.
+  id: totrans-117
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个 SHM 连接都有一个共享内存段，发送者将消息放入其中，读者从中读取消息。该段的大小由[`ShmSize`](mysql-cluster-shm-definition.html#ndbparam-shm-shmsize)定义。默认值为4MB。
+- en: '[`ShmSpinTime`](mysql-cluster-shm-definition.html#ndbparam-shm-shmspintime)'
+  id: totrans-118
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`ShmSpinTime`](mysql-cluster-shm-definition.html#ndbparam-shm-shmspintime)'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-119
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | integer |'
+  id: totrans-120
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 整数 |'
+- en: '| Default | 0 |'
+  id: totrans-121
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认 | 0 |'
+- en: '| Range | 0 - 2000 |'
+  id: totrans-122
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 0 - 2000 |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-123
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行
+    NDB 集群的滚动重启")。 (NDB 8.0.13) |'
+- en: When receiving, the time to wait before sleeping, in microseconds.
+  id: totrans-124
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 接收时，等待睡眠之前的时间，单位为微秒。
+- en: '[`SigNum`](mysql-cluster-shm-definition.html#ndbparam-shm-signum)'
+  id: totrans-125
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SigNum`](mysql-cluster-shm-definition.html#ndbparam-shm-signum)'
+- en: '| Version (or later) | NDB 8.0.13 |'
+  id: totrans-126
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 版本（或更高） | NDB 8.0.13 |'
+- en: '| Type or units | unsigned |'
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型或单位 | 无符号 |'
+- en: '| Default | [...] |'
+  id: totrans-128
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认 | [...] |'
+- en: '| Range | 0 - 4294967039 (0xFFFFFEFF) |'
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 0 - 4294967039 (0xFFFFFEFF) |'
+- en: '| Deprecated | Yes (in NDB 7.6) |'
+  id: totrans-130
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 已弃用 | 是（在 NDB 7.6 中） |'
+- en: '| Restart Type | **Node Restart:** Requires a [rolling restart](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster") of the cluster. (NDB
+    8.0.13) |'
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 重启类型 | **节点重启：** 需要进行[滚动重启](mysql-cluster-rolling-restart.html "25.6.5 执行
+    NDB 集群的滚动重启")。 (NDB 8.0.13) |'
+- en: This parameter was used formerly to override operating system signal numbers;
+    in NDB 8.0, it is no longer used, and any setting for it is ignored.
+  id: totrans-132
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此参数以前用于覆盖操作系统信号编号；在 NDB 8.0 中不再使用，对其进行的任何设置都将被忽略。
+- en: '**Restart types. ** Information about the restart types used by the parameter
+    descriptions in this section is shown in the following table:'
+  id: totrans-133
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**重启类型。** 本节参数描述中使用的重启类型信息如下表所示：'
+- en: '**Table 25.22 NDB Cluster restart types**'
+  id: totrans-134
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 25.22 NDB 集群重启类型**'
+- en: '| Symbol | Restart Type | Description |'
+  id: totrans-135
+  prefs: []
+  type: TYPE_TB
+  zh: '| 符号 | 重启类型 | 描述 |'
+- en: '| N | Node | The parameter can be updated using a rolling restart (see [Section 25.6.5,
+    “Performing a Rolling Restart of an NDB Cluster”](mysql-cluster-rolling-restart.html
+    "25.6.5 Performing a Rolling Restart of an NDB Cluster")) |'
+  id: totrans-136
+  prefs: []
+  type: TYPE_TB
+  zh: '| N | 节点 | 可以使用滚动重启更新该参数（参见[第 25.6.5 节，“执行 NDB 集群的滚动重启”](mysql-cluster-rolling-restart.html
+    "25.6.5 执行 NDB 集群的滚动重启")） |'
+- en: '| S | System | All cluster nodes must be shut down completely, then restarted,
+    to effect a change in this parameter |'
+  id: totrans-137
+  prefs: []
+  type: TYPE_TB
+  zh: '| S | 系统 | 必须完全关闭所有集群节点，然后重新启动，以更改此参数 |'
+- en: '| I | Initial | Data nodes must be restarted using the [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    option |'
+  id: totrans-138
+  prefs: []
+  type: TYPE_TB
+  zh: '| I | 初始 | 数据节点必须使用[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)选项重新启动
+    |'

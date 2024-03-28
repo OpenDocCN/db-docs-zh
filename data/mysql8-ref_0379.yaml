@@ -1,0 +1,877 @@
+- en: 8.2.19 Proxy Users
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.2.19 代理用户
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/proxy-users.html](https://dev.mysql.com/doc/refman/8.0/en/proxy-users.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/proxy-users.html](https://dev.mysql.com/doc/refman/8.0/en/proxy-users.html)
+- en: 'The MySQL server authenticates client connections using authentication plugins.
+    The plugin that authenticates a given connection may request that the connecting
+    (external) user be treated as a different user for privilege-checking purposes.
+    This enables the external user to be a proxy for the second user; that is, to
+    assume the privileges of the second user:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器使用认证插件对客户端连接进行身份验证。认证给定连接的插件可能要求将连接的（外部）用户视为不同用户以进行特权检查。这使得外部用户可以成为第二用户的代理；也就是说，承担第二用户的权限：
+- en: The external user is a “proxy user” (a user who can impersonate or become known
+    as another user).
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部用户是“代理用户”（可以冒充或成为另一个用户的用户）。
+- en: The second user is a “proxied user” (a user whose identity and privileges can
+    be assumed by a proxy user).
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第二个用户是“被代理用户”（其身份和特权可以被代理用户所假定）。
+- en: This section describes how the proxy user capability works. For general information
+    about authentication plugins, see [Section 8.2.17, “Pluggable Authentication”](pluggable-authentication.html
+    "8.2.17 Pluggable Authentication"). For information about specific plugins, see
+    [Section 8.4.1, “Authentication Plugins”](authentication-plugins.html "8.4.1 Authentication
+    Plugins"). For information about writing authentication plugins that support proxy
+    users, see [Implementing Proxy User Support in Authentication Plugins](/doc/extending-mysql/8.0/en/writing-authentication-plugins-proxy-users.html).
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了代理用户功能的工作原理。有关认证插件的一般信息，请参阅[第8.2.17节“可插拔认证”](pluggable-authentication.html
+    "8.2.17 可插拔认证")。有关特定插件的信息，请参阅[第8.4.1节“认证插件”](authentication-plugins.html "8.4.1
+    认证插件")。有关编写支持代理用户的认证插件的信息，请参阅[在认证插件中实现代理用户支持](/doc/extending-mysql/8.0/en/writing-authentication-plugins-proxy-users.html)。
+- en: '[Requirements for Proxy User Support](proxy-users.html#proxy-users-support-requirements
+    "Requirements for Proxy User Support")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[代理用户支持要求](proxy-users.html#proxy-users-support-requirements "代理用户支持要求")'
+- en: '[Simple Proxy User Example](proxy-users.html#proxy-users-example "Simple Proxy
+    User Example")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[简单代理用户示例](proxy-users.html#proxy-users-example "简单代理用户示例")'
+- en: '[Preventing Direct Login to Proxied Accounts](proxy-users.html#preventing-proxied-account-direct-login
+    "Preventing Direct Login to Proxied Accounts")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[防止直接登录代理帐户](proxy-users.html#preventing-proxied-account-direct-login "防止直接登录代理帐户")'
+- en: '[Granting and Revoking the PROXY Privilege](proxy-users.html#proxy-users-granting-proxy-privilege
+    "Granting and Revoking the PROXY Privilege")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[授予和撤销PROXY特权](proxy-users.html#proxy-users-granting-proxy-privilege "授予和撤销PROXY特权")'
+- en: '[Default Proxy Users](proxy-users.html#default-proxy-users "Default Proxy Users")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[默认代理用户](proxy-users.html#default-proxy-users "默认代理用户")'
+- en: '[Default Proxy User and Anonymous User Conflicts](proxy-users.html#proxy-users-conflicts
+    "Default Proxy User and Anonymous User Conflicts")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[默认代理用户和匿名用户冲突](proxy-users.html#proxy-users-conflicts "默认代理用户和匿名用户冲突")'
+- en: '[Server Support for Proxy User Mapping](proxy-users.html#proxy-users-server-user-mapping
+    "Server Support for Proxy User Mapping")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[服务器支持代理用户映射](proxy-users.html#proxy-users-server-user-mapping "服务器支持代理用户映射")'
+- en: '[Proxy User System Variables](proxy-users.html#proxy-users-system-variables
+    "Proxy User System Variables")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[代理用户系统变量](proxy-users.html#proxy-users-system-variables "代理用户系统变量")'
+- en: Note
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: One administrative benefit to be gained by proxying is that the DBA can set
+    up a single account with a set of privileges and then enable multiple proxy users
+    to have those privileges without having to assign the privileges individually
+    to each of those users. As an alternative to proxy users, DBAs may find that roles
+    provide a suitable way to map users onto specific sets of named privileges. Each
+    user can be granted a given single role to, in effect, be granted the appropriate
+    set of privileges. See [Section 8.2.10, “Using Roles”](roles.html "8.2.10 Using
+    Roles").
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 代理的一个管理优势是，DBA可以设置一个具有一组特权的单个帐户，然后启用多个代理用户具有这些特权，而无需为每个用户单独分配特权。作为代理用户的替代方案，DBA可能会发现角色提供了一种适合将用户映射到特定命名特权集的方法。每个用户可以被授予一个给定的单一角色，以实际上被授予适当的特权集。请参阅[第8.2.10节“使用角色”](roles.html
+    "8.2.10 使用角色")。
+- en: Requirements for Proxy User Support
+  id: totrans-16
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 代理用户支持要求
+- en: 'For proxying to occur for a given authentication plugin, these conditions must
+    be satisfied:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要对给定认证插件进行代理，必须满足以下条件：
+- en: Proxying must be supported, either by the plugin itself, or by the MySQL server
+    on behalf of the plugin. In the latter case, server support may need to be enabled
+    explicitly; see [Server Support for Proxy User Mapping](proxy-users.html#proxy-users-server-user-mapping
+    "Server Support for Proxy User Mapping").
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须支持代理，可以是插件本身支持，也可以是MySQL服务器代表插件支持。在后一种情况下，可能需要显式启用服务器支持；参见[服务器支持代理用户映射](proxy-users.html#proxy-users-server-user-mapping
+    "Server Support for Proxy User Mapping")。
+- en: The account for the external proxy user must be set up to be authenticated by
+    the plugin. Use the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    statement to associate an account with an authentication plugin, or [`ALTER USER`](alter-user.html
+    "15.7.1.1 ALTER USER Statement") to change its plugin.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部代理用户的账户必须设置为由插件进行身份验证。使用[`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement")语句将账户与身份验证插件关联，或使用[`ALTER USER`](alter-user.html "15.7.1.1 ALTER
+    USER Statement")更改其插件。
+- en: The account for the proxied user must exist and be granted the privileges to
+    be assumed by the proxy user. Use the [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") and [`GRANT`](grant.html "15.7.1.6 GRANT Statement") statements
+    for this.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 被代理用户的账户必须存在并被授予代理用户所需的权限。使用[`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement")和[`GRANT`](grant.html "15.7.1.6 GRANT Statement")语句进行此操作。
+- en: Normally, the proxied user is configured so that it can be used only in proxying
+    scenarios and not for direct logins.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通常，代理用户被配置为仅在代理场景中使用，而不用于直接登录。
+- en: The proxy user account must have the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for the proxied account. Use the [`GRANT`](grant.html "15.7.1.6 GRANT
+    Statement") statement for this.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 代理用户账户必须具有[`PROXY`](privileges-provided.html#priv_proxy)权限以供被代理账户使用。使用[`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement")语句进行此操作。
+- en: For a client connecting to the proxy account to be treated as a proxy user,
+    the authentication plugin must return a user name different from the client user
+    name, to indicate the user name of the proxied account that defines the privileges
+    to be assumed by the proxy user.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于连接到代理账户的客户端要被视为代理用户，身份验证插件必须返回与客户端用户名不同的用户名，以指示由代理用户承担的权限定义的被代理账户的用户名。
+- en: Alternatively, for plugins that are provided proxy mapping by the server, the
+    proxied user is determined from the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege held by the proxy user.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者，对于由服务器提供代理映射的插件，被代理用户是由代理用户持有的[`PROXY`](privileges-provided.html#priv_proxy)权限确定的。
+- en: 'The proxy mechanism permits mapping only the external client user name to the
+    proxied user name. There is no provision for mapping host names:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 代理机制仅允许将外部客户端用户名映射到被代理用户名称。没有提供主机名映射的规定：
+- en: When a client connects to the server, the server determines the proper account
+    based on the user name passed by the client program and the host from which the
+    client connects.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当客户端连接到服务器时，服务器根据客户端程序传递的用户名和客户端连接的主机确定适当的账户。
+- en: If that account is a proxy account, the server attempts to determine the appropriate
+    proxied account by finding a match for a proxied account using the user name returned
+    by the authentication plugin and the host name of the proxy account. The host
+    name in the proxied account is ignored.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果该账户是代理账户，则服务器尝试通过找到与身份验证插件返回的用户名和代理账户的主机名匹配的被代理账户来确定适当的被代理账户。被代理账户中的主机名将被忽略。
+- en: Simple Proxy User Example
+  id: totrans-28
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 简单代理用户示例
+- en: 'Consider the following account definitions:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下账户定义：
+- en: '[PRE0]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: When a client connects as `employee_ext` from the local host, MySQL uses the
+    plugin named `my_auth_plugin` to perform authentication. Suppose that `my_auth_plugin`
+    returns a user name of `employee` to the server, based on the content of `'*`my_auth_string`*'`
+    and perhaps by consulting some external authentication system. The name `employee`
+    differs from `employee_ext`, so returning `employee` serves as a request to the
+    server to treat the `employee_ext` external user, for purposes of privilege checking,
+    as the `employee` local user.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当客户端以`employee_ext`从本地主机连接时，MySQL使用名为`my_auth_plugin`的插件执行身份验证。假设`my_auth_plugin`根据`'*`my_auth_string`*'`的内容并可能通过查询某些外部身份验证系统返回一个名为`employee`的用户名给服务器。名称`employee`与`employee_ext`不同，因此返回`employee`作为请求服务器将`employee_ext`外部用户视为`employee`本地用户进行权限检查。
+- en: In this case, `employee_ext` is the proxy user and `employee` is the proxied
+    user.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，`employee_ext`是代理用户，`employee`是被代理用户。
+- en: The server verifies that proxy authentication for `employee` is possible for
+    the `employee_ext` user by checking whether `employee_ext` (the proxy user) has
+    the [`PROXY`](privileges-provided.html#priv_proxy) privilege for `employee` (the
+    proxied user). If this privilege has not been granted, an error occurs. Otherwise,
+    `employee_ext` assumes the privileges of `employee`. The server checks statements
+    executed during the client session by `employee_ext` against the privileges granted
+    to `employee`. In this case, `employee_ext` can access tables in the `employees`
+    database.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器通过检查`employee_ext`（代理用户）是否对`employee`（被代理用户）具有[`PROXY`](privileges-provided.html#priv_proxy)权限来验证`employee`的代理认证是否对`employee_ext`用户可行。如果未授予此权限，则会发生错误。否则，`employee_ext`假定`employee`的权限。服务器通过检查由`employee_ext`在客户端会话期间执行的语句来针对授予`employee`的权限。在这种情况下，`employee_ext`可以访问`employees`数据库中的表。
+- en: The proxied account, `employee`, uses the `mysql_no_login` authentication plugin
+    to prevent clients from using the account to log in directly. (This assumes that
+    the plugin is installed. For instructions, see [Section 8.4.1.9, “No-Login Pluggable
+    Authentication”](no-login-pluggable-authentication.html "8.4.1.9 No-Login Pluggable
+    Authentication").) For alternative methods of protecting proxied accounts against
+    direct use, see [Preventing Direct Login to Proxied Accounts](proxy-users.html#preventing-proxied-account-direct-login
+    "Preventing Direct Login to Proxied Accounts").
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 代理账户`employee`使用`mysql_no_login`认证插件来防止客户端直接使用该账户登录。（假设插件已安装。有关说明，请参见[Section 8.4.1.9,
+    “无登录可插入式认证”](no-login-pluggable-authentication.html "8.4.1.9 无登录可插入式认证")。）要了解保护代理账户免受直接使用的替代方法，请参见[防止直接登录到代理账户](proxy-users.html#preventing-proxied-account-direct-login
+    "防止直接登录到代理账户")。
+- en: 'When proxying occurs, the [`USER()`](information-functions.html#function_user)
+    and [`CURRENT_USER()`](information-functions.html#function_current-user) functions
+    can be used to see the difference between the connecting user (the proxy user)
+    and the account whose privileges apply during the current session (the proxied
+    user). For the example just described, those functions return these values:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当进行代理时，[`USER()`](information-functions.html#function_user)和[`CURRENT_USER()`](information-functions.html#function_current-user)函数可用于查看连接用户（代理用户）与当前会话期间适用的账户（被代理用户）之间的区别。对于刚才描述的示例，这些函数返回以下值：
+- en: '[PRE1]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: In the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement
+    that creates the proxy user account, the `IDENTIFIED WITH` clause that names the
+    proxy-supporting authentication plugin is optionally followed by an `AS '*`auth_string`*'`
+    clause specifying a string that the server passes to the plugin when the user
+    connects. If present, the string provides information that helps the plugin determine
+    how to map the proxy (external) client user name to a proxied user name. It is
+    up to each plugin whether it requires the `AS` clause. If so, the format of the
+    authentication string depends on how the plugin intends to use it. Consult the
+    documentation for a given plugin for information about the authentication string
+    values it accepts.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在创建代理用户账户的[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句中，指定支持代理的认证插件的`IDENTIFIED
+    WITH`子句后面可以选择跟随一个`AS '*`auth_string`*'`子句，该子句指定服务器在用户连接时传递给插件的字符串。如果存在，该字符串提供帮助插件确定如何将代理（外部）客户端用户名映射到被代理用户名称的信息。每个插件是否需要`AS`子句取决于插件打算如何使用它。如果需要，认证字符串的格式取决于插件打算如何使用它。请查阅特定插件的文档，了解其接受的认证字符串值的信息。
+- en: Preventing Direct Login to Proxied Accounts
+  id: totrans-38
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 防止直接登录到代理账户
+- en: Proxied accounts generally are intended to be used only by means of proxy accounts.
+    That is, clients connect using a proxy account, then are mapped onto and assume
+    the privileges of the appropriate proxied user.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 代理账户通常只能通过代理账户使用。也就是说，客户端使用代理账户连接，然后映射到并假定适当被代理用户的权限。
+- en: 'There are multiple ways to ensure that a proxied account cannot be used directly:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有多种方法可以确保代理账户不能直接使用：
+- en: Associate the account with the `mysql_no_login` authentication plugin. In this
+    case, the account cannot be used for direct logins under any circumstances. This
+    assumes that the plugin is installed. For instructions, see [Section 8.4.1.9,
+    “No-Login Pluggable Authentication”](no-login-pluggable-authentication.html "8.4.1.9 No-Login
+    Pluggable Authentication").
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将账户与 `mysql_no_login` 认证插件关联。在这种情况下，账户无论如何都不能用于直接登录。这假定插件已安装。有关说明，请参见 [Section 8.4.1.9,
+    “No-Login Pluggable Authentication”](no-login-pluggable-authentication.html "8.4.1.9 No-Login
+    Pluggable Authentication")。
+- en: Include the `ACCOUNT LOCK` option when you create the account. See [Section 15.7.1.3,
+    “CREATE USER Statement”](create-user.html "15.7.1.3 CREATE USER Statement"). With
+    this method, also include a password so that if the account is unlocked later,
+    it cannot be accessed with no password. (If the `validate_password` component
+    is enabled, creating an account without a password is not permitted, even if the
+    account is locked. See [Section 8.4.3, “The Password Validation Component”](validate-password.html
+    "8.4.3 The Password Validation Component").)
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 创建账户时包括 `ACCOUNT LOCK` 选项。参见 [Section 15.7.1.3, “CREATE USER Statement”](create-user.html
+    "15.7.1.3 CREATE USER Statement")。使用这种方法时，还要包括一个密码，这样如果账户稍后解锁，就不能在没有密码的情况下访问它。（如果启用了
+    `validate_password` 组件，则不允许创建没有密码的账户，即使账户被锁定。参见 [Section 8.4.3, “The Password
+    Validation Component”](validate-password.html "8.4.3 The Password Validation Component")。）
+- en: Create the account with a password but do not tell anyone else the password.
+    If you do not let anyone know the password for the account, clients cannot use
+    it to connect directly to the MySQL server.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 创建带有密码的账户，但不要告诉其他人密码。如果不让任何人知道账户的密码，客户端就无法使用它直接连接到 MySQL 服务器。
+- en: Granting and Revoking the PROXY Privilege
+  id: totrans-44
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 授予和撤销 PROXY 权限
+- en: 'The [`PROXY`](privileges-provided.html#priv_proxy) privilege is needed to enable
+    an external user to connect as and have the privileges of another user. To grant
+    this privilege, use the [`GRANT`](grant.html "15.7.1.6 GRANT Statement") statement.
+    For example:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 需要 [`PROXY`](privileges-provided.html#priv_proxy) 权限以使外部用户能够连接并具有另一个用户的权限。要授予此权限，请使用
+    [`GRANT`](grant.html "15.7.1.6 GRANT Statement") 语句。例如：
+- en: '[PRE2]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The statement creates a row in the `mysql.proxies_priv` grant table.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该语句在 `mysql.proxies_priv` 授权表中创建一行。
+- en: At connect time, *`proxy_user`* must represent a valid externally authenticated
+    MySQL user, and *`proxied_user`* must represent a valid locally authenticated
+    user. Otherwise, the connection attempt fails.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在连接时，*`proxy_user`* 必须代表一个有效的外部认证的 MySQL 用户，而 *`proxied_user`* 必须代表一个有效的本地认证用户。否则，连接尝试将失败。
+- en: 'The corresponding [`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement") syntax
+    is:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 相应的 [`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement") 语法为：
+- en: '[PRE3]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'MySQL [`GRANT`](grant.html "15.7.1.6 GRANT Statement") and [`REVOKE`](revoke.html
+    "15.7.1.8 REVOKE Statement") syntax extensions work as usual. Examples:'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL [`GRANT`](grant.html "15.7.1.6 GRANT Statement") 和 [`REVOKE`](revoke.html
+    "15.7.1.8 REVOKE Statement") 语法扩展与往常一样工作。示例：
+- en: '[PRE4]'
+  id: totrans-52
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'The [`PROXY`](privileges-provided.html#priv_proxy) privilege can be granted
+    in these cases:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以在以下情况下授予 [`PROXY`](privileges-provided.html#priv_proxy) 权限：
+- en: By a user that has `GRANT PROXY ... WITH GRANT OPTION` for *`proxied_user`*.
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由具有 *`proxied_user`* 的 `GRANT PROXY ... WITH GRANT OPTION` 权限的用户。
+- en: 'By *`proxied_user`* for itself: The value of [`USER()`](information-functions.html#function_user)
+    must exactly match [`CURRENT_USER()`](information-functions.html#function_current-user)
+    and *`proxied_user`*, for both the user name and host name parts of the account
+    name.'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由 *`proxied_user`* 为自身：[`USER()`](information-functions.html#function_user)
+    的值必须与 [`CURRENT_USER()`](information-functions.html#function_current-user) 和 *`proxied_user`*
+    完全匹配，包括账户名和主机名部分。
+- en: 'The initial `root` account created during MySQL installation has the [`PROXY
+    ... WITH GRANT OPTION`](privileges-provided.html#priv_proxy) privilege for `''''@''''`,
+    that is, for all users and all hosts. This enables `root` to set up proxy users,
+    as well as to delegate to other accounts the authority to set up proxy users.
+    For example, `root` can do this:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 安装期间创建的初始 `root` 账户具有 [`PROXY ... WITH GRANT OPTION`](privileges-provided.html#priv_proxy)
+    权限，适用于 `''@''`，即所有用户和所有主机。这使得 `root` 能够设置代理用户，并授权其他账户设置代理用户。例如，`root` 可以这样做：
+- en: '[PRE5]'
+  id: totrans-57
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Those statements create an `admin` user that can manage all `GRANT PROXY` mappings.
+    For example, `admin` can do this:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些语句创建一个可以管理所有 `GRANT PROXY` 映射的 `admin` 用��。例如，`admin` 可以这样做：
+- en: '[PRE6]'
+  id: totrans-59
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Default Proxy Users
+  id: totrans-60
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 默认代理用户
+- en: 'To specify that some or all users should connect using a given authentication
+    plugin, create a “blank” MySQL account with an empty user name and host name (`''''@''''`),
+    associate it with that plugin, and let the plugin return the real authenticated
+    user name (if different from the blank user). Suppose that there exists a plugin
+    named `ldap_auth` that implements LDAP authentication and maps connecting users
+    onto either a developer or manager account. To set up proxying of users onto these
+    accounts, use the following statements:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要指定某些或所有用户应使用特定的身份验证插件连接，请创建一个“空白”MySQL帐户，具有空用户名和主机名（`''@''`），将其与该插件关联，并让插件返回真实的经过身份验证的用户名（如果与空白用户不同）。假设存在一个名为`ldap_auth`的插件，实现LDAP身份验证并将连接用户映射到开发者或经理帐户。要设置用户代理到这些帐户，使用以下语句：
+- en: '[PRE7]'
+  id: totrans-62
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Now assume that a client connects as follows:'
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在假设一个客户端连接如下：
+- en: '[PRE8]'
+  id: totrans-64
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: The server does not find `myuser` defined as a MySQL user, but because there
+    is a blank user account (`''@''`) that matches the client user name and host name,
+    the server authenticates the client against that account. The server invokes the
+    `ldap_auth` authentication plugin and passes `myuser` and *`myuser_password`*
+    to it as the user name and password.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器未找到定义为MySQL用户的`myuser`，但是因为存在一个空用户帐户（`''@''`）与客户端用户名和主机名匹配，服务器会根据该帐户对客户端进行身份验证。服务器调用`ldap_auth`身份验证插件，并将`myuser`和*`myuser_password`*作为用户名和密码传递给它。
+- en: If the `ldap_auth` plugin finds in the LDAP directory that *`myuser_password`*
+    is not the correct password for `myuser`, authentication fails and the server
+    rejects the connection.
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`ldap_auth`插件在LDAP目录中发现*`myuser_password`*不是`myuser`的正确密码，身份验证失败，服务器拒绝连接。
+- en: 'If the password is correct and `ldap_auth` finds that `myuser` is a developer,
+    it returns the user name `developer` to the MySQL server, rather than `myuser`.
+    Returning a user name different from the client user name of `myuser` signals
+    to the server that it should treat `myuser` as a proxy. The server verifies that
+    `''''@''''` can authenticate as `developer` (because `''''@''''` has the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege to do so) and accepts the connection. The session proceeds with `myuser`
+    having the privileges of the `developer` proxied user. (These privileges should
+    be set up by the DBA using [`GRANT`](grant.html "15.7.1.6 GRANT Statement") statements,
+    not shown.) The [`USER()`](information-functions.html#function_user) and [`CURRENT_USER()`](information-functions.html#function_current-user)
+    functions return these values:'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果密码正确，并且`ldap_auth`发现`myuser`是一个开发者，它会将用户名`developer`返回给MySQL服务器，而不是`myuser`。返回与客户端用户名`myuser`不同的用户名向服务器发出信号，表明它应该将`myuser`视为代理。服务器验证`''@''`是否可以作为`developer`进行身份验证（因为`''@''`具有[`PROXY`](privileges-provided.html#priv_proxy)权限），并接受连接。会话继续进行，`myuser`具有`developer`代理用户的权限。（这些权限应由DBA使用[`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement")语句设置，未显示。）[`USER()`](information-functions.html#function_user)和[`CURRENT_USER()`](information-functions.html#function_current-user)函数返回这些值：
+- en: '[PRE9]'
+  id: totrans-68
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: If the plugin instead finds in the LDAP directory that `myuser` is a manager,
+    it returns `manager` as the user name and the session proceeds with `myuser` having
+    the privileges of the `manager` proxied user.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果插件在LDAP目录中发现`myuser`是一个经理，它会将`manager`作为用户名返回，并且会话将继续进行，`myuser`具有`manager`代理用户的权限。
+- en: '[PRE10]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'For simplicity, external authentication cannot be multilevel: Neither the credentials
+    for `developer` nor those for `manager` are taken into account in the preceding
+    example. However, they are still used if a client tries to connect and authenticate
+    directly as the `developer` or `manager` account, which is why those proxied accounts
+    should be protected against direct login (see [Preventing Direct Login to Proxied
+    Accounts](proxy-users.html#preventing-proxied-account-direct-login "Preventing
+    Direct Login to Proxied Accounts")).'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为简单起见，外部身份验证不能是多级的：在上述示例中，`developer`或`manager`的凭据都不会被考虑。但是，如果客户端尝试直接连接并作为`developer`或`manager`帐户进行身份验证，仍然会使用这些帐户，因此应该保护这些代理帐户免受直接登录的影响（请参阅[防止直接登录到代理帐户](proxy-users.html#preventing-proxied-account-direct-login
+    "Preventing Direct Login to Proxied Accounts")）。
+- en: Default Proxy User and Anonymous User Conflicts
+  id: totrans-72
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 默认代理用户和匿名用户冲突
+- en: If you intend to create a default proxy user, check for other existing “match
+    any user” accounts that take precedence over the default proxy user because they
+    can prevent that user from working as intended.
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您打算创建一个默认代理用户，请检查其他现有的“匹配任何用户”帐户，因为它们可能优先于默认代理用户，从而阻止该用户按预期工作。
+- en: 'In the preceding discussion, the default proxy user account has `''''` in the
+    host part, which matches any host. If you set up a default proxy user, take care
+    to also check whether nonproxy accounts exist with the same user part and `''%''`
+    in the host part, because `''%''` also matches any host, but has precedence over
+    `''''` by the rules that the server uses to sort account rows internally (see
+    [Section 8.2.6, “Access Control, Stage 1: Connection Verification”](connection-access.html
+    "8.2.6 Access Control, Stage 1: Connection Verification")).'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '在前面的讨论中，默认代理用户账户在主机部分有`''''`，匹配任何主机。如果设置了默认代理用户，请务必检查是否存在具有相同用户部分和`''%''`主机部分的非代理账户，因为`''%''`也匹配任何主机，但根据服务器用于内部排序账户行的规则，`''%''`优先于`''''`（请参阅[第8.2.6节，“访问控制，阶段1：连接验证”](connection-access.html
+    "8.2.6 Access Control, Stage 1: Connection Verification")）。'
+- en: 'Suppose that a MySQL installation includes these two accounts:'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设MySQL安装包括这两个账户：
+- en: '[PRE11]'
+  id: totrans-76
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: The first account (`''@''`) is intended as the default proxy user, used to authenticate
+    connections for users who do not otherwise match a more-specific account. The
+    second account (`''@'%'`) is an anonymous-user account, which might have been
+    created, for example, to enable users without their own account to connect anonymously.
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一个账户（`''@''`）旨在作为默认代理用户，用于验证那些不匹配更具体账户的用户的连接。第二个账户（`''@'%'`）是一个匿名用户账户，例如可能已创建，以便使没有自己账户的用户能够匿名连接。
+- en: Both accounts have the same user part (`''`), which matches any user. And each
+    account has a host part that matches any host. Nevertheless, there is a priority
+    in account matching for connection attempts because the matching rules sort a
+    host of `'%'` ahead of `''`. For accounts that do not match any more-specific
+    account, the server attempts to authenticate them against `''@'%'` (the anonymous
+    user) rather than `''@''` (the default proxy user). As a result, the default proxy
+    account is never used.
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个账户的用户部分（`''`）相同，匹配任何用户。每个账户都有一个匹配任何主机的主机部分。然而，在连接尝试的账户匹配中存在优先级，因为匹配规则将`'%'`的主机排在`''`之前。对于不再匹配任何更具体账户的账户，服务器会尝试对其进行`''@'%'`（匿名用户）的身份验证，而不是`''@''`（默认代理用户）。因此，默认代理账户永远不会被使用。
+- en: 'To avoid this problem, use one of the following strategies:'
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为避免此问题，请使用以下策略之一：
+- en: Remove the anonymous account so that it does not conflict with the default proxy
+    user.
+  id: totrans-80
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 删除匿名账户，以避免与默认代理用户冲突。
+- en: 'Use a more-specific default proxy user that matches ahead of the anonymous
+    user. For example, to permit only `localhost` proxy connections, use `''''@''localhost''`:'
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用匹配在匿名用户之前的更具体默认代理用户。例如，为了仅允许`localhost`代理连接，使用`''@'localhost'`：
+- en: '[PRE12]'
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: In addition, modify any `GRANT PROXY` statements to name `''@'localhost'` rather
+    than `''@''` as the proxy user.
+  id: totrans-83
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此外，修改任何`GRANT PROXY`语句，将`''@'localhost'`命名为代理用户，而不是`''@''`。
+- en: Be aware that this strategy prevents anonymous-user connections from `localhost`.
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 请注意，此策略会阻止来自`localhost`的匿名用户连接。
+- en: Use a named default account rather than an anonymous default account. For an
+    example of this technique, consult the instructions for using the `authentication_windows`
+    plugin. See [Section 8.4.1.6, “Windows Pluggable Authentication”](windows-pluggable-authentication.html
+    "8.4.1.6 Windows Pluggable Authentication").
+  id: totrans-85
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用具名的默认账户而不是匿名的默认账户。有关此技术的示例，请参考使用`authentication_windows`插件的说明。请参阅[第8.4.1.6节，“Windows可插拔认证”](windows-pluggable-authentication.html
+    "8.4.1.6 Windows Pluggable Authentication")。
+- en: Create multiple proxy users, one for local connections and one for “everything
+    else” (remote connections). This can be useful particularly when local users should
+    have different privileges from remote users.
+  id: totrans-86
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 创建多个代理用户，一个用于本地连接，另一个用于“其他所有”（远程连接）。这在本地用户应该具有不同权限于远程用户时特别有用。
+- en: 'Create the proxy users:'
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 创建代理用户：
+- en: '[PRE13]'
+  id: totrans-88
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'Create the proxied users:'
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 创建被代理用户：
+- en: '[PRE14]'
+  id: totrans-90
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'Grant to each proxy account the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for the corresponding proxied account:'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为每个代理账户授予对应被代理账户的[`PROXY`](privileges-provided.html#priv_proxy)权限：
+- en: '[PRE15]'
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Finally, grant appropriate privileges to the local and remote proxied users
+    (not shown).
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 最后，为本地和远程被代理用户授予适当的权限（未显示）。
+- en: Assume that the `some_plugin`/`'*`some_auth_string`*'` combination causes `some_plugin`
+    to map the client user name to `developer`. Local connections match the `''@'localhost'`
+    proxy user, which maps to the `'developer'@'localhost'` proxied user. Remote connections
+    match the `''@'%'` proxy user, which maps to the `'developer'@'%'` proxied user.
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设 `some_plugin`/`'*`some_auth_string`*'` 组合导致 `some_plugin` 将客户端用户名映射到 `developer`。本地连接匹配
+    `''@'localhost'` 代理用户，映射到 `'developer'@'localhost'` 被代理用户。远程连接匹配 `''@'%'` 代理用户，映射到
+    `'developer'@'%'` 被代理用户。
+- en: Server Support for Proxy User Mapping
+  id: totrans-95
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 服务器对代理用户映射的支持
+- en: 'Some authentication plugins implement proxy user mapping for themselves (for
+    example, the PAM and Windows authentication plugins). Other authentication plugins
+    do not support proxy users by default. Of these, some can request that the MySQL
+    server itself map proxy users according to granted proxy privileges: `mysql_native_password`,
+    `sha256_password`. If the [`check_proxy_users`](server-system-variables.html#sysvar_check_proxy_users)
+    system variable is enabled, the server performs proxy user mapping for any authentication
+    plugins that make such a request:'
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些认证插件为自身实现了代理用户映射（例如，PAM 和 Windows 认证插件）。其他认证插件默认不支持代理用户。其中一些可以请求 MySQL 服务器根据授予的代理权限映射代理用户：`mysql_native_password`，`sha256_password`。如果启用了
+    [`check_proxy_users`](server-system-variables.html#sysvar_check_proxy_users) 系统变量，服务器将为任何请求进行代理用户映射的认证插件执行代理用户映射：
+- en: By default, [`check_proxy_users`](server-system-variables.html#sysvar_check_proxy_users)
+    is disabled, so the server performs no proxy user mapping even for authentication
+    plugins that request server support for proxy users.
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认情况下，[`check_proxy_users`](server-system-variables.html#sysvar_check_proxy_users)
+    处于禁用状态，因此服务器即使对请求服务器支持代理用户的认证插件也不执行代理用户映射。
+- en: 'If [`check_proxy_users`](server-system-variables.html#sysvar_check_proxy_users)
+    is enabled, it may also be necessary to enable a plugin-specific system variable
+    to take advantage of server proxy user mapping support:'
+  id: totrans-98
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了 [`check_proxy_users`](server-system-variables.html#sysvar_check_proxy_users)，可能还需要启用特定于插件的系统变量以利用服务器代理用户映射支持：
+- en: For the `mysql_native_password` plugin, enable [`mysql_native_password_proxy_users`](server-system-variables.html#sysvar_mysql_native_password_proxy_users).
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 `mysql_native_password` 插件，请启用 [`mysql_native_password_proxy_users`](server-system-variables.html#sysvar_mysql_native_password_proxy_users)。
+- en: For the `sha256_password` plugin, enable [`sha256_password_proxy_users`](server-system-variables.html#sysvar_sha256_password_proxy_users).
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 `sha256_password` 插件，请启用 [`sha256_password_proxy_users`](server-system-variables.html#sysvar_sha256_password_proxy_users)。
+- en: 'For example, to enable all the preceding capabilities, start the server with
+    these lines in the `my.cnf` file:'
+  id: totrans-101
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，要启用所有上述功能，请在 `my.cnf` 文件中添加以下行启动服务器：
+- en: '[PRE16]'
+  id: totrans-102
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: Assuming that the relevant system variables have been enabled, create the proxy
+    user as usual using [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement"),
+    then grant it the [`PROXY`](privileges-provided.html#priv_proxy) privilege to
+    a single other account to be treated as the proxied user. When the server receives
+    a successful connection request for the proxy user, it finds that the user has
+    the [`PROXY`](privileges-provided.html#priv_proxy) privilege and uses it to determine
+    the proper proxied user.
+  id: totrans-103
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设相关系统变量已启用，请像往常一样使用 [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER
+    Statement") 创建代理用户，然后授予它对一个其他账户的 [`PROXY`](privileges-provided.html#priv_proxy)
+    权限，以将其视为被代理用户。当服务器接收到代理用户的成功连接请求时，发现用户具有 [`PROXY`](privileges-provided.html#priv_proxy)
+    权限，并使用它确定适当的被代理用户。
+- en: '[PRE17]'
+  id: totrans-104
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: 'To use the proxy account, connect to the server using its name and password:'
+  id: totrans-105
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用代理账户，请使用其名称和密码连接到服务器：
+- en: '[PRE18]'
+  id: totrans-106
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: Authentication succeeds, the server finds that `proxy_user` has the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for `proxied_user`, and the session proceeds with `proxy_user` having
+    the privileges of `proxied_user`.
+  id: totrans-107
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证成功后，服务器发现 `proxy_user` 对 `proxied_user` 有 [`PROXY`](privileges-provided.html#priv_proxy)
+    权限，会话将继续进行，`proxy_user` 具有 `proxied_user` 的权限。
+- en: 'Proxy user mapping performed by the server is subject to these restrictions:'
+  id: totrans-108
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器执行的代理用户映射受到以下限制：
+- en: The server does not proxy to or from an anonymous user, even if the associated
+    [`PROXY`](privileges-provided.html#priv_proxy) privilege is granted.
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器不会代理匿名用户，即使授予了相关的 [`PROXY`](privileges-provided.html#priv_proxy) 权限。
+- en: When a single account has been granted proxy privileges for more than one proxied
+    account, server proxy user mapping is nondeterministic. Therefore, granting to
+    a single account proxy privileges for multiple proxied accounts is discouraged.
+  id: totrans-110
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当一个单一账户被授予多个被代理账户的代理权限时，服务器代理用户映射是不确定的。因此，不建议为单一账户授予多个被代理账户的代理权限。
+- en: Proxy User System Variables
+  id: totrans-111
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 代理用户系统变量
+- en: 'Two system variables help trace the proxy login process:'
+  id: totrans-112
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有两个系统变量帮助跟踪代理登录过程：
+- en: '[`proxy_user`](server-system-variables.html#sysvar_proxy_user): This value
+    is `NULL` if proxying is not used. Otherwise, it indicates the proxy user account.
+    For example, if a client authenticates through the `''''@''''` proxy account,
+    this variable is set as follows:'
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`proxy_user`](server-system-variables.html#sysvar_proxy_user)：如果未使用代理，则该值为`NULL`。否则，它表示代理用户账户。例如，如果客户端通过`''''@''''`代理账户进行身份验证，那么该变量将设置如下：'
+- en: '[PRE19]'
+  id: totrans-114
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: '[`external_user`](server-system-variables.html#sysvar_external_user): Sometimes
+    the authentication plugin may use an external user to authenticate to the MySQL
+    server. For example, when using Windows native authentication, a plugin that authenticates
+    using the windows API does not need the login ID passed to it. However, it still
+    uses a Windows user ID to authenticate. The plugin may return this external user
+    ID (or the first 512 UTF-8 bytes of it) to the server using the `external_user`
+    read-only session variable. If the plugin does not set this variable, its value
+    is `NULL`.'
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`external_user`](server-system-variables.html#sysvar_external_user)：有时认证插件可能使用外部用户来认证到MySQL服务器。例如，当使用Windows本地认证时，一个使用Windows
+    API 进行认证的插件不需要传递登录ID。然而，它仍然使用Windows用户ID进行认证。插件可能会将这个外部用户ID（或其前512个UTF-8字节）返回给服务器，使用`external_user`只读会话变量。如果插件没有设置这个变量，其值为`NULL`。'

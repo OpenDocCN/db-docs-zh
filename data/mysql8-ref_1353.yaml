@@ -1,0 +1,303 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-concepts.html](https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-concepts.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-concepts.html](https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-concepts.html)
+- en: 19.1.4.1 Replication Mode Concepts
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.4.1 复制模式概念
+- en: Before setting the replication mode of an online server, it is important to
+    understand some key concepts of replication. This section explains these concepts
+    and is essential reading before attempting to modify the replication mode of an
+    online server.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在设置在线服务器的复制模式之前，了解一些复制的关键概念非常重要。本节解释了这些概念，在尝试修改在线服务器的复制模式之前，这是必读的内容。
+- en: 'The modes of replication available in MySQL rely on different techniques for
+    identifying logged transactions. The types of transactions used by replication
+    are listed here:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL中可用的复制模式依赖于不同的技术来识别已记录的事务。复制使用的事务类型在此处列出：
+- en: GTID transactions are identified by a global transaction identifier (GTID) which
+    takes the form `UUID:NUMBER`. Every GTID transaction in the binary log is preceded
+    by a `Gtid_log_event`. A GTID transaction can be addressed either by its GTID,
+    or by the name of the file in which it is logged and its position within that
+    file.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: GTID事务由全局事务标识符（GTID）标识，其形式为`UUID:NUMBER`。二进制日志中的每个GTID事务都以`Gtid_log_event`开头。GTID事务可以通过其GTID或记录在其中的文件的名称及其在该文件中的位置来寻址。
+- en: An anonymous transaction has no GTID; MySQL 8.0 ensures that every anonymous
+    transaction in a log is preceded by an `Anonymous_gtid_log_event`. (In previous
+    versions of MySQL, an anonymous transaction was not preceded by any particular
+    event.) An anonymous transaction can be addressed by file name and position only.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 匿名事务没有GTID；MySQL 8.0确保日志中的每个匿名事务都以`Anonymous_gtid_log_event`开头。（在MySQL的先前版本中，匿名事务不会以任何特定事件开头。）匿名事务只能通过文件名和位置来寻址。
+- en: When using GTIDs you can take advantage of GTID auto-positioning and automatic
+    failover, and use [`WAIT_FOR_EXECUTED_GTID_SET()`](gtid-functions.html#function_wait-for-executed-gtid-set),
+    [`session_track_gtids`](server-system-variables.html#sysvar_session_track_gtids),
+    and Performance Schema tables to monitor replicated transactions (see [Section 29.12.11,
+    “Performance Schema Replication Tables”](performance-schema-replication-tables.html
+    "29.12.11 Performance Schema Replication Tables")).
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用GTID时，您可以利用GTID自动定位和自动故障转移，并使用[`WAIT_FOR_EXECUTED_GTID_SET()`](gtid-functions.html#function_wait-for-executed-gtid-set)、[`session_track_gtids`](server-system-variables.html#sysvar_session_track_gtids)和性能模式表来监视复制事务（请参阅[第29.12.11节，“性能模式复制表”](performance-schema-replication-tables.html
+    "29.12.11 性能模式复制表")）。
+- en: A transaction in a relay log from a source running a previous version of MySQL
+    might not be preceded by any particular event, but after being replayed and recorded
+    in the replica's binary log, it is preceded with an `Anonymous_gtid_log_event`.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 来自运行先前版本的MySQL的源的中继日志中的事务可能不会以任何特定事件开头，但在被重放并记录在副本的二进制日志中之后，它将以`Anonymous_gtid_log_event`开头。
+- en: 'To change the replication mode online, it is necessary to set the [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    and [`enforce_gtid_consistency`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)
+    variables using an account that has privileges sufficient to set global system
+    variables; see [Section 7.1.9.1, “System Variable Privileges”](system-variable-privileges.html
+    "7.1.9.1 System Variable Privileges"). Permitted values for [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    are listed here, in order, with their meanings:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在线更改复制模式，需要使用具有足够权限设置全局系统变量的帐户来设置[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)和[`enforce_gtid_consistency`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)变量；请参阅[第7.1.9.1节，“系统变量权限”](system-variable-privileges.html
+    "7.1.9.1 系统变量权限")。[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)的允许值按顺序列在此处，并附有其含义：
+- en: '`OFF`: Only anonymous transactions can be replicated.'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OFF`：只有匿名事务可以被复制。'
+- en: '`OFF_PERMISSIVE`: New transactions are anonymous; replicated transactions may
+    be either GTID or anonymous.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OFF_PERMISSIVE`：新事务是匿名的；复制的事务可以是GTID或匿名的。'
+- en: '`ON_PERMISSIVE`: New transactions use GTIDs; replicated transactions may be
+    either GTID or anonymous.'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ON_PERMISSIVE`：新事务使用GTID；复制的事务可以是GTID或匿名的。'
+- en: '`ON`: All transaction must have GTIDs; anonymous transactions cannot be replicated.'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ON`：所有事务必须具有GTID；匿名事务无法被复制。'
+- en: It is possible to have servers using anonymous and servers using GTID transactions
+    in the same replication topology. For example, a source where [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)
+    can replicate to a replica where [`gtid_mode=ON_PERMISSIVE`](replication-options-gtids.html#sysvar_gtid_mode).
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以在同一复制拓扑中同时使用匿名事务和GTID事务的服务器。例如，一个源，其中[`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)可以复制到一个副本，其中[`gtid_mode=ON_PERMISSIVE`](replication-options-gtids.html#sysvar_gtid_mode)。
+- en: '[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) can be changed
+    only one step at a time, based on the order of the values as shown in the previous
+    list. For example, if [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    is set to `OFF_PERMISSIVE`, it is possible to change it to `OFF` or `ON_PERMISSIVE`,
+    but not to `ON`. This is to ensure that the process of changing from anonymous
+    transactions to GTID transactions online is handled correctly by the server; the
+    GTID state (in other words the value of [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed))
+    is persistent. This ensures that the GTID setting applied by the server is always
+    retained and is correct, regardless of any changes in the value of [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode).'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)只能一次更改一步，根据前面列表中显示的值的顺序。例如，如果[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)设置为`OFF_PERMISSIVE`，则可以将其更改为`OFF`或`ON_PERMISSIVE`，但不能更改为`ON`。这是为了确保服务器正确处理从匿名事务到GTID事务在线更改的过程；GTID状态（即[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)的值）是持久的。这确保了服务器应用的GTID设置始终保留并正确，而不受[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)值的任何更改影响。'
+- en: System variables which display GTID sets, such as [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    and [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged), the `RECEIVED_TRANSACTION_SET`
+    column of the Performance Schema [`replication_connection_status`](performance-schema-replication-connection-status-table.html
+    "29.12.11.2 The replication_connection_status Table") table, and results relating
+    to GTIDs in the output of [`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW
+    REPLICA STATUS Statement") all return empty strings when there are no GTIDs present.
+    Sources of information about a single GTID, such as the information shown in the
+    `CURRENT_TRANSACTION` column of the Performance Schema [`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table") table, show `ANONYMOUS`
+    when GTID transactions are not in use.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 显示GTID集的系统变量，如[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)和[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)，性能模式[`replication_connection_status`](performance-schema-replication-connection-status-table.html
+    "29.12.11.2 The replication_connection_status Table")表的`RECEIVED_TRANSACTION_SET`列，以及[`SHOW
+    REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")输出中与GTID相关的结果，当没有GTID时都返回空字符串。关于单个GTID的信息来源，例如性能模式[`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table")表中显示的`CURRENT_TRANSACTION`列中显示`ANONYMOUS`，当未使用GTID事务时。
+- en: Replication from a source using [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)
+    provides the ability to use GTID auto-positioning, configured using the `SOURCE_AUTO_POSITION`
+    option of the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement. The replication
+    topology in use has an impact on whether it is possible to enable auto-positioning
+    or not, since this feature relies on GTIDs and is not compatible with anonymous
+    transactions. It is strongly recommended to ensure there are no anonymous transactions
+    remaining in the topology before enabling auto-positioning; see [Section 19.1.4.2,
+    “Enabling GTID Transactions Online”](replication-mode-change-online-enable-gtids.html
+    "19.1.4.2 Enabling GTID Transactions Online").
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)从源复制提供了使用GTID自动定位的能力，通过[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")语句的`SOURCE_AUTO_POSITION`选项进行配置。正在使用的复制拓扑结构会影响是否可以启用自动定位，因为此功能依赖于GTIDs，并且与匿名事务不兼容。强烈建议在启用自动定位之前确保拓扑结构中没有匿名事务；参见[第19.1.4.2节，“在线启用GTID事务”](replication-mode-change-online-enable-gtids.html
+    "19.1.4.2 Enabling GTID Transactions Online")。
+- en: 'Valid combinations of [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    and auto-positioning on source and replica are shown in the next table. The meaning
+    of each entry is as follows:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 源和副本上 [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) 和自动定位的有效组合如下表所示。每个条目的含义如下：
+- en: '`Y`: The values of [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    on the source and on the replica are compatible.'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Y`: 源和副本上的 [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    的值兼容。'
+- en: '`N`: The values of [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    on the source and on the replica are not compatible.'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`N`: 源和副本上的 [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    的值不兼容。'
+- en: '`*`: Auto-positioning can be used with this combination of values.'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`*`: 可以使用此值组合进行自动定位。'
+- en: '**Table 19.1 Valid Combinations of Source and Replica gtid_mode**'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表19.1 源和副本 gtid_mode 的有效组合**'
+- en: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) | Source `OFF`
+    | Source `OFF_PERMISSIVE` | Source `ON_PERMISSIVE` | Source `ON` |'
+  id: totrans-22
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) | 源 `OFF`
+    | 源 `OFF_PERMISSIVE` | 源 `ON_PERMISSIVE` | 源 `ON` |'
+- en: '| Replica `OFF` | Y | Y | N | N |'
+  id: totrans-23
+  prefs: []
+  type: TYPE_TB
+  zh: '| 副本 `OFF` | Y | Y | N | N |'
+- en: '| Replica `OFF_PERMISSIVE` | Y | Y | Y | Y* |'
+  id: totrans-24
+  prefs: []
+  type: TYPE_TB
+  zh: '| 副本 `OFF_PERMISSIVE` | Y | Y | Y | Y* |'
+- en: '| Replica `ON_PERMISSIVE` | Y | Y | Y | Y* |'
+  id: totrans-25
+  prefs: []
+  type: TYPE_TB
+  zh: '| 副本 `ON_PERMISSIVE` | Y | Y | Y | Y* |'
+- en: '| Replica `ON` | N | N | Y | Y* |'
+  id: totrans-26
+  prefs: []
+  type: TYPE_TB
+  zh: '| 副本 `ON` | N | N | Y | Y* |'
+- en: 'The current value of [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    also affects [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next). The
+    next table shows the behavior of the server for combinations of different values
+    of [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) and [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next).
+    The meaning of each entry is as follows:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当前的 [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) 值也会影响 [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)。下表显示了服务器对不同值的
+    [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) 和 [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    组合的行为。每个条目的含义如下：
+- en: '`ANONYMOUS`: Generate an anonymous transaction.'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`匿名`: 生成匿名事务。'
+- en: '`Error`: Generate an error, and do not execute `SET GTID_NEXT`.'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`错误`: 生成错误，并且不执行 `SET GTID_NEXT`。'
+- en: '`UUID:NUMBER`: Generate a GTID with the specified UUID:NUMBER.'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`UUID:NUMBER`: 生成具有指定 UUID:NUMBER 的 GTID。'
+- en: '`New GTID`: Generate a GTID with an automatically generated number.'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`新 GTID`: 生成带有自动生成编号的 GTID。'
+- en: '**Table 19.2 Valid Combinations of gtid_mode and gtid_next**'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表19.2 gtid_mode 和 gtid_next 的有效组合**'
+- en: '|  | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) AUTOMATICbinary
+    log on | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) AUTOMATICbinary
+    log off | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) ANONYMOUS
+    | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) UUID:NUMBER |'
+  id: totrans-33
+  prefs: []
+  type: TYPE_TB
+  zh: '|  | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) 自动二进制日志开启
+    | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) 自动二进制日志关闭 | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    匿名 | [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) UUID:NUMBER
+    |'
+- en: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `OFF` | ANONYMOUS
+    | ANONYMOUS | ANONYMOUS | Error |'
+  id: totrans-34
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `OFF` | 匿名
+    | 匿名 | 匿名 | 错误 |'
+- en: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `OFF_PERMISSIVE`
+    | ANONYMOUS | ANONYMOUS | ANONYMOUS | UUID:NUMBER |'
+  id: totrans-35
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `OFF_PERMISSIVE`
+    | 匿名 | 匿名 | 匿名 | UUID:NUMBER |'
+- en: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `ON_PERMISSIVE`
+    | New GTID | ANONYMOUS | ANONYMOUS | UUID:NUMBER |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `ON_PERMISSIVE`
+    | 新 GTID | 匿名 | 匿名 | UUID:NUMBER |'
+- en: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `ON` | New
+    GTID | ANONYMOUS | Error | UUID:NUMBER |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode) `ON` | 新 GTID
+    | 匿名 | 错误 | UUID:NUMBER |'
+- en: When binary logging is not in use and [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    is `AUTOMATIC`, then no GTID is generated, which is consistent with the behavior
+    of previous versions of MySQL.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当未使用二进制日志记录且 [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    为 `AUTOMATIC` 时，不会生成任何 GTID，这与 MySQL 之前版本的行为一致。

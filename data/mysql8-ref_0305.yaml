@@ -1,0 +1,636 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/version-tokens-usage.html](https://dev.mysql.com/doc/refman/8.0/en/version-tokens-usage.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/version-tokens-usage.html](https://dev.mysql.com/doc/refman/8.0/en/version-tokens-usage.html)
+- en: 7.6.6.3 Using Version Tokens
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.6.6.3 使用版本令牌
+- en: Before using Version Tokens, install it according to the instructions provided
+    at [Section 7.6.6.2, “Installing or Uninstalling Version Tokens”](version-tokens-installation.html
+    "7.6.6.2 Installing or Uninstalling Version Tokens").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用版本令牌之前，请根据[第7.6.6.2节，“安装或卸载版本令牌”](version-tokens-installation.html "7.6.6.2 安装或卸载版本令牌")中提供的说明进行安装。
+- en: 'A scenario in which Version Tokens can be useful is a system that accesses
+    a collection of MySQL servers but needs to manage them for load balancing purposes
+    by monitoring them and adjusting server assignments according to load changes.
+    Such a system comprises these elements:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 版本令牌可以派上用场的一个场景是访问一组MySQL服务器的系统，但需要通过监视它们并根据负载变化调整服务器分配来进行负载平衡管理。这样的系统包括以下元素：
+- en: The collection of MySQL servers to be managed.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要管理的MySQL服务器集合。
+- en: An administrative or management application that communicates with the servers
+    and organizes them into high-availability groups. Groups serve different purposes,
+    and servers within each group may have different assignments. Assignment of a
+    server within a certain group can change at any time.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与服务器通信并将其组织成高可用性组的管理或管理应用程序。组具有不同的目的，每个组内的服务器可能具有不同的分配。某个组内服务器的分配可以随时更改。
+- en: Client applications that access the servers to retrieve and update data, choosing
+    servers according to the purposes assigned them. For example, a client should
+    not send an update to a read-only server.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端应用程序访问服务器以检索和更新数据，根据分配给它们的目的选择服务器。例如，客户端不应向只读服务器发送更新。
+- en: 'Version Tokens permit server access to be managed according to assignment without
+    requiring clients to repeatedly query the servers about their assignments:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 版本令牌允许根据分配管理服务器访问，而无需客户端反复查询服务器的分配情况：
+- en: The management application performs server assignments and establishes version
+    tokens on each server to reflect its assignment. The application caches this information
+    to provide a central access point to it.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 管理应用程序执行服务器分配并在每个服务器上建立版本令牌以反映其分配。该应用程序缓存此信息以提供对其的集中访问点。
+- en: If at some point the management application needs to change a server assignment
+    (for example, to change it from permitting writes to read only), it changes the
+    server's version token list and updates its cache.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果管理应用程序在某个时刻需要更改服务器分配（例如，将其从允许写入更改为只读），则更改服务器的版本令牌列表并更新其缓存。
+- en: To improve performance, client applications obtain cache information from the
+    management application, enabling them to avoid having to retrieve information
+    about server assignments for each statement. Based on the type of statements it
+    issues (for example, reads versus writes), a client selects an appropriate server
+    and connects to it.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了提高性能，客户端应用程序从管理应用程序获取缓存信息，使它们无需为每个语句检索有关服务器分配的信息。根据其发出的语句类型（例如，读取与写入），客户端选择适当的服务器并连接到它。
+- en: In addition, the client sends to the server its own client-specific version
+    tokens to register the assignment it requires of the server. For each statement
+    sent by the client to the server, the server compares its own token list with
+    the client token list. If the server token list contains all tokens present in
+    the client token list with the same values, there is a match and the server executes
+    the statement.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此外，客户端向服务器发送自己的客户端特定版本令牌，以注册其对服务器所需的分配。对于客户端发送给服务器的每个语句，服务器将其自己的令牌列表与客户端令牌列表进行比较。如果服务器令牌列表包含客户端令牌列表中具有相同值的所有令牌，则存在匹配项，服务器执行该语句。
+- en: On the other hand, perhaps the management application has changed the server
+    assignment and its version token list. In this case, the new server assignment
+    may now be incompatible with the client requirements. A token mismatch between
+    the server and client token lists occurs and the server returns an error in reply
+    to the statement. This is an indication to the client to refresh its version token
+    information from the management application cache, and to select a new server
+    to communicate with.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另一方面，也许管理应用程序已更改了服务器分配及其版本令牌列表。在这种情况下，新的服务器分配现在可能与客户端要求不兼容。服务器和客户端令牌列表之间存在令牌不匹配，并且服务器在回复语句中返回错误。这是向客户端指示从管理应用程序缓存中刷新其版本令牌信息，并选择一个新服务器进行通信的迹象。
+- en: 'The client-side logic for detecting version token errors and selecting a new
+    server can be implemented different ways:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于检测版本令牌错误并选择新服务器的客户端端逻辑可以以不同的方式实现：
+- en: The client can handle all version token registration, mismatch detection, and
+    connection switching itself.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端可以自行处理所有版本令牌注册、不匹配检测和连接切换。
+- en: The logic for those actions can be implemented in a connector that manages connections
+    between clients and MySQL servers. Such a connector might handle mismatch error
+    detection and statement resending itself, or it might pass the error to the application
+    and leave it to the application to resend the statement.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这些操作的逻辑可以在一个连接器中实现，该连接器管理客户端和MySQL服务器之间的连接。这样的连接器可能会自行处理不匹配错误检测和语句重发，或者将错误传递给应用程序，由应用程序重新发送语句。
+- en: The following example illustrates the preceding discussion in more concrete
+    form.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例以更具体的形式说明了前面的讨论。
+- en: When Version Tokens initializes on a given server, the server's version token
+    list is empty. Token list maintenance is performed by calling functions. The [`VERSION_TOKEN_ADMIN`](privileges-provided.html#priv_version-token-admin)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege)
+    is required to call any of the Version Token functions, so token list modification
+    is expected to be done by a management or administrative application that has
+    that privilege.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当版本令牌在给定服务器上初始化时，服务器的版本令牌列表为空。通过调用函数执行令牌列表维护。调用任何版本令牌函数都需要[`VERSION_TOKEN_ADMIN`](privileges-provided.html#priv_version-token-admin)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限），因此预计令牌列表修改将由具有该权限的管理或管理应用程序执行。
+- en: Suppose that a management application communicates with a set of servers that
+    are queried by clients to access employee and product databases (named `emp` and
+    `prod`, respectively). All servers are permitted to process data retrieval statements,
+    but only some of them are permitted to make database updates. To handle this on
+    a database-specific basis, the management application establishes a list of version
+    tokens on each server. In the token list for a given server, token names represent
+    database names and token values are `read` or `write` depending on whether the
+    database must be used in read-only fashion or whether it can take reads and writes.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设管理应用程序与一组由客户端查询以访问员工和产品数据库（分别命名为`emp`和`prod`）的服务器通信。所有服务器都被允许处理数据检索语句，但只有一些服务器被允许进行数据库更新。为了在特定于数据库的基础上处理这个问题，管理应用程序在每台服务器上建立了一个版本令牌列表。在给定服务器的令牌列表中，令牌名称代表数据库名称，令牌值为`read`或`write`，取决于数据库必须以只读方式使用还是可以进行读写操作。
+- en: Client applications register a list of version tokens they require the server
+    to match by setting a system variable. Variable setting occurs on a client-specific
+    basis, so different clients can register different requirements. By default, the
+    client token list is empty, which matches any server token list. When a client
+    sets its token list to a nonempty value, matching may succeed or fail, depending
+    on the server version token list.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端应用程序通过设置系统变量注册它们需要服务器匹配的版本令牌列表。变量设置是基于特定客户端的，因此不同的客户端可以注册不同的要求。默认情况下，客户端令牌列表为空，与任何服务器令牌列表匹配。当客户端将其令牌列表设置为非空值时，匹配可能成功或失败，这取决于服务器版本令牌列表。
+- en: 'To define the version token list for a server, the management application calls
+    the [`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)
+    function. (There are also functions for modifying and displaying the token list,
+    described later.) For example, the application might send these statements to
+    a group of three servers:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为服务器定义版本令牌列表，管理应用程序调用[`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)函数。（还有用于修改和显示令牌列表的函数，稍后描述。）例如，应用程序可能向三个服务器组发送以下语句：
+- en: 'Server 1:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '服务器 1:'
+- en: '[PRE0]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Server 2:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '服务器 2:'
+- en: '[PRE1]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Server 3:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '服务器 3:'
+- en: '[PRE2]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The token list in each case is specified as a semicolon-separated list of `*`name`*=*`value`*`
+    pairs. The resulting token list values result in these server assignments:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在每种情况下，令牌列表都被指定为以分号分隔的`*`name`*=*`value`*`对的列表。生成的令牌列表值导致以下服务器分配：
+- en: Any server accepts reads for either database.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 任何服务器都接受任一数据库的读取。
+- en: Only server 2 accepts updates for the `emp` database.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只有服务器 2 接受`emp`数据库的更新。
+- en: Only server 3 accepts updates for the `prod` database.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只有服务器 3 接受`prod`数据库的更新���
+- en: In addition to assigning each server a version token list, the management application
+    also maintains a cache that reflects the server assignments.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了为每个服务器分配版本令牌列表外，管理应用程序还维护反映服务器分配的缓存。
+- en: 'Before communicating with the servers, a client application contacts the management
+    application and retrieves information about server assignments. Then the client
+    selects a server based on those assignments. Suppose that a client wants to perform
+    both reads and writes on the `emp` database. Based on the preceding assignments,
+    only server 2 qualifies. The client connects to server 2 and registers its server
+    requirements there by setting its [`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)
+    system variable:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在与服务器通信之前，客户端应用程序会联系管理应用程序并检索有关服务器分配的信息。然后客户端根据这些分配选择服务器。假设客户端想在`emp`数据库上执行读取和写入操作。根据前述分配，只有服务器
+    2 符合条件。客户端连接到服务器 2 并通过设置其[`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)系统变量在那里注册其服务器要求：
+- en: '[PRE3]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'For subsequent statements sent by the client to server 2, the server compares
+    its own version token list to the client list to check whether they match. If
+    so, statements execute normally:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于客户端发送到服务器 2 的后续语句，服务器将比较自己的版本令牌列表与客户端列表，以检查它们是否匹配。如果匹配，则语句正常执行：
+- en: '[PRE4]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Discrepancies between the server and client version token lists can occur two
+    ways:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器和客户端版本令牌列表之间的差异可能以两种方式发生：
+- en: A token name in the [`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)
+    value is not present in the server token list. In this case, an [`ER_VTOKEN_PLUGIN_TOKEN_NOT_FOUND`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_vtoken_plugin_token_not_found)
+    error occurs.
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)值中的令牌名称不在服务器令牌列表中。在这种情况下，会发生[`ER_VTOKEN_PLUGIN_TOKEN_NOT_FOUND`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_vtoken_plugin_token_not_found)错误。
+- en: A token value in the [`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)
+    value differs from the value of the corresponding token in the server token list.
+    In this case, an [`ER_VTOKEN_PLUGIN_TOKEN_MISMATCH`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_vtoken_plugin_token_mismatch)
+    error occurs.
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)值中的令牌值与服务器令牌列表中相应令牌的值不同。在这种情况下，会发生[`ER_VTOKEN_PLUGIN_TOKEN_MISMATCH`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_vtoken_plugin_token_mismatch)错误。
+- en: 'As long as the assignment of server 2 does not change, the client continues
+    to use it for reads and writes. But suppose that the management application wants
+    to change server assignments so that writes for the `emp` database must be sent
+    to server 1 instead of server 2\. To do this, it uses [`version_tokens_edit()`](version-tokens-reference.html#function_version-tokens-edit)
+    to modify the `emp` token value on the two servers (and updates its cache of server
+    assignments):'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只要服务器 2 的分配不改变，客户端就会继续将其用于读取和写入。但假设管理应用程序想要更改服务器分配，以便将`emp`数据库的写入操作发送到服务器 1
+    而不是服务器 2。为此，它使用[`version_tokens_edit()`](version-tokens-reference.html#function_version-tokens-edit)来修改两个服务器上的`emp`令牌值（并更新其服务器分配的缓存）：
+- en: 'Server 1:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '服务器 1:'
+- en: '[PRE5]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Server 2:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '服务器 2:'
+- en: '[PRE6]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '[`version_tokens_edit()`](version-tokens-reference.html#function_version-tokens-edit)
+    modifies the named tokens in the server token list and leaves other tokens unchanged.'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_edit()`](version-tokens-reference.html#function_version-tokens-edit)
+    修改服务器令牌列表中命名的令牌，并保持其他令牌不变。'
+- en: 'The next time the client sends a statement to server 2, its own token list
+    no longer matches the server token list and an error occurs:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下次客户端向服务器 2 发送语句时，其自身的令牌列表不再与服务器令牌列表匹配，将会发生错误：
+- en: '[PRE7]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: In this case, the client should contact the management application to obtain
+    updated information about server assignments, select a new server, and send the
+    failed statement to the new server.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，客户端应联系管理应用程序以获取关于服务器分配的更新信息，选择一个新服务器，并将失败的语句发送到新服务器。
+- en: Note
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Each client must cooperate with Version Tokens by sending only statements in
+    accordance with the token list that it registers with a given server. For example,
+    if a client registers a token list of `'emp=read'`, there is nothing in Version
+    Tokens to prevent the client from sending updates for the `emp` database. The
+    client itself must refrain from doing so.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个客户端必须通过仅发送符合其向特定服务器注册的令牌列表的语句来与版本令牌合作。例如，如果客户端注册了一个令牌列表为`'emp=read'`，那么版本令牌中没有任何内容可以阻止客户端发送对`emp`数据库的更新。客户端必须自行避免这样做。
+- en: 'For each statement received from a client, the server implicitly uses locking,
+    as follows:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于从客户端接收的每个语句，服务器隐式使用锁定，如下所示：
+- en: Take a shared lock for each token named in the client token list (that is, in
+    the [`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)
+    value)
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于客户端令牌列表中命名的每个令牌（即在[`version_tokens_session`](version-tokens-reference.html#sysvar_version_tokens_session)值中），获取共享锁。
+- en: Perform the comparison between the server and client token lists
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行服务器和客户端令牌列表之间的比较
+- en: Execute the statement or produce an error depending on the comparison result
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 根据比较结果执行语句或产生错误
+- en: Release the locks
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 释放锁
+- en: The server uses shared locks so that comparisons for multiple sessions can occur
+    without blocking, while preventing changes to the tokens for any session that
+    attempts to acquire an exclusive lock before it manipulates tokens of the same
+    names in the server token list.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用共享锁，以便进行多个会话的比较而不会阻塞，同时防止任何尝试在操作具有相同名称的令牌之前获取独占锁的会话对令牌进行更改。
+- en: The preceding example uses only a few of the functions included in the Version
+    Tokens plugin library, but there are others. One set of functions permits the
+    server's list of version tokens to be manipulated and inspected. Another set of
+    functions permits version tokens to be locked and unlocked.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前面的示例仅使用了版本令牌插件库中包含的一些函数，但还有其他函数。一组函数允许操作和检查服务器的版本令牌列表。另一组函数允许锁定和解锁版本令牌。
+- en: 'These functions permit the server''s list of version tokens to be created,
+    changed, removed, and inspected:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些函数允许创建、更改、删除和检查服务器的版本令牌列表：
+- en: '[`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)
+    completely replaces the current list and assigns a new list. The argument is a
+    semicolon-separated list of `*`name`*=*`value`*` pairs.'
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)
+    完全替换当前列表并分配新列表。参数是一个以分号分隔的`*`name`*=*`value`*`对列表。'
+- en: '[`version_tokens_edit()`](version-tokens-reference.html#function_version-tokens-edit)
+    enables partial modifications to the current list. It can add new tokens or change
+    the values of existing tokens. The argument is a semicolon-separated list of `*`name`*=*`value`*`
+    pairs.'
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_edit()`](version-tokens-reference.html#function_version-tokens-edit)
+    允许对当前列表进行部分修改。它可以添加新令牌或更改现有令牌的值。参数是一个以分号分隔的`*`name`*=*`value`*`对列表。'
+- en: '[`version_tokens_delete()`](version-tokens-reference.html#function_version-tokens-delete)
+    deletes tokens from the current list. The argument is a semicolon-separated list
+    of token names.'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_delete()`](version-tokens-reference.html#function_version-tokens-delete)
+    从当前列表中删除令牌。参数是一个以分号分隔的令牌名称列表。'
+- en: '[`version_tokens_show()`](version-tokens-reference.html#function_version-tokens-show)
+    displays the current token list. It takes no argument.'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_show()`](version-tokens-reference.html#function_version-tokens-show)
+    显示当前令牌列表。它不需要参数。'
+- en: 'Each of those functions, if successful, returns a binary string indicating
+    what action occurred. The following example establishes the server token list,
+    modifies it by adding a new token, deletes some tokens, and displays the resulting
+    token list:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果成功，这些函数中的每一个都会返回一个指示发生了什么操作的二进制字符串。以下示例建立了服务器令牌列表，通过添加新令牌对其进行修改，删除一些令牌，并显示生成的令牌列表：
+- en: '[PRE8]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Warnings occur if a token list is malformed:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果令牌列表格式不正确，则会出现警告：
+- en: '[PRE9]'
+  id: totrans-65
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'As mentioned previously, version tokens are defined using a semicolon-separated
+    list of `*`name`*=*`value`*` pairs. Consider this invocation of [`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set):'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，版本令牌是使用分号分隔的`*`名称`*=*`值`*`对定义的。考虑这个[`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)的调用：
+- en: '[PRE10]'
+  id: totrans-67
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'Version Tokens interprets the argument as follows:'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 版本令牌解释参数如下：
+- en: Whitespace around names and values is ignored. Whitespace within names and values
+    is permitted. (For [`version_tokens_delete()`](version-tokens-reference.html#function_version-tokens-delete),
+    which takes a list of names without values, whitespace around names is ignored.)
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 名称和值周围的空格将被忽略。允许名称和值内部的空格。（对于[`version_tokens_delete()`](version-tokens-reference.html#function_version-tokens-delete)，它接受没有值的名称列表，名称周围的空格将被忽略。）
+- en: There is no quoting mechanism.
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有引用机制。
+- en: Order of tokens is not significant except that if a token list contains multiple
+    instances of a given token name, the last value takes precedence over earlier
+    values.
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 令牌的顺序不重要，除非令牌列表包含给定令牌名称的多个实例，最后一个值优先于先前的值。
+- en: 'Given those rules, the preceding [`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)
+    call results in a token list with two tokens: `tok1` has the value `1''2 3"4`,
+    and `tok2` has the value `a = b`. To verify this, call [`version_tokens_show()`](version-tokens-reference.html#function_version-tokens-show):'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据这些规则，前面的[`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)调用会导致一个包含两个令牌的令牌列表：`tok1`的值为`1'2
+    3"4`，`tok2`的值为`a = b`。要验证这一点，请调用[`version_tokens_show()`](version-tokens-reference.html#function_version-tokens-show)：
+- en: '[PRE11]'
+  id: totrans-73
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: If the token list contains two tokens, why did [`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)
+    return the value `3 version tokens set`? That occurred because the original token
+    list contained two definitions for `tok1`, and the second definition replaced
+    the first.
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果令牌列表包含两个令牌，为什么[`version_tokens_set()`](version-tokens-reference.html#function_version-tokens-set)返回值为`3
+    version tokens set`？这是因为原始令牌列表包含了两个`tok1`的定义，第二个定义替换了第一个。
+- en: 'The Version Tokens token-manipulation functions place these constraints on
+    token names and values:'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 版本令牌的令牌操作函数对令牌名称和值施加了以下约束：
+- en: Token names cannot contain `=` or `;` characters and have a maximum length of
+    64 characters.
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 令牌名称不能包含`=`��`；`字符，最大长度为64个字符。
+- en: Token values cannot contain `;` characters. Length of values is constrained
+    by the value of the [`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)
+    system variable.
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 令牌值不能包含`；`字符。值的长度受[`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)系统变量值的限制。
+- en: Version Tokens treats token names and values as binary strings, so comparisons
+    are case-sensitive.
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 版本令牌将令牌名称和值视为二进制字符串，因此比较区分大小写。
+- en: 'Version Tokens also includes a set of functions enabling tokens to be locked
+    and unlocked:'
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 版本令牌还包括一组函数，使令牌可以被锁定和解锁：
+- en: '[`version_tokens_lock_exclusive()`](version-tokens-reference.html#function_version-tokens-lock-exclusive)
+    acquires exclusive version token locks. It takes a list of one or more lock names
+    and a timeout value.'
+  id: totrans-80
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_lock_exclusive()`](version-tokens-reference.html#function_version-tokens-lock-exclusive)获取独占版本令牌锁。它接受一个或多个锁名称列表和一个超时值。'
+- en: '[`version_tokens_lock_shared()`](version-tokens-reference.html#function_version-tokens-lock-shared)
+    acquires shared version token locks. It takes a list of one or more lock names
+    and a timeout value.'
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_lock_shared()`](version-tokens-reference.html#function_version-tokens-lock-shared)获取共享版本令牌锁。它接受一个或多个锁名称列表和一个超时值。'
+- en: '[`version_tokens_unlock()`](version-tokens-reference.html#function_version-tokens-unlock)
+    releases version token locks (exclusive and shared). It takes no argument.'
+  id: totrans-82
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`version_tokens_unlock()`](version-tokens-reference.html#function_version-tokens-unlock)释放版本令牌锁（独占和共享）。它不接受参数。'
+- en: 'Each locking function returns nonzero for success. Otherwise, an error occurs:'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个锁定函数返回非零值表示成功。否则，将发生错误：
+- en: '[PRE12]'
+  id: totrans-84
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: Locking using Version Tokens locking functions is advisory; applications must
+    agree to cooperate.
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用版本令牌锁定函数进行锁定是建议性的；应用程序必须同意合作。
+- en: It is possible to lock nonexisting token names. This does not create the tokens.
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以锁定不存在的令牌名称。这不会创建令牌。
+- en: Note
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Version Tokens locking functions are based on the locking service described
+    at [Section 7.6.9.1, “The Locking Service”](locking-service.html "7.6.9.1 The
+    Locking Service"), and thus have the same semantics for shared and exclusive locks.
+    (Version Tokens uses the locking service routines built into the server, not the
+    locking service function interface, so those functions need not be installed to
+    use Version Tokens.) Locks acquired by Version Tokens use a locking service namespace
+    of `version_token_locks`. Locking service locks can be monitored using the Performance
+    Schema, so this is also true for Version Tokens locks. For details, see [Locking
+    Service Monitoring](locking-service.html#locking-service-monitoring "Locking Service
+    Monitoring").
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 版本令牌锁定函数基于[第 7.6.9.1 节，“锁定服务”](locking-service.html "7.6.9.1 The Locking Service")中描述的锁定服务，并且对于共享和独占锁具有相同的语义。（版本令牌使用内置于服务器中的锁定服务例程，而不是锁定服务函数接口，因此不需要安装这些函数来使用版本令牌。）版本令牌获取的锁使用
+    `version_token_locks` 的锁定服务命名空间。可以使用性能模式监视锁定服务锁，因此对于版本令牌锁也是如此。有关详细信息，请参见[锁定服务监控](locking-service.html#locking-service-monitoring
+    "Locking Service Monitoring")。
+- en: For the Version Tokens locking functions, token name arguments are used exactly
+    as specified. Surrounding whitespace is not ignored and `=` and `;` characters
+    are permitted. This is because Version Tokens simply passes the token names to
+    be locked as is to the locking service.
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于版本令牌锁定函数，令牌名称参数将按照指定的方式使用。周围的空白不会被忽略，`=` 和 `;` 字符是允许的。这是因为版本令牌只是将要锁定的令牌名称原样传递给锁定服务。

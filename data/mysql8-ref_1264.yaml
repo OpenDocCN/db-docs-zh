@@ -1,0 +1,231 @@
+- en: 17.16.1 Monitoring ALTER TABLE Progress for InnoDB Tables Using Performance
+    Schema
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.16.1 监视使用性能模式的InnoDB表的[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") 进度
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/monitor-alter-table-performance-schema.html](https://dev.mysql.com/doc/refman/8.0/en/monitor-alter-table-performance-schema.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/monitor-alter-table-performance-schema.html](https://dev.mysql.com/doc/refman/8.0/en/monitor-alter-table-performance-schema.html)
+- en: You can monitor [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    progress for `InnoDB` tables using [Performance Schema](performance-schema.html
+    "Chapter 29 MySQL Performance Schema").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[性能模式](performance-schema.html "Chapter 29 MySQL Performance Schema")监视`InnoDB`表的[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")进度。
+- en: There are seven stage events that represent different phases of [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement"). Each stage event reports a running total of `WORK_COMPLETED`
+    and `WORK_ESTIMATED` for the overall [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") operation as it progresses through its different phases. `WORK_ESTIMATED`
+    is calculated using a formula that takes into account all of the work that [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") performs, and may be
+    revised during [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    processing. `WORK_COMPLETED` and `WORK_ESTIMATED` values are an abstract representation
+    of all of the work performed by [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有七个阶段事件代表[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 的不同阶段。每个阶段事件报告了整体[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 操作的`WORK_COMPLETED`和`WORK_ESTIMATED`的累计值，随着其在不同阶段的进行而不断更新。`WORK_ESTIMATED`是使用一个公式计算的，该公式考虑了[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 执行的所有工作，并且可能在[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 处理过程中进行修订。`WORK_COMPLETED`和`WORK_ESTIMATED`的值是对[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 执行的所有工作的抽象表示。
+- en: 'In order of occurrence, [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") stage events include:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 按顺序，[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 阶段事件包括：
+- en: '`stage/innodb/alter table (read PK and internal sort)`: This stage is active
+    when [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") is in the
+    reading-primary-key phase. It starts with `WORK_COMPLETED=0` and `WORK_ESTIMATED`
+    set to the estimated number of pages in the primary key. When the stage is completed,
+    `WORK_ESTIMATED` is updated to the actual number of pages in the primary key.'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`stage/innodb/alter table (read PK and internal sort)`: 当[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")处于读取主键阶段时，此阶段处于活动状态。它从`WORK_COMPLETED=0`开始，并将`WORK_ESTIMATED`设置为主键中估计的页面数。当阶段完成时，将更新`WORK_ESTIMATED`为主键中实际的页面数。'
+- en: '`stage/innodb/alter table (merge sort)`: This stage is repeated for each index
+    added by the [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    operation.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`stage/innodb/alter table (merge sort)`: 此阶段针对[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")操作添加的每个索引重复执行。'
+- en: '`stage/innodb/alter table (insert)`: This stage is repeated for each index
+    added by the [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    operation.'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`stage/innodb/alter table (insert)`: 此阶段针对[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")操作添加的每个索引重复执行。'
+- en: '`stage/innodb/alter table (log apply index)`: This stage includes the application
+    of DML log generated while [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") was running.'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`stage/innodb/alter table (log apply index)`: 此阶段包括应用在运行[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")时生成的DML日志。'
+- en: '`stage/innodb/alter table (flush)`: Before this stage begins, `WORK_ESTIMATED`
+    is updated with a more accurate estimate, based on the length of the flush list.'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`stage/innodb/alter table (flush)`: 在此阶段开始之前，根据刷新列表的长度，更新`WORK_ESTIMATED`以获得更准确的估计。'
+- en: '`stage/innodb/alter table (log apply table)`: This stage includes the application
+    of concurrent DML log generated while [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") was running. The duration of this phase depends on the extent
+    of table changes. This phase is instant if no concurrent DML was run on the table.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`stage/innodb/alter table (log apply table)`: 此阶段包括应用在运行[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")时生成的并发DML日志。此阶段的持续时间取决于表更改的程度。如果表上没有运行并发DML，则此阶段是瞬时的。'
+- en: '`stage/innodb/alter table (end)`: Includes any remaining work that appeared
+    after the flush phase, such as reapplying DML that was executed on the table while
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") was running.'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`stage/innodb/alter table (end)`: 包括在刷新阶段之后出现的任何剩余工作，例如在[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")运行时对表执行的DML的重新应用。'
+- en: Note
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`InnoDB` [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") stage
+    events do not currently account for the addition of spatial indexes.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`的[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")阶段事件目前不考虑空间索引的添加。'
+- en: ALTER TABLE Monitoring Example Using Performance Schema
+  id: totrans-14
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 使用性能模式监控`ALTER TABLE`的示例
+- en: The following example demonstrates how to enable the `stage/innodb/alter table%`
+    stage event instruments and related consumer tables to monitor [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") progress. For information about Performance Schema
+    stage event instruments and related consumers, see [Section 29.12.5, “Performance
+    Schema Stage Event Tables”](performance-schema-stage-tables.html "29.12.5 Performance
+    Schema Stage Event Tables").
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了如何启用`stage/innodb/alter table%`阶段事件工具和相关消费者表来监控[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")的进度。有关性能模式阶段事件工具和相关消费者的信息，请参阅[第29.12.5节，“性能模式阶段事件表”](performance-schema-stage-tables.html
+    "29.12.5 Performance Schema Stage Event Tables")。
+- en: 'Enable the `stage/innodb/alter%` instruments:'
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启用`stage/innodb/alter%`工具：
+- en: '[PRE0]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Enable the stage event consumer tables, which include [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table"), [`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table"), and [`events_stages_history_long`](performance-schema-events-stages-history-long-table.html
+    "29.12.5.3 The events_stages_history_long Table").
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启用包括[`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table")、[`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table")和[`events_stages_history_long`](performance-schema-events-stages-history-long-table.html
+    "29.12.5.3 The events_stages_history_long Table")的阶段事件消费者表。
+- en: '[PRE1]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Run an [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") operation.
+    In this example, a `middle_name` column is added to the employees table of the
+    employees sample database.
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行一个[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")操作。在此示例中，向employees示例数据库的employees表中添加一个`middle_name`列。
+- en: '[PRE2]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Check the progress of the [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") operation by querying the Performance Schema [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table") table. The stage event shown differs
+    depending on which [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    phase is currently in progress. The `WORK_COMPLETED` column shows the work completed.
+    The `WORK_ESTIMATED` column provides an estimate of the remaining work.
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过查询性能模式[`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table")表来检查[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")操作的进度。显示的阶段事件取决于当前正在进行的[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")阶段。`WORK_COMPLETED`列显示已完成的工作。`WORK_ESTIMATED`列提供了剩余工作的估计。
+- en: '[PRE3]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'The [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table") table returns an empty set if the
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") operation has
+    completed. In this case, you can check the [`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table") table to view event data for the
+    completed operation. For example:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")操作已完成，则[`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table")表将返回一个空集。在这种情况下，您可以查询[`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table")表来查看已完成操作的事件数据。例如：
+- en: '[PRE4]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: As shown above, the `WORK_ESTIMATED` value was revised during `ALTER TABLE`
+    processing. The estimated work after completion of the initial stage is 1213\.
+    When `ALTER TABLE` processing completed, `WORK_ESTIMATED` was set to the actual
+    value, which is 1981.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如上所示，在`ALTER TABLE`处理过程中`WORK_ESTIMATED`值已经修订。初始阶段完成后的估计工作量为1213。当`ALTER TABLE`处理完成时，`WORK_ESTIMATED`被设置为实际值，即1981。

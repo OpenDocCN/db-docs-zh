@@ -1,0 +1,604 @@
+- en: 7.4.5 The Slow Query Log
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.4.5 慢查询日志
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html](https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html](https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html)
+- en: The slow query log consists of SQL statements that take more than [`long_query_time`](server-system-variables.html#sysvar_long_query_time)
+    seconds to execute and require at least [`min_examined_row_limit`](server-system-variables.html#sysvar_min_examined_row_limit)
+    rows to be examined. The slow query log can be used to find queries that take
+    a long time to execute and are therefore candidates for optimization. However,
+    examining a long slow query log can be a time-consuming task. To make this easier,
+    you can use the [**mysqldumpslow**](mysqldumpslow.html "6.6.10 mysqldumpslow —
+    Summarize Slow Query Log Files") command to process a slow query log file and
+    summarize its contents. See [Section 6.6.10, “mysqldumpslow — Summarize Slow Query
+    Log Files”](mysqldumpslow.html "6.6.10 mysqldumpslow — Summarize Slow Query Log
+    Files").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 慢查询日志包含执行时间超过[`long_query_time`](server-system-variables.html#sysvar_long_query_time)秒且需要至少检查[`min_examined_row_limit`](server-system-variables.html#sysvar_min_examined_row_limit)行的SQL语句。慢查询日志可用于查找执行时间长且需要优化的查询。然而，检查长时间的慢查询日志可能是一项耗时的任务。为了简化这个过程，可以使用[**mysqldumpslow**](mysqldumpslow.html
+    "6.6.10 mysqldumpslow — Summarize Slow Query Log Files")命令处理慢查询日志文件并总结其内容。参见[第6.6.10节，“mysqldumpslow
+    — Summarize Slow Query Log Files”](mysqldumpslow.html "6.6.10 mysqldumpslow —
+    Summarize Slow Query Log Files")。
+- en: The time to acquire the initial locks is not counted as execution time. [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") writes a statement to the slow query log after
+    it has been executed and after all locks have been released, so log order might
+    differ from execution order.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 获取初始锁的时间不计入执行时间。[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")在执行完语句并释放所有锁之后将其写入慢查询日志，因此日志顺序可能与执行顺序不同。
+- en: '[Slow Query Log Parameters](slow-query-log.html#slow-query-log-parameters "Slow
+    Query Log Parameters")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[慢查询日志参数](slow-query-log.html#slow-query-log-parameters "慢查询日志参数")'
+- en: '[Slow Query Log Contents](slow-query-log.html#slow-query-log-contents "Slow
+    Query Log Contents")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[慢查询日志内容](slow-query-log.html#slow-query-log-contents "慢查询日志内容")'
+- en: Slow Query Log Parameters
+  id: totrans-6
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 慢查询日志参数
+- en: The minimum and default values of [`long_query_time`](server-system-variables.html#sysvar_long_query_time)
+    are 0 and 10, respectively. The value can be specified to a resolution of microseconds.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`long_query_time`](server-system-variables.html#sysvar_long_query_time)的最小和默认值分别为0和10。该值可以以微秒为分辨率进行指定。'
+- en: By default, administrative statements are not logged, nor are queries that do
+    not use indexes for lookups. This behavior can be changed using [`log_slow_admin_statements`](server-system-variables.html#sysvar_log_slow_admin_statements)
+    and [`log_queries_not_using_indexes`](server-system-variables.html#sysvar_log_queries_not_using_indexes),
+    as described later.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，不会记录管理语句，也不会记录未使用索引进行查找的查询。可以通过[`log_slow_admin_statements`](server-system-variables.html#sysvar_log_slow_admin_statements)和[`log_queries_not_using_indexes`](server-system-variables.html#sysvar_log_queries_not_using_indexes)进行更改，稍后会详细描述。
+- en: By default, the slow query log is disabled. To specify the initial slow query
+    log state explicitly, use [`--slow_query_log[={0|1}]`](server-system-variables.html#sysvar_slow_query_log).
+    With no argument or an argument of 1, [`--slow_query_log`](server-system-variables.html#sysvar_slow_query_log)
+    enables the log. With an argument of 0, this option disables the log. To specify
+    a log file name, use [`--slow_query_log_file=*`file_name`*`](server-system-variables.html#sysvar_slow_query_log_file).
+    To specify the log destination, use the [`log_output`](server-system-variables.html#sysvar_log_output)
+    system variable (as described in [Section 7.4.1, “Selecting General Query Log
+    and Slow Query Log Output Destinations”](log-destinations.html "7.4.1 Selecting
+    General Query Log and Slow Query Log Output Destinations")).
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，慢查询日志是禁用的。要明确指定初始慢查询日志状态，请使用[`--slow_query_log[={0|1}]`](server-system-variables.html#sysvar_slow_query_log)。没有参数或参数为1时，[`--slow_query_log`](server-system-variables.html#sysvar_slow_query_log)启用日志。参数为0时，此选项禁用日志。要指定日志文件名，请使用[`--slow_query_log_file=*`file_name`*`](server-system-variables.html#sysvar_slow_query_log_file)。要指定日志目标，请使用[`log_output`](server-system-variables.html#sysvar_log_output)系统变量（如[第7.4.1节，“选择通用查询日志和慢查询日志输出目标”](log-destinations.html
+    "7.4.1 选择通用查询日志和慢查询日志输出目标")中所述）。
+- en: Note
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you specify the `TABLE` log destination, see [Log Tables and “Too many open
+    files” Errors](log-destinations.html#log-destinations-tables-open-files "Log Tables
+    and “Too many open files” Errors").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果指定`TABLE`日志目的地，请参阅[Log Tables and “Too many open files” Errors](log-destinations.html#log-destinations-tables-open-files
+    "Log Tables and “Too many open files” Errors")。
+- en: If you specify no name for the slow query log file, the default name is `*`host_name`*-slow.log`.
+    The server creates the file in the data directory unless an absolute path name
+    is given to specify a different directory.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果未为慢查询日志文件指定名称，则默认名称为`*`host_name`*-slow.log`。服务器将在数据目录中创建该文件，除非给定绝对路径名以指定不同的目录。
+- en: To disable or enable the slow query log or change the log file name at runtime,
+    use the global [`slow_query_log`](server-system-variables.html#sysvar_slow_query_log)
+    and [`slow_query_log_file`](server-system-variables.html#sysvar_slow_query_log_file)
+    system variables. Set [`slow_query_log`](server-system-variables.html#sysvar_slow_query_log)
+    to 0 to disable the log or to 1 to enable it. Set [`slow_query_log_file`](server-system-variables.html#sysvar_slow_query_log_file)
+    to specify the name of the log file. If a log file already is open, it is closed
+    and the new file is opened.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在运行时禁用或启用慢查询日志，或更改日志文件名，请使用全局[`slow_query_log`](server-system-variables.html#sysvar_slow_query_log)和[`slow_query_log_file`](server-system-variables.html#sysvar_slow_query_log_file)系统变量。将[`slow_query_log`](server-system-variables.html#sysvar_slow_query_log)设置为0以禁用日志，设置为1以启用日志。将[`slow_query_log_file`](server-system-variables.html#sysvar_slow_query_log_file)设置为指定日志文件的名称。如果已经打开了日志文件，则关闭该文件并打开新文件。
+- en: The server writes less information to the slow query log if you use the [`--log-short-format`](server-options.html#option_mysqld_log-short-format)
+    option.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用[`--log-short-format`](server-options.html#option_mysqld_log-short-format)选项，服务器将向慢查询日志写入较少的信息。
+- en: To include slow administrative statements in the slow query log, enable the
+    [`log_slow_admin_statements`](server-system-variables.html#sysvar_log_slow_admin_statements)
+    system variable. Administrative statements include [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement"), [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement"), [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement"),
+    [`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX Statement"), [`DROP INDEX`](drop-index.html
+    "15.1.27 DROP INDEX Statement"), [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE
+    TABLE Statement"), and [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE
+    Statement").
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在慢查询日志中包含慢管理语句，请启用[`log_slow_admin_statements`](server-system-variables.html#sysvar_log_slow_admin_statements)系统变量。管理语句包括[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")、[`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement")、[`CHECK TABLE`](check-table.html "15.7.3.2 CHECK
+    TABLE Statement")、[`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX Statement")、[`DROP
+    INDEX`](drop-index.html "15.1.27 DROP INDEX Statement")、[`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement")和[`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR
+    TABLE Statement")。
+- en: To include queries that do not use indexes for row lookups in the statements
+    written to the slow query log, enable the [`log_queries_not_using_indexes`](server-system-variables.html#sysvar_log_queries_not_using_indexes)
+    system variable. (Even with that variable enabled, the server does not log queries
+    that would not benefit from the presence of an index due to the table having fewer
+    than two rows.)
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在慢查询日志中写入不使用索引进行行查找的查询语句，请启用[`log_queries_not_using_indexes`](server-system-variables.html#sysvar_log_queries_not_using_indexes)系统变量。（即使启用了该变量，由于表少于两行，服务器也不会记录不受索引影响的查询。）
+- en: When queries that do not use an index are logged, the slow query log may grow
+    quickly. It is possible to put a rate limit on these queries by setting the [`log_throttle_queries_not_using_indexes`](server-system-variables.html#sysvar_log_throttle_queries_not_using_indexes)
+    system variable. By default, this variable is 0, which means there is no limit.
+    Positive values impose a per-minute limit on logging of queries that do not use
+    indexes. The first such query opens a 60-second window within which the server
+    logs queries up to the given limit, then suppresses additional queries. If there
+    are suppressed queries when the window ends, the server logs a summary that indicates
+    how many there were and the aggregate time spent in them. The next 60-second window
+    begins when the server logs the next query that does not use indexes.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当记录不使用索引的查询时，慢查询日志可能会迅速增长。可以通过设置[`log_throttle_queries_not_using_indexes`](server-system-variables.html#sysvar_log_throttle_queries_not_using_indexes)系统变量对这些查询设置速率限制。默认情况下，此变量为0，表示没有限制。正值对不使用索引的查询的日志记录施加每分钟限制。第一个这样的查询打开一个60秒的窗口，在此窗口内，服务器记录达到给定限制的查询，然后抑制额外的查询。如果在窗口结束时有被抑制的查询，服务器将记录一个摘要，指示有多少个查询以及在其中花费的总时间。当服务器记录下一个不使用索引的查询时，下一个60秒的窗口开始。
+- en: 'The server uses the controlling parameters in the following order to determine
+    whether to write a query to the slow query log:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器按照以下顺序使用控制参数来确定是否将查询写入慢查询日志：
+- en: The query must either not be an administrative statement, or [`log_slow_admin_statements`](server-system-variables.html#sysvar_log_slow_admin_statements)
+    must be enabled.
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 查询必须不是管理语句，或者必须启用[`log_slow_admin_statements`](server-system-variables.html#sysvar_log_slow_admin_statements)。
+- en: The query must have taken at least [`long_query_time`](server-system-variables.html#sysvar_long_query_time)
+    seconds, or [`log_queries_not_using_indexes`](server-system-variables.html#sysvar_log_queries_not_using_indexes)
+    must be enabled and the query used no indexes for row lookups.
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 查询必须至少花费[`long_query_time`](server-system-variables.html#sysvar_long_query_time)秒，或者必须启用[`log_queries_not_using_indexes`](server-system-variables.html#sysvar_log_queries_not_using_indexes)，并且查询没有使用索引进行行查找。
+- en: The query must have examined at least [`min_examined_row_limit`](server-system-variables.html#sysvar_min_examined_row_limit)
+    rows.
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 查询必须至少检查了[`min_examined_row_limit`](server-system-variables.html#sysvar_min_examined_row_limit)行。
+- en: The query must not be suppressed according to the [`log_throttle_queries_not_using_indexes`](server-system-variables.html#sysvar_log_throttle_queries_not_using_indexes)
+    setting.
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 查询必须根据[`log_throttle_queries_not_using_indexes`](server-system-variables.html#sysvar_log_throttle_queries_not_using_indexes)设置而不被抑制。
+- en: The [`log_timestamps`](server-system-variables.html#sysvar_log_timestamps) system
+    variable controls the time zone of timestamps in messages written to the slow
+    query log file (as well as to the general query log file and the error log). It
+    does not affect the time zone of general query log and slow query log messages
+    written to log tables, but rows retrieved from those tables can be converted from
+    the local system time zone to any desired time zone with [`CONVERT_TZ()`](date-and-time-functions.html#function_convert-tz)
+    or by setting the session [`time_zone`](server-system-variables.html#sysvar_time_zone)
+    system variable.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`log_timestamps`](server-system-variables.html#sysvar_log_timestamps)系统变量控制写入慢查询日志文件（以及一般查询日志文件和错误日志）中消息的时间戳的时区。它不影响写入日志表的一般查询日志和慢查询日志消息的时区，但是可以通过[`CONVERT_TZ()`](date-and-time-functions.html#function_convert-tz)或设置会话[`time_zone`](server-system-variables.html#sysvar_time_zone)系统变量，将从这些表中检索的行从本地系统时区转换为任何所需的时区。'
+- en: By default, a replica does not write replicated queries to the slow query log.
+    To change this, enable the system variable [`log_slow_replica_statements`](replication-options-replica.html#sysvar_log_slow_replica_statements)
+    (from MySQL 8.0.26) or [`log_slow_slave_statements`](replication-options-replica.html#sysvar_log_slow_slave_statements)
+    (before MySQL 8.0.26). Note that if row-based replication is in use ([`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)),
+    these system variables have no effect. Queries are only added to the replica's
+    slow query log when they are logged in statement format in the binary log, that
+    is, when [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, or when [`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set and the statement is logged in statement format. Slow queries that are
+    logged in row format when [`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, or that are logged when [`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, are not added to the replica's slow query log, even if [`log_slow_replica_statements`](replication-options-replica.html#sysvar_log_slow_replica_statements)
+    or [`log_slow_slave_statements`](replication-options-replica.html#sysvar_log_slow_slave_statements)
+    is enabled.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，副本不会将复制的查询写入慢查询日志。要更改此设置，请启用系统变量[`log_slow_replica_statements`](replication-options-replica.html#sysvar_log_slow_replica_statements)（从MySQL
+    8.0.26开始）或[`log_slow_slave_statements`](replication-options-replica.html#sysvar_log_slow_slave_statements)（在MySQL
+    8.0.26之前）。请注意，如果使用基于行的复制（[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)），这些系统变量不起作用。仅当以语句格式在二进制日志中记录时，即当设置了[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)时，或者当设置了[`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)并且语句以语句格式记录时，才会将查询添加到副本的慢查询日志中。即使启用了[`log_slow_replica_statements`](replication-options-replica.html#sysvar_log_slow_replica_statements)或[`log_slow_slave_statements`](replication-options-replica.html#sysvar_log_slow_slave_statements)，当以行格式记录慢查询时，即使设置了[`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)，或者当设置了[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)，也不会将其添加到副本的慢查询日志中。
+- en: Slow Query Log Contents
+  id: totrans-25
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 慢查询日志内容
+- en: When the slow query log is enabled, the server writes output to any destinations
+    specified by the [`log_output`](server-system-variables.html#sysvar_log_output)
+    system variable. If you enable the log, the server opens the log file and writes
+    startup messages to it. However, further logging of queries to the file does not
+    occur unless the `FILE` log destination is selected. If the destination is `NONE`,
+    the server writes no queries even if the slow query log is enabled. Setting the
+    log file name has no effect on logging if `FILE` is not selected as an output
+    destination.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当慢查询日志被启用时，服务器会将输出写入由[`log_output`](server-system-variables.html#sysvar_log_output)系统变量指定的任何目的地。如果启用了日志，服务器会打开日志文件并将启动消息写入其中。然而，除非选择了`FILE`日志目的地，否则不会进一步将查询记录到文件中。如果目的地是`NONE`，即使启用了慢查询日志，服务器也不会写入任何查询。如果未选择`FILE`作为输出目的地，则设置日志文件名不会影响日志记录。
+- en: 'If the slow query log is enabled and `FILE` is selected as an output destination,
+    each statement written to the log is preceded by a line that begins with a `#`
+    character and has these fields (with all fields on a single line):'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果启用了慢查询日志并选择了`FILE`作为输出目的地，则写入日志的每个语句前面都会有一行以`#`字符开头并具有以下字段（所有字段都在一行上）：
+- en: '`Query_time: *`duration`*`'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Query_time: *`持续时间`*`'
+- en: The statement execution time in seconds.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语句执行时间（秒）。
+- en: '`Lock_time: *`duration`*`'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Lock_time: *`持续时间`*`'
+- en: The time to acquire locks in seconds.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 获取锁所需的时间（秒）。
+- en: '`Rows_sent: *`N`*`'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Rows_sent: *`N`*`'
+- en: The number of rows sent to the client.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 发送到客户端的行数。
+- en: '`Rows_examined:`'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Rows_examined:`'
+- en: '`The number of rows examined by the server layer (not counting any processing
+    internal to storage engines).`'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`服务器层检查的行数（不包括存储引擎内部处理的任何处理）。`'
+- en: '`Enabling the [`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)
+    system variable (available as of MySQL 8.0.14) causes the server to write the
+    following extra fields to `FILE` output in addition to those just listed (`TABLE`
+    output is unaffected). Some field descriptions refer to status variable names.
+    Consult the status variable descriptions for more information. However, in the
+    slow query log, the counters are per-statement values, not cumulative per-session
+    values.'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`启用[`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)系统变量（MySQL
+    8.0.14起可用）会导致服务器将以下额外字段写入`FILE`输出，除了刚刚列出的字段外（`TABLE`输出不受影响）。一些字段描述涉及状态变量名称。有关更多信息，请参考状态变量描述。但是，在慢查询日志中，计数器是每个语句的值，而不是每个会话的累积值。'
+- en: '`Thread_id: *`ID`*`'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Thread_id: *`ID`*`'
+- en: The statement thread identifier.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语句线程标识符。
+- en: '`Errno: *`error_number`*`'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Errno: *`错误编号`*`'
+- en: The statement error number, or 0 if no error occurred.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语句错误编号，如果没有错误则为0。
+- en: '`Killed: *`N`*`'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Killed: *`N`*`'
+- en: If the statement was terminated, the error number indicating why, or 0 if the
+    statement terminated normally.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果语句被终止，表示为什么的错误编号，如果语句正常终止则为0。
+- en: '`Bytes_received: *`N`*`'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Bytes_received: *`N`*`'
+- en: The [`Bytes_received`](server-status-variables.html#statvar_Bytes_received)
+    value for the statement.
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Bytes_received`](server-status-variables.html#statvar_Bytes_received)语句的值。'
+- en: '`Bytes_sent: *`N`*`'
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Bytes_sent: *`N`*`'
+- en: The [`Bytes_sent`](server-status-variables.html#statvar_Bytes_sent) value for
+    the statement.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Bytes_sent`](server-status-variables.html#statvar_Bytes_sent)语句的值。'
+- en: '`Read_first: *`N`*`'
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Read_first: *`N`*`'
+- en: The [`Handler_read_first`](server-status-variables.html#statvar_Handler_read_first)
+    value for the statement.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Handler_read_first`](server-status-variables.html#statvar_Handler_read_first)语句的值。'
+- en: '`Read_last: *`N`*`'
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Read_last: *`N`*`'
+- en: The [`Handler_read_last`](server-status-variables.html#statvar_Handler_read_last)
+    value for the statement.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Handler_read_last`](server-status-variables.html#statvar_Handler_read_last)语句的值。'
+- en: '`Read_key: *`N`*`'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Read_key: *`N`*`'
+- en: The [`Handler_read_key`](server-status-variables.html#statvar_Handler_read_key)
+    value for the statement.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Handler_read_key`](server-status-variables.html#statvar_Handler_read_key)语句的值。'
+- en: '`Read_next: *`N`*`'
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Read_next: *`N`*`'
+- en: The [`Handler_read_next`](server-status-variables.html#statvar_Handler_read_next)
+    value for the statement.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Handler_read_next`](server-status-variables.html#statvar_Handler_read_next)语句的值。'
+- en: '`Read_prev: *`N`*`'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Read_prev: *`N`*`'
+- en: The [`Handler_read_prev`](server-status-variables.html#statvar_Handler_read_prev)
+    value for the statement.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Handler_read_prev`](server-status-variables.html#statvar_Handler_read_prev)语句的值。'
+- en: '`Read_rnd: *`N`*`'
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Read_rnd: *`N`*`'
+- en: The [`Handler_read_rnd`](server-status-variables.html#statvar_Handler_read_rnd)
+    value for the statement.
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Handler_read_rnd`](server-status-variables.html#statvar_Handler_read_rnd)语句的值。'
+- en: '`Read_rnd_next: *`N`*`'
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Read_rnd_next: *`N`*`'
+- en: The [`Handler_read_rnd_next`](server-status-variables.html#statvar_Handler_read_rnd_next)
+    value for the statement.
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Handler_read_rnd_next`](server-status-variables.html#statvar_Handler_read_rnd_next)语句的值。'
+- en: '`Sort_merge_passes: *`N`*`'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Sort_merge_passes: *`N`*`'
+- en: The [`Sort_merge_passes`](server-status-variables.html#statvar_Sort_merge_passes)
+    value for the statement.
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Sort_merge_passes`](server-status-variables.html#statvar_Sort_merge_passes)语句的值。'
+- en: '`Sort_range_count: *`N`*`'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Sort_range_count: *`N`*`'
+- en: The [`Sort_range`](server-status-variables.html#statvar_Sort_range) value for
+    the statement.
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Sort_range`](server-status-variables.html#statvar_Sort_range)语句的值。'
+- en: '`Sort_rows: *`N`*`'
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Sort_rows: *`N`*`'
+- en: The [`Sort_rows`](server-status-variables.html#statvar_Sort_rows) value for
+    the statement.
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Sort_rows`](server-status-variables.html#statvar_Sort_rows)语句的值。'
+- en: '`Sort_scan_count: *`N`*`'
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Sort_scan_count: *`N`*`'
+- en: The [`Sort_scan`](server-status-variables.html#statvar_Sort_scan) value for
+    the statement.
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Sort_scan`](server-status-variables.html#statvar_Sort_scan)语句的值。'
+- en: '`Created_tmp_disk_tables: *`N`*`'
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Created_tmp_disk_tables: *`N`*`'
+- en: The [`Created_tmp_disk_tables`](server-status-variables.html#statvar_Created_tmp_disk_tables)
+    value for the statement.
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Created_tmp_disk_tables`](server-status-variables.html#statvar_Created_tmp_disk_tables)语句的值。'
+- en: '`Created_tmp_tables: *`N`*`'
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Created_tmp_tables: *`N`*`'
+- en: The [`Created_tmp_tables`](server-status-variables.html#statvar_Created_tmp_tables)
+    value for the statement.
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`Created_tmp_tables`](server-status-variables.html#statvar_Created_tmp_tables)语句的值。'
+- en: '`Start: *`timestamp`*`'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Start: *`时间戳`*`'
+- en: The statement execution start time.
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语句执行开始时间。
+- en: '`End: *`timestamp`*`'
+  id: totrans-75
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`End: *`时间戳`*`'
+- en: The statement execution end time.
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语句执行结束时间。
+- en: A given slow query log file may contain a mix of lines with and without the
+    extra fields added by enabling [`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra).
+    Log file analyzers can determine whether a line contains the additional fields
+    by the field count.
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 给定的慢查询日志文件可能包含启用[`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)后添加了额外字段的行和没有额外字段的行。日志文件分析器可以通过字段计数确定一行是否包含额外字段。
+- en: Each statement written to the slow query log file is preceded by a [`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") statement that includes a timestamp.
+    As of MySQL 8.0.14, the timestamp indicates when the slow statement began executing.
+    Prior to 8.0.14, the timestamp indicates when the slow statement was logged (which
+    occurs after the statement finishes executing).
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每条写入慢查询日志文件的语句前面都有一个包含时间戳的[`SET`](set-variable.html "15.7.6.1 变量赋值的SET语法")语句。从MySQL
+    8.0.14开始，时间戳表示慢语句开始执行的时间。在8.0.14之前，时间戳表示慢语句被记录的时间（这发生在语句执行完成后）。
+- en: Passwords in statements written to the slow query log are rewritten by the server
+    not to occur literally in plain text. See [Section 8.1.2.3, “Passwords and Logging”](password-logging.html
+    "8.1.2.3 Passwords and Logging").
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 写入慢查询日志的语句中的密码会被服务器重写，以避免明文出现。参见[第8.1.2.3节，“密码和日志记录”](password-logging.html
+    "8.1.2.3 密码和日志记录")。
+- en: From MySQL 8.0.29, statements that cannot be parsed (due, for example, to syntax
+    errors) are not written to the slow query log.`
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.29开始，由于语法错误等原因无法解析的语句不会被写入慢查询日志。

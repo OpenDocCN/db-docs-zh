@@ -1,0 +1,747 @@
+- en: 17.10 InnoDB Row Formats
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.10 InnoDB 行格式
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-row-format.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-row-format.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-row-format.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-row-format.html)
+- en: The row format of a table determines how its rows are physically stored, which
+    in turn can affect the performance of queries and DML operations. As more rows
+    fit into a single disk page, queries and index lookups can work faster, less cache
+    memory is required in the buffer pool, and less I/O is required to write out updated
+    values.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表的行格式决定了其行是如何物理存储的，进而影响查询和DML操作的性能。当更多行适合存储在单个磁盘页中时，查询和索引查找可以更快地工作，缓冲池中需要更少的缓存内存，并且写出更新值所需的I/O也更少。
+- en: The data in each table is divided into pages. The pages that make up each table
+    are arranged in a tree data structure called a B-tree index. Table data and secondary
+    indexes both use this type of structure. The B-tree index that represents an entire
+    table is known as the clustered index, which is organized according to the primary
+    key columns. The nodes of a clustered index data structure contain the values
+    of all columns in the row. The nodes of a secondary index structure contain the
+    values of index columns and primary key columns.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个表中的数据被分成页。构成每个表的页被排列在一种称为 B 树索引的树数据结构中。表数据和辅助索引都使用这种类型的结构。代表整个表的 B 树索引被称为聚簇索引，根据主键列组织。聚簇索引数据结构的节点包含行中所有列的值。辅助索引结构的节点包含索引列和主键列的值。
+- en: Variable-length columns are an exception to the rule that column values are
+    stored in B-tree index nodes. Variable-length columns that are too long to fit
+    on a B-tree page are stored on separately allocated disk pages called overflow
+    pages. Such columns are referred to as off-page columns. The values of off-page
+    columns are stored in singly-linked lists of overflow pages, with each such column
+    having its own list of one or more overflow pages. Depending on column length,
+    all or a prefix of variable-length column values are stored in the B-tree to avoid
+    wasting storage and having to read a separate page.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 变长列是存储在 B 树索引节点中的列值的一个例外。太长以至于无法适应 B 树页的变长列存储在称为溢出页的单独分配的磁盘页上。这样的列被称为离页列。离页列的值存储在溢出页的单链列表中，每个这样的列都有自己的一个或多个溢出页列表。根据列长度，变长列值的全部或前缀存储在
+    B 树中，以避免浪费存储空间并且需要读取一个单独的页。
+- en: 'The `InnoDB` storage engine supports four row formats: `REDUNDANT`, `COMPACT`,
+    `DYNAMIC`, and `COMPRESSED`.'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 存储引擎支持四种行格式：`冗余`，`紧凑`，`动态` 和 `压缩`。'
+- en: '**Table 17.15 InnoDB Row Format Overview**'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 17.15 InnoDB 行格式概述**'
+- en: '| Row Format | Compact Storage Characteristics | Enhanced Variable-Length Column
+    Storage | Large Index Key Prefix Support | Compression Support | Supported Tablespace
+    Types |'
+  id: totrans-7
+  prefs: []
+  type: TYPE_TB
+  zh: '| 行格式 | 紧凑存储特性 | 增强的可变长度列存储 | 大索引键前缀支持 | 压缩支持 | 支持的表空间类型 |'
+- en: '| `REDUNDANT` | No | No | No | No | system, file-per-table, general |'
+  id: totrans-8
+  prefs: []
+  type: TYPE_TB
+  zh: '| `冗余` | 否 | 否 | 否 | 否 | 系统，每表一个文件，通用 |'
+- en: '| `COMPACT` | Yes | No | No | No | system, file-per-table, general |'
+  id: totrans-9
+  prefs: []
+  type: TYPE_TB
+  zh: '| `紧凑` | 是 | 否 | 否 | 否 | 系统，每表一个文件，通用 |'
+- en: '| `DYNAMIC` | Yes | Yes | Yes | No | system, file-per-table, general |'
+  id: totrans-10
+  prefs: []
+  type: TYPE_TB
+  zh: '| `动态` | 是 | 是 | 是 | 否 | 系统，每表一个文件，通用 |'
+- en: '| `COMPRESSED` | Yes | Yes | Yes | Yes | file-per-table, general |'
+  id: totrans-11
+  prefs: []
+  type: TYPE_TB
+  zh: '| `压缩` | 是 | 是 | 是 | 是 | 每表一个文件，通用 |'
+- en: The topics that follow describe row format storage characteristics and how to
+    define and determine the row format of a table.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来的主题描述了行格式存储特性以及如何定义和确定表的行格式。
+- en: '[REDUNDANT Row Format](innodb-row-format.html#innodb-row-format-redundant "REDUNDANT
+    Row Format")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[冗余行格式](innodb-row-format.html#innodb-row-format-redundant "冗余行格式")'
+- en: '[COMPACT Row Format](innodb-row-format.html#innodb-row-format-compact "COMPACT
+    Row Format")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[紧凑行格式](innodb-row-format.html#innodb-row-format-compact "紧凑行格式")'
+- en: '[DYNAMIC Row Format](innodb-row-format.html#innodb-row-format-dynamic "DYNAMIC
+    Row Format")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[动态行格式](innodb-row-format.html#innodb-row-format-dynamic "动态行格式")'
+- en: '[COMPRESSED Row Format](innodb-row-format.html#innodb-row-format-compressed
+    "COMPRESSED Row Format")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[压缩行格式](innodb-row-format.html#innodb-row-format-compressed "压缩行格式")'
+- en: '[Defining the Row Format of a Table](innodb-row-format.html#innodb-row-format-defining
+    "Defining the Row Format of a Table")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[定义表的行格式](innodb-row-format.html#innodb-row-format-defining "定义表的行格式")'
+- en: '[Determining the Row Format of a Table](innodb-row-format.html#innodb-row-format-detrmining
+    "Determining the Row Format of a Table")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[确定表的行格式](innodb-row-format.html#innodb-row-format-detrmining "确定表的行格式")'
+- en: REDUNDANT Row Format
+  id: totrans-19
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: REDUNDANT行格式
+- en: The `REDUNDANT` format provides compatibility with older versions of MySQL.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`REDUNDANT`格式与MySQL的旧版本兼容。'
+- en: Tables that use the `REDUNDANT` row format store the first 768 bytes of variable-length
+    column values ([`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), [`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types"), and [`BLOB`](blob.html "13.3.4 The BLOB
+    and TEXT Types") and [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") types)
+    in the index record within the B-tree node, with the remainder stored on overflow
+    pages. Fixed-length columns greater than or equal to 768 bytes are encoded as
+    variable-length columns, which can be stored off-page. For example, a `CHAR(255)`
+    column can exceed 768 bytes if the maximum byte length of the character set is
+    greater than 3, as it is with `utf8mb4`.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`REDUNDANT`行格式的表将变长列值（[`VARCHAR`](char.html "13.3.2 CHAR和VARCHAR类型")、[`VARBINARY`](binary-varbinary.html
+    "13.3.3 BINARY和VARBINARY类型")和[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")和[`TEXT`](blob.html
+    "13.3.4 BLOB和TEXT类型")类型）的前768字节存储在B树节点内的索引记录中，其余部分存储在溢出页上。大于或等于768字节的固定长度列被编码为变长列，可以存储在页外。例如，如果字符集的最大字节长度大于3，`CHAR(255)`列可能超过768字节，就像`utf8mb4`一样。
+- en: If the value of a column is 768 bytes or less, an overflow page is not used,
+    and some savings in I/O may result, since the value is stored entirely in the
+    B-tree node. This works well for relatively short `BLOB` column values, but may
+    cause B-tree nodes to fill with data rather than key values, reducing their efficiency.
+    Tables with many `BLOB` columns could cause B-tree nodes to become too full, and
+    contain too few rows, making the entire index less efficient than if rows were
+    shorter or column values were stored off-page.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果列的值为768字节或更少，则不使用溢出页，可能会节省一些I/O，因为该值完全存储在B树节点中。这对于相对较短的`BLOB`列值效果很好，但可能导致B树节点填满数据而不是键值，降低其效率。具有许多`BLOB`列的表可能导致B树节点变得过满，并包含太少行，使整个索引比行较短或列值存储在页外时效率低。
+- en: REDUNDANT Row Format Storage Characteristics
+  id: totrans-23
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: REDUNDANT行格式存储特性
+- en: 'The `REDUNDANT` row format has the following storage characteristics:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`REDUNDANT`行格式具有以下存储特性：'
+- en: Each index record contains a 6-byte header. The header is used to link together
+    consecutive records, and for row-level locking.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个索引记录包含一个6字节的头部。头部用于链接连续的记录，并用于行级锁定。
+- en: Records in the clustered index contain fields for all user-defined columns.
+    In addition, there is a 6-byte transaction ID field and a 7-byte roll pointer
+    field.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 聚簇索引中的记录包含所有用户定义的列字段。此外，还有一个6字节的事务ID字段和一个7字节的回滚指针字段。
+- en: If no primary key is defined for a table, each clustered index record also contains
+    a 6-byte row ID field.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表没有定义主键，则每个聚簇索引记录还包含一个6字节的行ID字段。
+- en: Each secondary index record contains all the primary key columns defined for
+    the clustered index key that are not in the secondary index.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个二级索引记录包含所有未在二级索引中的聚簇索引键定义的主键列。
+- en: A record contains a pointer to each field of the record. If the total length
+    of the fields in a record is less than 128 bytes, the pointer is one byte; otherwise,
+    two bytes. The array of pointers is called the record directory. The area where
+    the pointers point is the data part of the record.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 记录包含对记录的每个字段的指针。如果记录中字段的总长度小于128字节，则指针为一个字节；否则为两个字节。指针数组称为记录目录。指针指向的区域是记录的数据部分。
+- en: Internally, fixed-length character columns such as [`CHAR(10)`](char.html "13.3.2 The
+    CHAR and VARCHAR Types") in stored in fixed-length format. Trailing spaces are
+    not truncated from [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types")
+    columns.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在内部，像[`CHAR(10)`](char.html "13.3.2 CHAR和VARCHAR类型")这样的固定长度字符列以固定长度格式存储。在[`VARCHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")列中不会截断尾随空格。
+- en: Fixed-length columns greater than or equal to 768 bytes are encoded as variable-length
+    columns, which can be stored off-page. For example, a `CHAR(255)` column can exceed
+    768 bytes if the maximum byte length of the character set is greater than 3, as
+    it is with `utf8mb4`.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 大于或等于768字节的固定长度列被编码为变长列，可以存储在页外。例如，如果字符集的最大字节长度大于3，`CHAR(255)`列可能超过768字节，就像`utf8mb4`一样。
+- en: An SQL `NULL` value reserves one or two bytes in the record directory. An SQL
+    `NULL` value reserves zero bytes in the data part of the record if stored in a
+    variable-length column. For a fixed-length column, the fixed length of the column
+    is reserved in the data part of the record. Reserving fixed space for `NULL` values
+    permits columns to be updated in place from `NULL` to non-`NULL` values without
+    causing index page fragmentation.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: SQL中的`NULL`值在记录目录中保留一到两个字节。如果存储在可变长度列中，则SQL中的`NULL`值在记录的数据部分中不保留任何字节。对于固定长度列，列的固定长度在记录的数据部分中保留。为`NULL`值保留固定空间允许列在位更新为非`NULL`值而不会导致索引页碎片化。
+- en: COMPACT Row Format
+  id: totrans-33
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 紧凑行格式
+- en: The `COMPACT` row format reduces row storage space by about 20% compared to
+    the `REDUNDANT` row format, at the cost of increasing CPU use for some operations.
+    If your workload is a typical one that is limited by cache hit rates and disk
+    speed, `COMPACT` format is likely to be faster. If the workload is limited by
+    CPU speed, compact format might be slower.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与`REDUNDANT`行格式相比，`COMPACT`行格式将行存储空间减少约20%，但会增加某些操作的CPU使用率。如果您的工作负载是受缓存命中率和磁盘速度限制的典型工作负载，`COMPACT`格式可能更快。如果工作负载受CPU速度限制，则紧凑格式可能较慢。
+- en: Tables that use the `COMPACT` row format store the first 768 bytes of variable-length
+    column values ([`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), [`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types"), and [`BLOB`](blob.html "13.3.4 The BLOB
+    and TEXT Types") and [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") types)
+    in the index record within the [B-tree](glossary.html#glos_b_tree "B-tree") node,
+    with the remainder stored on overflow pages. Fixed-length columns greater than
+    or equal to 768 bytes are encoded as variable-length columns, which can be stored
+    off-page. For example, a `CHAR(255)` column can exceed 768 bytes if the maximum
+    byte length of the character set is greater than 3, as it is with `utf8mb4`.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`COMPACT`行格式的表将变长列值（[`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types")、[`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types")和[`BLOB`](blob.html "13.3.4 The BLOB and
+    TEXT Types")和[`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types")类型）的前768字节存储在B树节点内的索引记录中，其余部分存储在溢出页上。大于或等于768字节的固定长度列被编码为可变长度列，可以存储在页外。例如，如果字符集的最大字节长度大于3，那么`CHAR(255)`列可能超过768字节，就像`utf8mb4`一样。
+- en: If the value of a column is 768 bytes or less, an overflow page is not used,
+    and some savings in I/O may result, since the value is stored entirely in the
+    B-tree node. This works well for relatively short `BLOB` column values, but may
+    cause B-tree nodes to fill with data rather than key values, reducing their efficiency.
+    Tables with many `BLOB` columns could cause B-tree nodes to become too full, and
+    contain too few rows, making the entire index less efficient than if rows were
+    shorter or column values were stored off-page.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果列的值为768字节或更少，则不使用溢出页，可能会节省一些I/O，因为该值完全存储在B树节点中。这对于相对较短的`BLOB`列值效果很好，但可能导致B树节点填满数据而不是键值，降低其效率。具有许多`BLOB`列的表可能导致B树节点变得过满，并包含太少行，使整个索引比行较短或列值存储在页外时效率低。
+- en: COMPACT Row Format Storage Characteristics
+  id: totrans-37
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 紧凑行格式存储特性
+- en: 'The `COMPACT` row format has the following storage characteristics:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`COMPACT`行格式具有以下存储特性：'
+- en: Each index record contains a 5-byte header that may be preceded by a variable-length
+    header. The header is used to link together consecutive records, and for row-level
+    locking.
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个索引记录包含一个5字节的头部，可能在可变长度头部之前。头部用于链接连续记录，并用于行级锁定。
+- en: The variable-length part of the record header contains a bit vector for indicating
+    `NULL` columns. If the number of columns in the index that can be `NULL` is *`N`*,
+    the bit vector occupies `CEILING(*`N`*/8)` bytes. (For example, if there are anywhere
+    from 9 to 16 columns that can be `NULL`, the bit vector uses two bytes.) Columns
+    that are `NULL` do not occupy space other than the bit in this vector. The variable-length
+    part of the header also contains the lengths of variable-length columns. Each
+    length takes one or two bytes, depending on the maximum length of the column.
+    If all columns in the index are `NOT NULL` and have a fixed length, the record
+    header has no variable-length part.
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 记录头部的可变长度部分包含一个位向量，用于指示`NULL`列。如果索引中可以为`NULL`的列数为*`N`*，则位向量占用`CEILING(*`N`*/8)`字节。（例如，如果可以为`NULL`的列数为9到16列，位向量将使用两个字节。）`NULL`列不占用除此向量中的位之外的空间。头部的可变长度部分还包含可变长度列的长度。每个长度占用一到两个字节，取决于列的最大长度。如果索引中的所有列都是`NOT
+    NULL`且具有固定长度，则记录头部没有可变长度部分。
+- en: For each non-`NULL` variable-length field, the record header contains the length
+    of the column in one or two bytes. Two bytes are only needed if part of the column
+    is stored externally in overflow pages or the maximum length exceeds 255 bytes
+    and the actual length exceeds 127 bytes. For an externally stored column, the
+    2-byte length indicates the length of the internally stored part plus the 20-byte
+    pointer to the externally stored part. The internal part is 768 bytes, so the
+    length is 768+20\. The 20-byte pointer stores the true length of the column.
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于每个非`NULL`可变长度字段，记录头部包含列的长度，使用一到两个字节。只有当列的一部分存储在溢出页中或最大长度超过255字节且实际长度超过127字节时，才需要两个字节。对于外部存储的列，2字节长度表示内部存储部分的长度加上指向外部存储部分的20字节指针。内部部分为768字节，因此长度为768+20。20字节指针存储列的真实长度。
+- en: The record header is followed by the data contents of non-`NULL` columns.
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 记录头部后跟非`NULL`列的数据内容。
+- en: Records in the clustered index contain fields for all user-defined columns.
+    In addition, there is a 6-byte transaction ID field and a 7-byte roll pointer
+    field.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 聚集索引中的记录包含所有用户定义的列。此外，还有一个6字节的事务ID字段和一个7字节的回滚指针字段。
+- en: If no primary key is defined for a table, each clustered index record also contains
+    a 6-byte row ID field.
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表没有定义主键，则每个聚集索引记录还包含一个6字节的行ID字段。
+- en: Each secondary index record contains all the primary key columns defined for
+    the clustered index key that are not in the secondary index. If any of the primary
+    key columns are variable length, the record header for each secondary index has
+    a variable-length part to record their lengths, even if the secondary index is
+    defined on fixed-length columns.
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个二级索引记录包含所有聚集索引键中定义的主键列，这些列不在二级索引中。如果任何主键列是可变长度的，则每个二级索引的记录头部都有一个可变长度部分来记录它们的长度，即使二级索引是在固定长度列上定义的。
+- en: Internally, for nonvariable-length character sets, fixed-length character columns
+    such as [`CHAR(10)`](char.html "13.3.2 The CHAR and VARCHAR Types") are stored
+    in a fixed-length format.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在内部，对于非可变长度字符集，如[`CHAR(10)`](char.html "13.3.2 CHAR和VARCHAR类型")这样的固定长度字符列以固定长度格式存储。
+- en: Trailing spaces are not truncated from [`VARCHAR`](char.html "13.3.2 The CHAR
+    and VARCHAR Types") columns.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`VARCHAR`](char.html "13.3.2 CHAR和VARCHAR类型")列不会截断尾随空格。'
+- en: Internally, for variable-length character sets such as `utf8mb3` and `utf8mb4`,
+    `InnoDB` attempts to store [`CHAR(*`N`*)`](char.html "13.3.2 The CHAR and VARCHAR
+    Types") in *`N`* bytes by trimming trailing spaces. If the byte length of a [`CHAR(*`N`*)`](char.html
+    "13.3.2 The CHAR and VARCHAR Types") column value exceeds *`N`* bytes, trailing
+    spaces are trimmed to a maximum of the column value byte length. The maximum length
+    of a [`CHAR(*`N`*)`](char.html "13.3.2 The CHAR and VARCHAR Types") column is
+    the maximum character byte length × *`N`*.
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在内部，对于可变长度字符集，如`utf8mb3`和`utf8mb4`，`InnoDB`尝试将[`CHAR(*`N`*)`](char.html "13.3.2 CHAR和VARCHAR类型")存储为*`N`*字节，通过修剪尾随空格。如果[`CHAR(*`N`*)`](char.html
+    "13.3.2 CHAR和VARCHAR类型")列值的字节长度超过*`N`*字节，则尾随空格将被修剪至列值字节长度的最大值。[`CHAR(*`N`*)`](char.html
+    "13.3.2 CHAR和VARCHAR类型")列的最大长度为最大字符字节长度×*`N`*。
+- en: A minimum of *`N`* bytes is reserved for [`CHAR(*`N`*)`](char.html "13.3.2 The
+    CHAR and VARCHAR Types"). Reserving the minimum space *`N`* in many cases enables
+    column updates to be done in place without causing index page fragmentation. By
+    comparison, [`CHAR(*`N`*)`](char.html "13.3.2 The CHAR and VARCHAR Types") columns
+    occupy the maximum character byte length × *`N`* when using the `REDUNDANT` row
+    format.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为[`CHAR(*`N`*)`](char.html "13.3.2 CHAR和VARCHAR类型")保留了最小的*`N`*字节。在许多情况下，保留最小空间*`N`*可以使列更新就地完成，而不会导致索引页碎片化。相比之下，使用`REDUNDANT`行格式时，[`CHAR(*`N`*)`](char.html
+    "13.3.2 CHAR和VARCHAR类型")列占用最大字符字节长度×*`N`*。
+- en: Fixed-length columns greater than or equal to 768 bytes are encoded as variable-length
+    fields, which can be stored off-page. For example, a `CHAR(255)` column can exceed
+    768 bytes if the maximum byte length of the character set is greater than 3, as
+    it is with `utf8mb4`.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 长度大于或等于768字节的固定长度列被编码为变长字段，可以存储在页外。例如，如果字符集的最大字节长度大于3，那么`CHAR(255)`列可以超过768字节，就像`utf8mb4`一样。
+- en: DYNAMIC Row Format
+  id: totrans-51
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 动态行格式
+- en: The `DYNAMIC` row format offers the same storage characteristics as the `COMPACT`
+    row format but adds enhanced storage capabilities for long variable-length columns
+    and supports large index key prefixes.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`DYNAMIC`行格式提供了与`COMPACT`行格式相同的存储特性，但增加了对长变长列的增强存储能力，并支持大型索引键前缀。'
+- en: When a table is created with `ROW_FORMAT=DYNAMIC`, `InnoDB` can store long variable-length
+    column values (for [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"),
+    [`VARBINARY`](binary-varbinary.html "13.3.3 The BINARY and VARBINARY Types"),
+    and [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") and [`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types") types) fully off-page, with the clustered index
+    record containing only a 20-byte pointer to the overflow page. Fixed-length fields
+    greater than or equal to 768 bytes are encoded as variable-length fields. For
+    example, a `CHAR(255)` column can exceed 768 bytes if the maximum byte length
+    of the character set is greater than 3, as it is with `utf8mb4`.
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用`ROW_FORMAT=DYNAMIC`创建表时，`InnoDB`可以将长变长列值（如[`VARCHAR`](char.html "13.3.2 CHAR和VARCHAR类型")、[`VARBINARY`](binary-varbinary.html
+    "13.3.3 BINARY和VARBINARY类型")和[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")以及[`TEXT`](blob.html
+    "13.3.4 BLOB和TEXT类型")类型）完全存储在页外，聚簇索引记录仅包含指向溢出页的20字节指针。长度大于或等于768字节的固定长度字段被编码为变长字段。例如，如果字符集的最大字节长度大于3，那么`CHAR(255)`列可以超过768字节，就像`utf8mb4`一样。
+- en: Whether columns are stored off-page depends on the page size and the total size
+    of the row. When a row is too long, the longest columns are chosen for off-page
+    storage until the clustered index record fits on the [B-tree](glossary.html#glos_b_tree
+    "B-tree") page. [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") and [`BLOB`](blob.html
+    "13.3.4 The BLOB and TEXT Types") columns that are less than or equal to 40 bytes
+    are stored in line.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 列是否存储在页外取决于页大小和行的总大小。当行过长时，会选择最长的列进行页外存储，直到聚簇索引记录适合于[B树](glossary.html#glos_b_tree
+    "B树")页。长度小于或等于40字节的[`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")和[`BLOB`](blob.html
+    "13.3.4 BLOB和TEXT类型")列存储在行内。
+- en: The `DYNAMIC` row format maintains the efficiency of storing the entire row
+    in the index node if it fits (as do the `COMPACT` and `REDUNDANT` formats), but
+    the `DYNAMIC` row format avoids the problem of filling B-tree nodes with a large
+    number of data bytes of long columns. The `DYNAMIC` row format is based on the
+    idea that if a portion of a long data value is stored off-page, it is usually
+    most efficient to store the entire value off-page. With `DYNAMIC` format, shorter
+    columns are likely to remain in the B-tree node, minimizing the number of overflow
+    pages required for a given row.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`DYNAMIC`行格式保持了在索引节点中存储整个行的效率（与`COMPACT`和`REDUNDANT`格式一样），但`DYNAMIC`行格式避免了将B树节点填充大量长列数据字节的问题。`DYNAMIC`行格式基于这样一个思想，即如果长数据值的一部分存储在页外，通常最有效的方式是将整个值存储在页外。使用`DYNAMIC`格式，较短的列可能会保留在B树节点中，最大程度地减少给定行所需的溢出页数量。'
+- en: The `DYNAMIC` row format supports index key prefixes up to 3072 bytes.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`DYNAMIC`行格式支持索引键前缀长达3072字节。'
+- en: Tables that use the `DYNAMIC` row format can be stored in the system tablespace,
+    file-per-table tablespaces, and general tablespaces. To store `DYNAMIC` tables
+    in the system tablespace, either disable [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    and use a regular `CREATE TABLE` or `ALTER TABLE` statement, or use the `TABLESPACE
+    [=] innodb_system` table option with `CREATE TABLE` or `ALTER TABLE`. The [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    variable is not applicable to general tablespaces, nor is it applicable when using
+    the `TABLESPACE [=] innodb_system` table option to store `DYNAMIC` tables in the
+    system tablespace.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 `DYNAMIC` 行格式的表可以存储在系统表空间、每表一个表空间和通用表空间中。要将 `DYNAMIC` 表存储在系统表空间中，要么禁用[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)并使用常规的
+    `CREATE TABLE` 或 `ALTER TABLE` 语句，要么在 `CREATE TABLE` 或 `ALTER TABLE` 中使用 `TABLESPACE
+    [=] innodb_system` 表选项。[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    变量不适用于通用表空间，也不适用于使用 `TABLESPACE [=] innodb_system` 表选项将 `DYNAMIC` 表存储在系统表空间中。
+- en: DYNAMIC Row Format Storage Characteristics
+  id: totrans-58
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: '`DYNAMIC` 行格式存储特性'
+- en: The `DYNAMIC` row format is a variation of the `COMPACT` row format. For storage
+    characteristics, see [COMPACT Row Format Storage Characteristics](innodb-row-format.html#innodb-compact-row-format-characteristics
+    "COMPACT Row Format Storage Characteristics").
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`DYNAMIC` 行格式是 `COMPACT` 行格式的一种变体。有关存储特性，请参阅[COMPACT 行格式存储特性](innodb-row-format.html#innodb-compact-row-format-characteristics
+    "COMPACT 行格式存储特性")。'
+- en: COMPRESSED Row Format
+  id: totrans-60
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 压缩行格式
+- en: The `COMPRESSED` row format offers the same storage characteristics and capabilities
+    as the `DYNAMIC` row format but adds support for table and index data compression.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`COMPRESSED` 行格式提供了与 `DYNAMIC` 行格式相同的存储特性和功能，但增加了对表和索引数据压缩的支持。'
+- en: The `COMPRESSED` row format uses similar internal details for off-page storage
+    as the `DYNAMIC` row format, with additional storage and performance considerations
+    from the table and index data being compressed and using smaller page sizes. With
+    the `COMPRESSED` row format, the `KEY_BLOCK_SIZE` option controls how much column
+    data is stored in the clustered index, and how much is placed on overflow pages.
+    For more information about the `COMPRESSED` row format, see [Section 17.9, “InnoDB
+    Table and Page Compression”](innodb-compression.html "17.9 InnoDB Table and Page
+    Compression").
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`COMPRESSED` 行格式使用与 `DYNAMIC` 行格式相似的内部细节进行页外存储，同时由于表和索引数据被压缩并使用较小的页大小，还有额外的存储和性能考虑。对于
+    `COMPRESSED` 行格式，`KEY_BLOCK_SIZE` 选项控制存储在聚簇索引中的列数据量，以及放置在溢出页上的数据量。有关 `COMPRESSED`
+    行格式的更多信息，请参阅[第 17.9 节，“InnoDB 表和页压缩”](innodb-compression.html "17.9 InnoDB 表和页压缩")。'
+- en: The `COMPRESSED` row format supports index key prefixes up to 3072 bytes.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`COMPRESSED` 行格式支持索引键前缀长达 3072 字节。'
+- en: Tables that use the `COMPRESSED` row format can be created in file-per-table
+    tablespaces or general tablespaces. The system tablespace does not support the
+    `COMPRESSED` row format. To store a `COMPRESSED` table in a file-per-table tablespace,
+    the [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    variable must be enabled. The [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    variable is not applicable to general tablespaces. General tablespaces support
+    all row formats with the caveat that compressed and uncompressed tables cannot
+    coexist in the same general tablespace due to different physical page sizes. For
+    more information, see [Section 17.6.3.3, “General Tablespaces”](general-tablespaces.html
+    "17.6.3.3 General Tablespaces").
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 `COMPRESSED` 行格式的表可以在每表一个表空间或通用表空间中创建。系统表空间不支持 `COMPRESSED` 行格式。要将 `COMPRESSED`
+    表存储在每表一个表空间中，必须启用[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)变量。[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)变量不适用于通用表空间。通用表空间支持所有行格式，但由于不同的物理页大小，压缩和非压缩表不能共存于同一通用表空间中。有关更多信息，请参阅[第
+    17.6.3.3 节，“通用表空间”](general-tablespaces.html "17.6.3.3 通用表空间")。
+- en: Compressed Row Format Storage Characteristics
+  id: totrans-65
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 压缩行格式存储特性
+- en: The `COMPRESSED` row format is a variation of the `COMPACT` row format. For
+    storage characteristics, see [COMPACT Row Format Storage Characteristics](innodb-row-format.html#innodb-compact-row-format-characteristics
+    "COMPACT Row Format Storage Characteristics").
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`COMPRESSED` 行格式是 `COMPACT` 行格式的一种变体。有关存储特性，请参阅[COMPACT 行格式存储特性](innodb-row-format.html#innodb-compact-row-format-characteristics
+    "COMPACT 行格式存储特性")。'
+- en: Defining the Row Format of a Table
+  id: totrans-67
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 定义表的行格式
+- en: The default row format for `InnoDB` tables is defined by [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    variable, which has a default value of `DYNAMIC`. The default row format is used
+    when the `ROW_FORMAT` table option is not defined explicitly or when `ROW_FORMAT=DEFAULT`
+    is specified.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`表的默认行格式由[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)变量定义，默认值为`DYNAMIC`。当未明确定义`ROW_FORMAT`表选项或指定`ROW_FORMAT=DEFAULT`时，将使用默认行格式。'
+- en: 'The row format of a table can be defined explicitly using the `ROW_FORMAT`
+    table option in a [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    or [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statement.
+    For example:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表格的行格式可以在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")或[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句中通过`ROW_FORMAT`表选项明确定义。例如：
+- en: '[PRE0]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: An explicitly defined `ROW_FORMAT` setting overrides the default row format.
+    Specifying `ROW_FORMAT=DEFAULT` is equivalent to using the implicit default.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 明确定义的`ROW_FORMAT`设置会覆盖默认行格式。指定`ROW_FORMAT=DEFAULT`等同于使用隐式默认值。
+- en: 'The [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    variable can be set dynamically:'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)变量可以动态设置：'
+- en: '[PRE1]'
+  id: totrans-73
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Valid [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    options include `DYNAMIC`, `COMPACT`, and `REDUNDANT`. The `COMPRESSED` row format,
+    which is not supported for use in the system tablespace, cannot be defined as
+    the default. It can only be specified explicitly in a [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") or [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") statement. Attempting to set the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    variable to `COMPRESSED` returns an error:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有效的[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)选项包括`DYNAMIC`、`COMPACT`和`REDUNDANT`。不支持在系统表空间中使用的`COMPRESSED`行格式不能定义为默认值。只能在[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")或[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")语句中明确定义。尝试将[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)变量设置为`COMPRESSED`会返回错误：
+- en: '[PRE2]'
+  id: totrans-75
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Newly created tables use the row format defined by the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    variable when a `ROW_FORMAT` option is not specified explicitly, or when `ROW_FORMAT=DEFAULT`
+    is used. For example, the following [`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement") statements use the row format defined by the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    variable.
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 新创建的表在未明确指定`ROW_FORMAT`选项或使用`ROW_FORMAT=DEFAULT`时，将使用由[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)变量定义的行格式。例如，以下[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句使用由[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)变量定义的行格式。
+- en: '[PRE3]'
+  id: totrans-77
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '[PRE4]'
+  id: totrans-78
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: When a `ROW_FORMAT` option is not specified explicitly, or when `ROW_FORMAT=DEFAULT`
+    is used, an operation that rebuilds a table silently changes the row format of
+    the table to the format defined by the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    variable.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当未明确指定`ROW_FORMAT`选项，或使用`ROW_FORMAT=DEFAULT`时，重建表的操作会静默更改表的行格式为由[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)变量定义的格式。
+- en: Table-rebuilding operations include [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") operations that use `ALGORITHM=COPY` or `ALGORITHM=INPLACE`
+    where table rebuilding is required. See [Section 17.12.1, “Online DDL Operations”](innodb-online-ddl-operations.html
+    "17.12.1 Online DDL Operations") for more information. [`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement") is also a table-rebuilding operation.
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表重建操作包括使用`ALGORITHM=COPY`或`ALGORITHM=INPLACE`的[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")操作，其中需要重建表。有关更多信息，请参见[第17.12.1节，“在线DDL操作”](innodb-online-ddl-operations.html
+    "17.12.1 Online DDL Operations")。[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE
+    TABLE Statement")也是一种表重建操作。
+- en: The following example demonstrates a table-rebuilding operation that silently
+    changes the row format of a table created without an explicitly defined row format.
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了一种表重建操作，静默更改了未明确定义行格式的表的行格式。
+- en: '[PRE5]'
+  id: totrans-82
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Consider the following potential issues before changing the row format of existing
+    tables from `REDUNDANT` or `COMPACT` to `DYNAMIC`.
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在将现有表格的行格式从`REDUNDANT`或`COMPACT`更改为`DYNAMIC`之前，请考虑以下潜在问题。
+- en: 'The `REDUNDANT` and `COMPACT` row formats support a maximum index key prefix
+    length of 767 bytes whereas `DYNAMIC` and `COMPRESSED` row formats support an
+    index key prefix length of 3072 bytes. In a replication environment, if the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    variable is set to `DYNAMIC` on the source, and set to `COMPACT` on the replica,
+    the following DDL statement, which does not explicitly define a row format, succeeds
+    on the source but fails on the replica:'
+  id: totrans-84
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`REDUNDANT`和`COMPACT`行格式支持最大索引键前缀长度为767字节，而`DYNAMIC`和`COMPRESSED`行格式支持索引键前缀长度为3072字节。在复制环境中，如果源上的[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)变量设置为`DYNAMIC`，并在副本上设置为`COMPACT`，则以下DDL语句，在源上成功但在副本上失败，因为未明确定义行格式：'
+- en: '[PRE6]'
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: For related information, see [Section 17.22, “InnoDB Limits”](innodb-limits.html
+    "17.22 InnoDB Limits").
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关相关信息，请参见[第17.22节，“InnoDB限制”](innodb-limits.html "17.22 InnoDB Limits")。
+- en: Importing a table that does not explicitly define a row format results in a
+    schema mismatch error if the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    setting on the source server differs from the setting on the destination server.
+    For more information, see [Section 17.6.1.3, “Importing InnoDB Tables”](innodb-table-import.html
+    "17.6.1.3 Importing InnoDB Tables").
+  id: totrans-87
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 导入未明确定义行格式的表，如果源服务器上的[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)设置与目标服务器上的设置不同，则会导致模式不匹配错误。有关更多信息，请参见[第17.6.1.3节，“导入InnoDB表”](innodb-table-import.html
+    "17.6.1.3 Importing InnoDB Tables")。
+- en: Determining the Row Format of a Table
+  id: totrans-88
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 确定表的行格式
+- en: 'To determine the row format of a table, use [`SHOW TABLE STATUS`](show-table-status.html
+    "15.7.7.38 SHOW TABLE STATUS Statement"):'
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要确定表的行格式，请使用[`SHOW TABLE STATUS`](show-table-status.html "15.7.7.38 SHOW TABLE
+    STATUS Statement")：
+- en: '[PRE7]'
+  id: totrans-90
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Alternatively, query the Information Schema [`INNODB_TABLES`](information-schema-innodb-tables-table.html
+    "28.4.23 The INFORMATION_SCHEMA INNODB_TABLES Table") table:'
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，查询信息模式[`INNODB_TABLES`](information-schema-innodb-tables-table.html "28.4.23 The
+    INFORMATION_SCHEMA INNODB_TABLES Table")表：
+- en: '[PRE8]'
+  id: totrans-92
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'

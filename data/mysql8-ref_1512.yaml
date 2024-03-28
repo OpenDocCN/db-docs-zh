@@ -1,0 +1,247 @@
+- en: 20.5.2 Restarting a Group
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.5.2 重新启动组
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-restarting-group.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-restarting-group.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-restarting-group.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-restarting-group.html)
+- en: Group Replication is designed to ensure that the database service is continuously
+    available, even if some of the servers that form the group are currently unable
+    to participate in it due to planned maintenance or unplanned issues. As long as
+    the remaining members are a majority of the group they can elect a new primary
+    and continue to function as a group. However, if every member of a replication
+    group leaves the group, and Group Replication is stopped on every member by a
+    [`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP GROUP_REPLICATION
+    Statement") statement or system shutdown, the group now only exists in theory,
+    as a configuration on the members. In that situation, to re-create the group,
+    it must be started by bootstrapping as if it was being started for the first time.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication旨在确保数据库服务持续可用，即使组成该组的某些服务器由于计划维护或意外问题而无法参与其中。只要剩余成员占据组的大多数，他们就可以选举新的主服务器并继续作为一个组运行。然而，如果复制组的每个成员都离开组，并且每个成员都通过[`STOP
+    GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP GROUP_REPLICATION
+    Statement")语句或系统关闭停止了Group Replication，那么该组现在只存在于理论上，作为成员上的一个配置。在这种情况下，要重新创建该组，必须像第一次启动一样通过引导启动。
+- en: The difference between bootstrapping a group for the first time and doing it
+    for the second or subsequent times is that in the latter situation, the members
+    of a group that was shut down might have different transaction sets from each
+    other, depending on the order in which they were stopped or failed. A member cannot
+    join a group if it has transactions that are not present on the other group members.
+    For Group Replication, this includes both transactions that have been committed
+    and applied, which are in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID set, and transactions that have been certified but not yet applied, which
+    are in the `group_replication_applier` channel. The exact point at which a transaction
+    is committed depends on the transaction consistency level that is set for the
+    group (see [Section 20.5.3, “Transaction Consistency Guarantees”](group-replication-consistency-guarantees.html
+    "20.5.3 Transaction Consistency Guarantees")). However, a Group Replication group
+    member never removes a transaction that has been certified, which is a declaration
+    of the member’s intent to commit the transaction.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首次引导组与第二次或后续引导组之间的区别在于，后者情况下，关闭的组的成员可能具有不同的事务集，取决于它们停止或失败的顺序。如果成员具有其他组成员上不存在的事务，则无法加入组。对于Group
+    Replication，这包括已提交和应用的事务，这些事务在[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID集中，以及已经认证但尚未应用的事务，这些事务在`group_replication_applier`通道中。事务何时提交取决于为组设置的事务一致性级别（参见[第20.5.3节，“事务一致性保证”](group-replication-consistency-guarantees.html
+    "20.5.3 事务一致性保证")）。然而，Group Replication组成员永远不会删除已经认证的事务，这是成员承诺提交事务的声明。
+- en: The replication group must therefore be restarted beginning with the most up
+    to date member, that is, the member that has the most transactions executed and
+    certified. The members with fewer transactions can then join and catch up with
+    the transactions they are missing through distributed recovery. It is not correct
+    to assume that the last known primary member of the group is the most up to date
+    member of the group, because a member that was shut down later than the primary
+    might have more transactions. You must therefore restart each member to check
+    the transactions, compare all the transaction sets, and identify the most up to
+    date member. This member can then be used to bootstrap the group.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，必须从最新的成员开始重新启动复制组，即执行最多事务并获得认证的成员。然后，事务较少的成员可以通过分布式恢复加入并赶上他们缺少的事务。不能假设组的最后已知主成员是组中最新的成员，因为比主成员关闭时间更晚的成员可能有更多的事务。因此，必须重新启动每个成员以检查事务，比较所有事务集，并确定最新的成员。然后可以使用该成员来引导组。
+- en: Follow this procedure to restart a replication group safely after every member
+    shuts down.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在每个成员关闭后，按照以下步骤安全地重新启动复制组。
+- en: 'For each group member in turn, in any order:'
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 依次对每个组成员执行以下步骤，顺序不限：
+- en: Connect a client to the group member. If Group Replication is not already stopped,
+    issue a [`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP
+    GROUP_REPLICATION Statement") statement and wait for Group Replication to stop.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 连接客户端到组成员。如果 Group Replication 尚未停止，请执行 [`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement") 语句并等待 Group Replication 停止。
+- en: Edit the MySQL Server configuration file (typically named `my.cnf` on Linux
+    and Unix systems, or `my.ini` on Windows systems) and set the system variable
+    [`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot).
+    This setting prevents Group Replication from starting when MySQL Server is started,
+    which is the default.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 编辑 MySQL 服务器配置文件（通常在 Linux 和 Unix 系统上命名为 `my.cnf`，在 Windows 系统上命名为 `my.ini`），并设置系统变量
+    [`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)。此设置防止
+    MySQL 服务器启动时启动 Group Replication，这是默认设置。
+- en: If you cannot change that setting on the system, you can just allow the server
+    to attempt to start Group Replication, which will fail because the group has been
+    fully shut down and not yet bootstrapped. If you take that approach, do not set
+    [`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group)
+    on any server at this stage.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果无法在系统上更改该设置，则可以允许服务器尝试启动 Group Replication，这将失败，因为组已完全关闭且尚未引导。如果采用这种方法，请勿在此阶段在任何服务器上设置
+    [`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group)。
+- en: Start the MySQL Server instance, and verify that Group Replication has not been
+    started (or has failed to start). Do not start Group Replication at this stage.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动 MySQL 服务器实例，并验证 Group Replication 尚未启动（或启动失败）。此阶段不要启动 Group Replication。
+- en: 'Collect the following information from the group member:'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从组成员收集以下信息：
+- en: 'The contents of the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    GTID set. You can get this by issuing the following statement:'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed) GTID
+    集的内容。您可以通过执行以下语句获取：'
+- en: '[PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The set of certified transactions on the `group_replication_applier` channel.
+    You can get this by issuing the following statement:'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`group_replication_applier` 通道上的已认证事务集。您可以通过执行以下语句获取：'
+- en: '[PRE1]'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: When you have collected the transaction sets from all the group members, compare
+    them to find which member has the biggest transaction set overall, including both
+    the executed transactions ([`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed))
+    and the certified transactions (on the `group_replication_applier` channel). You
+    can do this manually by looking at the GTIDs, or you can compare the GTID sets
+    using stored functions, as described in [Section 19.1.3.8, “Stored Function Examples
+    to Manipulate GTIDs”](replication-gtids-functions.html "19.1.3.8 Stored Function
+    Examples to Manipulate GTIDs").
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当您从所有组成员收集了事务集后，比较它们以找出哪个成员具有最大的事务集，包括已执行的事务（[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)）和已认证的事务（在
+    `group_replication_applier` 通道上）。您可以通过查看 GTID 手动执行此操作，或者使用存储函数比较 GTID 集，如 [Section 19.1.3.8,
+    “Stored Function Examples to Manipulate GTIDs”](replication-gtids-functions.html
+    "19.1.3.8 Stored Function Examples to Manipulate GTIDs") 中所述。
+- en: 'Use the member that has the biggest transaction set to bootstrap the group,
+    by connecting a client to the group member and issuing the following statements:'
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用具有最大事务集的成员引导组，通过连接客户端到组成员并执行以下语句：
+- en: '[PRE2]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: It is important not to store the setting [`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group)
+    in the configuration file, otherwise when the server is restarted again, a second
+    group with the same name is set up.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 非常重要的是不要将设置 [`group_replication_bootstrap_group=ON`](group-replication-system-variables.html#sysvar_group_replication_bootstrap_group)
+    存储在配置文件中，否则当服务器再次重启时���将设置一个具有相同名称的第二个组。
+- en: 'To verify that the group now exists with this founder member in it, issue this
+    statement on the member that bootstrapped it:'
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要验证该组现在存在并包含此创始成员，请在引导它的成员上执行此语句：
+- en: '[PRE3]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Add each of the other members back into the group, in any order, by issuing
+    a [`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement") statement on each of them:'
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过在每个成员上执行 [`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement") 语句，以任意顺序将其他每个成员重新添加到组中：
+- en: '[PRE4]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'To verify that each member has joined the group, issue this statement on any
+    member:'
+  id: totrans-24
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要验证每个成员是否已加入组，请在任何成员上执行此语句：
+- en: '[PRE5]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: When the members have rejoined the group, if you edited their configuration
+    files to set [`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot),
+    you can edit them again to set `ON` (or remove the system variable, since `ON`
+    is the default).
+  id: totrans-26
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当成员重新加入组后，如果您编辑了他们的配置文件以设置[`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)，您可以再次编辑它们以设置`ON`（或者移除该系统变量，因为`ON`是默认值）。

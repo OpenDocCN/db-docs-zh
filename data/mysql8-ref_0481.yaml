@@ -1,0 +1,185 @@
+- en: 8.7.6 Troubleshooting SELinux
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.7.6 故障排除 SELinux
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/selinux-troubleshooting.html](https://dev.mysql.com/doc/refman/8.0/en/selinux-troubleshooting.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/selinux-troubleshooting.html](https://dev.mysql.com/doc/refman/8.0/en/selinux-troubleshooting.html)
+- en: Troubleshooting SELinux typically involves placing SELinux into permissive mode,
+    rerunning problematic operations, checking for access denial messages in the SELinux
+    audit log, and placing SELinux back into enforcing mode after problems are resolved.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 诊断 SELinux 通常涉及将 SELinux 置于宽容模式，重新运行有问题的操作，在 SELinux 审计日志中检查访问拒绝消息，并在问题解决后将
+    SELinux 放回强制模式。
+- en: 'To avoid placing the entire system into permissive mode using **setenforce**,
+    you can permit only the MySQL service to run permissively by placing its SELinux
+    domain (`mysqld_t`) into permissive mode using the **semanage** command:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免使用 **setenforce** 将整个系统置于宽容模式，您可以通过使用 **semanage** 命令将其 SELinux 域（`mysqld_t`）置于宽容模式，只允许
+    MySQL 服务以宽容模式运行：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'When you are finished troubleshooting, use this command to place the `mysqld_t`
+    domain back into enforcing mode:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在完成故障排除后，请使用以下命令将 `mysqld_t` 域放回强制模式：
+- en: '[PRE1]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: SELinux writes logs for denied operations to `/var/log/audit/audit.log`. You
+    can check for denials by searching for “denied” messages.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SELinux 将拒绝操作的日志写入 `/var/log/audit/audit.log`。您可以通过搜索“denied”消息来检查拒绝。
+- en: '[PRE2]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The following sections describes a few common areas where SELinux-related issues
+    may be encountered.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下部分描述了可能遇到与 SELinux 相关问题的几个常见领域。
+- en: File Contexts
+  id: totrans-10
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 文件上下文
+- en: If a MySQL directory or file has an incorrect SELinux context, access may be
+    denied. This issue can occur if MySQL is configured to read from or write to a
+    non-default directory or file. For example, if you configure MySQL to use a non-default
+    data directory, the directory may not have the expected SELinux context.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 MySQL 目录或文件具有不正确的 SELinux 上下文，则可能会拒绝访问。如果 MySQL 配置为从非默认目录或文件读取或写入，则可能会出现此问题。例如，如果您配置
+    MySQL 使用非默认数据目录，则该目录可能没有预期的 SELinux 上下文。
+- en: Attempting to start the MySQL service on a non-default data directory with an
+    invalid SELinux context causes the following startup failure.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尝试在具有无效 SELinux 上下文的非默认数据目录上启动 MySQL 服务会导致以下启动失败。
+- en: '[PRE3]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'In this case, a “denial” message is logged to `/var/log/audit/audit.log`:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，将“拒绝”消息记录到 `/var/log/audit/audit.log` 中：
+- en: '[PRE4]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: For information about setting the proper SELinux context for MySQL directories
+    and files, see [Section 8.7.4, “SELinux File Context”](selinux-file-context.html
+    "8.7.4 SELinux File Context").
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关为 MySQL 目录和文件设置正确的 SELinux 上下文的信息，请参见 [第 8.7.4 节，“SELinux 文件上下文”](selinux-file-context.html
+    "8.7.4 SELinux 文件上下文")。
+- en: Port Access
+  id: totrans-17
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 端口访问
+- en: SELinux expects services such as MySQL Server to use specific ports. Changing
+    ports without updating the SELinux policies may cause a service failure.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SELinux 期望诸如 MySQL 服务器之类的服务使用特定端口。更改端口而不更新 SELinux 策略可能会导致服务失败。
+- en: 'The `mysqld_port_t` port type defines the ports that the MySQL listens on.
+    If you configure the MySQL Server to use a non-default port, such as port 3307,
+    and do not update the policy to reflect the change, the MySQL service fails to
+    start:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mysqld_port_t` 端口类型定义了 MySQL 监听的端口。如果将 MySQL 服务器配置为使用非默认端口，例如端口 3307，并且不更新策略以反映更改，则
+    MySQL 服务无法启动：'
+- en: '[PRE5]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'In this case, a denial message is logged to `/var/log/audit/audit.log`:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，拒绝消息被记录到 `/var/log/audit/audit.log` 中：
+- en: '[PRE6]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: For information about setting the proper SELinux port context for MySQL, see
+    [Section 8.7.5, “SELinux TCP Port Context”](selinux-context-tcp-port.html "8.7.5 SELinux
+    TCP Port Context"). Similar port access issues can occur when enabling MySQL features
+    that use ports that are not defined with the required context. For more information,
+    see [Section 8.7.5.2, “Setting the TCP Port Context for MySQL Features”](selinux-context-mysql-feature-ports.html
+    "8.7.5.2 Setting the TCP Port Context for MySQL Features").
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关为 MySQL 设置正确的 SELinux 端口上下文的信息，请参见 [第 8.7.5 节，“SELinux TCP 端口上下文”](selinux-context-tcp-port.html
+    "8.7.5 SELinux TCP 端口上下文")。启用使用未定义所需上下文的端口的 MySQL 功能时，可能会出现类似的端口访问问题。有关更多信息，请参见
+    [第 8.7.5.2 节，“为 MySQL 功能设置 TCP 端口上下文”](selinux-context-mysql-feature-ports.html
+    "8.7.5.2 为 MySQL 功能设置 TCP 端口上下文")。
+- en: Application Changes
+  id: totrans-24
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 应用程序更改
+- en: SELinux may not be aware of application changes. For example, a new release,
+    an application extension, or a new feature may access system resources in a way
+    that is not permitted by SELinux, resulting in access denials. In such cases,
+    you can use the **audit2allow** utility to create custom policies to permit access
+    where it is required. The typical method for creating custom policies is to change
+    the SELinux mode to permissive, identify access denial messages in the SELinux
+    audit log, and use the **audit2allow** utility to create custom policies to permit
+    access.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SELinux可能不知道应用程序的更改。例如，新版本、应用程序扩展或新功能可能以SELinux不允许的方式访问系统资源，导致访问被拒绝。在这种情况下，您可以使用**audit2allow**实用程序创建自定义策略以允许必要的访问。创建自定义策略的典型方法是将SELinux模式更改为宽容模式，识别SELinux审计日志中的访问拒绝消息，并使用**audit2allow**实用程序创建自定义策略以允许访问。
+- en: For information about using the **audit2allow** utility, refer to your distribution's
+    SELinux documentation.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关使用**audit2allow**实用程序的信息，请参考您发行版的SELinux文档。
+- en: If you encounter access issues for MySQL that you believe should be handled
+    by standard MySQL SELinux policy modules, please open a bug report in your distribution's
+    bug tracking system.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您遇到MySQL的访问问题，认为应该由标准MySQL SELinux策略模块处理，请在您发行版的错误跟踪系统中提交错误报告。

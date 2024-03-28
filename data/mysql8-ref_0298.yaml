@@ -1,0 +1,539 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-reference.html](https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-reference.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-reference.html](https://dev.mysql.com/doc/refman/8.0/en/rewriter-query-rewrite-plugin-reference.html)
+- en: 7.6.4.3 Rewriter Query Rewrite Plugin Reference
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.6.4.3 `Rewriter`查询重写插件参考
+- en: 'The following discussion serves as a reference to these elements associated
+    with the `Rewriter` query rewrite plugin:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论作为与`Rewriter`查询重写插件相关的这些元素的参考：
+- en: The `Rewriter` rules table in the `query_rewrite` database
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`query_rewrite`数据库中的`Rewriter`规则表'
+- en: '`Rewriter` procedures and functions'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Rewriter`过程和函数'
+- en: '`Rewriter` system and status variables'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Rewriter`系统和状态变量'
+- en: 7.6.4.3.1 Rewriter Query Rewrite Plugin Rules Table
+  id: totrans-6
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.6.4.3.1 `Rewriter`查询重写插件规则表
+- en: The `rewrite_rules` table in the `query_rewrite` database provides persistent
+    storage for the rules that the `Rewriter` plugin uses to decide whether to rewrite
+    statements.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`query_rewrite`数据库中的`rewrite_rules`表为`Rewriter`插件提供了规则的持久存储，用于决定是否重写语句。'
+- en: Users communicate with the plugin by modifying the set of rules stored in this
+    table. The plugin communicates information to users by setting the table's `message`
+    column.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用户通过修改存储在此表中的规则集与插件进行通信。插件通过设置表的`message`列向用户传递信息。
+- en: Note
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The rules table is loaded into the plugin by the `flush_rewrite_rules` stored
+    procedure. Unless that procedure has been called following the most recent table
+    modification, the table contents do not necessarily correspond to the set of rules
+    the plugin is using.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过`flush_rewrite_rules`存储过程将规则表加载到插件中。除非在最近的表修改后调用了该过程，否则表内容不一定对应插件正在使用的规则集。
+- en: 'The `rewrite_rules` table has these columns:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`rewrite_rules`表具有以下列：'
+- en: '`id`'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`id`'
+- en: The rule ID. This column is the table primary key. You can use the ID to uniquely
+    identify any rule.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 规则ID。此列是表的主键。您可以使用ID唯一标识任何规则。
+- en: '`pattern`'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`pattern`'
+- en: The template that indicates the pattern for statements that the rule matches.
+    Use `?` to represent parameter markers that match data values.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指示规则匹配语句模式的模板。使用`?`表示匹配数据值的参数标记。
+- en: '`pattern_database`'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`pattern_database`'
+- en: The database used to match unqualified table names in statements. Qualified
+    table names in statements match qualified names in the pattern if corresponding
+    database and table names are identical. Unqualified table names in statements
+    match unqualified names in the pattern only if the default database is the same
+    as `pattern_database` and the table names are identical.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于匹配语句中未限定表名的数据库。语句中的限定表名仅在默认数据库与`pattern_database`相同且表名相同时，才与模式中的限定名称匹配。语句中的未限定表名仅在默认数据库与`pattern_database`相同且表名相同时，才与模式中的未限定名称匹配。
+- en: '`replacement`'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`replacement`'
+- en: The template that indicates how to rewrite statements matching the `pattern`
+    column value. Use `?` to represent parameter markers that match data values. In
+    rewritten statements, the plugin replaces `?` parameter markers in `replacement`
+    using data values matched by the corresponding markers in `pattern`.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指示如何重写与`pattern`列值匹配的语句的模板。使用`?`表示匹配数据值的参数标记。在重写的语句中，插件使用`replacement`中的`?`参数标记，使用与`pattern`中相应标记匹配的数据值进行替换。
+- en: '`enabled`'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`enabled`'
+- en: Whether the rule is enabled. Load operations (performed by invoking the `flush_rewrite_rules()`
+    stored procedure) load the rule from the table into the `Rewriter` in-memory cache
+    only if this column is `YES`.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 是否启用规则。加载操作（通过调用`flush_rewrite_rules()`存储过程执行）仅在此列为`YES`时，将规则从表加载到`Rewriter`内存缓存中。
+- en: 'This column makes it possible to deactivate a rule without removing it: Set
+    the column to a value other than `YES` and reload the table into the plugin.'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此列使得可以在不移除规则的情况下停用规则：将列设置为非`YES`的值，并重新加载表到插件中。
+- en: '`message`'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`message`'
+- en: 'The plugin uses this column for communicating with users. If no error occurs
+    when the rules table is loaded into memory, the plugin sets the `message` column
+    to `NULL`. A non-`NULL` value indicates an error and the column contents are the
+    error message. Errors can occur under these circumstances:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 插件使用此列与用户进行通信。如果在将规则表加载到内存时没有发生错误，则插件将`message`列设置为`NULL`。非`NULL`值表示错误，列内容为错误消息。错误可能发生在以下情况下：
+- en: Either the pattern or the replacement is an incorrect SQL statement that produces
+    syntax errors.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要么模式，要么替换是产生语法错误的不正确SQL语句。
+- en: The replacement contains more `?` parameter markers than the pattern.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 替换包含比模式更多的`?`参数标记。
+- en: If a load error occurs, the plugin also sets the [`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)
+    status variable to `ON`.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果发生加载错误，插件还会将[`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)状态变量设置为`ON`。
+- en: '`pattern_digest`'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`pattern_digest`'
+- en: This column is used for debugging and diagnostics. If the column exists when
+    the rules table is loaded into memory, the plugin updates it with the pattern
+    digest. This column may be useful if you are trying to determine why some statement
+    fails to be rewritten.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此列用于调试和诊断。如果在将规则表加载到内存时存在该列，则插件将使用模式摘要更新它。如果您试图确定某个语句未能重写的原因，此列可能会有用。
+- en: '`normalized_pattern`'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`normalized_pattern`'
+- en: This column is used for debugging and diagnostics. If the column exists when
+    the rules table is loaded into memory, the plugin updates it with the normalized
+    form of the pattern. This column may be useful if you are trying to determine
+    why some statement fails to be rewritten.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此列用于调试和诊断。如果在将规则表加载到内存时存在该列，则插件将使用模式的规范形式更新它。如果您试图确定某个语句未能重写的原因，此列可能会有用。
+- en: 7.6.4.3.2 Rewriter Query Rewrite Plugin Procedures and Functions
+  id: totrans-32
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.6.4.3.2 Rewriter查询重写插件的过程和函数
+- en: '`Rewriter` plugin operation uses a stored procedure that loads the rules table
+    into its in-memory cache, and a helper loadable function. Under normal operation,
+    users invoke only the stored procedure. The function is intended to be invoked
+    by the stored procedure, not directly by users.'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Rewriter`插件操作使用一个存储过程，将规则表加载到其内存缓存中，并使用一个辅助可加载函数。在正常操作下，用户只调用存储过程。该函数旨在由存储过程调用，而不是直接由用户调用。'
+- en: '`flush_rewrite_rules()`'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`flush_rewrite_rules()`'
+- en: This stored procedure uses the [`load_rewrite_rules()`](rewriter-query-rewrite-plugin-reference.html#function_load-rewrite-rules)
+    function to load the contents of the `rewrite_rules` table into the `Rewriter`
+    in-memory cache.
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此存储过程使用[`load_rewrite_rules()`](rewriter-query-rewrite-plugin-reference.html#function_load-rewrite-rules)函数将`rewrite_rules`表的内容加载到`Rewriter`内存缓存中。
+- en: Calling `flush_rewrite_rules()` implies [`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements").
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 调用`flush_rewrite_rules()`意味着[`COMMIT`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements")。
+- en: Invoke this procedure after you modify the rules table to cause the plugin to
+    update its cache from the new table contents. If any errors occur, the plugin
+    sets the `message` column for the appropriate rule rows in the table and sets
+    the [`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)
+    status variable to `ON`.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在修改规则表后调用此存储过程，使插件从新表内容更新其缓存。如果发生任何错误，插件将为表中适当规则行设置`message`列，并将[`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)状态变量设置为`ON`。
+- en: '[`load_rewrite_rules()`](rewriter-query-rewrite-plugin-reference.html#function_load-rewrite-rules)'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`load_rewrite_rules()`](rewriter-query-rewrite-plugin-reference.html#function_load-rewrite-rules)'
+- en: This function is a helper routine used by the `flush_rewrite_rules()` stored
+    procedure.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此函数是由`flush_rewrite_rules()`存储过程使用的辅助程序。
+- en: 7.6.4.3.3 Rewriter Query Rewrite Plugin System Variables
+  id: totrans-40
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.6.4.3.3 Rewriter查询重写插件系统变量
+- en: The `Rewriter` query rewrite plugin supports the following system variables.
+    These variables are available only if the plugin is installed (see [Section 7.6.4.1,
+    “Installing or Uninstalling the Rewriter Query Rewrite Plugin”](rewriter-query-rewrite-plugin-installation.html
+    "7.6.4.1 Installing or Uninstalling the Rewriter Query Rewrite Plugin")).
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Rewriter`查询重写插件支持以下系统变量。仅当安装了插件时才可用这些变量（请参阅[第7.6.4.1节，“安装或卸载Rewriter查询重写插件”](rewriter-query-rewrite-plugin-installation.html
+    "7.6.4.1 安装或卸载Rewriter查询重写插件")）。'
+- en: '[`rewriter_enabled`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`rewriter_enabled`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)'
+- en: '| System Variable | `[rewriter_enabled](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)`
+    |'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[rewriter_enabled](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 全局 |'
+- en: '| Dynamic | Yes |'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 是 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法")提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `ON` |'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `ON` |'
+- en: '| Valid Values | `OFF` |'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 有效值 | `OFF` |'
+- en: Whether the `Rewriter` query rewrite plugin is enabled.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 是否启用了`Rewriter`查询重写插件。
+- en: '[`rewriter_enabled_for_threads_without_privilege_checks`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled_for_threads_without_privilege_checks)'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`rewriter_enabled_for_threads_without_privilege_checks`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled_for_threads_without_privilege_checks)'
+- en: '| Introduced | 8.0.31 |'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.31 |'
+- en: '| System Variable | `[rewriter_enabled_for_threads_without_privilege_checks](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled_for_threads_without_privilege_checks)`
+    |'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[rewriter_enabled_for_threads_without_privilege_checks](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled_for_threads_without_privilege_checks)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用域 | 全局 |'
+- en: '| Dynamic | Yes |'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 是 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `ON` |'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `ON` |'
+- en: '| Valid Values | `OFF` |'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 有效值 | `OFF` |'
+- en: Whether to apply rewrites for replication threads which execute with privilege
+    checks disabled. If set to `OFF`, such rewrites are skipped. Requires the [`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)
+    privilege or [`SUPER`](privileges-provided.html#priv_super) privilege to set.
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 是否应用于执行时禁用权限检查的复制线程的重写。如果设置为`OFF`，则跳过此类重写。需要[`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)权限或[`SUPER`](privileges-provided.html#priv_super)权限来设置。
+- en: This variable has no effect if [`rewriter_enabled`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)
+    is `OFF`.
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果[`rewriter_enabled`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_enabled)为`OFF`，则此变量无效。
+- en: '[`rewriter_verbose`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_verbose)'
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`rewriter_verbose`](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_verbose)'
+- en: '| System Variable | `[rewriter_verbose](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_verbose)`
+    |'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[rewriter_verbose](rewriter-query-rewrite-plugin-reference.html#sysvar_rewriter_verbose)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用域 | 全局 |'
+- en: '| Dynamic | Yes |'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 是 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Integer |'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 整数 |'
+- en: For internal use.
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 供内部使用。
+- en: 7.6.4.3.4 Rewriter Query Rewrite Plugin Status Variables
+  id: totrans-69
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.6.4.3.4 Rewriter查询重写插件状态变量
+- en: The `Rewriter` query rewrite plugin supports the following status variables.
+    These variables are available only if the plugin is installed (see [Section 7.6.4.1,
+    “Installing or Uninstalling the Rewriter Query Rewrite Plugin”](rewriter-query-rewrite-plugin-installation.html
+    "7.6.4.1 Installing or Uninstalling the Rewriter Query Rewrite Plugin")).
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Rewriter`查询重写插件支持以下状态变量。仅当插件已安装时才可用（请参阅[第7.6.4.1节，“安装或卸载Rewriter查询重写插件”](rewriter-query-rewrite-plugin-installation.html
+    "7.6.4.1 安装或卸载Rewriter查询重写插件")）。'
+- en: '[`Rewriter_number_loaded_rules`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_number_loaded_rules)'
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Rewriter_number_loaded_rules`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_number_loaded_rules)'
+- en: The number of rewrite plugin rewrite rules successfully loaded from the `rewrite_rules`
+    table into memory for use by the `Rewriter` plugin.
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 成功从`rewrite_rules`表加载到内存中供`Rewriter`插件使用的重写插件重写规则数量。
+- en: '[`Rewriter_number_reloads`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_number_reloads)'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Rewriter_number_reloads`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_number_reloads)'
+- en: The number of times the `rewrite_rules` table has been loaded into the in-memory
+    cache used by the `Rewriter` plugin.
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`rewrite_rules`表被加载到`Rewriter`插件使用的内存缓存中的次数。'
+- en: '[`Rewriter_number_rewritten_queries`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_number_rewritten_queries)'
+  id: totrans-75
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Rewriter_number_rewritten_queries`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_number_rewritten_queries)'
+- en: The number of queries rewritten by the `Rewriter` query rewrite plugin since
+    it was loaded.
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`Rewriter`查询重写插件自加载以来重写的查询次数。'
+- en: '[`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)'
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Rewriter_reload_error`](rewriter-query-rewrite-plugin-reference.html#statvar_Rewriter_reload_error)'
+- en: Whether an error occurred the most recent time that the `rewrite_rules` table
+    was loaded into the in-memory cache used by the `Rewriter` plugin. If the value
+    is `OFF`, no error occurred. If the value is `ON`, an error occurred; check the
+    `message` column of the `rewriter_rules` table for error messages.
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 上次将`rewrite_rules`表加载到`Rewriter`插件使用的内存缓存中时是否发生错误。如果值为`OFF`，则未发生错误。如果值为`ON`，则发生了错误；请检查`rewriter_rules`表的`message`列以获取错误消息。

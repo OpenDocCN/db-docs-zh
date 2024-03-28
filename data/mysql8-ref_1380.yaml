@@ -1,0 +1,315 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-safe-unsafe.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-safe-unsafe.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-safe-unsafe.html](https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-safe-unsafe.html)
+- en: 19.2.1.3 Determination of Safe and Unsafe Statements in Binary Logging
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.2.1.3 二进制日志中安全和不安全语句的确定
+- en: The “safeness” of a statement in MySQL replication refers to whether the statement
+    and its effects can be replicated correctly using statement-based format. If this
+    is true of the statement, we refer to the statement as safe; otherwise, we refer
+    to it as unsafe.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL复制中，一个语句的“安全性”指的是该语句及其效果是否可以使用基于语句的格式正确复制。如果这对于该语句是正确的，我们将该语句称为安全的；否则，我们将其称为不安全的。
+- en: In general, a statement is safe if it deterministic, and unsafe if it is not.
+    However, certain nondeterministic functions are *not* considered unsafe (see [Nondeterministic
+    functions not considered unsafe](replication-rbr-safe-unsafe.html#replication-rbr-safe-unsafe-not
+    "Nondeterministic functions not considered unsafe"), later in this section). In
+    addition, statements using results from floating-point math functions—which are
+    hardware-dependent—are always considered unsafe (see [Section 19.5.1.12, “Replication
+    and Floating-Point Values”](replication-features-floatvalues.html "19.5.1.12 Replication
+    and Floating-Point Values")).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常情况下，如果一个语句是确定性的，那么它就是安全的；如果不是，则是不安全的。然而，某些非确定性函数*不*被视为不安全（请参见[非确定性函数不被视为不安全](replication-rbr-safe-unsafe-not
+    "非确定性函数不被视为不安全")，本节后面的内容）。此外，使用浮点数数学函数结果的语句——这些函数是依赖于硬件的——总是被视为不安全（请参见[第19.5.1.12节，“复制和浮点值”](replication-features-floatvalues.html
+    "19.5.1.12 复制和浮点值")）。
+- en: '**Handling of safe and unsafe statements. ** A statement is treated differently
+    depending on whether the statement is considered safe, and with respect to the
+    binary logging format (that is, the current value of [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)).'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**安全和不安全语句的处理。** 一个语句的处理方式取决于该语句是否被视为安全，并且与二进制日志格式有关（即，[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)的当前值）。'
+- en: When using row-based logging, no distinction is made in the treatment of safe
+    and unsafe statements.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用基于行的日志记录时，对于安全和不安全的语句没有区别对待。
+- en: When using mixed-format logging, statements flagged as unsafe are logged using
+    the row-based format; statements regarded as safe are logged using the statement-based
+    format.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用混合格式日志记录时，被标记为不安全的语句将使用基于行的格式记录；被视为安全的语句将使用基于语句的格式记录。
+- en: When using statement-based logging, statements flagged as being unsafe generate
+    a warning to this effect. Safe statements are logged normally.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用基于语句的日志记录时，被标记为不安全的语句会生成相应的警告。安全的语句会正常记录。
+- en: Each statement flagged as unsafe generates a warning. If a large number of such
+    statements were executed on the source, this could lead to excessively large error
+    log files. To prevent this, MySQL has a warning suppression mechanism. Whenever
+    the 50 most recent [`ER_BINLOG_UNSAFE_STATEMENT`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_binlog_unsafe_statement)
+    warnings have been generated more than 50 times in any 50-second period, warning
+    suppression is enabled. When activated, this causes such warnings not to be written
+    to the error log; instead, for each 50 warnings of this type, a note `The last
+    warning was repeated *`N`* times in last *`S`* seconds` is written to the error
+    log. This continues as long as the 50 most recent such warnings were issued in
+    50 seconds or less; once the rate has decreased below this threshold, the warnings
+    are once again logged normally. Warning suppression has no effect on how the safety
+    of statements for statement-based logging is determined, nor on how warnings are
+    sent to the client. MySQL clients still receive one warning for each such statement.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个被标记为不安全的语句都会生成一个警告。如果在源端执行了大量这样的语句，这可能导致错误日志文件过大。为了防止这种情况发生，MySQL有一个警告抑制机制。每当在任何50秒内生成的最近50个[`ER_BINLOG_UNSAFE_STATEMENT`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_binlog_unsafe_statement)警告超过50次时，警告抑制就会被启用。一旦激活，这将导致这类警告不会被写入错误日志；相反，对于每50个这种类型的警告，错误日志中会写入一个注释`最后一个警告在最近的*`N`*秒内重复了*`S`*次`。只要最近的50个这样的警告在50秒内或更短的时间内发出，这将继续进行；一旦速率降低到低于此阈值，警告将再次正常记录。警告抑制对于决定基于语句的日志记录中语句的安全性，以及如何将警告发送给客户端没有影响。MySQL客户端仍然会为每个这样的语句接收一个警告。
+- en: For more information, see [Section 19.2.1, “Replication Formats”](replication-formats.html
+    "19.2.1 Replication Formats").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[Section 19.2.1, “Replication Formats”](replication-formats.html "19.2.1 Replication
+    Formats")。
+- en: '**Statements considered unsafe. ** Statements with the following characteristics
+    are considered unsafe:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**被视为不安全的语句。** 具有以下特征的语句被视为不安全：'
+- en: '**Statements containing system functions that may return a different value
+    on the replica. ** These functions include [`FOUND_ROWS()`](information-functions.html#function_found-rows),
+    [`GET_LOCK()`](locking-functions.html#function_get-lock), [`IS_FREE_LOCK()`](locking-functions.html#function_is-free-lock),
+    [`IS_USED_LOCK()`](locking-functions.html#function_is-used-lock), [`LOAD_FILE()`](string-functions.html#function_load-file),
+    [`MASTER_POS_WAIT()`](replication-functions-synchronization.html#function_master-pos-wait),
+    [`RAND()`](mathematical-functions.html#function_rand), [`RELEASE_LOCK()`](locking-functions.html#function_release-lock),
+    [`ROW_COUNT()`](information-functions.html#function_row-count), [`SESSION_USER()`](information-functions.html#function_session-user),
+    [`SLEEP()`](miscellaneous-functions.html#function_sleep), [`SOURCE_POS_WAIT()`](replication-functions-synchronization.html#function_source-pos-wait),
+    [`SYSDATE()`](date-and-time-functions.html#function_sysdate), [`SYSTEM_USER()`](information-functions.html#function_system-user),
+    [`USER()`](information-functions.html#function_user), [`UUID()`](miscellaneous-functions.html#function_uuid),
+    and [`UUID_SHORT()`](miscellaneous-functions.html#function_uuid-short).'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**包含可能在副本上返回不同值的系统函数的语句。** 这些函数包括[`FOUND_ROWS()`](information-functions.html#function_found-rows),
+    [`GET_LOCK()`](locking-functions.html#function_get-lock), [`IS_FREE_LOCK()`](locking-functions.html#function_is-free-lock),
+    [`IS_USED_LOCK()`](locking-functions.html#function_is-used-lock), [`LOAD_FILE()`](string-functions.html#function_load-file),
+    [`MASTER_POS_WAIT()`](replication-functions-synchronization.html#function_master-pos-wait),
+    [`RAND()`](mathematical-functions.html#function_rand), [`RELEASE_LOCK()`](locking-functions.html#function_release-lock),
+    [`ROW_COUNT()`](information-functions.html#function_row-count), [`SESSION_USER()`](information-functions.html#function_session-user),
+    [`SLEEP()`](miscellaneous-functions.html#function_sleep), [`SOURCE_POS_WAIT()`](replication-functions-synchronization.html#function_source-pos-wait),
+    [`SYSDATE()`](date-and-time-functions.html#function_sysdate), [`SYSTEM_USER()`](information-functions.html#function_system-user),
+    [`USER()`](information-functions.html#function_user), [`UUID()`](miscellaneous-functions.html#function_uuid),
+    和 [`UUID_SHORT()`](miscellaneous-functions.html#function_uuid-short)。'
+- en: '**Nondeterministic functions not considered unsafe. ** Although these functions
+    are not deterministic, they are treated as safe for purposes of logging and replication:
+    [`CONNECTION_ID()`](information-functions.html#function_connection-id), [`CURDATE()`](date-and-time-functions.html#function_curdate),
+    [`CURRENT_DATE()`](date-and-time-functions.html#function_current-date), [`CURRENT_TIME()`](date-and-time-functions.html#function_current-time),
+    [`CURRENT_TIMESTAMP()`](date-and-time-functions.html#function_current-timestamp),
+    [`CURTIME()`](date-and-time-functions.html#function_curtime),, [`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id),
+    [`LOCALTIME()`](date-and-time-functions.html#function_localtime), [`LOCALTIMESTAMP()`](date-and-time-functions.html#function_localtimestamp),
+    [`NOW()`](date-and-time-functions.html#function_now), [`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp),
+    [`UTC_DATE()`](date-and-time-functions.html#function_utc-date), [`UTC_TIME()`](date-and-time-functions.html#function_utc-time),
+    and [`UTC_TIMESTAMP()`](date-and-time-functions.html#function_utc-timestamp).'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '**非确定性函数不被视为不安全。** 尽管这些函数不是确定性的，但在记录和复制的目的上被视为安全：[`CONNECTION_ID()`](information-functions.html#function_connection-id),
+    [`CURDATE()`](date-and-time-functions.html#function_curdate), [`CURRENT_DATE()`](date-and-time-functions.html#function_current-date),
+    [`CURRENT_TIME()`](date-and-time-functions.html#function_current-time), [`CURRENT_TIMESTAMP()`](date-and-time-functions.html#function_current-timestamp),
+    [`CURTIME()`](date-and-time-functions.html#function_curtime),, [`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id),
+    [`LOCALTIME()`](date-and-time-functions.html#function_localtime), [`LOCALTIMESTAMP()`](date-and-time-functions.html#function_localtimestamp),
+    [`NOW()`](date-and-time-functions.html#function_now), [`UNIX_TIMESTAMP()`](date-and-time-functions.html#function_unix-timestamp),
+    [`UTC_DATE()`](date-and-time-functions.html#function_utc-date), [`UTC_TIME()`](date-and-time-functions.html#function_utc-time),
+    和 [`UTC_TIMESTAMP()`](date-and-time-functions.html#function_utc-timestamp)。'
+- en: For more information, see [Section 19.5.1.14, “Replication and System Functions”](replication-features-functions.html
+    "19.5.1.14 Replication and System Functions").
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[Section 19.5.1.14, “Replication and System Functions”](replication-features-functions.html
+    "19.5.1.14 Replication and System Functions")。
+- en: '**References to system variables. ** Most system variables are not replicated
+    correctly using the statement-based format. See [Section 19.5.1.39, “Replication
+    and Variables”](replication-features-variables.html "19.5.1.39 Replication and
+    Variables"). For exceptions, see [Section 7.4.4.3, “Mixed Binary Logging Format”](binary-log-mixed.html
+    "7.4.4.3 Mixed Binary Logging Format").'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**系统变量的引用。** 大多数系统变量在基于语句的格式下无法正确复制。参见[Section 19.5.1.39, “复制和变量”](replication-features-variables.html
+    "19.5.1.39 复制和变量")。特殊情况请参见[Section 7.4.4.3, “混合二进制日志格式”](binary-log-mixed.html
+    "7.4.4.3 混合二进制日志格式")。'
+- en: '**Loadable Functions. ** Since we have no control over what a loadable function
+    does, we must assume that it is executing unsafe statements.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**可加载函数。** 由于我们无法控制可加载函数的操作，因此必须假定它执行不安全的语句。'
+- en: '**Fulltext plugin. ** This plugin may behave differently on different MySQL
+    servers; therefore, statements depending on it could have different results. For
+    this reason, all statements relying on the fulltext plugin are treated as unsafe
+    in MySQL.'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**全文插件。** 此插件在不同的 MySQL 服务器上可能表现不同；因此，依赖于它的语句可能会产生不同的结果。因此，在 MySQL 中，所有依赖全文插件的语句都被视为不安全。'
+- en: '**Trigger or stored program updates a table having an AUTO_INCREMENT column. **
+    This is unsafe because the order in which the rows are updated may differ on the
+    source and the replica.'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**触发器或存储过程更新具有 AUTO_INCREMENT 列的表。** 这是不安全的，因为更新行的顺序可能在源和副本上不同。'
+- en: In addition, an [`INSERT`](insert.html "15.2.7 INSERT Statement") into a table
+    that has a composite primary key containing an `AUTO_INCREMENT` column that is
+    not the first column of this composite key is unsafe.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此外，对具有包含不是此复合键的第一列的 AUTO_INCREMENT 列的复合主键的表进行[`INSERT`](insert.html "15.2.7 INSERT
+    语句")是不安全的。
+- en: For more information, see [Section 19.5.1.1, “Replication and AUTO_INCREMENT”](replication-features-auto-increment.html
+    "19.5.1.1 Replication and AUTO_INCREMENT").
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[Section 19.5.1.1, “复制和 AUTO_INCREMENT”](replication-features-auto-increment.html
+    "19.5.1.1 复制和 AUTO_INCREMENT")。
+- en: '**INSERT ... ON DUPLICATE KEY UPDATE statements on tables with multiple primary
+    or unique keys. ** When executed against a table that contains more than one primary
+    or unique key, this statement is considered unsafe, being sensitive to the order
+    in which the storage engine checks the keys, which is not deterministic, and on
+    which the choice of rows updated by the MySQL Server depends.'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**对具有多个主键或唯一键的表执行 INSERT ... ON DUPLICATE KEY UPDATE 语句。** 当针对包含多个主键或唯一键的表执行此语句时，此语句被视为不安全，因为存储引擎检查键的顺序是不确定的，MySQL
+    服务器更新的行取决于此顺序。'
+- en: 'An [`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html "15.2.7.2 INSERT
+    ... ON DUPLICATE KEY UPDATE Statement") statement against a table having more
+    than one unique or primary key is marked as unsafe for statement-based replication.
+    (Bug #11765650, Bug #58637)'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '对于具有多个唯一或主键的表进行[`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html
+    "15.2.7.2 INSERT ... ON DUPLICATE KEY UPDATE 语句")语句在基于语句的复制中被标记为不安全。 (Bug #11765650,
+    Bug #58637)'
+- en: '**Updates using LIMIT. ** The order in which rows are retrieved is not specified,
+    and is therefore considered unsafe. See [Section 19.5.1.18, “Replication and LIMIT”](replication-features-limit.html
+    "19.5.1.18 Replication and LIMIT").'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**使用 LIMIT 进行更新。** 检索行的顺序未指定，因此被视为不安全。参见[Section 19.5.1.18, “复制和 LIMIT”](replication-features-limit.html
+    "19.5.1.18 复制和 LIMIT")。'
+- en: '**Accesses or references log tables. ** The contents of the system log table
+    may differ between source and replica.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**访问或引用日志表。** 系统日志表的内容可能在源和副本之间不同。'
+- en: '**Nontransactional operations after transactional operations. ** Within a transaction,
+    allowing any nontransactional reads or writes to execute after any transactional
+    reads or writes is considered unsafe.'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**事务操作后的非事务操作。** 在事务中，允许任何非事务读取或写入在任何事务读取或写入之后执行被视为不安全。'
+- en: For more information, see [Section 19.5.1.35, “Replication and Transactions”](replication-features-transactions.html
+    "19.5.1.35 Replication and Transactions").
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[Section 19.5.1.35, “复制和事务”](replication-features-transactions.html
+    "19.5.1.35 复制和事务")。
+- en: '**Accesses or references self-logging tables. ** All reads and writes to self-logging
+    tables are considered unsafe. Within a transaction, any statement following a
+    read or write to self-logging tables is also considered unsafe.'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**访问或引用自记录表。** 对自记录表的所有读取和写入都被视为不安全。在事务中，对自记录表的读取或写入后的任何语句也被视为不安全。'
+- en: '**LOAD DATA statements. ** [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")
+    is treated as unsafe and when [`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)
+    the statement is logged in row-based format. When [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") does not generate a
+    warning, unlike other unsafe statements.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**LOAD DATA语句。** [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")被视为不安全，当[`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)时，该语句以基于行的格式记录。当[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)时，[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement")不会生成警告，与其他不安全语句不同。'
+- en: '**XA transactions. ** If two XA transactions committed in parallel on the source
+    are being prepared on the replica in the inverse order, locking dependencies can
+    occur with statement-based replication that cannot be safely resolved, and it
+    is possible for replication to fail with deadlock on the replica. When [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, DML statements inside XA transactions are flagged as being unsafe and
+    generate a warning. When [`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)
+    or [`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, DML statements inside XA transactions are logged using row-based replication,
+    and the potential issue is not present.'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**XA事务。** 如果在源端并行提交的两个XA事务在副本上以相反顺序准备，那么在基于语句的复制中可能会出现无法安全解决的锁定依赖关系，并且可能导致副本上的复制失败并发生死锁。当[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)时，XA事务内的DML语句被标记为不安全并生成警告。当[`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)或[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)时，XA事务内的DML语句使用基于行的复制记录，并且潜在问题不存在。'
+- en: '**`DEFAULT` clause that refers to a nondeterministic function. ** If an expression
+    default value refers to a nondeterministic function, any statement that causes
+    the expression to be evaluated is unsafe for statement-based replication. This
+    includes statements such as [`INSERT`](insert.html "15.2.7 INSERT Statement"),
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement"), and [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement"). Unlike most other unsafe statements, this category
+    of statement cannot be replicated safely in row-based format. When [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `STATEMENT`, the statement is logged and executed but a warning message
+    is written to the error log. When [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `MIXED` or `ROW`, the statement is not executed and an error message
+    is written to the error log. For more information on the handling of explicit
+    defaults, see [Explicit Default Handling as of MySQL 8.0.13](data-type-defaults.html#data-type-defaults-explicit
+    "Explicit Default Handling as of MySQL 8.0.13").'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`DEFAULT`子句指的是一个不确定性函数。** 如果表达式的默认值指向一个不确定性函数，任何导致表达式被评估的语句对于基于语句的复制都是不安全的。这包括诸如[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")、[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")等语句。与大多数其他不安全语句不同，这类语句在基于行的格式中无法安全复制。当[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时，该语句被记录并执行，但会在错误日志中写入警告消息。当[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`MIXED`或`ROW`时，该语句不会被执行，并且会在错误日志中写入错误消息。有关显式默认值处理的更多信息，请参见[MySQL
+    8.0.13中的显式默认值处理](data-type-defaults.html#data-type-defaults-explicit "MySQL 8.0.13中的显式默认值处理")。'
+- en: For additional information, see [Section 19.5.1, “Replication Features and Issues”](replication-features.html
+    "19.5.1 Replication Features and Issues").
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[第19.5.1节，“复制功能和问题”](replication-features.html "19.5.1 复制功能和问题")。

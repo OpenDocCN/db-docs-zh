@@ -1,0 +1,200 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/ansi-diff-foreign-keys.html](https://dev.mysql.com/doc/refman/8.0/en/ansi-diff-foreign-keys.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/ansi-diff-foreign-keys.html](https://dev.mysql.com/doc/refman/8.0/en/ansi-diff-foreign-keys.html)
+- en: 1.6.2.3 FOREIGN KEY Constraint Differences
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 1.6.2.3 外键约束的差异
+- en: 'The MySQL implementation of foreign key constraints differs from the SQL standard
+    in the following key respects:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL对外键约束的实现与SQL标准在以下关键方面有所不同：
+- en: If there are several rows in the parent table with the same referenced key value,
+    [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    performs a foreign key check as if the other parent rows with the same key value
+    do not exist. For example, if you define a `RESTRICT` type constraint, and there
+    is a child row with several parent rows, `InnoDB` does not permit the deletion
+    of any of the parent rows.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果父表中有多行具有相同的引用键值，[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")会像其他具有相同键值的父行不存在一样执行外键检查。例如，如果定义了`RESTRICT`类型的约束，并且有一个子行具有多个父行，`InnoDB`不允许删除任何父行。
+- en: If `ON UPDATE CASCADE` or `ON UPDATE SET NULL` recurses to update the *same
+    table* it has previously updated during the same cascade, it acts like `RESTRICT`.
+    This means that you cannot use self-referential `ON UPDATE CASCADE` or `ON UPDATE
+    SET NULL` operations. This is to prevent infinite loops resulting from cascaded
+    updates. A self-referential `ON DELETE SET NULL`, on the other hand, is possible,
+    as is a self-referential `ON DELETE CASCADE`. Cascading operations may not be
+    nested more than 15 levels deep.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果`ON UPDATE CASCADE`或`ON UPDATE SET NULL`递归更新*相同表*，它会像`RESTRICT`一样操作。这意味着不能使用自引用的`ON
+    UPDATE CASCADE`或`ON UPDATE SET NULL`操作。这是为了防止由级联更新导致的无限循环。另一方面，自引用的`ON DELETE
+    SET NULL`是可能的，就像自引用的`ON DELETE CASCADE`一样。级联操作不能嵌套超过15层。
+- en: In an SQL statement that inserts, deletes, or updates many rows, foreign key
+    constraints (like unique constraints) are checked row-by-row. When performing
+    foreign key checks, [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") sets shared row-level locks on child or parent records that it
+    must examine. MySQL checks foreign key constraints immediately; the check is not
+    deferred to transaction commit. According to the SQL standard, the default behavior
+    should be deferred checking. That is, constraints are only checked after the *entire
+    SQL statement* has been processed. This means that it is not possible to delete
+    a row that refers to itself using a foreign key.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在插入、删除或更新多行的SQL语句中，外键约束（如唯一约束）会逐行检查。在执行外键检查时，[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")会在必须检查的子记录或父记录上设置共享的行级锁。MySQL会立即检查外键约束；检查不会延迟到事务提交。根据SQL标准，默认行为应该是延迟检查。也就是说，只有在*整个SQL语句*被处理完之后才会检查约束。这意味着不可能使用外键删除引用自身的行。
+- en: No storage engine, including `InnoDB`, recognizes or enforces the `MATCH` clause
+    used in referential-integrity constraint definitions. Use of an explicit `MATCH`
+    clause does not have the specified effect, and it causes `ON DELETE` and `ON UPDATE`
+    clauses to be ignored. Specifying the `MATCH` should be avoided.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有存储引擎，包括`InnoDB`，识别或执行引用完整性约束定义中使用的`MATCH`子句。使用显式的`MATCH`子句不会产生指定的效果，并且会导致`ON
+    DELETE`和`ON UPDATE`子句被忽略。应避免指定`MATCH`。
+- en: The `MATCH` clause in the SQL standard controls how `NULL` values in a composite
+    (multiple-column) foreign key are handled when comparing to a primary key in the
+    referenced table. MySQL essentially implements the semantics defined by `MATCH
+    SIMPLE`, which permits a foreign key to be all or partially `NULL`. In that case,
+    a (child table) row containing such a foreign key can be inserted even though
+    it does not match any row in the referenced (parent) table. (It is possible to
+    implement other semantics using triggers.)
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: SQL标准中的`MATCH`子句控制如何处理复合（多列）外键中的`NULL`值，当与引用表中的主键进行比较时。MySQL基本上实现了`MATCH SIMPLE`定义的语义，允许外键全部或部分为`NULL`。在这种情况下，包含这种外键的（子表）行可以被插入，即使它与引用（父表）中的任何行都不匹配。（可以使用触发器实现其他语义。）
+- en: MySQL requires that the referenced columns be indexed for performance reasons.
+    However, MySQL does not enforce a requirement that the referenced columns be `UNIQUE`
+    or be declared `NOT NULL`.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 出于性能原因，MySQL要求引用的列被索引。然而，MySQL不强制要求引用的列是`UNIQUE`或声明为`NOT NULL`。
+- en: A `FOREIGN KEY` constraint that references a non-`UNIQUE` key is not standard
+    SQL but rather an [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") extension. The [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB
+    Cluster 8.0") storage engine, on the other hand, requires an explicit unique key
+    (or primary key) on any column referenced as a foreign key.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 引用非`UNIQUE`键的`FOREIGN KEY`约束不是标准SQL，而是[`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine")的扩展。另一方面，[`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0")存储引擎要求在任何作为外键引用的列上显式唯一键（或主键）。
+- en: The handling of foreign key references to nonunique keys or keys that contain
+    `NULL` values is not well defined for operations such as [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") or `DELETE CASCADE`. You are advised to use foreign
+    keys that reference only `UNIQUE` (including `PRIMARY`) and `NOT NULL` keys.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于包含非唯一键或包含`NULL`值的外键引用的处理对于诸如[`UPDATE`](update.html "15.2.17 UPDATE Statement")或`DELETE
+    CASCADE`等操作并不明确定义。建议您使用仅引用`UNIQUE`（包括`PRIMARY`）和`NOT NULL`键的外键。
+- en: For storage engines that do not support foreign keys (such as [`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine")), MySQL Server parses and ignores foreign key
+    specifications.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于不支持外键的存储引擎（如[`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine"))，MySQL服务器解析并忽略外键规范。
+- en: MySQL parses but ignores “inline `REFERENCES` specifications” (as defined in
+    the SQL standard) where the references are defined as part of the column specification.
+    MySQL accepts `REFERENCES` clauses only when specified as part of a separate `FOREIGN
+    KEY` specification.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL解析但忽略“内联`REFERENCES`规范”（如SQL标准中定义的），其中引用是作为列规范的一部分定义的。MySQL仅在作为单独的`FOREIGN
+    KEY`规范的一部分指定时才接受`REFERENCES`子句。
+- en: 'Defining a column to use a `REFERENCES *`tbl_name`*(*`col_name`*)` clause has
+    no actual effect and *serves only as a memo or comment to you that the column
+    which you are currently defining is intended to refer to a column in another table*.
+    It is important to realize when using this syntax that:'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 定义一个列使用`REFERENCES *tbl_name*(col_name)`子句实际上没有任何效果，*仅仅作为一个备忘录或注释，告诉您当前正在定义的列意图引用另一个表中的列*。在使用这种语法时，重要的是要意识到：
+- en: MySQL does not perform any sort of check to make sure that *`col_name`* actually
+    exists in *`tbl_name`* (or even that *`tbl_name`* itself exists).
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL不执行任何检查以确保*col_name*实际存在于*tbl_name*中（甚至*tbl_name*本身是否存在）。
+- en: MySQL does not perform any sort of action on *`tbl_name`* such as deleting rows
+    in response to actions taken on rows in the table which you are defining; in other
+    words, this syntax induces no `ON DELETE` or `ON UPDATE` behavior whatsoever.
+    (Although you can write an `ON DELETE` or `ON UPDATE` clause as part of the `REFERENCES`
+    clause, it is also ignored.)
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL不对*tbl_name*执行任何操作，例如根据您定义的表中的行所采取的操作删除行；换句话说，这种语法根本不引起任何`ON DELETE`或`ON
+    UPDATE`行为。（尽管您可以将`ON DELETE`或`ON UPDATE`子句编写为`REFERENCES`子句的一部分，但它也会被忽略。）
+- en: This syntax creates a *column*; it does **not** create any sort of index or
+    key.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这种语法创建了一个*列*；它**不**创建任何索引或键。
+- en: 'You can use a column so created as a join column, as shown here:'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以将创建的列用作连接列，如下所示：
+- en: '[PRE0]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'When used in this fashion, the `REFERENCES` clause is not displayed in the
+    output of [`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE
+    TABLE Statement") or [`DESCRIBE`](describe.html "15.8.1 DESCRIBE Statement"):'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当以这种方式使用时，`REFERENCES`子句不会显示在[`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW
+    CREATE TABLE Statement")或[`DESCRIBE`](describe.html "15.8.1 DESCRIBE Statement")的输出中：
+- en: '[PRE1]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: For information about foreign key constraints, see [Section 15.1.20.5, “FOREIGN
+    KEY Constraints”](create-table-foreign-keys.html "15.1.20.5 FOREIGN KEY Constraints").
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关外键约束的信息，请参阅[第15.1.20.5节，“FOREIGN KEY Constraints”](create-table-foreign-keys.html
+    "15.1.20.5 FOREIGN KEY Constraints")。

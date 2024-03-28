@@ -1,0 +1,541 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-disk-data-objects.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-disk-data-objects.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-disk-data-objects.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-disk-data-objects.html)
+- en: 25.6.11.1 NDB Cluster Disk Data Objects
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.6.11.1 NDB Cluster磁盘数据对象
+- en: 'NDB Cluster Disk Data storage is implemented using the following objects:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster磁盘数据存储是使用以下对象实现的：
+- en: 'Tablespace: Acts as containers for other Disk Data objects. A tablespace contains
+    one or more data files and one or more undo log file groups.'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表空间：作为其他磁盘数据对象的容器。一个表空间包含一个或多个数据文件和一个或多个撤销日志文件组。
+- en: 'Data file: Stores column data. A data file is assigned directly to a tablespace.'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数据文件：存储列数据。数据文件直接分配给表空间。
+- en: 'Undo log file: Contains undo information required for rolling back transactions.
+    Assigned to an undo log file group.'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 撤销日志文件：包含用于回滚事务所需的撤销信息。分配给一个撤销日志文件组。
+- en: 'log file group: Contains one or more undo log files. Assigned to a tablespace.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 日志文件组：包含一个或多个撤销日志文件。分配给一个表空间。
+- en: Undo log files and data files are actual files in the file system of each data
+    node; by default they are placed in `ndb_*`node_id`*_fs` in the *`DataDir`* specified
+    in the NDB Cluster `config.ini` file, and where *`node_id`* is the data node's
+    node ID. It is possible to place these elsewhere by specifying either an absolute
+    or relative path as part of the filename when creating the undo log or data file.
+    Statements that create these files are shown later in this section.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 撤销日志文件和数据文件是每个数据节点文件系统中的实际文件；默认情况下，它们放置在`ndb_*`node_id`*_fs`中，在NDB Cluster `config.ini`文件中指定的*`DataDir`*中，其中*`node_id`*是数据节点的节点ID。可以通过在创建撤销日志或数据文件时指定绝对或相对路径的方式将其放置在其他位置。创建这些文件的语句稍后在本节中显示。
+- en: Undo log files are used only by Disk Data tables, and are not needed or used
+    by `NDB` tables that are stored in memory only.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 撤销日志文件仅用于磁盘数据表，并且不需要或不用于仅存储在内存中的`NDB`表。
+- en: NDB Cluster tablespaces and log file groups are not implemented as files.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster表空间和日志文件组并非实现为文件。
+- en: Although not all Disk Data objects are implemented as files, they all share
+    the same namespace. This means that *each Disk Data object* must be uniquely named
+    (and not merely each Disk Data object of a given type). For example, you cannot
+    have a tablespace and a log file group both named `dd1`.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管并非所有磁盘数据对象都实现为文件，但它们都共享相同的命名空间。这意味着*每个磁盘数据对象*必须具有唯一的名称（而不仅仅是给定类型的每个磁盘数据对象）。例如，您不能同时命名一个表空间和一个日志文件组为`dd1`。
+- en: 'Assuming that you have already set up an NDB Cluster with all nodes (including
+    management and SQL nodes), the basic steps for creating an NDB Cluster table on
+    disk are as follows:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您已经设置好了包括管理节点和SQL节点在内的NDB Cluster，创建NDB Cluster磁盘上的表的基本步骤如下：
+- en: Create a log file group, and assign one or more undo log files to it (an undo
+    log file is also sometimes referred to as an undofile).
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个日志文件组，并将一个或多个撤销日志文件分配给它（有时也称为撤销日志文件）。
+- en: Create a tablespace; assign the log file group, as well as one or more data
+    files, to the tablespace.
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个表空间；将日志文件组以及一个或多个数据文件分配给表空间。
+- en: Create a Disk Data table that uses this tablespace for data storage.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个使用此表空间进行数据存储的磁盘数据表。
+- en: Each of these tasks can be accomplished using SQL statements in the [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") client or other MySQL client application,
+    as shown in the example that follows.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用SQL语句在[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")客户端或其他MySQL客户端应用程序中完成这些任务，如下面的示例所示。
+- en: 'We create a log file group named `lg_1` using [`CREATE LOGFILE GROUP`](create-logfile-group.html
+    "15.1.16 CREATE LOGFILE GROUP Statement"). This log file group is to be made up
+    of two undo log files, which we name `undo_1.log` and `undo_2.log`, whose initial
+    sizes are 16 MB and 12 MB, respectively. (The default initial size for an undo
+    log file is 128 MB.) Optionally, you can also specify a size for the log file
+    group''s undo buffer, or permit it to assume the default value of 8 MB. In this
+    example, we set the UNDO buffer''s size at 2 MB. A log file group must be created
+    with an undo log file; so we add `undo_1.log` to `lg_1` in this [`CREATE LOGFILE
+    GROUP`](create-logfile-group.html "15.1.16 CREATE LOGFILE GROUP Statement") statement:'
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 我们使用[`CREATE LOGFILE GROUP`](create-logfile-group.html "15.1.16 CREATE LOGFILE
+    GROUP Statement")创建一个名为`lg_1`的日志文件组。该日志文件组由两个撤销日志文件组成，我们将它们命名为`undo_1.log`和`undo_2.log`，它们的初始大小分别为16
+    MB和12 MB。（撤销日志文件的默认初始大小为128 MB。）可选地，您还可以为日志文件组的撤销缓冲区指定大小，或允许其采用默认值8 MB。在本例中，我们将UNDO缓冲区的大小设置为2
+    MB。必须使用撤销日志文件创建日志文件组；因此，在此[`CREATE LOGFILE GROUP`](create-logfile-group.html "15.1.16 CREATE
+    LOGFILE GROUP Statement")语句中，我们将`undo_1.log`添加到`lg_1`中：
+- en: '[PRE0]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To add `undo_2.log` to the log file group, use the following [`ALTER LOGFILE
+    GROUP`](alter-logfile-group.html "15.1.6 ALTER LOGFILE GROUP Statement") statement:'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要将`undo_2.log`添加到日志文件组中，请使用以下[`ALTER LOGFILE GROUP`](alter-logfile-group.html
+    "15.1.6 ALTER LOGFILE GROUP Statement")语句：
+- en: '[PRE1]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Some items of note:'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些需要注意的事项：
+- en: The `.log` file extension used here is not required. We employ it merely to
+    make the log files easily recognizable.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此处使用的`.log`文件扩展名并非必需。我们仅使用它使日志文件易于识别。
+- en: Every [`CREATE LOGFILE GROUP`](create-logfile-group.html "15.1.16 CREATE LOGFILE
+    GROUP Statement") and [`ALTER LOGFILE GROUP`](alter-logfile-group.html "15.1.6 ALTER
+    LOGFILE GROUP Statement") statement must include an `ENGINE` option. The only
+    permitted values for this option are [`NDBCLUSTER`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") and [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster
+    8.0").
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个[`CREATE LOGFILE GROUP`](create-logfile-group.html "15.1.16 CREATE LOGFILE
+    GROUP Statement")和[`ALTER LOGFILE GROUP`](alter-logfile-group.html "15.1.6 ALTER
+    LOGFILE GROUP Statement")语句必须包含一个`ENGINE`选项。此选项的唯一允许值为[`NDBCLUSTER`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0")和[`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0")。
+- en: Important
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: There can exist at most one log file group in the same NDB Cluster at any given
+    time.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在同一个NDB集群中最多只能存在一个日志文件组。
+- en: When you add an undo log file to a log file group using `ADD UNDOFILE '*`filename`*'`,
+    a file with the name *`filename`* is created in the `ndb_*`node_id`*_fs` directory
+    within the [`DataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datadir)
+    of each data node in the cluster, where *`node_id`* is the node ID of the data
+    node. Each undo log file is of the size specified in the SQL statement. For example,
+    if an NDB Cluster has 4 data nodes, then the [`ALTER LOGFILE GROUP`](alter-logfile-group.html
+    "15.1.6 ALTER LOGFILE GROUP Statement") statement just shown creates 4 undo log
+    files, 1 each on in the data directory of each of the 4 data nodes; each of these
+    files is named `undo_2.log` and each file is 12 MB in size.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当您使用`ADD UNDOFILE '*`filename`*'`将撤销日志文件添加到日志文件组时，将在集群中每个数据节点的`ndb_*`node_id`*_fs`目录中创建一个名为*`filename`*的文件，其中*`node_id`*是数据节点的节点ID。每个撤销日志文件的大小与SQL语句中指定的大小相同。例如，如果一个NDB集群有4个数据节点，则刚刚显示的[`ALTER
+    LOGFILE GROUP`](alter-logfile-group.html "15.1.6 ALTER LOGFILE GROUP Statement")语句将创建4个撤销日志文件，每个数据节点的数据目录中各有一个；每个文件的名称为`undo_2.log`，大小为12
+    MB。
+- en: '`UNDO_BUFFER_SIZE` is limited by the amount of system memory available.'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`UNDO_BUFFER_SIZE`受系统可用内存量的限制。'
+- en: See [Section 15.1.16, “CREATE LOGFILE GROUP Statement”](create-logfile-group.html
+    "15.1.16 CREATE LOGFILE GROUP Statement"), and [Section 15.1.6, “ALTER LOGFILE
+    GROUP Statement”](alter-logfile-group.html "15.1.6 ALTER LOGFILE GROUP Statement"),
+    for more information about these statements.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 有关这些语句的更多信息，请参见[Section 15.1.16, “CREATE LOGFILE GROUP Statement”](create-logfile-group.html
+    "15.1.16 CREATE LOGFILE GROUP Statement")和[Section 15.1.6, “ALTER LOGFILE GROUP
+    Statement”](alter-logfile-group.html "15.1.6 ALTER LOGFILE GROUP Statement")。
+- en: Now we can create a tablespace—an abstract container for files used by Disk
+    Data tables to store data. A tablespace is associated with a particular log file
+    group; when creating a new tablespace, you must specify the log file group it
+    uses for undo logging. You must also specify at least one data file; you can add
+    more data files to the tablespace after the tablespace is created. It is also
+    possible to drop data files from a tablespace (see example later in this section).
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在我们可以创建一个表空间——用于存储数据的磁盘数据表使用的文件的抽象容器。表空间与特定的日志文件组相关联；在创建新表空间时，必须指定其用于撤销日志记录的日志文件组。还必须指定至少一个数据文件；在创建表空间后，可以向表空间添加更多数据文件。还可以从表空间中删除数据文件（请参见本节后面的示例）。
+- en: 'Assume that we wish to create a tablespace named `ts_1` which uses `lg_1` as
+    its log file group. We want the tablespace to contain two data files, named `data_1.dat`
+    and `data_2.dat`, whose initial sizes are 32 MB and 48 MB, respectively. (The
+    default value for `INITIAL_SIZE` is 128 MB.) We can do this using two SQL statements,
+    as shown here:'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设我们希望创建一个名为`ts_1`的表空间，该表空间使用`lg_1`作为其日志文件组。我们希望表空间包含两个数据文件，分别命名为`data_1.dat`和`data_2.dat`，其初始大小分别为32
+    MB和48 MB。（`INITIAL_SIZE`的默认值为128 MB。）我们可以使用两个SQL语句来实现这一点，如下所示：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The [`CREATE TABLESPACE`](create-tablespace.html "15.1.21 CREATE TABLESPACE
+    Statement") statement creates a tablespace `ts_1` with the data file `data_1.dat`,
+    and associates `ts_1` with log file group `lg_1`. The [`ALTER TABLESPACE`](alter-tablespace.html
+    "15.1.10 ALTER TABLESPACE Statement") adds the second data file (`data_2.dat`).
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`CREATE TABLESPACE`](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")语句创建一个名为`ts_1`的表空间，其中包含数据文件`data_1.dat`，并将`ts_1`与日志文件组`lg_1`关联。[`ALTER
+    TABLESPACE`](alter-tablespace.html "15.1.10 ALTER TABLESPACE Statement")添加了第二个数据文件（`data_2.dat`）。'
+- en: 'Some items of note:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些需要注意的事项：
+- en: As is the case with the `.log` file extension used in this example for undo
+    log files, there is no special significance for the `.dat` file extension; it
+    is used merely for easy recognition.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 就像在此示例中用于撤销日志文件的`.log`文件扩展名一样，在`.dat`文件扩展名中没有特殊意义；它仅用于便于识别。
+- en: When you add a data file to a tablespace using `ADD DATAFILE '*`filename`*'`,
+    a file with the name *`filename`* is created in the `ndb_*`node_id`*_fs` directory
+    within the [`DataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datadir)
+    of each data node in the cluster, where *`node_id`* is the node ID of the data
+    node. Each data file is of the size specified in the SQL statement. For example,
+    if an NDB Cluster has 4 data nodes, then the [`ALTER TABLESPACE`](alter-tablespace.html
+    "15.1.10 ALTER TABLESPACE Statement") statement just shown creates 4 data files,
+    1 each in the data directory of each of the 4 data nodes; each of these files
+    is named `data_2.dat` and each file is 48 MB in size.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当您使用`ADD DATAFILE '*`filename`*'`向表空间添加数据文件时，将在集群中每个数据节点的`ndb_*`node_id`*_fs`目录中创建一个名为*`filename`*的文件，其中*`node_id`*是数据节点的节点ID。每个数据文件的大小与SQL语句中指定的大小相同。例如，如果一个NDB集群有4个数据节点，则刚刚显示的[`ALTER
+    TABLESPACE`](alter-tablespace.html "15.1.10 ALTER TABLESPACE Statement")语句将创建4个数据文件，每个数据节点的数据目录中各有一个；每个文件的名称为`data_2.dat`，每个文件的大小为48
+    MB。
+- en: '`NDB` reserves 4% of each tablespace for use during data node restarts. This
+    space is not available for storing data.'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NDB`为每个表空间保留4%的空间，用于在数据节点重新启动期间使用。此空间不可用于存储数据。'
+- en: '[`CREATE TABLESPACE`](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")
+    statements must contain an `ENGINE` clause; only tables using the same storage
+    engine as the tablespace can be created in the tablespace. For [`ALTER TABLESPACE`](alter-tablespace.html
+    "15.1.10 ALTER TABLESPACE Statement"), an `ENGINE` clause is accepted but is deprecated
+    and subject to removal in a future release. For `NDB` tablespaces, the only permitted
+    values for this option are `NDBCLUSTER` and `NDB`.'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CREATE TABLESPACE`](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")语句必须包含一个`ENGINE`子句；只有使用与表空间相同存储引擎的表才能在表空间中创建。对于[`ALTER
+    TABLESPACE`](alter-tablespace.html "15.1.10 ALTER TABLESPACE Statement")，`ENGINE`子句被接受但已被弃用，并可能在将来的版本中被移除。对于`NDB`表空间，此选项的唯一允许值为`NDBCLUSTER`和`NDB`。'
+- en: In NDB 8.0.20 and later, allocation of extents is performed in round-robin fashion
+    among all data files used by a given tablespace.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在NDB 8.0.20及更高版本中，对于给定表空间使用的所有数据文件，范围的分配是以循环方式进行的。
+- en: For more information about the [`CREATE TABLESPACE`](create-tablespace.html
+    "15.1.21 CREATE TABLESPACE Statement") and [`ALTER TABLESPACE`](alter-tablespace.html
+    "15.1.10 ALTER TABLESPACE Statement") statements, see [Section 15.1.21, “CREATE
+    TABLESPACE Statement”](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement"),
+    and [Section 15.1.10, “ALTER TABLESPACE Statement”](alter-tablespace.html "15.1.10 ALTER
+    TABLESPACE Statement").
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 有关[`CREATE TABLESPACE`](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")和[`ALTER
+    TABLESPACE`](alter-tablespace.html "15.1.10 ALTER TABLESPACE Statement")语句的更多信息，请参见[第15.1.21节，“CREATE
+    TABLESPACE Statement”](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")和[第15.1.10节，“ALTER
+    TABLESPACE Statement”](alter-tablespace.html "15.1.10 ALTER TABLESPACE Statement")。
+- en: 'Now it is possible to create a table whose unindexed columns are stored on
+    disk using files in tablespace `ts_1`:'
+  id: totrans-39
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 现在可以创建一个表，其未索引的列存储在使用表空间`ts_1`中的文件中：
+- en: '[PRE3]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '`TABLESPACE ts_1 STORAGE DISK` tells the [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") storage engine to use tablespace `ts_1` for data storage on
+    disk.'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`TABLESPACE ts_1 STORAGE DISK`告诉[`NDB`](mysql-cluster.html "第25章 MySQL NDB
+    Cluster 8.0")存储引擎在磁盘上使用表空间`ts_1`进行数据存储。'
+- en: Once table `ts_1` has been created as shown, you can perform [`INSERT`](insert.html
+    "15.2.7 INSERT Statement"), [`SELECT`](select.html "15.2.13 SELECT Statement"),
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement"), and [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") statements on it just as you would with any other MySQL
+    table.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一旦像所示创建了表`ts_1`，您可以执行[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`SELECT`](select.html
+    "15.2.13 SELECT Statement")、[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")语句，就像对任何其他MySQL表一样。
+- en: It is also possible to specify whether an individual column is stored on disk
+    or in memory by using a `STORAGE` clause as part of the column's definition in
+    a [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") or [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statement. `STORAGE DISK`
+    causes the column to be stored on disk, and `STORAGE MEMORY` causes in-memory
+    storage to be used. See [Section 15.1.20, “CREATE TABLE Statement”](create-table.html
+    "15.1.20 CREATE TABLE Statement"), for more information.
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 通过在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")或[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句中作为列定义的一部分使用`STORAGE`子句，还可以指定单个列是存储在磁盘上还是存储在内存中。`STORAGE
+    DISK`导致列存储在磁盘上，而`STORAGE MEMORY`导致使用内存存储。有关更多信息，请参见[第15.1.20节，“CREATE TABLE Statement”](create-table.html
+    "15.1.20 CREATE TABLE Statement")。
+- en: 'You can obtain information about the `NDB` disk data files and undo log files
+    just created by querying the [`FILES`](information-schema-files-table.html "28.3.15 The
+    INFORMATION_SCHEMA FILES Table") table in the `INFORMATION_SCHEMA` database, as
+    shown here:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以通过查询`INFORMATION_SCHEMA`数据库中的[`FILES`](information-schema-files-table.html
+    "28.3.15 The INFORMATION_SCHEMA FILES Table")表来获取刚刚创建的`NDB`磁盘数据文件和撤销日志文件的信息，如下所示：
+- en: '[PRE4]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: For more information and examples, see [Section 28.3.15, “The INFORMATION_SCHEMA
+    FILES Table”](information-schema-files-table.html "28.3.15 The INFORMATION_SCHEMA
+    FILES Table").
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关更多信息和示例，请参见[第28.3.15节，“The INFORMATION_SCHEMA FILES Table”](information-schema-files-table.html
+    "28.3.15 The INFORMATION_SCHEMA FILES Table")。
+- en: '**Indexing of columns implicitly stored on disk. ** For table `dt_1` as defined
+    in the example just shown, only the `dob` and `joined` columns are stored on disk.
+    This is because there are indexes on the `id`, `last_name`, and `first_name` columns,
+    and so data belonging to these columns is stored in RAM. Only nonindexed columns
+    can be held on disk; indexes and indexed column data continue to be stored in
+    memory. This tradeoff between the use of indexes and conservation of RAM is something
+    you must keep in mind as you design Disk Data tables.'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**隐式存储在磁盘上的列的索引。** 对于刚刚显示的示例中定义的表`dt_1`，只有`dob`和`joined`列存储在磁盘上。这是因为`id`、`last_name`和`first_name`列上有索引，因此属于这些列的数据存储在RAM中。只有非索引列可以存储在磁盘上；索引和索引列数据继续存储在内存中。在设计磁盘数据表时，您必须牢记索引使用和RAM保留之间的权衡。'
+- en: 'You cannot add an index to a column that has been explicitly declared `STORAGE
+    DISK`, without first changing its storage type to `MEMORY`; any attempt to do
+    so fails with an error. A column which *implicitly* uses disk storage can be indexed;
+    when this is done, the column''s storage type is changed to `MEMORY` automatically.
+    By “implicitly”, we mean a column whose storage type is not declared, but which
+    is which inherited from the parent table. In the following CREATE TABLE statement
+    (using the tablespace `ts_1` defined previously), columns `c2` and `c3` use disk
+    storage implicitly:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不能向明确声明为`STORAGE DISK`的列添加索引，必须先将其存储类型更改为`MEMORY`；任何尝试这样做的操作都会失败并显示错误。可以对*隐式*使用磁盘存储的列进行索引；在这种情况下，列的存储类型会自动更改为`MEMORY`。所谓“隐式”，指的是存储类型未声明但是从父表继承的列。在以下CREATE
+    TABLE语句中（使用先前定义的表空间`ts_1`），列`c2`和`c3`隐式使用磁盘存储：
+- en: '[PRE5]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Because `c2`, `c3`, and `c4` are themselves not declared with `STORAGE DISK`,
+    it is possible to index them. Here, we add indexes to `c2` and `c3`, using, respectively,
+    `CREATE INDEX` and `ALTER TABLE`:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为`c2`、`c3`和`c4`本身没有声明为`STORAGE DISK`，所以可以对它们进行索引。在这里，我们分别对`c2`和`c3`添加索引，使用`CREATE
+    INDEX`和`ALTER TABLE`：
+- en: '[PRE6]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '[`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE TABLE Statement")
+    confirms that the indexes were added.'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE TABLE Statement")确认已添加索引。'
+- en: '[PRE7]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'You can see using [**ndb_desc**](mysql-cluster-programs-ndb-desc.html "25.5.9 ndb_desc
+    — Describe NDB Tables") that the indexed columns (emphasized text) now use in-memory
+    rather than on-disk storage:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用[**ndb_desc**](mysql-cluster-programs-ndb-desc.html "25.5.9 ndb_desc — Describe
+    NDB Tables")查看，已强调的索引列现在使用内存而不是磁盘存储：
+- en: '[PRE8]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: '**Performance note. ** The performance of a cluster using Disk Data storage
+    is greatly improved if Disk Data files are kept on a separate physical disk from
+    the data node file system. This must be done for each data node in the cluster
+    to derive any noticeable benefit.'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**性能注意。** 使用磁盘数据存储的集群的性能会大大提高，如果将磁盘数据文件与数据节点文件系统分开存放。必须为集群中的每个数据节点执行此操作才能获得任何明显的好处。'
+- en: You can use absolute and relative file system paths with `ADD UNDOFILE` and
+    `ADD DATAFILE`; relative paths are calculated with respect to the data node's
+    data directory.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以在`ADD UNDOFILE`和`ADD DATAFILE`中使用绝对和相对文件系统路径；相对路径是相对于数据节点的数据目录计算的。
+- en: 'A log file group, a tablespace, and any Disk Data tables using these must be
+    created in a particular order. This is also true for dropping these objects, subject
+    to the following constraints:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 日志文件组、表空间以及使用这些对象的任何磁盘数据表必须按特定顺序创建。对于删除这些对象也是如此，受以下约束条件限制：
+- en: A log file group cannot be dropped as long as any tablespaces use it.
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只要任何表空间使用日志文件组，就无法删除日志文件组。
+- en: A tablespace cannot be dropped as long as it contains any data files.
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只要表空间包含任何数据文件，就无法删除表空间。
+- en: You cannot drop any data files from a tablespace as long as there remain any
+    tables which are using the tablespace.
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只要仍然有任何使用该表空间的表，就无法从表空间中删除任何数据文件。
+- en: It is not possible to drop files created in association with a different tablespace
+    other than the one with which the files were created.
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 无法删除与创建文件时使用不同表空间相关联的文件。
+- en: 'For example, to drop all the objects created so far in this section, you can
+    use the following statements:'
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，要删除本节中到目前为止创建的所有对象，可以使用以下语句：
+- en: '[PRE9]'
+  id: totrans-64
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: These statements must be performed in the order shown, except that the two `ALTER
+    TABLESPACE ... DROP DATAFILE` statements may be executed in either order.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些语句必须按照显示的顺序执行，除了两个`ALTER TABLESPACE ... DROP DATAFILE`语句可以以任意顺序执行。

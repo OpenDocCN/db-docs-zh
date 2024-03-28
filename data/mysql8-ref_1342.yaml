@@ -1,0 +1,263 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto-additionalslaves.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto-additionalslaves.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto-additionalslaves.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto-additionalslaves.html)
+- en: 19.1.2.8 Adding Replicas to a Replication Environment
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.2.8 向复制环境添加复制实例
+- en: You can add another replica to an existing replication configuration without
+    stopping the source server. To do this, you can set up the new replica by copying
+    the data directory of an existing replica, and giving the new replica a different
+    server ID (which is user-specified) and server UUID (which is generated at startup).
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在不停止源服务器的情况下向现有复制配置中添加另一个复制实例。为此，您可以通过复制现有复制实例的数据目录来设置新的复制实例，并为新的复制实例指定不同的服务器ID（由用户指定）和服务器UUID（在启动时生成）。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If the replication source server or existing replica that you are copying to
+    create the new replica has any scheduled events, ensure that these are disabled
+    on the new replica before you start it. If an event runs on the new replica that
+    has already run on the source, the duplicated operation causes an error. The Event
+    Scheduler is controlled by the [`event_scheduler`](server-system-variables.html#sysvar_event_scheduler)
+    system variable, which defaults to `ON` from MySQL 8.0, so events that are active
+    on the original server run by default when the new replica starts up. To stop
+    all events from running on the new replica, set the [`event_scheduler`](server-system-variables.html#sysvar_event_scheduler)
+    system variable to `OFF` or `DISABLED` on the new replica. Alternatively, you
+    can use the [`ALTER EVENT`](alter-event.html "15.1.3 ALTER EVENT Statement") statement
+    to set individual events to `DISABLE` or `DISABLE ON SLAVE` to prevent them from
+    running on the new replica. You can list the events on a server using the [`SHOW`](show.html
+    "15.7.7 SHOW Statements") statement or the Information Schema [`EVENTS`](information-schema-events-table.html
+    "28.3.14 The INFORMATION_SCHEMA EVENTS Table") table. For more information, see
+    [Section 19.5.1.16, “Replication of Invoked Features”](replication-features-invoked.html
+    "19.5.1.16 Replication of Invoked Features").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您要复制以创建新的复制实例的复制源服务器或现有复制实例具有任何计划事件，请确保在启动新的复制实例之前将这些事件禁用。如果新的复制实例上运行的事件已经在源上运行过，则重复的操作会导致错误。事件调度程序由[`event_scheduler`](server-system-variables.html#sysvar_event_scheduler)系统变量控制，默认情况下从MySQL
+    8.0开始为`ON`，因此在新的复制实例启动时默认情况下会运行在原始服务器上活动的事件。要停止新的复制实例上的所有事件运行，请在新的复制实例上将[`event_scheduler`](server-system-variables.html#sysvar_event_scheduler)系统变量设置为`OFF`或`DISABLED`。或者，您可以使用[`ALTER
+    EVENT`](alter-event.html "15.1.3 ALTER EVENT Statement")语句将单个事件设置为`DISABLE`或`DISABLE
+    ON SLAVE`以防止它们在新的复制实例上运行。您可以使用[`SHOW`](show.html "15.7.7 SHOW Statements")语句或信息模式[`EVENTS`](information-schema-events-table.html
+    "28.3.14 The INFORMATION_SCHEMA EVENTS Table")表列出服务器上的事件。有关更多信息，请参见[Section 19.5.1.16,
+    “Replication of Invoked Features”](replication-features-invoked.html "19.5.1.16 Replication
+    of Invoked Features")。
+- en: As an alternative to creating a new replica in this way, MySQL Server's clone
+    plugin can be used to transfer all the data and replication settings from an existing
+    replica to a clone. For instructions to use this method, see [Section 7.6.7.7,
+    “Cloning for Replication”](clone-plugin-replication.html "7.6.7.7 Cloning for
+    Replication").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 作为以这种方式创建新的复制实例的替代方法，MySQL服务器的克隆插件可用于将所有数据和复制设置从现有复制实例传输到克隆实例。有关使用此方法的说明，请参见[Section 7.6.7.7,
+    “Cloning for Replication”](clone-plugin-replication.html "7.6.7.7 Cloning for
+    Replication")。
+- en: 'To duplicate an existing replica without cloning, follow these steps:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要复制现有的复制实例而不进行克隆，请按照以下步骤操作：
+- en: 'Stop the existing replica and record the replica status information, particularly
+    the source binary log file and relay log file positions. You can view the replica
+    status either in the Performance Schema replication tables (see [Section 29.12.11,
+    “Performance Schema Replication Tables”](performance-schema-replication-tables.html
+    "29.12.11 Performance Schema Replication Tables")), or by issuing [`SHOW REPLICA
+    STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement") as
+    follows:'
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止现有的复制实例并记录复制实例状态信息，特别是源二进制日志文件和中继日志文件位置。您可以通过性能模式复制表（请参阅[Section 29.12.11,
+    “Performance Schema Replication Tables”](performance-schema-replication-tables.html
+    "29.12.11 Performance Schema Replication Tables")）查看复制实例状态，或通过以下方式发出[`SHOW REPLICA
+    STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Shut down the existing replica:'
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 关闭现有的复制实例：
+- en: '[PRE1]'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Copy the data directory from the existing replica to the new replica, including
+    the log files and relay log files. You can do this by creating an archive using
+    **tar** or `WinZip`, or by performing a direct copy using a tool such as **cp**
+    or **rsync**.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将现有副本的数据目录复制到新副本，包括日志文件和中继日志文件。您可以通过使用**tar**或`WinZip`创建存档，或者通过使用**cp**或**rsync**等工具执行直接复制来完成此操作。
+- en: Important
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: Before copying, verify that all the files relating to the existing replica actually
+    are stored in the data directory. For example, the `InnoDB` system tablespace,
+    undo tablespace, and redo log might be stored in an alternative location. `InnoDB`
+    tablespace files and file-per-table tablespaces might have been created in other
+    directories. The binary logs and relay logs for the replica might be in their
+    own directories outside the data directory. Check through the system variables
+    that are set for the existing replica and look for any alternative paths that
+    have been specified. If you find any, copy these directories over as well.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在复制之前，请验证所有与现有副本相关的文件实际上是否存储在数据目录中。例如，`InnoDB`系统表空间、撤消表空间和重做日志可能存储在其他位置。`InnoDB`表空间文件和文件表空间可能已在其他目录中创建。副本的二进制日志和中继日志可能在数据目录之外的自己的目录中。检查为现有副本设置的系统变量，并查找是否已指定任何替代路径。如果找到任何内容，请将这些目录一并复制过去。
+- en: During copying, if files have been used for the replication metadata repositories
+    (see [Section 19.2.4, “Relay Log and Replication Metadata Repositories”](replica-logs.html
+    "19.2.4 Relay Log and Replication Metadata Repositories")), ensure that you also
+    copy these files from the existing replica to the new replica. If tables have
+    been used for the repositories, which is the default from MySQL 8.0, the tables
+    are in the data directory.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在复制过程中，如果文件用于复制元数据存储库（请参阅[第19.2.4节，“中继日志和复制元数据存储库”](replica-logs.html "19.2.4 中继日志和复制元数据存储库")），请确保还将这些文件从现有副本复制到新副本。如果表用于存储库，这是从MySQL
+    8.0开始的默认设置，则这些表位于数据目录中。
+- en: After copying, delete the `auto.cnf` file from the copy of the data directory
+    on the new replica, so that the new replica is started with a different generated
+    server UUID. The server UUID must be unique.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 复制后，从新副本的数据目录副本中删除`auto.cnf`文件，以便新副本使用不同生成的服务器UUID启动。服务器UUID必须是唯一的。
+- en: 'A common problem that is encountered when adding new replicas is that the new
+    replica fails with a series of warning and error messages like these:'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 添加新副本时遇到的常见问题是，新副本失败，并显示一系列警告和错误消息，例如：
+- en: '[PRE2]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: This situation can occur if the [`relay_log`](replication-options-replica.html#sysvar_relay_log)
+    system variable is not specified, as the relay log files contain the host name
+    as part of their file names. This is also true of the relay log index file if
+    the [`relay_log_index`](replication-options-replica.html#sysvar_relay_log_index)
+    system variable is not used. For more information about these variables, see [Section 19.1.6,
+    “Replication and Binary Logging Options and Variables”](replication-options.html
+    "19.1.6 Replication and Binary Logging Options and Variables").
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果未指定[`relay_log`](replication-options-replica.html#sysvar_relay_log)系统变量，则可能会出现此情况，因为中继日志文件的文件名中包含主机名。如果未使用[`relay_log_index`](replication-options-replica.html#sysvar_relay_log_index)系统变量，则中继日志索引文件也是如此。有关这些变量的更多信息，请参见[第19.1.6节，“复制和二进制日志选项和变量”](replication-options.html
+    "19.1.6 复制和二进制日志选项和变量")。
+- en: 'To avoid this problem, use the same value for [`relay_log`](replication-options-replica.html#sysvar_relay_log)
+    on the new replica that was used on the existing replica. If this option was not
+    set explicitly on the existing replica, use `*`existing_replica_hostname`*-relay-bin`.
+    If this is not possible, copy the existing replica''s relay log index file to
+    the new replica and set the [`relay_log_index`](replication-options-replica.html#sysvar_relay_log_index)
+    system variable on the new replica to match what was used on the existing replica.
+    If this option was not set explicitly on the existing replica, use `*`existing_replica_hostname`*-relay-bin.index`.
+    Alternatively, if you have already tried to start the new replica after following
+    the remaining steps in this section and have encountered errors like those described
+    previously, then perform the following steps:'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为避免此问题，在新的复制品上使用与现有复制品上使用的[`relay_log`](replication-options-replica.html#sysvar_relay_log)相同的值。如果在现有复制品上未显式设置此选项，请使用`*`existing_replica_hostname`*-relay-bin`。如果不可能，请将现有复制品的中继日志索引文件复制到新的复制品，并将新的复制品上的[`relay_log_index`](replication-options-replica.html#sysvar_relay_log_index)系统变量设置为与现有复制品上使用的相匹配。如果在现有复制品上未显式设置此选项，请使用`*`existing_replica_hostname`*-relay-bin.index`。或者，如果您在按照本节中的其余步骤后已尝试启动新的复制品并遇到类似先前描述的错误，则执行以下步骤：
+- en: If you have not already done so, issue [`STOP REPLICA`](stop-replica.html "15.4.2.8 STOP
+    REPLICA Statement") on the new replica.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您尚未这样做，请在新的复制品上发出[`STOP REPLICA`](stop-replica.html "15.4.2.8 STOP REPLICA
+    Statement")。
+- en: If you have already started the existing replica again, issue [`STOP REPLICA`](stop-replica.html
+    "15.4.2.8 STOP REPLICA Statement") on the existing replica as well.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您已经重新启动了现有的复制品，请在现有的复制品上也发出[`STOP REPLICA`](stop-replica.html "15.4.2.8 STOP
+    REPLICA Statement")。
+- en: Copy the contents of the existing replica's relay log index file into the new
+    replica's relay log index file, making sure to overwrite any content already in
+    the file.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将现有复制品的中继日志索引文件的内容复制到新复制品的中继日志索引文件中，确保覆盖文件中已有的任何内容。
+- en: Proceed with the remaining steps in this section.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 继续执行本节中的其余步骤。
+- en: When copying is complete, restart the existing replica.
+  id: totrans-24
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 复制完成后，重新启动现有复制品。
+- en: On the new replica, edit the configuration and give the new replica a unique
+    server ID (using the [`server_id`](replication-options.html#sysvar_server_id)
+    system variable) that is not used by the source or any of the existing replicas.
+  id: totrans-25
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在新的复制品上，编辑配置并为新的复制品分配一个不被源或任何现有复制品使用的唯一服务器ID（使用[`server_id`](replication-options.html#sysvar_server_id)系统变量）。
+- en: Start the new replica server, ensuring that replication does not start yet by
+    specifying the [`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)
+    option, or from MySQL 8.0.24, the [`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)
+    system variable. Use the Performance Schema replication tables or issue [`SHOW
+    REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")
+    to confirm that the new replica has the correct settings when compared with the
+    existing replica. Also display the server ID and server UUID and verify that these
+    are correct and unique for the new replica.
+  id: totrans-26
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动新的复制服务器，确保通过指定[`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)选项或从MySQL
+    8.0.24开始，使用[`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)系统变量，确保复制尚未开始。使用性能模式复制表或发出[`SHOW
+    REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")来确认新的复制品与现有复制品相比是否具有正确的设置。还要显示服务器ID和服务器UUID，并验证这些对于新的复制品是正确且唯一的。
+- en: Start the replica threads by issuing a [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement") statement. The new replica now uses the information
+    in its connection metadata repository to start the replication process.
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过发出[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement")语句来启动复制线程。新的复制品现在使用其连接元数据存储库中的信息来启动复制过程。

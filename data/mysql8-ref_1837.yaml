@@ -1,0 +1,446 @@
+- en: 25.7.11 NDB Cluster Replication Using the Multithreaded Applier
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.7.11 NDB集群使用多线程应用程序的复制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html)
+- en: '[Requirements](mysql-cluster-replication-mta.html#cluster-replication-mta-reqs
+    "Requirements")'
+  id: totrans-2
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[需求](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html#cluster-replication-mta-reqs
+    "需求")'
+- en: '[MTA Configuration: Source](mysql-cluster-replication-mta.html#cluster-replication-mta-config-source
+    "MTA Configuration: Source")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[MTA配置：源](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html#cluster-replication-mta-config-source
+    "MTA配置：源")'
+- en: '[MTA Configuration: Replica](mysql-cluster-replication-mta.html#cluster-replication-mta-config-replica
+    "MTA Configuration: Replica")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[MTA配置：副本](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html#cluster-replication-mta-config-replica
+    "MTA配置：副本")'
+- en: '[Transaction Dependency and Writeset Handling](mysql-cluster-replication-mta.html#cluster-replication-mta-transaction-deps
+    "Transaction Dependency and Writeset Handling")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[事务依赖和写集处理](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html#cluster-replication-mta-transaction-deps
+    "事务依赖和写集处理")'
+- en: '[Writeset Tracking Memory Usage](mysql-cluster-replication-mta.html#cluster-replication-mta-writeset-tracking
+    "Writeset Tracking Memory Usage")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[写集跟踪内存使用](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html#cluster-replication-mta-writeset-tracking
+    "写集跟踪内存使用")'
+- en: '[Known Limitations](mysql-cluster-replication-mta.html#cluster-replication-mta-limitations
+    "Known Limitations")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[已知限制](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-mta.html#cluster-replication-mta-limitations
+    "已知限制")'
+- en: Beginning with NDB 8.0.33, NDB replication supports the use of the generic MySQL
+    Server Multithreaded Applier mechanism (MTA), which allows independent binary
+    log transactions to be applied in parallel on a replica, increasing peak replication
+    throughput.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从NDB 8.0.33开始，NDB复制支持使用通用的MySQL服务器多线程应用程序机制（MTA），允许在副本上并行应用独立的二进制日志事务，从而增加了峰值复制吞吐量。
+- en: Requirements
+  id: totrans-9
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 需求
+- en: 'The MySQL Server MTA implementation delegates the processing of separate binary
+    log transactions to a pool of worker threads (whose size is configurable), and
+    coordinates the worker threads to ensure that transaction dependencies encoded
+    in the binary log are respected, and that commit ordering is maintained if required
+    (see [Section 19.2.3, “Replication Threads”](replication-threads.html "19.2.3 Replication
+    Threads")). To use this functionality with NDB Cluster, it is necessary that the
+    following three conditions be met:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器MTA实现将单独的二进制日志事务的处理委托给一组工作线程（其大小是可配置的），并协调工作线程以确保二进制日志中编码的事务依赖关系得到尊重，并在必要时保持提交顺序（参见[第19.2.3节，“复制线程”](https://dev.mysql.com/doc/refman/8.0/en/replication-threads.html
+    "19.2.3 复制线程")）。要在NDB集群中使用此功能，必须满足以下三个条件：
+- en: '*Binary log transaction dependencies are determined at the source*.'
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*二进制日志事务依赖关系在源端确定*。'
+- en: For this to be true, the [`binlog_transaction_dependency_tracking`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_tracking)
+    server system variable must be set to `WRITESET` on the source. This is supported
+    by NDB 8.0.33 and later. (The default is `COMMIT_ORDER`.)
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了实现这一点，必须在源端将[`binlog_transaction_dependency_tracking`](https://dev.mysql.com/doc/refman/8.0/en/replication-options-binary-log.html#sysvar_binlog_transaction_dependency_tracking)服务器系统变量设置为`WRITESET`。这在NDB
+    8.0.33及更高版本中受支持。（默认值为`COMMIT_ORDER`。）
+- en: Writeset maintenance work in `NDB` is performed by the MySQL binary log injector
+    thread as part of preparing and committing each epoch transaction to the binary
+    log. This requires extra resources, and may reduce peak throughput.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`NDB`中的写集维护工作由MySQL二进制日志注入线程执行，作为准备和提交每个时代事务到二进制日志的一部分。这需要额外的资源，并可能降低峰值吞吐量。'
+- en: '*Transaction dependencies are encoded into the binary log*.'
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*事务依赖关系被编码到二进制日志中*。'
+- en: NDB 8.0.33 and later supports the [`--ndb-log-transaction-dependency`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-dependency)
+    startup option for [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server");
+    set this option to `ON` to enable writing of `NDB` transaction dependencies into
+    the binary log.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: NDB 8.0.33及更高版本支持[`--ndb-log-transaction-dependency`](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-dependency)启动选项用于[**mysqld**](https://dev.mysql.com/doc/refman/8.0/en/mysqld.html
+    "6.3.1 mysqld — MySQL服务器"); 将此选项设置为`ON`以启用将`NDB`事务依赖关系写入二进制日志。
+- en: '*The replica is configured to use multiple worker threads*.'
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*副本配置为使用多个工作线程*。'
+- en: NDB 8.0.33 and later supports setting [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    to nonzero values to control the number of worker threads on the replica. The
+    default is 4.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: NDB 8.0.33及更高版本支持将[`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)设置为非零值，以控制副本上的工作线程数。默认值为4。
+- en: 'MTA Configuration: Source'
+  id: totrans-18
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MTA配置：源
+- en: 'Source [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") configuration
+    for the `NDB` MTA must include the following explicit settings:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB` MTA的源[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")配置必须包括以下显式设置：'
+- en: '[`binlog_transaction_dependency_tracking`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_tracking)
+    must be set to `WRITESET`.'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`binlog_transaction_dependency_tracking`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_tracking)必须设置为`WRITESET`。'
+- en: The replication source mysqld must be started with [`--ndb-log-transaction-dependency=ON`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-dependency).
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 复制源mysqld必须使用[`--ndb-log-transaction-dependency=ON`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-dependency)启动。
+- en: If set, [`replica_parallel_type`](replication-options-replica.html#sysvar_replica_parallel_type)
+    must be `LOGICAL_CLOCK` (the default value).
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果设置了，[`replica_parallel_type`](replication-options-replica.html#sysvar_replica_parallel_type)必须为`LOGICAL_CLOCK`（默认值）。
+- en: Note
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`NDB` does not support `replica_parallel_type=DATABASE`.'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB`不支持`replica_parallel_type=DATABASE`。'
+- en: In addition, it is recommended that you set the amount of memory used to track
+    binary log transaction writesets on the source ([`binlog_transaction_dependency_history_size`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_history_size))
+    to `*`E`* * *`P`*`, where *`E`* is the average epoch size (as the number of operations
+    per epoch) and *`P`* is the maximum expected parallelism. See [Writeset Tracking
+    Memory Usage](mysql-cluster-replication-mta.html#cluster-replication-mta-writeset-tracking
+    "Writeset Tracking Memory Usage"), for more information.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，建议您将用于跟踪二进制日志事务写入集的内存量设置为源上的[`binlog_transaction_dependency_history_size`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_history_size)为`*`E`*
+    * *`P`*`，其中*`E`*是平均时代大小（即每个时代的操作数），*`P`*是最大预期并行性。有关更多信息，请参见[写集跟踪内存使用情况](mysql-cluster-replication-mta.html#cluster-replication-mta-writeset-tracking
+    "写集跟踪内存使用情况")。
+- en: 'MTA Configuration: Replica'
+  id: totrans-26
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MTA配置：副本
+- en: Replica [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") configuration
+    for the `NDB` MTA requires that [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    is greater than 1\. The recommended starting value when first enabling MTA is
+    4, which is the default.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB` MTA的副本[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")配置要求[`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)大于1。首次启用MTA时的推荐起始值为4，这是默认值。'
+- en: In addition, [`replica_preserve_commit_order`](replication-options-replica.html#sysvar_replica_preserve_commit_order)
+    must be `ON`. This is also the default value.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，[`replica_preserve_commit_order`](replication-options-replica.html#sysvar_replica_preserve_commit_order)必须为`ON`。这也是默认值。
+- en: Transaction Dependency and Writeset Handling
+  id: totrans-29
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 事务依赖性和写集处理
+- en: Transaction dependencies are detected using analysis of each transaction's writeset,
+    that is, the set of rows (table, key values) written by the transaction. Where
+    two transactions modify the same row they are considered to be dependent, and
+    must be applied in order (in other words, serially) to avoid deadlocks or incorrect
+    results. Where a table has secondary unique keys, these values are also added
+    to the transaction's writeset to detect the case where there are transaction dependencies
+    implied by different transactions affecting the same unique key value, and so
+    requiring ordering. Where dependencies cannot be efficiently determined, [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") falls back to considering transactions dependent
+    for reasons of safety.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过分析每个事务的写集（即事务写入的行（表、键值）集）来检测事务依赖关系。如果两个事务修改相同的行，则它们被视为依赖关系，并且必须按顺序（换句话说，串行）应用，以避免死锁或不正确的结果。如果表具有辅助唯一键，这些值也会添加到事务的写集中，以检测由不同事务影响相同唯一键值而暗示事务依赖关系的情况，因此需要排序。无法有效确定依赖关系的情况下，[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")会退回到考虑出于安全原因而依赖于事务的情况。
+- en: Transaction dependencies are encoded in the binary log by the source [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server"). Dependencies are encoded in an `ANONYMOUS_GTID`
+    event using a scheme called 'Logical clock'. (See [Section 19.1.4.1, “Replication
+    Mode Concepts”](replication-mode-change-online-concepts.html "19.1.4.1 Replication
+    Mode Concepts").)
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事务依赖关系通过源[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")在二进制日志中编码。依赖关系通过使用称为“逻辑时钟”的方案在`ANONYMOUS_GTID`事件中编码。（参见[Section 19.1.4.1,
+    “Replication Mode Concepts”](replication-mode-change-online-concepts.html "19.1.4.1 Replication
+    Mode Concepts").）
+- en: The writeset implementation employed by MySQL (and NDB Cluster) uses hash-based
+    conflict detection based on matching 64-bit row hashes of relevant table and index
+    values. This detects reliably when the same key is seen twice, but can also produce
+    false positives if different table and index values hash to the same 64-bit value;
+    this may result in artificial dependencies which can reduce the available parallelism.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL（和NDB Cluster）采用的写集实现使用基于哈希的冲突检测，基于匹配的相关表和索引值的64位行哈希。这可靠地检测到当相同键被看到两次时，但如果不同的表和索引值哈希到相同的64位值，则可能产生误报，这可能导致人为依赖关系，从而降低可用的并行性。
+- en: 'Transaction dependencies are forced by any of the following:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事务依赖关系由以下任一方式强制：
+- en: DDL statements
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: DDL语句
+- en: Binary log rotation or encountering binary log file boundaries
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 二进制日志轮换或遇到二进制日志文件边界
+- en: Writeset history size limitations
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 写集历史大小限制
+- en: Writes which reference parent foreign keys in the target table
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 写入引用目标表中的父外键
+- en: More specifically, transactions which perform inserts, updates, and deletes
+    on foreign key *parent* tables are serialized relative to all preceding and following
+    transactions, and not just to those transactions affecting tables involved in
+    a constraint relationship. Conversely, transactions performing inserts, updates
+    and deletes on foreign key *child* tables (referencing) are not especially serialized
+    with regard to one another.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更具体地说，对外键*父*表执行插入、更新和删除的事务相对于所有前后事务进行序列化，而不仅仅是与涉及约束关系的表相关的事务。相反，对外键*子*表（引用）执行插入、更新和删除的事务与彼此之间并没有特别的序列化。
+- en: The MySQL MTA implementation attempts to apply independent binary log transactions
+    in parallel. `NDB` records all changes occurring in all user transactions committing
+    in an epoch ([`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs),
+    default 100 milliseconds), in one binary log transaction, referred to as an epoch
+    transaction. Therefore, for two consecutive epoch transactions to be independent,
+    and possible to apply in parallel, it is required that no row is modified in both
+    epochs. If any single row is modified in both epochs, then they are dependent,
+    and are applied serially, which can limit the expolitable parallelism available.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL MTA实现尝试并行应用独立的二进制日志事务。`NDB`记录在一个二进制日志事务中发生的所有用户事务在一个时期内提交的所有更改（[`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)，默认为100毫秒）。因此，为了使两个连续的时期事务独立且可能并行应用，需要确保在两个时期中没有任何行被修改。如果任何单行在两个时期中都被修改，则它们是依赖的，并且按顺序应用，这可能限制可利用的并行性。
+- en: Epoch transactions are considered independent based on the set of rows modified
+    on the source cluster in the epoch, but not including the generated `mysql.ndb_apply_status`
+    `WRITE_ROW` events that convey epoch metadata. This avoids every epoch transaction
+    being trivially dependent on the preceding epoch, but does require that the binlog
+    is applied at the replica with the commit order preserved. This also implies that
+    an NDB binary log with writeset dependencies is not suitable for use by a replica
+    database using a different MySQL storage engine.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 基于在时期内在源集群上修改的行集，但不包括传达时期元数据的生成的`mysql.ndb_apply_status` `WRITE_ROW`事件，时期事务被视为独立的。这避免了每个时期事务都简单地依赖于前一个时期，但需要在保留提交顺序的情况下在副本上应用binlog。这也意味着具有写集依赖关系的NDB二进制日志不适合由使用不同MySQL存储引擎的副本数据库使用。
+- en: It may be possible or desirable to modify application transaction behavior to
+    avoid patterns of repeated modifications to the same rows, in separate transactions
+    over a short time period, to increase exploitable apply parallelism.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可能或有必要修改应用程序事务行为，以避免在短时间内通过单独的事务重复修改相同行的模式，以增加可利用的应用并行性。
+- en: Writeset Tracking Memory Usage
+  id: totrans-42
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 写集跟踪内存使用
+- en: The amount of memory used to track binary log transaction writesets can be set
+    using the [`binlog_transaction_dependency_history_size`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_history_size)
+    server system variable, which defaults to 25000 row hashes.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于跟踪二进制日志事务写入集的内存使用量可以使用[`binlog_transaction_dependency_history_size`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_history_size)服务器系统变量进行设置，默认为25000行哈希。
+- en: If an average binary log transaction modifies *`N`* rows, then to be able to
+    identify independent (parallelizable) transactions up to a parallelism level of
+    *`P`*, we need `binlog_transaction_dependency_history_size` to be at least `*`N`*
+    * *`P`*`. (The maximum is 1000000.)
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果平均二进制日志事务修改了*`N`*行，则为了能够识别独立（可并行化）事务达到并行级别*`P`*，我们需要`binlog_transaction_dependency_history_size`至少为`*`N`*
+    * *`P`*`。（最大值为1000000。）
+- en: The finite size of the history results in a finite maximum dependency length
+    that can be reliably determined, giving a finite parallelism that can be expressed.
+    Any row not found in the history may be dependent on the last transaction purged
+    from the history.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 历史记录的有限大小导致可靠确定的有限最大依赖长度，从而给出可以表达的有限并行性。在历史记录中找不到的任何行可能依赖于从历史记录中清除的最后一个事务。
+- en: Writeset history does not act like a sliding window over the last *`N`* transactions;
+    rather, it is a finite buffer which is allowed to fill up completely, then its
+    contents entirely discarded when it becomes full. This means that the history
+    size follows a sawtooth pattern over time, and therefore the maximum detectable
+    dependency length also follows a sawtooth pattern over time, such that independent
+    transactions may still be marked as dependent if the writeset history buffer has
+    been reset between their being processed.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 写入集历史不像是对最后*`N`*个事务的滑动窗口；相反，它是一个允许完全填满的有限缓冲区，当其完全填满时，其内容完全丢弃。这意味着历史大小随时间呈锯齿状变化，因此最大可检测的依赖长度也随时间呈锯齿状变化，这样，如果写入集历史缓冲区在它们被处理之间被重置，独立事务仍可能被标记为依赖。
+- en: In this scheme, each transaction in a binary log file is annotated with a `sequence_number`
+    (1, 2, 3, ...), and as well as the sequence number of the most recent binary log
+    transaction that it depends on, to which we refer as `last_committed`.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这个方案中，二进制日志文件中的每个事务都带有一个`sequence_number`（1、2、3，...），以及它依赖的最近二进制日志事务的序列号，我们称之为`last_committed`。
+- en: Within a given binary log file, the first transaction has `sequence_number`
+    1 and `last_committed` 0.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在给定的二进制日志文件中，第一个事务的`sequence_number`为1，`last_committed`为0。
+- en: Where a binary log transaction depends on its immediate predecessor, its application
+    is serialized. If the dependency is on an earlier transaction then it may be possible
+    to apply the transaction in parallel with the preceding independent transactions.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个二进制日志事务依赖于其直接前任，则其应用是串行的。如果依赖于较早的事务，则可能可以与前面的独立事务并行应用该事务。
+- en: The content of `ANONYMOUS_GTID` events, including `sequence_number` and `last_committed`
+    (and thus the transaction dependencies), can be seen using [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files").
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ANONYMOUS_GTID`事件的内容，包括`sequence_number`和`last_committed`（因此事务依赖关系），可以使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")查看。'
+- en: The `ANONYMOUS_GTID` events generated on the source are handled separately from
+    the compressed transaction payload with bulk `BEGIN`, `TABLE_MAP*`, `WRITE_ROW*`,
+    `UPDATE_ROW*`, `DELETE_ROW*`, and `COMMIT` events, allowing dependencies to be
+    determined prior to decompression. This means that the replica coordinator thread
+    can delegate transaction payload decompression to a worker thread, providing automatic
+    parallel decompression of independent transactions on the replica.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在源上生成的`ANONYMOUS_GTID`事件与批量`BEGIN`、`TABLE_MAP*`、`WRITE_ROW*`、`UPDATE_ROW*`、`DELETE_ROW*`和`COMMIT`事件的压缩事务有效载荷分开处理，允许在解压缩之前确定依赖关系。这意味着副本协调器线程可以将事务有效载荷解压缩委托给工作线程，从而在副本上自动并行解压缩独立事务。
+- en: Known Limitations
+  id: totrans-52
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 已知限制
+- en: '**Secondary unique columns. ** Tables with secondary unique columns (that is,
+    unique keys other than the primary key) have all columns sent to the source so
+    that unique-key related conflicts can be detected.'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**次要唯一列。** 具有次要唯一列（即主键以外的唯一键）的表将所有列发送到源，以便可以检测到与唯一键相关的冲突。'
+- en: Where the current binary logging mode does not include all columns, but only
+    changed columns ([`--ndb-log-updated-only=OFF`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-updated-only),
+    [`--ndb-log-update-minimal=ON`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-minimal),
+    [`--ndb-log-update-as-write=OFF`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write)),
+    this can increase the volume of data sent from data nodes to SQL nodes.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当当前的二进制日志模式不包括所有列，而只包括更改的列（[`--ndb-log-updated-only=OFF`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-updated-only),
+    [`--ndb-log-update-minimal=ON`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-minimal),
+    [`--ndb-log-update-as-write=OFF`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write))时，这可能会增加从数据节点发送到SQL节点的数据量。
+- en: The impact depends on both the rate of modification (update or delete) of rows
+    in such tables and the volume of data in columns which are not actually modified.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 影响取决于这些表中行的修改（更新或删除）速率以及实际未修改的列中的数据量。
+- en: '**Replicating NDB to InnoDB. ** `NDB` binary log injector transaction dependency
+    tracking intentionally ignores the inter-transaction dependencies created by generated
+    `mysql.ndb_apply_status` metadata events, which are handled separately as part
+    of the commit of the epoch transaction on the replica applier. For replication
+    to [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine"),
+    there is no special handling; this may result in reduced performance or other
+    issues when using an `InnoDB` multithreaded applier to consume an `NDB` MTA binary
+    log.'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**将NDB复制到InnoDB。** `NDB` 二进制日志注入器事务依赖跟踪有意忽略由生成的 `mysql.ndb_apply_status` 元数据事件创建的事务间依赖关系，这些事件作为副本应用程序上的时代事务提交的一部分单独处理。对于复制到[`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine")，没有特殊处理；当使用`InnoDB`多线程应用程序来消耗`NDB` MTA
+    二进制日志时，这可能导致性能降低或其他问题。'

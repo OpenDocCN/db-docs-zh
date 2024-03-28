@@ -1,0 +1,199 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-disable-gtids.html](https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-disable-gtids.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-disable-gtids.html](https://dev.mysql.com/doc/refman/8.0/en/replication-mode-change-online-disable-gtids.html)
+- en: 19.1.4.3 Disabling GTID Transactions Online
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.4.3 在线禁用GTID事务
+- en: This section describes how to disable GTID transactions on servers that are
+    already online. This procedure does not require taking the server offline and
+    is suited to use in production. However, if you have the possibility to take the
+    servers offline when disabling GTIDs mode that process is easier.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何在已经在线的服务器上禁用GTID事务。此过程无需将服务器脱机，并适用于在生产环境中使用。但是，如果您有可能在禁用GTID模式时将服务器脱机，那么该过程会更加简单。
+- en: The process is similar to enabling GTID transactions while the server is online,
+    but reversing the steps. The only thing that differs is the point at which you
+    wait for logged transactions to replicate.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该过程类似于在服务器在线时启用GTID事务，但是步骤相反。唯一不同的是等待已记录事务复制的时间点。
+- en: 'Before you start, ensure that the servers meet the following pre-conditions:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在开始之前，请确保服务器满足以下先决条件：
+- en: '*All* servers in your topology must use MySQL 5.7.6 or later. You cannot disable
+    GTID transactions online on any single server unless *all* servers which are in
+    the topology are using this version.'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您的拓扑中的*所有*服务器必须使用MySQL 5.7.6或更高版本。除非拓扑中的*所有*服务器都使用此版本，否则无法在线禁用GTID事务。
+- en: All servers have [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    set to `ON`.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有服务器的[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)设置为`ON`。
+- en: The [`--replicate-same-server-id`](replication-options-replica.html#option_mysqld_replicate-same-server-id)
+    option is not set on any server. You cannot disable GTID transactions if this
+    option is set together with the [`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    option (which is the default) and binary logging is enabled (which is also the
+    default). Without GTIDs, this combination of options causes infinite loops in
+    circular replication.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 任何服务器上都未设置[`--replicate-same-server-id`](replication-options-replica.html#option_mysqld_replicate-same-server-id)选项。如果此选项与[`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)选项（默认情况下）和启用了二进制日志记录（也是默认情况）一起设置，则无法禁用GTID事务。在没有GTID的情况下，这些选项的组合会在循环复制中导致无限循环。
+- en: 'Execute the following on each replica, and if you are using multi-source replication,
+    do it for each channel and include the `FOR CHANNEL` channel clause:'
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每个副本上执行以下操作，如果您正在使用多源复制，请为每个通道执行，并包括`FOR CHANNEL`通道子句：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'On each server, execute:'
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每台服务器上执行：
+- en: '[PRE1]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'On each server, execute:'
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每台服务器上执行：
+- en: '[PRE2]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'On each server, wait until the variable @@GLOBAL.GTID_OWNED is equal to the
+    empty string. This can be checked using:'
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每台服务器上，等待变量@@GLOBAL.GTID_OWNED等于空字符串。可以使用以下方式进行检查：
+- en: '[PRE3]'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: On a replica, it is theoretically possible that this is empty and then nonempty
+    again. This is not a problem, it suffices that it is empty once.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 理论上，在副本上，这可能为空，然后再次变为非空。这不是问题，只要它曾经为空就足够了。
+- en: Wait for all transactions that currently exist in any binary log to replicate
+    to all replicas. See [Section 19.1.4.4, “Verifying Replication of Anonymous Transactions”](replication-mode-change-online-verify-transactions.html
+    "19.1.4.4 Verifying Replication of Anonymous Transactions") for one method of
+    checking that all anonymous transactions have replicated to all servers.
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 等待当前存在于任何二进制日志中的所有事务在所有副本中复制。参见[Section 19.1.4.4, “验证匿名事务的复制”](replication-mode-change-online-verify-transactions.html
+    "19.1.4.4 验证匿名事务的复制")，了解检查所有匿名事务是否已复制到所有服务器的一种方法。
+- en: 'If you use binary logs for anything else than replication, for example to do
+    point in time backup or restore: wait until you do not need the old binary logs
+    having GTID transactions.'
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您将二进制日志用于除复制之外的任何其他用途，例如进行时间点备份或还原：请等待您不再需要具有GTID事务的旧二进制日志。
+- en: For instance, after step 5 has completed, you can execute [`FLUSH LOGS`](flush.html#flush-logs)
+    on the server where you are taking the backup. Then either explicitly take a backup
+    or wait for the next iteration of any periodic backup routine you may have set
+    up.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，在完成第5步之后，您可以在正在进行备份的服务器上执行[`FLUSH LOGS`](flush.html#flush-logs)。然后，要么明确进行备份，要么等待您设置的任何定期备份例程的下一次迭代。
+- en: Ideally, wait for the server to purge all binary logs that existed when step
+    5 was completed. Also wait for any backup taken before step 5 to expire.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 理想情况下，等待服务器清除在步骤 5 完成时存在的所有二进制日志。还要等待在步骤 5 之前备份的任何备份过期。
+- en: Important
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: This is the one important point during this procedure. It is important to understand
+    that logs containing GTID transactions cannot be used after the next step. Before
+    proceeding you must be sure that GTID transactions do not exist anywhere in the
+    topology.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这是整个过程中的一个重要点。重要的是要理解，包含 GTID 事务的日志在下一步之后不能再使用。在继续之前，您必须确保拓扑结构中不存在任何 GTID 事务。
+- en: 'On each server, execute:'
+  id: totrans-23
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每台服务器上执行：
+- en: '[PRE4]'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: On each server, set [`gtid_mode=OFF`](replication-options-gtids.html#sysvar_gtid_mode)
+    in `my.cnf`.
+  id: totrans-25
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在每台服务器上，在 `my.cnf` 中设置 [`gtid_mode=OFF`](replication-options-gtids.html#sysvar_gtid_mode)。
+- en: If you want to set [`enforce_gtid_consistency=OFF`](replication-options-gtids.html#sysvar_enforce_gtid_consistency),
+    you can do so now. After setting it, you should add [`enforce_gtid_consistency=OFF`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)
+    to your configuration file.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您想设置 [`enforce_gtid_consistency=OFF`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)，现在可以这样做。设置后，您应该将
+    [`enforce_gtid_consistency=OFF`](replication-options-gtids.html#sysvar_enforce_gtid_consistency)
+    添加到您的配置文件中。
+- en: If you want to downgrade to an earlier version of MySQL, you can do so now,
+    using the normal downgrade procedure.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您想降级到 MySQL 的早期版本，现在可以使用正常的降级过程进行操作。

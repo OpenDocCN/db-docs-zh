@@ -1,0 +1,230 @@
+- en: 12.8.4 Collation Coercibility in Expressions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 12.8.4 表达式中的排序强制性
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/charset-collation-coercibility.html](https://dev.mysql.com/doc/refman/8.0/en/charset-collation-coercibility.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/charset-collation-coercibility.html](https://dev.mysql.com/doc/refman/8.0/en/charset-collation-coercibility.html)
+- en: 'In the great majority of statements, it is obvious what collation MySQL uses
+    to resolve a comparison operation. For example, in the following cases, it should
+    be clear that the collation is the collation of column `x`:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在绝大多数语句中，MySQL使用哪个排序来解决比较操作是显而易见的。例如，在以下情况下，应该清楚MySQL使用的排序是列`x`的排序：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'However, with multiple operands, there can be ambiguity. For example, this
+    statement performs a comparison between the column `x` and the string literal
+    `''Y''`:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，对于多个操作数，可能存在歧义。例如，此语句执行列`x`和字符串常量`'Y'`之间的比较：
+- en: '[PRE1]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If `x` and `'Y'` have the same collation, there is no ambiguity about the collation
+    to use for the comparison. But if they have different collations, should the comparison
+    use the collation of `x`, or of `'Y'`? Both `x` and `'Y'` have collations, so
+    which collation takes precedence?
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`x`和`'Y'`具有相同的排序，则对于比较要使用的排序就没有歧义。但是，如果它们具有不同的排序，比较应该使用`x`的排序还是`'Y'`的排序？`x`和`'Y'`都有排序，那么哪个排序优先？
+- en: A mix of collations may also occur in contexts other than comparison. For example,
+    a multiple-argument concatenation operation such as [`CONCAT(x,'Y')`](string-functions.html#function_concat)
+    combines its arguments to produce a single string. What collation should the result
+    have?
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 混合排序也可能发生在除比较之外的上下文中。例如，多参数连接操作[`CONCAT(x,'Y')`](string-functions.html#function_concat)将其参数组合成一个字符串。结果应该具有什么排序？
+- en: 'To resolve questions like these, MySQL checks whether the collation of one
+    item can be coerced to the collation of the other. MySQL assigns coercibility
+    values as follows:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了解决这类问题，MySQL检查一个项目的排序是否可以强制转换为另一个项目的排序。MySQL分配强制性值如下：
+- en: An explicit `COLLATE` clause has a coercibility of 0 (not coercible at all).
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 明确的`COLLATE`子句具有强制性为0（根本不可强制转换）。
+- en: The concatenation of two strings with different collations has a coercibility
+    of 1.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 具有不同排序的两个字符串的连接具有强制性为1。
+- en: The collation of a column or a stored routine parameter or local variable has
+    a coercibility of 2.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 列或存储过程参数或局部变量的排序具有强制性为2。
+- en: A “system constant” (the string returned by functions such as [`USER()`](information-functions.html#function_user)
+    or [`VERSION()`](information-functions.html#function_version)) has a coercibility
+    of 3.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: “系统常量”（由函数返回的字符串，如[`USER()`](information-functions.html#function_user)或[`VERSION()`](information-functions.html#function_version)）具有强制性为3。
+- en: The collation of a literal has a coercibility of 4.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 文本常量的排序具有强制性为4。
+- en: The collation of a numeric or temporal value has a coercibility of 5.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数值或时间值的排序具有强制性为5。
+- en: '`NULL` or an expression that is derived from `NULL` has a coercibility of 6.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NULL`或从`NULL`派生的表达式具有强制性为6。'
+- en: 'MySQL uses coercibility values with the following rules to resolve ambiguities:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL使用以下规则的强制性值来解决歧义：
+- en: Use the collation with the lowest coercibility value.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用具有最低强制性值的排序。
+- en: 'If both sides have the same coercibility, then:'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果两侧具有相同的强制性，则：
+- en: If both sides are Unicode, or both sides are not Unicode, it is an error.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果两侧都是Unicode，或两侧都不是Unicode，则会出现错误。
+- en: 'If one of the sides has a Unicode character set, and another side has a non-Unicode
+    character set, the side with Unicode character set wins, and automatic character
+    set conversion is applied to the non-Unicode side. For example, the following
+    statement does not return an error:'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一侧具有Unicode字符集，另一侧具有非Unicode字符集，则具有Unicode字符集的一侧获胜，并且自动进行字符集转换应用于非Unicode侧。例如，以下语句不会返回错误：
+- en: '[PRE2]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: It returns a result that has a character set of `utf8mb4` and the same collation
+    as `utf8mb4_column`. Values of `latin1_column` are automatically converted to
+    `utf8mb4` before concatenating.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 它返回一个具有字符集`utf8mb4`和与`utf8mb4_column`相同排序的结果。在连接之前，`latin1_column`的值会自动转换为`utf8mb4`。
+- en: For an operation with operands from the same character set but that mix a `_bin`
+    collation and a `_ci` or `_cs` collation, the `_bin` collation is used. This is
+    similar to how operations that mix nonbinary and binary strings evaluate the operands
+    as binary strings, applied to collations rather than data types.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用相同字符集但混合了`_bin`排序和`_ci`或`_cs`排序的操作，将使用`_bin`排序。这类似于将混合非二进制和二进制字符串的操作将操作数评估为二进制字符串，只是应用于排序而不是数据类型。
+- en: Although automatic conversion is not in the SQL standard, the standard does
+    say that every character set is (in terms of supported characters) a “subset”
+    of Unicode. Because it is a well-known principle that “what applies to a superset
+    can apply to a subset,” we believe that a collation for Unicode can apply for
+    comparisons with non-Unicode strings. More generally, MySQL uses the concept of
+    character set repertoire, which can sometimes be used to determine subset relationships
+    among character sets and enable conversion of operands in operations that would
+    otherwise produce an error. See [Section 12.2.1, “Character Set Repertoire”](charset-repertoire.html
+    "12.2.1 Character Set Repertoire").
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管自动转换不在SQL标准中，但标准确实指出每个字符集（在支持的字符方面）都是Unicode的“子集”。因为“适用于超集的原则也适用于子集”是一个众所周知的原则，我们认为Unicode的排序可以用于与非Unicode字符串的比较。更一般地说，MySQL使用字符集库的概念，有时可以用于确定字符集之间的子集关系，并使操作中的操作数转换为否则会产生错误的操作。参见[Section 12.2.1,
+    “Character Set Repertoire”](charset-repertoire.html "12.2.1 Character Set Repertoire")。
+- en: The following table illustrates some applications of the preceding rules.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格说明了前述规则的一些应用。
+- en: '| Comparison | Collation Used |'
+  id: totrans-26
+  prefs: []
+  type: TYPE_TB
+  zh: '| 比较 | 使用的排序 |'
+- en: '| `column1 = ''A''` | Use collation of `column1` |'
+  id: totrans-27
+  prefs: []
+  type: TYPE_TB
+  zh: '| `column1 = ''A''` | 使用`column1`的排序 |'
+- en: '| `column1 = ''A'' COLLATE x` | Use collation of `''A'' COLLATE x` |'
+  id: totrans-28
+  prefs: []
+  type: TYPE_TB
+  zh: '| `column1 = ''A'' COLLATE x` | 使用`''A'' COLLATE x`的排序 |'
+- en: '| `column1 COLLATE x = ''A'' COLLATE y` | Error |'
+  id: totrans-29
+  prefs: []
+  type: TYPE_TB
+  zh: '| `column1 COLLATE x = ''A'' COLLATE y` | 错误 |'
+- en: 'To determine the coercibility of a string expression, use the [`COERCIBILITY()`](information-functions.html#function_coercibility)
+    function (see [Section 14.15, “Information Functions”](information-functions.html
+    "14.15 Information Functions")):'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要确定字符串表达式的可强制性，使用[`COERCIBILITY()`](information-functions.html#function_coercibility)函数（参见[Section 14.15,
+    “Information Functions”](information-functions.html "14.15 Information Functions")）：
+- en: '[PRE3]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: For implicit conversion of a numeric or temporal value to a string, such as
+    occurs for the argument `1` in the expression [`CONCAT(1, 'abc')`](string-functions.html#function_concat),
+    the result is a character (nonbinary) string that has a character set and collation
+    determined by the [`character_set_connection`](server-system-variables.html#sysvar_character_set_connection)
+    and [`collation_connection`](server-system-variables.html#sysvar_collation_connection)
+    system variables. See [Section 14.3, “Type Conversion in Expression Evaluation”](type-conversion.html
+    "14.3 Type Conversion in Expression Evaluation").
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于将数值或时间值隐式转换为字符串，例如在表达式[`CONCAT(1, 'abc')`](string-functions.html#function_concat)中对参数`1`的情况，结果是一个由[`character_set_connection`](server-system-variables.html#sysvar_character_set_connection)和[`collation_connection`](server-system-variables.html#sysvar_collation_connection)系统变量确定字符集和排序的字符（非二进制）字符串。参见[Section 14.3,
+    “Type Conversion in Expression Evaluation”](type-conversion.html "14.3 Type Conversion
+    in Expression Evaluation")。

@@ -1,0 +1,108 @@
+- en: 20.1 Group Replication Background
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.1 Group Replication 背景
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-background.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-background.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-background.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-background.html)
+- en: '[20.1.1 Replication Technologies](group-replication-replication-technologies.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.1.1 Replication Technologies](group-replication-replication-technologies.html)'
+- en: '[20.1.2 Group Replication Use Cases](group-replication-use-cases.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.1.2 Group Replication Use Cases](group-replication-use-cases.html)'
+- en: '[20.1.3 Multi-Primary and Single-Primary Modes](group-replication-deploying-in-multi-primary-or-single-primary-mode.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.1.3 Multi-Primary and Single-Primary Modes](group-replication-deploying-in-multi-primary-or-single-primary-mode.html)'
+- en: '[20.1.4 Group Replication Services](group-replication-details.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.1.4 Group Replication Services](group-replication-details.html)'
+- en: '[20.1.5 Group Replication Plugin Architecture](group-replication-plugin-architecture.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.1.5 Group Replication Plugin Architecture](group-replication-plugin-architecture.html)'
+- en: This section provides background information on MySQL Group Replication.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节提供了关于 MySQL Group Replication 的背景信息。
+- en: The most common way to create a fault-tolerant system is to resort to making
+    components redundant, in other words the component can be removed and the system
+    should continue to operate as expected. This creates a set of challenges that
+    raise complexity of such systems to a whole different level. Specifically, replicated
+    databases have to deal with the fact that they require maintenance and administration
+    of several servers instead of just one. Moreover, as servers are cooperating together
+    to create the group several other classic distributed systems problems have to
+    be dealt with, such as network partitioning or split brain scenarios.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建容错系统最常见的方法是通过使组件冗余化，换句话说，组件可以被移除而系统应该继续按预期运行。这带来了一系列挑战，将这些系统的复杂性提升到一个全新的水平。具体来说，复制的数据库必须处理这样一个事实，即它们需要维护和管理多台服务器，而不仅仅是一台。此外，由于服务器合作创建组，因此必须处理一些其他经典的分布式系统问题，例如网络分区或脑裂场景。
+- en: Therefore, the ultimate challenge is to fuse the logic of the database and data
+    replication with the logic of having several servers coordinated in a consistent
+    and simple way. In other words, to have multiple servers agreeing on the state
+    of the system and the data on each and every change that the system goes through.
+    This can be summarized as having servers reaching agreement on each database state
+    transition, so that they all progress as one single database or alternatively
+    that they eventually converge to the same state. Meaning that they need to operate
+    as a (distributed) state machine.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，最终的挑战是将数据库和数据复制的逻辑与多台服务器以一致且简单的方式协调的逻辑融合在一起。换句话说，让多台服务器就系统状态和每次系统经历的变化的数据达成一致意见。这可以总结为使服务器就每个数据库状态转换达成一致意见，以便它们都像一个单一数据库一样前进，或者最终收敛到相同的状态。这意味着它们需要作为（分布式）状态机运行。
+- en: MySQL Group Replication provides distributed state machine replication with
+    strong coordination between servers. Servers coordinate themselves automatically
+    when they are part of the same group. The group can operate in a single-primary
+    mode with automatic primary election, where only one server accepts updates at
+    a time. Alternatively, for more advanced users the group can be deployed in multi-primary
+    mode, where all servers can accept updates, even if they are issued concurrently.
+    This power comes at the expense of applications having to work around the limitations
+    imposed by such deployments.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL Group Replication 提供了具有强大协调功能的分布式状态机复制。当服务器属于同一组时，它们会自动协调。该组可以在单主模式下运行，具有自动主选举，每次只有一台服务器接受更新。或者，对于更高级的用户，该组可以部署在多主模式下，其中所有服务器都可以接受更新，即使它们同时发出。这种功能是以应用程序必须解决这些部署所施加的限制为代价的。
+- en: There is a built-in group membership service that keeps the view of the group
+    consistent and available for all servers at any given point in time. Servers can
+    leave and join the group and the view is updated accordingly. Sometimes servers
+    can leave the group unexpectedly, in which case the failure detection mechanism
+    detects this and notifies the group that the view has changed. This is all automatic.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存在一个内置的组成员服务，使组的视图在任何给定时间点对所有服务器保持一致和可用。服务器可以离开和加入组，视图会相应更新。有时服务器可能意外离开组，此时故障检测机制会检测到这一点，并通知组视图已更改。这一切都是自动的。
+- en: For a transaction to commit, the majority of the group have to agree on the
+    order of a given transaction in the global sequence of transactions. Deciding
+    to commit or abort a transaction is done by each server individually, but all
+    servers make the same decision. If there is a network partition, resulting in
+    a split where members are unable to reach agreement, then the system does not
+    progress until this issue is resolved. Hence there is also a built-in, automatic,
+    split-brain protection mechanism.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使交易提交，大多数组成员必须就给定交易在全局交易序列中的顺序达成一致。决定提交或中止交易是每个服务器单独完成的，但所有服务器都做出相同的决定。如果出现网络分区，导致成员无法达成一致，那么系统将在解决此问题之前不会继续进行。因此，系统还具有内置的、自动的、防止脑裂的机制。
+- en: All of this is powered by the provided Group Communication System (GCS) protocols.
+    These provide a failure detection mechanism, a group membership service, and safe
+    and completely ordered message delivery. All these properties are key to creating
+    a system which ensures that data is consistently replicated across the group of
+    servers. At the very core of this technology lies an implementation of the Paxos
+    algorithm. It acts as the group communication engine.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有这些都由提供的群组通信系统（GCS）协议驱动。这些协议提供了故障检测机制、群组成员服务以及安全和完全有序的消息传递。所有这些属性对于创建一个确保数据在服务器组中一致复制的系统至关重要。在这项技术的核心是Paxos算法的实现。它充当群组通信引擎。

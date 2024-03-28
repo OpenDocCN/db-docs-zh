@@ -1,0 +1,132 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-rawdata.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-rawdata.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-rawdata.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-backups-rawdata.html)
+- en: 19.4.1.2 Backing Up Raw Data from a Replica
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.4.1.2 从复制中备份原始数据
+- en: To guarantee the integrity of the files that are copied, backing up the raw
+    data files on your MySQL replica should take place while your replica server is
+    shut down. If the MySQL server is still running, background tasks may still be
+    updating the database files, particularly those involving storage engines with
+    background processes such as `InnoDB`. With `InnoDB`, these problems should be
+    resolved during crash recovery, but since the replica server can be shut down
+    during the backup process without affecting the execution of the source it makes
+    sense to take advantage of this capability.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了保证复制的文件完整性，在关闭 MySQL 复制服务器时备份原始数据文件应该进行。如果 MySQL 服务器仍在运行，后台任务可能仍在更新数据库文件，特别是涉及具有后台进程的存储引擎，如`InnoDB`。对于`InnoDB`，这些问题应该在崩溃恢复期间得到解决，但由于在备份过程中关闭复制服务器而不影响源执行的能力，可以利用这一功能。
+- en: 'To shut down the server and back up the files:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要关闭服务器并备份文件：
+- en: 'Shut down the replica MySQL server:'
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 关闭复制 MySQL 服务器：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Copy the data files. You can use any suitable copying or archive utility, including
+    **cp**, **tar** or **WinZip**. For example, assuming that the data directory is
+    located under the current directory, you can archive the entire directory as follows:'
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 复制数据文件。您可以使用任何适当的复制或存档工具，包括**cp**，**tar**或**WinZip**。例如，假设数据目录位于当前目录下，您可以将整个目录存档如下：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Start the MySQL server again. Under Unix:'
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 再次启动 MySQL 服务器。在 Unix 系统下：
+- en: '[PRE2]'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Under Windows:'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 Windows 系统下：
+- en: '[PRE3]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Normally you should back up the entire data directory for the replica MySQL
+    server. If you want to be able to restore the data and operate as a replica (for
+    example, in the event of failure of the replica), in addition to the data, you
+    need to have the replica's connection metadata repository and applier metadata
+    repository, and the relay log files. These items are needed to resume replication
+    after you restore the replica's data. Assuming tables have been used for the replica's
+    connection metadata repository and applier metadata repository (see [Section 19.2.4,
+    “Relay Log and Replication Metadata Repositories”](replica-logs.html "19.2.4 Relay
+    Log and Replication Metadata Repositories")), which is the default in MySQL 8.0,
+    these tables are backed up along with the data directory. If files have been used
+    for the repositories, which is deprecated, you must back these up separately.
+    The relay log files must be backed up separately if they have been placed in a
+    different location to the data directory.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常应该备份整个复制 MySQL 服务器的数据目录。如果您希望能够恢复数据并作为复制运行（例如，在复制发生故障时），除了数据外，您还需要复制的连接元数据存储库和应用程序元数据存储库，以及中继日志文件。这些项目在恢复复制数据后需要用于恢复复制。假设表已用于复制的连接元数据存储库和应用程序元数据存储库（请参阅[Section 19.2.4,
+    “Relay Log and Replication Metadata Repositories”](replica-logs.html "19.2.4 Relay
+    Log and Replication Metadata Repositories")），这是 MySQL 8.0 的默认设置，这些表将与数据目录一起备份。如果文件已用于存储库，这已被弃用，您必须单独备份这些文件。如果中继日志文件已放置在与数据目录不同的位置，则必须单独备份中继日志文件。
+- en: If you lose the relay logs but still have the `relay-log.info` file, you can
+    check it to determine how far the replication SQL thread has executed in the source's
+    binary logs. Then you can use [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement (from MySQL 8.0.23)
+    or [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement")
+    statement (before MySQL 8.0.23) with the `SOURCE_LOG_FILE` | `MASTER_LOG_FILE`
+    and `SOURCE_LOG_POS` | `MASTER_LOG_POS` options to tell the replica to re-read
+    the binary logs from that point. This requires that the binary logs still exist
+    on the source server.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您丢失了中继日志但仍有`relay-log.info`文件，您可以检查它以确定复制 SQL 线程在源二进制日志中执行到哪个程度。然后，您可以使用[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement")语句（从 MySQL 8.0.23 开始）或[`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement")语句（在 MySQL 8.0.23 之前）与`SOURCE_LOG_FILE`
+    | `MASTER_LOG_FILE`和`SOURCE_LOG_POS` | `MASTER_LOG_POS`选项告诉复制从那一点重新读取二进制日志。这要求源服务器上的二进制日志仍然存在。
+- en: If your replica is replicating [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA
+    Statement") statements, you should also back up any `SQL_LOAD-*` files that exist
+    in the directory that the replica uses for this purpose. The replica needs these
+    files to resume replication of any interrupted [`LOAD DATA`](load-data.html "15.2.9 LOAD
+    DATA Statement") operations. The location of this directory is the value of the
+    system variable [`replica_load_tmpdir`](replication-options-replica.html#sysvar_replica_load_tmpdir)
+    (from MySQL 8.0.26) or [`slave_load_tmpdir`](replication-options-replica.html#sysvar_slave_load_tmpdir)
+    (before MySQL 8.0.26). If the server was not started with that variable set, the
+    directory location is the value of the [`tmpdir`](server-system-variables.html#sysvar_tmpdir)
+    system variable.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的复制品正在复制[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")语句，您还应该备份复制品用于此目的的目录中存在的任何`SQL_LOAD-*`文件。复制品需要这些文件来恢复任何中断的[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement")操作的复制。此目录的位置是系统变量[`replica_load_tmpdir`](replication-options-replica.html#sysvar_replica_load_tmpdir)（从MySQL
+    8.0.26开始）或[`slave_load_tmpdir`](replication-options-replica.html#sysvar_slave_load_tmpdir)（在MySQL
+    8.0.26之前）。如果服务器未使用该变量启动，则目录位置是[`tmpdir`](server-system-variables.html#sysvar_tmpdir)系统变量的值。

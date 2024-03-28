@@ -1,0 +1,166 @@
+- en: 10.5.2 Optimizing InnoDB Transaction Management
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.5.2 优化 InnoDB 事务管理
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-transaction-management.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-transaction-management.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-transaction-management.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-transaction-management.html)
+- en: To optimize `InnoDB` transaction processing, find the ideal balance between
+    the performance overhead of transactional features and the workload of your server.
+    For example, an application might encounter performance issues if it commits thousands
+    of times per second, and different performance issues if it commits only every
+    2-3 hours.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了优化`InnoDB`事务处理，找到事务特性的性能开销和服务器工作负载之间的理想平衡。例如，如果一个应用程序每秒提交数千次，可能会遇到性能问题，如果每
+    2-3 小时才提交一次，则可能会遇到不同的性能问题。
+- en: The default MySQL setting `AUTOCOMMIT=1` can impose performance limitations
+    on a busy database server. Where practical, wrap several related data change operations
+    into a single transaction, by issuing `SET AUTOCOMMIT=0` or a `START TRANSACTION`
+    statement, followed by a `COMMIT` statement after making all the changes.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认的 MySQL 设置`AUTOCOMMIT=1`可能会对繁忙的数据库服务器施加性能限制。在实际情况下，通过发出`SET AUTOCOMMIT=0`或`START
+    TRANSACTION`语句，然后在进行所有更改后发出`COMMIT`语句，将几个相关的数据更改操作包装成一个单独的事务。
+- en: '`InnoDB` must flush the log to disk at each transaction commit if that transaction
+    made modifications to the database. When each change is followed by a commit (as
+    with the default autocommit setting), the I/O throughput of the storage device
+    puts a cap on the number of potential operations per second.'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果事务对数据库进行了修改，则每次事务提交时`InnoDB`必须将日志刷新到磁盘。当每个更改后跟着一个提交时（与默认的自动提交设置一样），存储设备的 I/O
+    吞吐量限制了每秒潜在操作的数量。
+- en: Alternatively, for transactions that consist only of a single [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statement, turning on `AUTOCOMMIT` helps `InnoDB`
+    to recognize read-only transactions and optimize them. See [Section 10.5.3, “Optimizing
+    InnoDB Read-Only Transactions”](innodb-performance-ro-txn.html "10.5.3 Optimizing
+    InnoDB Read-Only Transactions") for requirements.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 或者，对于仅包含单个[`SELECT`](select.html "15.2.13 SELECT Statement")语句的事务，打开`AUTOCOMMIT`有助于`InnoDB`识别只读事务并对其进行优化。有关要求，请参阅[第
+    10.5.3 节，“优化 InnoDB 只读事务”](innodb-performance-ro-txn.html "10.5.3 优化 InnoDB 只读事务")。
+- en: Avoid performing rollbacks after inserting, updating, or deleting huge numbers
+    of rows. If a big transaction is slowing down server performance, rolling it back
+    can make the problem worse, potentially taking several times as long to perform
+    as the original data change operations. Killing the database process does not
+    help, because the rollback starts again on server startup.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 避免在插入、更新或删除大量行后执行回滚。如果一个大型事务正在减慢服务器性能，回滚可能会使问题变得更糟，可能需要执行的时间是原始数据更改操作的几倍。杀死数据库进程并不会有帮助，因为回滚会在服务器启动时重新开始。
+- en: 'To minimize the chance of this issue occurring:'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了最大程度减少出现此问题的机会：
+- en: Increase the size of the [buffer pool](glossary.html#glos_buffer_pool "buffer
+    pool") so that all the data change changes can be cached rather than immediately
+    written to disk.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 增加[缓冲池](glossary.html#glos_buffer_pool "缓冲池")的大小，以便所有数据更改都可以被缓存而不是立即写入磁盘。
+- en: Set [`innodb_change_buffering=all`](innodb-parameters.html#sysvar_innodb_change_buffering)
+    so that update and delete operations are buffered in addition to inserts.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 设置[`innodb_change_buffering=all`](innodb-parameters.html#sysvar_innodb_change_buffering)，以便在插入操作之外还缓冲更新和删除操作。
+- en: Consider issuing `COMMIT` statements periodically during the big data change
+    operation, possibly breaking a single delete or update into multiple statements
+    that operate on smaller numbers of rows.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在大数据更改操作期间定期发出`COMMIT`语句，可能将单个删除或更新拆分为操作较少行数的多个语句。
+- en: To get rid of a runaway rollback once it occurs, increase the buffer pool so
+    that the rollback becomes CPU-bound and runs fast, or kill the server and restart
+    with [`innodb_force_recovery=3`](innodb-parameters.html#sysvar_innodb_force_recovery),
+    as explained in [Section 17.18.2, “InnoDB Recovery”](innodb-recovery.html "17.18.2 InnoDB
+    Recovery").
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一旦发生失控的回滚，增加缓冲池大小，使回滚变为 CPU 限制并快速运行，或者杀死服务器并使用[`innodb_force_recovery=3`](innodb-parameters.html#sysvar_innodb_force_recovery)重新启动，如[第
+    17.18.2 节，“InnoDB 恢复”](innodb-recovery.html "17.18.2 InnoDB Recovery")中所述。
+- en: This issue is expected to be infrequent with the default setting [`innodb_change_buffering=all`](innodb-parameters.html#sysvar_innodb_change_buffering),
+    which allows update and delete operations to be cached in memory, making them
+    faster to perform in the first place, and also faster to roll back if needed.
+    Make sure to use this parameter setting on servers that process long-running transactions
+    with many inserts, updates, or deletes.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认设置[`innodb_change_buffering=all`](innodb-parameters.html#sysvar_innodb_change_buffering)预计不会经常出现这个问题，它允许更新和删除操作在内存中被缓存，使它们在第一次执行时更快，并且在需要时回滚也更快。确保在处理有许多插入、更新或删除的长时间运行事务的服务器上使用这个参数设置。
+- en: If you can afford the loss of some of the latest committed transactions if an
+    unexpected exit occurs, you can set the [`innodb_flush_log_at_trx_commit`](innodb-parameters.html#sysvar_innodb_flush_log_at_trx_commit)
+    parameter to 0\. `InnoDB` tries to flush the log once per second anyway, although
+    the flush is not guaranteed.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果可以容忍在意外退出时丢失一些最新提交的事务，可以将[`innodb_flush_log_at_trx_commit`](innodb-parameters.html#sysvar_innodb_flush_log_at_trx_commit)参数设置为0。`InnoDB`尝试每秒刷新一次日志，尽管刷新不是保证的。
+- en: When rows are modified or deleted, the rows and associated [undo logs](glossary.html#glos_undo_log
+    "undo log") are not physically removed immediately, or even immediately after
+    the transaction commits. The old data is preserved until transactions that started
+    earlier or concurrently are finished, so that those transactions can access the
+    previous state of modified or deleted rows. Thus, a long-running transaction can
+    prevent `InnoDB` from purging data that was changed by a different transaction.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当行被修改或删除时，行和相关的[撤销日志](glossary.html#glos_undo_log "undo log")不会立即被物理删除，甚至在事务提交后也不会立即删除。旧数据会被保留，直到比它更早或同时开始的事务完成，这样这些事务就可以访问被修改或删除行的先前状态。因此，长时间运行的事务可能会阻止`InnoDB`清除被不同事务更改的数据。
+- en: When rows are modified or deleted within a long-running transaction, other transactions
+    using the [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    and [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    isolation levels have to do more work to reconstruct the older data if they read
+    those same rows.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当在长时间运行的事务中修改或删除行时，使用[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)和[`REPEATABLE
+    READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)隔离级别的其他事务需要更多工作来重建旧数据，如果它们读取相同的行。
+- en: When a long-running transaction modifies a table, queries against that table
+    from other transactions do not make use of the [covering index](glossary.html#glos_covering_index
+    "covering index") technique. Queries that normally could retrieve all the result
+    columns from a secondary index, instead look up the appropriate values from the
+    table data.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当一个长时间运行的事务修改表时，来自其他事务对该表的查询不会利用[覆盖索引](glossary.html#glos_covering_index "covering
+    index")技术。通常可以从二级索引检索所有结果列的查询，而是从表数据中查找适当的值。
+- en: If secondary index pages are found to have a `PAGE_MAX_TRX_ID` that is too new,
+    or if records in the secondary index are delete-marked, `InnoDB` may need to look
+    up records using a clustered index.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果发现二级索引页的`PAGE_MAX_TRX_ID`太新，或者如果二级索引中的记录被标记为删除，`InnoDB`可能需要使用聚簇索引查找记录。

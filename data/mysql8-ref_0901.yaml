@@ -1,0 +1,1819 @@
+- en: 15.1.15 CREATE INDEX Statement
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 15.1.15 创建索引语句
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-index.html](https://dev.mysql.com/doc/refman/8.0/en/create-index.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-index.html](https://dev.mysql.com/doc/refman/8.0/en/create-index.html)
+- en: '[PRE0]'
+  id: totrans-2
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Normally, you create all indexes on a table at the time the table itself is
+    created with [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement").
+    See [Section 15.1.20, “CREATE TABLE Statement”](create-table.html "15.1.20 CREATE
+    TABLE Statement"). This guideline is especially important for [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") tables, where the primary key determines
+    the physical layout of rows in the data file. [`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement") enables you to add indexes to existing tables.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常，在创建表本身时，您会在表上创建所有索引，使用[`创建表`](create-table.html "15.1.20 创建表语句")。参见[第15.1.20节，“创建表语句”](create-table.html
+    "15.1.20 创建表语句")。这个指导原则对于[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")表尤为重要，因为主键决定了数据文件中行的物理布局。[`创建索引`](create-index.html
+    "15.1.15 创建索引语句")使您能够向现有表添加索引。
+- en: '[`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX Statement") is mapped
+    to an [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statement
+    to create indexes. See [Section 15.1.9, “ALTER TABLE Statement”](alter-table.html
+    "15.1.9 ALTER TABLE Statement"). [`CREATE INDEX`](create-index.html "15.1.15 CREATE
+    INDEX Statement") cannot be used to create a `PRIMARY KEY`; use [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") instead. For more information about indexes, see
+    [Section 10.3.1, “How MySQL Uses Indexes”](mysql-indexes.html "10.3.1 How MySQL
+    Uses Indexes").'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`创建索引`](create-index.html "15.1.15 创建索引语句")被映射到一个[`修改表`](alter-table.html
+    "15.1.9 修改表语句")语句来创建索引。参见[第15.1.9节，“修改表语句”](alter-table.html "15.1.9 修改表语句")。[`创建索引`](create-index.html
+    "15.1.15 创建索引语句")不能用于创建`主键`；请使用[`修改表`](alter-table.html "15.1.9 修改表语句")。有关索引的更多信息，请参见[第10.3.1节，“MySQL如何使用索引”](mysql-indexes.html
+    "10.3.1 MySQL如何使用索引")。'
+- en: '[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    supports secondary indexes on virtual columns. For more information, see [Section 15.1.20.9,
+    “Secondary Indexes and Generated Columns”](create-table-secondary-indexes.html
+    "15.1.20.9 Secondary Indexes and Generated Columns").'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")支持虚拟列上的辅助索引。有关更多信息，请参见[第15.1.20.9节，“辅助索引和生成列”](create-table-secondary-indexes.html
+    "15.1.20.9 辅助索引和生成列")。'
+- en: When the [`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent)
+    setting is enabled, run the [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement") statement for an [`InnoDB`](innodb-storage-engine.html "Chapter 17 The
+    InnoDB Storage Engine") table after creating an index on that table.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当启用[`innodb_stats_persistent`](innodb-parameters.html#sysvar_innodb_stats_persistent)设置时，在表上创建索引后，运行[`分析表`](analyze-table.html
+    "15.7.3.1 分析表语句")语句来分析[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")表。
+- en: Beginning with MySQL 8.0.17, the *`expr`* for a *`key_part`* specification can
+    take the form `(CAST *`json_expression`* AS *`type`* ARRAY)` to create a multi-valued
+    index on a [`JSON`](json.html "13.5 The JSON Data Type") column. See [Multi-Valued
+    Indexes](create-index.html#create-index-multi-valued "Multi-Valued Indexes").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.17开始，*`expr`*的*`key_part`*规范可以采用`(CAST *`json_expression`* AS *`type`*
+    ARRAY)`的形式，在[`JSON`](json.html "第13.5章 JSON数据类型")列上创建多值索引。参见[多值索引](create-index.html#create-index-multi-valued
+    "多值索引")。
+- en: An index specification of the form `(*`key_part1`*, *`key_part2`*, ...)` creates
+    an index with multiple key parts. Index key values are formed by concatenating
+    the values of the given key parts. For example `(col1, col2, col3)` specifies
+    a multiple-column index with index keys consisting of values from `col1`, `col2`,
+    and `col3`.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个形如`(*key_part1*, *key_part2*, ...)`的索引规范创建了一个具有多个关键部分的索引。索引键值是通过连接给定关键部分的值形成的。例如`(col1,
+    col2, col3)`指定了一个多列索引，其索引键由`col1`、`col2`和`col3`的值组成。
+- en: A *`key_part`* specification can end with `ASC` or `DESC` to specify whether
+    index values are stored in ascending or descending order. The default is ascending
+    if no order specifier is given. `ASC` and `DESC` are not permitted for `HASH`
+    indexes. `ASC` and `DESC` are also not supported for multi-valued indexes. As
+    of MySQL 8.0.12, `ASC` and `DESC` are not permitted for `SPATIAL` indexes.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*`key_part`* 规范可以以 `ASC` 或 `DESC` 结尾，以指定索引值是按升序还是降序存储。如果没有给出顺序说明符，则默认为升序。对于
+    `HASH` 索引，不允许使用 `ASC` 和 `DESC`。对于多值索引，也不支持 `ASC` 和 `DESC`。从 MySQL 8.0.12 开始，不允许对
+    `SPATIAL` 索引使用 `ASC` 和 `DESC`。'
+- en: 'The following sections describe different aspects of the [`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement") statement:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节描述了 [`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX 语句") 语句的不同方面：
+- en: '[Column Prefix Key Parts](create-index.html#create-index-column-prefixes "Column
+    Prefix Key Parts")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[列前缀键部分](create-index.html#create-index-column-prefixes "列前缀键部分")'
+- en: '[Functional Key Parts](create-index.html#create-index-functional-key-parts
+    "Functional Key Parts")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[功能键部分](create-index.html#create-index-functional-key-parts "功能键部分")'
+- en: '[Unique Indexes](create-index.html#create-index-unique "Unique Indexes")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[唯一索引](create-index.html#create-index-unique "唯一索引")'
+- en: '[Full-Text Indexes](create-index.html#create-index-fulltext "Full-Text Indexes")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[全文索引](create-index.html#create-index-fulltext "全文索引")'
+- en: '[Multi-Valued Indexes](create-index.html#create-index-multi-valued "Multi-Valued
+    Indexes")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[多值索引](create-index.html#create-index-multi-valued "多值索引")'
+- en: '[Spatial Indexes](create-index.html#create-index-spatial "Spatial Indexes")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[空间索引](create-index.html#create-index-spatial "空间索引")'
+- en: '[Index Options](create-index.html#create-index-options "Index Options")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[索引选项](create-index.html#create-index-options "索引选项")'
+- en: '[Table Copying and Locking Options](create-index.html#create-index-copying
+    "Table Copying and Locking Options")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[表复制和锁定选项](create-index.html#create-index-copying "表复制和锁定选项")'
+- en: Column Prefix Key Parts
+  id: totrans-19
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 列前缀键部分
+- en: 'For string columns, indexes can be created that use only the leading part of
+    column values, using `*`col_name`*(*`length`*)` syntax to specify an index prefix
+    length:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于字符串列，可以创建仅使用列值前导部分的索引，使用 `*`col_name`*(*`length`*)` 语法来指定索引前缀长度：
+- en: Prefixes can be specified for [`CHAR`](char.html "13.3.2 The CHAR and VARCHAR
+    Types"), [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), [`BINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types"), and [`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types") key parts.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 [`CHAR`](char.html "13.3.2 CHAR 和 VARCHAR 类型")、[`VARCHAR`](char.html "13.3.2 CHAR
+    和 VARCHAR 类型")、[`BINARY`](binary-varbinary.html "13.3.3 BINARY 和 VARBINARY 类型")
+    和 [`VARBINARY`](binary-varbinary.html "13.3.3 BINARY 和 VARBINARY 类型") 键部分，可以指定前缀。
+- en: Prefixes *must* be specified for [`BLOB`](blob.html "13.3.4 The BLOB and TEXT
+    Types") and [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") key parts. Additionally,
+    [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") and [`TEXT`](blob.html "13.3.4 The
+    BLOB and TEXT Types") columns can be indexed only for `InnoDB`, `MyISAM`, and
+    `BLACKHOLE` tables.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 [`BLOB`](blob.html "13.3.4 BLOB 和 TEXT 类型") 和 [`TEXT`](blob.html "13.3.4 BLOB
+    和 TEXT 类型") 键部分，必须指定前缀。此外，[`BLOB`](blob.html "13.3.4 BLOB 和 TEXT 类型") 和 [`TEXT`](blob.html
+    "13.3.4 BLOB 和 TEXT 类型") 列只能为 `InnoDB`、`MyISAM` 和 `BLACKHOLE` 表创建索引。
+- en: Prefix *limits* are measured in bytes. However, prefix *lengths* for index specifications
+    in [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement"), [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement"), and [`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement") statements are interpreted as number of characters
+    for nonbinary string types ([`CHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"),
+    [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), [`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types")) and number of bytes for binary string types
+    ([`BINARY`](binary-varbinary.html "13.3.3 The BINARY and VARBINARY Types"), [`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types"), [`BLOB`](blob.html "13.3.4 The BLOB
+    and TEXT Types")). Take this into account when specifying a prefix length for
+    a nonbinary string column that uses a multibyte character set.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 前缀*限制*以字节为单位。但是，在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")、[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")和[`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement")语句中的索引规范中，对于非二进制字符串类型（[`CHAR`](char.html "13.3.2 The
+    CHAR and VARCHAR Types")、[`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types")、[`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types")）的索引长度被解释为字符数，对于二进制字符串类型（[`BINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types")、[`VARBINARY`](binary-varbinary.html "13.3.3 The
+    BINARY and VARBINARY Types")、[`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types")）的索引长度被解释为字节数。在为使用多字节字符集的非二进制字符串列指定前缀长度时，请考虑这一点。
+- en: Prefix support and lengths of prefixes (where supported) are storage engine
+    dependent. For example, a prefix can be up to 767 bytes long for [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") tables that use the `[REDUNDANT](glossary.html#glos_redundant_row_format
+    "redundant row format")` or `[COMPACT](glossary.html#glos_compact_row_format "compact
+    row format")` row format. The prefix length limit is 3072 bytes for `InnoDB` tables
+    that use the `[DYNAMIC](glossary.html#glos_dynamic_row_format "dynamic row format")`
+    or `[COMPRESSED](glossary.html#glos_compressed_row_format "compressed row format")`
+    row format. For [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine") tables, the prefix length limit is 1000 bytes. The [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") storage engine does not support prefixes (see
+    [Section 25.2.7.6, “Unsupported or Missing Features in NDB Cluster”](mysql-cluster-limitations-unsupported.html
+    "25.2.7.6 Unsupported or Missing Features in NDB Cluster")).
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 前缀支持和前缀长度（在支持的情况下）取决于存储引擎。例如，对于使用`[REDUNDANT](glossary.html#glos_redundant_row_format
+    "redundant row format")`或`[COMPACT](glossary.html#glos_compact_row_format "compact
+    row format")`行格式的[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine")表，前缀可以长达767字节。对于使用`[DYNAMIC](glossary.html#glos_dynamic_row_format
+    "dynamic row format")`或`[COMPRESSED](glossary.html#glos_compressed_row_format
+    "compressed row format")`行格式的`InnoDB`表，前缀长度限制为3072字节。对于[`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine")表，前缀长度限制为1000字节。[`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0")存储引擎不支持前缀（参见[Section 25.2.7.6, “Unsupported or Missing Features
+    in NDB Cluster”](mysql-cluster-limitations-unsupported.html "25.2.7.6 Unsupported
+    or Missing Features in NDB Cluster")）。
+- en: 'If a specified index prefix exceeds the maximum column data type size, [`CREATE
+    INDEX`](create-index.html "15.1.15 CREATE INDEX Statement") handles the index
+    as follows:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果指定的索引前缀超过最大列数据类型大小，[`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX
+    Statement")将处理索引如下：
+- en: For a nonunique index, either an error occurs (if strict SQL mode is enabled),
+    or the index length is reduced to lie within the maximum column data type size
+    and a warning is produced (if strict SQL mode is not enabled).
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于非唯一索引，如果启用了严格的SQL模式，将会出现错误；如果未启用严格的SQL模式，则会将索引长度减少到不超过最大列数据类型大小，并产生警告。
+- en: For a unique index, an error occurs regardless of SQL mode because reducing
+    the index length might enable insertion of nonunique entries that do not meet
+    the specified uniqueness requirement.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于唯一索引，无论SQL模式如何，都会出现错误，因为减少索引长度可能会导致插入不符合指定唯一性要求的非唯一条目。
+- en: 'The statement shown here creates an index using the first 10 characters of
+    the `name` column (assuming that `name` has a nonbinary string type):'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处显示的语句使用`name`列的前10个字符创建索引（假设`name`是非二进制字符串类型）。
+- en: '[PRE1]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If names in the column usually differ in the first 10 characters, lookups performed
+    using this index should not be much slower than using an index created from the
+    entire `name` column. Also, using column prefixes for indexes can make the index
+    file much smaller, which could save a lot of disk space and might also speed up
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") operations.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果列中的名称通常在前10个字符不同，使用此索引进行查找的速度不应比使用从整个`name`列创建的索引慢得多。此外，使用列前缀进行索引可以使索引文件更小，这可以节省大量磁盘空间，也可能加快[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")操作的速度。
+- en: Functional Key Parts
+  id: totrans-31
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 函数键部分
+- en: 'A “normal” index indexes column values or prefixes of column values. For example,
+    in the following table, the index entry for a given `t1` row includes the full
+    `col1` value and a prefix of the `col2` value consisting of its first 10 characters:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: “普通”索引索引列值或列值的前缀。例如，在以下表中，对于给定的`t1`行，索引条目包括完整的`col1`值和由其前10个字符组成的`col2`值的前缀：
+- en: '[PRE2]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'MySQL 8.0.13 and higher supports functional key parts that index expression
+    values rather than column or column prefix values. Use of functional key parts
+    enables indexing of values not stored directly in the table. Examples:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.13及更高版本支持索引表达式值而不是列或列前缀值的函数键部分。使用函数键部分可以索引表中未直接存储的值。例如：
+- en: '[PRE3]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: An index with multiple key parts can mix nonfunctional and functional key parts.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 具有多个键部分的索引可以混合非函数和函数键部分。
+- en: '`ASC` and `DESC` are supported for functional key parts.'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ASC`和`DESC`对于函数键部分是支持的。'
+- en: Functional key parts must adhere to the following rules. An error occurs if
+    a key part definition contains disallowed constructs.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 函数键部分必须遵循以下规则。如果键部分定义包含不允许的结构，则会发生错误。
+- en: 'In index definitions, enclose expressions within parentheses to distinguish
+    them from columns or column prefixes. For example, this is permitted; the expressions
+    are enclosed within parentheses:'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在索引定义中，将表达式括在括号中以区分它们与列或列前缀。例如，这是被允许的；表达式被括在括号中：
+- en: '[PRE4]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'This produces an error; the expressions are not enclosed within parentheses:'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这会产生一个错误；表达式没有被括在括号中：
+- en: '[PRE5]'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'A functional key part cannot consist solely of a column name. For example,
+    this is not permitted:'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 函数键部分不能仅由列名组成。例如，这是不被允许的：
+- en: '[PRE6]'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Instead, write the key parts as nonfunctional key parts, without parentheses:'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 相反，将键部分写为非函数键部分，不使用括号：
+- en: '[PRE7]'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: A functional key part expression cannot refer to column prefixes. For a workaround,
+    see the discussion of [`SUBSTRING()`](string-functions.html#function_substring)
+    and [`CAST()`](cast-functions.html#function_cast) later in this section.
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 函数键部分表达式不能引用列前缀。有关解决方法，请参阅本节后面关于[`SUBSTRING()`](string-functions.html#function_substring)和[`CAST()`](cast-functions.html#function_cast)的讨论。
+- en: Functional key parts are not permitted in foreign key specifications.
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 函数键部分在外键规范中是不被允许的。
+- en: For [`CREATE TABLE ... LIKE`](create-table-like.html "15.1.20.3 CREATE TABLE
+    ... LIKE Statement"), the destination table preserves functional key parts from
+    the original table.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`CREATE TABLE ... LIKE`](create-table-like.html "15.1.20.3 CREATE TABLE ...
+    LIKE Statement")，目标表会保留原始表的函数键部分。
+- en: 'Functional indexes are implemented as hidden virtual generated columns, which
+    has these implications:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 函数索引被实现为隐藏的虚拟生成列，这带来了以下影响：
+- en: Each functional key part counts against the limit on total number of table columns;
+    see [Section 10.4.7, “Limits on Table Column Count and Row Size”](column-count-limit.html
+    "10.4.7 Limits on Table Column Count and Row Size").
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个函数键部分都计入表列总数的限制；参见[第10.4.7节，“表列数和行大小限制”](column-count-limit.html "10.4.7 Limits
+    on Table Column Count and Row Size")。
+- en: 'Functional key parts inherit all restrictions that apply to generated columns.
+    Examples:'
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 函数键部分继承了适用于生成列的所有限制。例如：
+- en: Only functions permitted for generated columns are permitted for functional
+    key parts.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只有对于生成列允许的函数才允许用于函数键部分。
+- en: Subqueries, parameters, variables, stored functions, and loadable functions
+    are not permitted.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 子查询、参数、变量、存储函数和可加载函数不被允许。
+- en: For more information about applicable restrictions, see [Section 15.1.20.8,
+    “CREATE TABLE and Generated Columns”](create-table-generated-columns.html "15.1.20.8 CREATE
+    TABLE and Generated Columns"), and [Section 15.1.9.2, “ALTER TABLE and Generated
+    Columns”](alter-table-generated-columns.html "15.1.9.2 ALTER TABLE and Generated
+    Columns").
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关适用限制的更多信息，请参见[第15.1.20.8节，“CREATE TABLE and Generated Columns”](create-table-generated-columns.html
+    "15.1.20.8 CREATE TABLE and Generated Columns")，以及[第15.1.9.2节，“ALTER TABLE and
+    Generated Columns”](alter-table-generated-columns.html "15.1.9.2 ALTER TABLE and
+    Generated Columns")。
+- en: The virtual generated column itself requires no storage. The index itself takes
+    up storage space as any other index.
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 虚拟生成列本身不需要存储。索引本身占用存储空间，就像任何其他索引一样。
+- en: '`UNIQUE` is supported for indexes that include functional key parts. However,
+    primary keys cannot include functional key parts. A primary key requires the generated
+    column to be stored, but functional key parts are implemented as virtual generated
+    columns, not stored generated columns.'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于包含功能键部分的索引，支持`UNIQUE`。但是，主键不能包含功能键部分。主键需要存储生成列，但功能键部分实现为虚拟生成列，而不是存储生成列。
+- en: '`SPATIAL` and `FULLTEXT` indexes cannot have functional key parts.'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`SPATIAL`和`FULLTEXT`索引不能具有功能键部分。'
+- en: If a table contains no primary key, `InnoDB` automatically promotes the first
+    `UNIQUE NOT NULL` index to the primary key. This is not supported for `UNIQUE
+    NOT NULL` indexes that have functional key parts.
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果表不包含主键，则`InnoDB`会自动将第一个`UNIQUE NOT NULL`索引提升为主键。对于具有功能键部分的`UNIQUE NOT NULL`索引，不支持此操作。
+- en: Nonfunctional indexes raise a warning if there are duplicate indexes. Indexes
+    that contain functional key parts do not have this feature.
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果存在重复索引，非功能索引会引发警告。包含功能键部分的索引不具有此功能。
+- en: To remove a column that is referenced by a functional key part, the index must
+    be removed first. Otherwise, an error occurs.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要删除被功能键部分引用的列，必须首先删除索引。否则，会出现错误。
+- en: 'Although nonfunctional key parts support a prefix length specification, this
+    is not possible for functional key parts. The solution is to use [`SUBSTRING()`](string-functions.html#function_substring)
+    (or [`CAST()`](cast-functions.html#function_cast), as described later in this
+    section). For a functional key part containing the [`SUBSTRING()`](string-functions.html#function_substring)
+    function to be used in a query, the `WHERE` clause must contain [`SUBSTRING()`](string-functions.html#function_substring)
+    with the same arguments. In the following example, only the second [`SELECT`](select.html
+    "15.2.13 SELECT Statement") is able to use the index because that is the only
+    query in which the arguments to [`SUBSTRING()`](string-functions.html#function_substring)
+    match the index specification:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 虽然非功能键部分支持前缀长度规范，但对于功能键部分则不可能。解决方法是使用[`SUBSTRING()`](string-functions.html#function_substring)（或[`CAST()`](cast-functions.html#function_cast)，如本节后面所述）。要在查询中使用包含[`SUBSTRING()`](string-functions.html#function_substring)函数的功能键部分，`WHERE`子句必须包含具有相同参数的[`SUBSTRING()`](string-functions.html#function_substring)。在以下示例中，只有第二个[`SELECT`](select.html
+    "15.2.13 SELECT Statement")能够使用索引，因为这是唯一一个参数与[`SUBSTRING()`](string-functions.html#function_substring)函数匹配索引规范的查询：
+- en: '[PRE8]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Functional key parts enable indexing of values that cannot be indexed otherwise,
+    such as [`JSON`](json.html "13.5 The JSON Data Type") values. However, this must
+    be done correctly to achieve the desired effect. For example, this syntax does
+    not work:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 功能键部分使得可以对无法以其他方式索引的值进行索引，例如[`JSON`](json.html "13.5 The JSON Data Type")值。但是，必须正确执行才能实现期望的效果。例如，以下语法不起作用：
+- en: '[PRE9]'
+  id: totrans-65
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'The syntax fails because:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 语法失败的原因是：
+- en: The [`->>`](json-search-functions.html#operator_json-inline-path) operator translates
+    into [`JSON_UNQUOTE(JSON_EXTRACT(...))`](json-modification-functions.html#function_json-unquote).
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 运算符[`->>`](json-search-functions.html#operator_json-inline-path) 转换为[`JSON_UNQUOTE(JSON_EXTRACT(...))`](json-modification-functions.html#function_json-unquote)。
+- en: '[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)
+    returns a value with a data type of [`LONGTEXT`](blob.html "13.3.4 The BLOB and
+    TEXT Types"), and the hidden generated column thus is assigned the same data type.'
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)返回一个数据类型为[`LONGTEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types")的值，因此隐藏的生成列被分配相同的数据类型。'
+- en: MySQL cannot index [`LONGTEXT`](blob.html "13.3.4 The BLOB and TEXT Types")
+    columns specified without a prefix length on the key part, and prefix lengths
+    are not permitted in functional key parts.
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL无法对未在键部分指定前缀长度的[`LONGTEXT`](blob.html "13.3.4 The BLOB and TEXT Types")列进行索引，并且功能键部分不允许前缀长度。
+- en: 'To index the `JSON` column, you could try using the [`CAST()`](cast-functions.html#function_cast)
+    function as follows:'
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要对`JSON`列进行索引，您可以尝试使用[`CAST()`](cast-functions.html#function_cast)函数，如下所示：
+- en: '[PRE10]'
+  id: totrans-71
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'The hidden generated column is assigned the [`VARCHAR(30)`](char.html "13.3.2 The
+    CHAR and VARCHAR Types") data type, which can be indexed. But this approach produces
+    a new issue when trying to use the index:'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 隐藏的生成列被分配了[`VARCHAR(30)`](char.html "13.3.2 The CHAR and VARCHAR Types")数据类型，可以被索引。但是当尝试使用索引时，这种方法会产生一个新问题：
+- en: '[`CAST()`](cast-functions.html#function_cast) returns a string with the collation
+    `utf8mb4_0900_ai_ci` (the server default collation).'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CAST()`](cast-functions.html#function_cast)返回一个带有整理`utf8mb4_0900_ai_ci`（服务器默认整理）的字符串。'
+- en: '[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)
+    returns a string with the collation `utf8mb4_bin` (hard coded).'
+  id: totrans-74
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)返回一个带有整理`utf8mb4_bin`（硬编码）的字符串。'
+- en: 'As a result, there is a collation mismatch between the indexed expression in
+    the preceding table definition and the `WHERE` clause expression in the following
+    query:'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于在前面的表定义中索引表达式与后续查询中的`WHERE`子句表达式之间存在整理不匹配，因此索引未被使用：
+- en: '[PRE11]'
+  id: totrans-76
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'The index is not used because the expressions in the query and the index differ.
+    To support this kind of scenario for functional key parts, the optimizer automatically
+    strips [`CAST()`](cast-functions.html#function_cast) when looking for an index
+    to use, but *only* if the collation of the indexed expression matches that of
+    the query expression. For an index with a functional key part to be used, either
+    of the following two solutions work (although they differ somewhat in effect):'
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于查询和索引中的表达式不同，索引未被使用。为了支持这种情况下的功能键部分，优化器在寻找要使用的索引时会自动剥离[`CAST()`](cast-functions.html#function_cast)，但*仅当*索引表达式的整理与查询表达式的整理匹配时。为了使用具有功能键部分的索引，以下两种解决方案都有效（尽管在效果上略有不同）：
+- en: 'Solution 1\. Assign the indexed expression the same collation as [`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote):'
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 解决方案1. 将索引表达式分配与[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)相同的整理：
+- en: '[PRE12]'
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'The `->>` operator is the same as `JSON_UNQUOTE(JSON_EXTRACT(...))`, and `JSON_UNQUOTE()`
+    returns a string with collation `utf8mb4_bin`. The comparison is thus case-sensitive,
+    and only one row matches:'
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`->>`运算符与`JSON_UNQUOTE(JSON_EXTRACT(...))`相同，而`JSON_UNQUOTE()`返回一个带有整理`utf8mb4_bin`的字符串。因此比较是区分大小写的，只有一行匹配：'
+- en: '[PRE13]'
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'Solution 2\. Specify the full expression in the query:'
+  id: totrans-82
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 解决方案2. 在查询中指定完整表达式：
+- en: '[PRE14]'
+  id: totrans-83
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: '`CAST()` returns a string with collation `utf8mb4_0900_ai_ci`, so the comparison
+    case-insensitive and two rows match:'
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`CAST()`返回一个带有整理`utf8mb4_0900_ai_ci`的字符串，因此比较不区分大小写，两行匹配：'
+- en: '[PRE15]'
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'Be aware that although the optimizer supports automatically stripping [`CAST()`](cast-functions.html#function_cast)
+    with indexed generated columns, the following approach does not work because it
+    produces a different result with and without an index (Bug#27337092):'
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，尽管优化器支持自动剥离[`CAST()`](cast-functions.html#function_cast)与索引生成列，但以下方法不起作用，因为它在有索引和无索引时产生不同的结果（Bug#27337092）：
+- en: '[PRE16]'
+  id: totrans-87
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: Unique Indexes
+  id: totrans-88
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 唯一索引
+- en: A `UNIQUE` index creates a constraint such that all values in the index must
+    be distinct. An error occurs if you try to add a new row with a key value that
+    matches an existing row. If you specify a prefix value for a column in a `UNIQUE`
+    index, the column values must be unique within the prefix length. A `UNIQUE` index
+    permits multiple `NULL` values for columns that can contain `NULL`.
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`UNIQUE`索引创建一个约束，使索引中的所有值必须是不同的。如果尝试添加一个具有与现有行匹配的键值的新行，则会发生错误。如果在`UNIQUE`索引中为列指定前缀值，则列值必须在前缀长度内是唯一的。`UNIQUE`索引允许对可以包含`NULL`的列有多个`NULL`值。'
+- en: 'If a table has a `PRIMARY KEY` or `UNIQUE NOT NULL` index that consists of
+    a single column that has an integer type, you can use `_rowid` to refer to the
+    indexed column in [`SELECT`](select.html "15.2.13 SELECT Statement") statements,
+    as follows:'
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个表有一个由单个整数类型列组成的`PRIMARY KEY`或`UNIQUE NOT NULL`索引，您可以在[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句中使用`_rowid`来引用索引列，如下所示：
+- en: '`_rowid` refers to the `PRIMARY KEY` column if there is a `PRIMARY KEY` consisting
+    of a single integer column. If there is a `PRIMARY KEY` but it does not consist
+    of a single integer column, `_rowid` cannot be used.'
+  id: totrans-91
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`_rowid`指的是如果有由单个整数列组成的`PRIMARY KEY`，则指的是`PRIMARY KEY`列。如果有`PRIMARY KEY`但它不由单个整数列组成，则无法使用`_rowid`。'
+- en: Otherwise, `_rowid` refers to the column in the first `UNIQUE NOT NULL` index
+    if that index consists of a single integer column. If the first `UNIQUE NOT NULL`
+    index does not consist of a single integer column, `_rowid` cannot be used.
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 否则，`_rowid`指的是第一个`UNIQUE NOT NULL`索引中的列，如果该索引由单个整数列组成。如果第一个`UNIQUE NOT NULL`索引不包含单个整数列，则无法使用`_rowid`。
+- en: Full-Text Indexes
+  id: totrans-93
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 全文索引
+- en: '`FULLTEXT` indexes are supported only for [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") and [`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine") tables and can include only [`CHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types"), [`VARCHAR`](char.html "13.3.2 The CHAR and
+    VARCHAR Types"), and [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") columns.
+    Indexing always happens over the entire column; column prefix indexing is not
+    supported and any prefix length is ignored if specified. See [Section 14.9, “Full-Text
+    Search Functions”](fulltext-search.html "14.9 Full-Text Search Functions"), for
+    details of operation.'
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅支持[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")和[`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine")表的`FULLTEXT`索引，只能包括[`CHAR`](char.html "13.3.2 The
+    CHAR and VARCHAR Types")、[`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types")和[`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types")列。索引始终在整个列上进行；不支持列前缀索引，如果指定了任何前缀长度，则会被忽略。有关操作的详细信息，请参见[第14.9节，“全文搜索函数”](fulltext-search.html
+    "14.9 Full-Text Search Functions")。
+- en: Multi-Valued Indexes
+  id: totrans-95
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 多值索引
+- en: As of MySQL 8.0.17, `InnoDB` supports multi-valued indexes. A multi-valued index
+    is a secondary index defined on a column that stores an array of values. A “normal”
+    index has one index record for each data record (1:1). A multi-valued index can
+    have multiple index records for a single data record (N:1). Multi-valued indexes
+    are intended for indexing `JSON` arrays. For example, a multi-valued index defined
+    on the array of zip codes in the following JSON document creates an index record
+    for each zip code, with each index record referencing the same data record.
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.17，`InnoDB`支持多值索引。多值索引是定义在存储值数组的列上的辅助索引。一个“正常”的索引对应每个数据记录一个索引记录（1:1）。一个多值索引可以对应单个数据记录多个索引记录（N:1）。多值索引用于对`JSON`数组进行索引。例如，在以下JSON文档中对邮政编码数组定义的多值索引为每个邮政编码创建一个索引记录，每个索引记录引用相同的数据���录。
+- en: '[PRE17]'
+  id: totrans-97
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: Creating multi-valued Indexes
+  id: totrans-98
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建多值索引
+- en: You can create a multi-valued index in a [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement"), [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement"), or [`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX
+    Statement") statement. This requires using [`CAST(... AS ... ARRAY)`](cast-functions.html#function_cast)
+    in the index definition, which casts same-typed scalar values in a `JSON` array
+    to an SQL data type array. A virtual column is then generated transparently with
+    the values in the SQL data type array; finally, a functional index (also referred
+    to as a virtual index) is created on the virtual column. It is the functional
+    index defined on the virtual column of values from the SQL data type array that
+    forms the multi-valued index.
+  id: totrans-99
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")、[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")或[`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement")语句中创建多值索引。这需要在索引定义中使用[`CAST(... AS ... ARRAY)`](cast-functions.html#function_cast)，将`JSON`数组中的相同类型的标量值转换为SQL数据类型数组。然后，一个虚拟列会透明地生成，其中包含SQL数据类型数组中的值；最后，在虚拟列上创建一个函数索引（也称为虚拟索引）。这是在来自SQL数据类型数组的值的虚拟列上定义的函数索引形成了多值索引。
+- en: The examples in the following list show the three different ways in which a
+    multi-valued index `zips` can be created on an array `$.zipcode` on a `JSON` column
+    `custinfo` in a table named `customers`. In each case, the JSON array is cast
+    to an SQL data type array of `UNSIGNED` integer values.
+  id: totrans-100
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下面的示例展示了在名为`customers`的表中的`JSON`列`custinfo`上的数组`$.zipcode`上可以创建多值索引`zips`的三种不同方式。在每种情况下，JSON数组被转换为`UNSIGNED`整数值的SQL数据类型数组。
+- en: '`CREATE TABLE` only:'
+  id: totrans-101
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅`CREATE TABLE`：
+- en: '[PRE18]'
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: '`CREATE TABLE` plus `ALTER TABLE`:'
+  id: totrans-103
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CREATE TABLE` 加上 `ALTER TABLE`：'
+- en: '[PRE19]'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: '`CREATE TABLE` plus `CREATE INDEX`:'
+  id: totrans-105
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CREATE TABLE` 加上 `CREATE INDEX`：'
+- en: '[PRE20]'
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: 'A multi-valued index can also be defined as part of a composite index. This
+    example shows a composite index that includes two single-valued parts (for the
+    `id` and `modified` columns), and one multi-valued part (for the `custinfo` column):'
+  id: totrans-107
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多值索引也可以作为复合索引的一部分定义。此示例显示了一个包含两个单值部分（用于`id`和`modified`列）和一个多值部分（用于`custinfo`列）的复合索引：
+- en: '[PRE21]'
+  id: totrans-108
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: Only one multi-valued key part can be used in a composite index. The multi-valued
+    key part may be used in any order relative to the other parts of the key. In other
+    words, the `ALTER TABLE` statement just shown could have used `comp(id, (CAST(custinfo->'$.zipcode'
+    AS UNSIGNED ARRAY), modified))` (or any other ordering) and still have been valid.
+  id: totrans-109
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 复合索引中只能使用一个多值键部分。多值键部分可以相对于键的其他部分以任何顺序使用。换句话说，刚刚展示的`ALTER TABLE`语句可以使用`comp(id,
+    (CAST(custinfo->'$.zipcode' AS UNSIGNED ARRAY), modified))`（或任何其他顺序）仍然有效。
+- en: Using multi-valued Indexes
+  id: totrans-110
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用多值索引
+- en: 'The optimizer uses a multi-valued index to fetch records when the following
+    functions are specified in a `WHERE` clause:'
+  id: totrans-111
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在`WHERE`子句中指定以下函数时，优化器使用多值索引来获取记录：
+- en: '[`MEMBER OF()`](json-search-functions.html#operator_member-of)'
+  id: totrans-112
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`MEMBER OF()`](json-search-functions.html#operator_member-of)'
+- en: '[`JSON_CONTAINS()`](json-search-functions.html#function_json-contains)'
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`JSON_CONTAINS()`](json-search-functions.html#function_json-contains)'
+- en: '[`JSON_OVERLAPS()`](json-search-functions.html#function_json-overlaps)'
+  id: totrans-114
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`JSON_OVERLAPS()`](json-search-functions.html#function_json-overlaps)'
+- en: 'We can demonstrate this by creating and populating the `customers` table using
+    the following `CREATE TABLE` and `INSERT` statements:'
+  id: totrans-115
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以通过使用以下`CREATE TABLE`和`INSERT`语句创建和填充`customers`表来演示这一点：
+- en: '[PRE22]'
+  id: totrans-116
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: 'First we execute three queries on the `customers` table, one each using `MEMBER
+    OF()`, `JSON_CONTAINS()`, and `JSON_OVERLAPS()`, with the result from each query
+    shown here:'
+  id: totrans-117
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，我们在`customers`表上执行三个查询，分别使用`MEMBER OF()`，`JSON_CONTAINS()`和`JSON_OVERLAPS()`，每个查询的结果如下所示：
+- en: '[PRE23]'
+  id: totrans-118
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: 'Next, we run [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") on each of
+    the previous three queries:'
+  id: totrans-119
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来，我们对之前的三个查询中的每个运行[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")：
+- en: '[PRE24]'
+  id: totrans-120
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: 'None of the three queries just shown are able to use any keys. To solve this
+    problem, we can add a multi-valued index on the `zipcode` array in the `JSON`
+    column (`custinfo`), like this:'
+  id: totrans-121
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 刚刚展示的三个查询都无法使用任何键。为了解决这个问题，我们可以在`JSON`列（`custinfo`）中的`zipcode`数组上添加一个多值索引，如下所示：
+- en: '[PRE25]'
+  id: totrans-122
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: 'When we run the previous `EXPLAIN` statements again, we can now observe that
+    the queries can (and do) use the index `zips` that was just created:'
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当我们再次运行之前的`EXPLAIN`语句时，我们现在可以观察到查询可以（并且确实）使用刚刚创建的索引`zips`：
+- en: '[PRE26]'
+  id: totrans-124
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: 'A multi-valued index can be defined as a unique key. If defined as a unique
+    key, attempting to insert a value already present in the multi-valued index returns
+    a duplicate key error. If duplicate values are already present, attempting to
+    add a unique multi-valued index fails, as shown here:'
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多值索引可以定义为唯一键。如果定义为唯一键，并尝试插入已经存在于多值索引中的值，则会返回重复键错误。如果已经存在重复值，则尝试添加唯一多值索引将失败，如下所示：
+- en: '[PRE27]'
+  id: totrans-126
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: Characteristics of Multi-Valued Indexes
+  id: totrans-127
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 多值索引的特性
+- en: 'Multi-valued indexes have the additional characteristics listed here:'
+  id: totrans-128
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多值索引具有以下附加特性：
+- en: DML operations that affect multi-valued indexes are handled in the same way
+    as DML operations that affect a normal index, with the only difference being that
+    there may be more than one insert or update for a single clustered index record.
+  id: totrans-129
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 影响多值索引的 DML 操作与影响普通索引的 DML 操作处理方式相同，唯一的区别是对于单个聚集索引记录可能有多个插入或更新。
+- en: 'Nullability and multi-valued indexes:'
+  id: totrans-130
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 空值和多值索引：
+- en: If a multi-valued key part has an empty array, no entries are added to the index,
+    and the data record is not accessible by an index scan.
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果多值键部分具有空数组，则不会向索引添加任何条目，并且数据记录不可通过索引扫描访问。
+- en: If multi-valued key part generation returns a `NULL` value, a single entry containing
+    `NULL` is added to the multi-valued index. If the key part is defined as `NOT
+    NULL`, an error is reported.
+  id: totrans-132
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果多值键部分生成返回`NULL`值，则将添加一个包含`NULL`的条目到多值索引中。如果键部分被定义为`NOT NULL`，则会报告错误。
+- en: If the typed array column is set to `NULL`, the storage engine stores a single
+    record containing `NULL` that points to the data record.
+  id: totrans-133
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果类型化数组列设置为`NULL`，存储引擎将存储一个指向数据记录的包含`NULL`的单个记录。
+- en: '`JSON` null values are not permitted in indexed arrays. If any returned value
+    is `NULL`, it is treated as a JSON null and an Invalid JSON value error is reported.'
+  id: totrans-134
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在索引数组中不允许`JSON`空值。如果任何返回值为`NULL`，则将其视为 JSON 空值，并报告无效的 JSON 值错误。
+- en: Because multi-valued indexes are virtual indexes on virtual columns, they must
+    adhere to the same rules as secondary indexes on virtual generated columns.
+  id: totrans-135
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 因为多值索引是虚拟列上的虚拟索引，所以它们必须遵守与虚拟生成列上的二级索引相同的规则。
+- en: Index records are not added for empty arrays.
+  id: totrans-136
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于空数组不会添加索引记录。
+- en: Limitations and Restrictions on Multi-valued Indexes
+  id: totrans-137
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 多值索引的限制和限制。
+- en: 'Multi-valued indexes are subject to the limitations and restrictions listed
+    here:'
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多值索引受到以下列出的限制和限制的约束：
+- en: 'Only one multi-valued key part is permitted per multi-valued index. However,
+    the [`CAST(... AS ... ARRAY)`](cast-functions.html#function_cast) expression can
+    refer to multiple arrays within a `JSON` document, as shown here:'
+  id: totrans-139
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个多值索引只允许一个多值键部分。但是，[`CAST(... AS ... ARRAY)`](cast-functions.html#function_cast)表达式可以引用`JSON`文档中的多个数组，如下所示：
+- en: '[PRE28]'
+  id: totrans-140
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE28]'
+- en: In this case, all values matching the JSON expression are stored in the index
+    as a single flat array.
+  id: totrans-141
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，与`JSON`表达式匹配的所有值都作为单个扁平数组存储在索引中。
+- en: An index with a multi-valued key part does not support ordering and therefore
+    cannot be used as a primary key. For the same reason, a multi-valued index cannot
+    be defined using the `ASC` or `DESC` keyword.
+  id: totrans-142
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 具有多值键部分的索引不支持排序，因此不能用作主键。出于同样的原因，不能使用`ASC`或`DESC`关键字定义多值索引。
+- en: A multi-valued index cannot be a covering index.
+  id: totrans-143
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 多值索引不能是覆盖索引。
+- en: 'The maximum number of values per record for a multi-valued index is determined
+    by the amount of data than can be stored on a single undo log page, which is 65221
+    bytes (64K minus 315 bytes for overhead), which means that the maximum total length
+    of key values is also 65221 bytes. The maximum number of keys depends on various
+    factors, which prevents defining a specific limit. Tests have shown a multi-valued
+    index to permit as many as 1604 integer keys per record, for example. When the
+    limit is reached, an error similar to the following is reported: ERROR 3905 (HY000):
+    Exceeded max number of values per record for multi-valued index ''idx'' by 1 value(s).'
+  id: totrans-144
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '多值索引每个记录的最大值数量由可以存储在单个撤销日志页上的数据量确定，即65221字节（64K减去315字节的开销），这意味着键值的最大总长度也是65221字节。键的最大数量取决于各种因素，这阻止了定义特定限制。例如，测试表明，多值索引允许每个记录最多有1604个整数键。当达到限制时，会报告类似以下的错误：ERROR
+    3905 (HY000): Exceeded max number of values per record for multi-valued index
+    ''idx'' by 1 value(s)。'
+- en: The only type of expression that is permitted in a multi-valued key part is
+    a `JSON` expression. The expression need not reference an existing element in
+    a JSON document inserted into the indexed column, but must itself be syntactically
+    valid.
+  id: totrans-145
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 多值键部分中允许的唯一类型表达式是`JSON`表达式。表达式不需要引用插入到索引列中的`JSON`文档中的现有元素，但必须本身在语法上有效。
+- en: Because index records for the same clustered index record are dispersed throughout
+    a multi-valued index, a multi-valued index does not support range scans or index-only
+    scans.
+  id: totrans-146
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 因为相同聚集索引记录的索引记录分散在多值索引中，所以多值索引不支持范围扫描或仅索引扫描。
+- en: Multi-valued indexes are not permitted in foreign key specifications.
+  id: totrans-147
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外键规范中不允许多值索引。
+- en: Index prefixes cannot be defined for multi-valued indexes.
+  id: totrans-148
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 索引前缀不能为多值索引定义。
+- en: Multi-valued indexes cannot be defined on data cast as [`BINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types") (see the description of the [`CAST()`](cast-functions.html#function_cast)
+    function).
+  id: totrans-149
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不能在转换为[`BINARY`](binary-varbinary.html "13.3.3 The BINARY and VARBINARY Types")的数据上定义多值索引（请参阅[`CAST()`](cast-functions.html#function_cast)函数的描述）。
+- en: Online creation of a multi-value index is not supported, which means the operation
+    uses `ALGORITHM=COPY`. See [Performance and Space Requirements](alter-table.html#alter-table-performance
+    "Performance and Space Requirements").
+  id: totrans-150
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不支持在线创建多值索引，这意味着操作使用`ALGORITHM=COPY`。请参阅[性能和空间要求](alter-table.html#alter-table-performance
+    "Performance and Space Requirements")。
+- en: 'Character sets and collations other than the following two combinations of
+    character set and collation are not supported for multi-valued indexes:'
+  id: totrans-151
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不支持以下两种字符集和排序规则以外的字符集和排序规则用于多值索引：
+- en: The `binary` character set with the default `binary` collation
+  id: totrans-152
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用默认`binary`排序规则的`binary`字符集
+- en: The `utf8mb4` character set with the default `utf8mb4_0900_as_cs` collation.
+  id: totrans-153
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用默认`utf8mb4_0900_as_cs`排序规则的`utf8mb4`字符集。
+- en: 'As with other indexes on columns of `InnoDB` tables, a multi-valued index cannot
+    be created with `USING HASH`; attempting to do so results in a warning: This storage
+    engine does not support the HASH index algorithm, storage engine default was used
+    instead. (`USING BTREE` is supported as usual.)'
+  id: totrans-154
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与`InnoDB`表列上的其他索引一样，多值索引不能使用`USING HASH`创建；尝试这样做会导致警告：This storage engine does
+    not support the HASH index algorithm, storage engine default was used instead.（`USING
+    BTREE`像往常一样受支持。）
+- en: Spatial Indexes
+  id: totrans-155
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 空间索引
+- en: The [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine"),
+    [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine"),
+    [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0"), and [`ARCHIVE`](archive-storage-engine.html
+    "18.5 The ARCHIVE Storage Engine") storage engines support spatial columns such
+    as [`POINT`](spatial-type-overview.html "13.4.1 Spatial Data Types") and [`GEOMETRY`](spatial-type-overview.html
+    "13.4.1 Spatial Data Types"). ([Section 13.4, “Spatial Data Types”](spatial-types.html
+    "13.4 Spatial Data Types"), describes the spatial data types.) However, support
+    for spatial column indexing varies among engines. Spatial and nonspatial indexes
+    on spatial columns are available according to the following rules.
+  id: totrans-156
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine")、[`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine")、[`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0")和[`ARCHIVE`](archive-storage-engine.html "18.5 The ARCHIVE Storage
+    Engine")存储引擎支持诸如[`POINT`](spatial-type-overview.html "13.4.1 Spatial Data Types")和[`GEOMETRY`](spatial-type-overview.html
+    "13.4.1 Spatial Data Types")之类的空间列。([第13.4节，“空间数据类型”](spatial-types.html "13.4 Spatial
+    Data Types")，描述了空间数据类型。)然而，对于不同存储引擎，对空间列索引的支持有所不同。根据以下规则，空间列上的空间和非空间索引是可用的。'
+- en: 'Spatial indexes on spatial columns have these characteristics:'
+  id: totrans-157
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 空间列上的空间索引具有以下特点：
+- en: Available only for [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") and [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine") tables. Specifying `SPATIAL INDEX` for other storage engines results
+    in an error.
+  id: totrans-158
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅适用于[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")和[`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine")表。为其他存储引擎指定`SPATIAL INDEX`会导致错误。
+- en: As of MySQL 8.0.12, an index on a spatial column *must* be a `SPATIAL` index.
+    The `SPATIAL` keyword is thus optional but implicit for creating an index on a
+    spatial column.
+  id: totrans-159
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.12开始，空间列上的索引*必须*是`SPATIAL`索引。因此，对于在空间列上创建索引，`SPATIAL`关键字是可选的，但是隐含的。
+- en: Available for single spatial columns only. A spatial index cannot be created
+    over multiple spatial columns.
+  id: totrans-160
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅适用于单个空间列。空间索引不能在多个空间列上创建。
+- en: Indexed columns must be `NOT NULL`.
+  id: totrans-161
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 索引列必须是`NOT NULL`。
+- en: Column prefix lengths are prohibited. The full width of each column is indexed.
+  id: totrans-162
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 列前缀长度是被禁止的。每列的完整宽度都被索引。
+- en: Not permitted for a primary key or unique index.
+  id: totrans-163
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不允许用于主键或唯一索引。
+- en: 'Nonspatial indexes on spatial columns (created with `INDEX`, `UNIQUE`, or `PRIMARY
+    KEY`) have these characteristics:'
+  id: totrans-164
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 空间列上的非空间索引（使用`INDEX`、`UNIQUE`或`PRIMARY KEY`创建）具有以下特点：
+- en: Permitted for any storage engine that supports spatial columns except [`ARCHIVE`](archive-storage-engine.html
+    "18.5 The ARCHIVE Storage Engine").
+  id: totrans-165
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 除了[`ARCHIVE`](archive-storage-engine.html "18.5 The ARCHIVE Storage Engine")之外，任何支持空间列的存储引擎都允许。
+- en: Columns can be `NULL` unless the index is a primary key.
+  id: totrans-166
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 列可以是`NULL`，除非索引是主键。
+- en: The index type for a non-`SPATIAL` index depends on the storage engine. Currently,
+    B-tree is used.
+  id: totrans-167
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 非`SPATIAL`索引的索引类型取决于存储引擎。目前使用的是B-tree。
+- en: Permitted for a column that can have `NULL` values only for [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine"), [`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine"), and [`MEMORY`](memory-storage-engine.html "18.3 The
+    MEMORY Storage Engine") tables.
+  id: totrans-168
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅适用于只能具有`NULL`值的列，对于[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine")、[`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine")和[`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage Engine")表。
+- en: Index Options
+  id: totrans-169
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 索引选项
+- en: 'Following the key part list, index options can be given. An *`index_option`*
+    value can be any of the following:'
+  id: totrans-170
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在键部分列表之后，可以给出索引选项。*`index_option`*值可以是以下任何一种：
+- en: '`KEY_BLOCK_SIZE [=] *`value`*`'
+  id: totrans-171
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`KEY_BLOCK_SIZE [=] *`value`*`'
+- en: For [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine")
+    tables, `KEY_BLOCK_SIZE` optionally specifies the size in bytes to use for index
+    key blocks. The value is treated as a hint; a different size could be used if
+    necessary. A `KEY_BLOCK_SIZE` value specified for an individual index definition
+    overrides a table-level `KEY_BLOCK_SIZE` value.
+  id: totrans-172
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于[`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine")表，`KEY_BLOCK_SIZE`可选地指定用于索引键块的字节大小。该值被视为提示；如果需要，可以使用不同的大小。为单个索引定义指定的`KEY_BLOCK_SIZE`值会覆盖表级别的`KEY_BLOCK_SIZE`值。
+- en: '`KEY_BLOCK_SIZE` is not supported at the index level for [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") tables. See [Section 15.1.20, “CREATE
+    TABLE Statement”](create-table.html "15.1.20 CREATE TABLE Statement").'
+  id: totrans-173
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")表，不支持在索引级别上使用`KEY_BLOCK_SIZE`。请参阅[第15.1.20节，“CREATE
+    TABLE语句”](create-table.html "15.1.20 CREATE TABLE Statement")。
+- en: '*`index_type`*'
+  id: totrans-174
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`index_type`*'
+- en: 'Some storage engines permit you to specify an index type when creating an index.
+    For example:'
+  id: totrans-175
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些存储引擎允许您在创建索引时指定索引类型。例如：
+- en: '[PRE29]'
+  id: totrans-176
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE29]'
+- en: '[Table 15.1, “Index Types Per Storage Engine”](create-index.html#create-index-storage-engine-index-types
+    "Table 15.1 Index Types Per Storage Engine") shows the permissible index type
+    values supported by different storage engines. Where multiple index types are
+    listed, the first one is the default when no index type specifier is given. Storage
+    engines not listed in the table do not support an *`index_type`* clause in index
+    definitions.'
+  id: totrans-177
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[表15.1，“存储引擎的索引类型”](create-index.html#create-index-storage-engine-index-types
+    "表15.1 存储引擎的索引类型")显示了不同存储引擎支持的允许的索引类型值。当没有索引类型说明符时，默认情况下使用第一个索引类型。表中未列出的存储引擎不支持索引定义中的*`index_type`*子句。'
+- en: '**Table 15.1 Index Types Per Storage Engine**'
+  id: totrans-178
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '**表15.1 存储引擎的索引类型**'
+- en: '| Storage Engine | Permissible Index Types |'
+  id: totrans-179
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 存储引擎 | 允许的索引类型 |'
+- en: '| [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    | `BTREE` |'
+  id: totrans-180
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎") | `BTREE` |'
+- en: '| [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine") |
+    `BTREE` |'
+  id: totrans-181
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`MyISAM`](myisam-storage-engine.html "18.2 MyISAM存储引擎") | `BTREE` |'
+- en: '| [`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage Engine")/`HEAP`
+    | `HASH`, `BTREE` |'
+  id: totrans-182
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`MEMORY`](memory-storage-engine.html "18.3 MEMORY存储引擎")/`HEAP` | `HASH`,
+    `BTREE` |'
+- en: '| [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") | `HASH`,
+    `BTREE` (see note in text) |'
+  id: totrans-183
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0") | `HASH`, `BTREE`（见文本中的注释）
+    |'
+- en: The *`index_type`* clause cannot be used for `FULLTEXT INDEX` or (prior to MySQL
+    8.0.12) `SPATIAL INDEX` specifications. Full-text index implementation is storage
+    engine dependent. Spatial indexes are implemented as R-tree indexes.
+  id: totrans-184
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*`index_type`*子句不能用于`FULLTEXT INDEX`或（在MySQL 8.0.12之前）`SPATIAL INDEX`规范。全文索引实现取决于存储引擎。空间索引实现为R树索引。'
+- en: If you specify an index type that is not valid for a given storage engine, but
+    another index type is available that the engine can use without affecting query
+    results, the engine uses the available type. The parser recognizes `RTREE` as
+    a type name. As of MySQL 8.0.12, this is permitted only for `SPATIAL` indexes.
+    Prior to 8.0.12, `RTREE` cannot be specified for any storage engine.
+  id: totrans-185
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您指定了对于给定存储引擎无效的索引类型，但是引擎可以使用另一种可用类型而不影响查询结果，则引擎将使用可用类型。解析器将`RTREE`识别为一种类型名称。从MySQL
+    8.0.12开始，这仅允许用于`SPATIAL`索引。在8.0.12之前，`RTREE`不能为任何存储引擎指定。
+- en: '`BTREE` indexes are implemented by the [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") storage engine as T-tree indexes.'
+  id: totrans-186
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`BTREE`索引由[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")存储引擎实现为T树索引。'
+- en: Note
+  id: totrans-187
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: For indexes on [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    table columns, the `USING` option can be specified only for a unique index or
+    primary key. `USING HASH` prevents the creation of an ordered index; otherwise,
+    creating a unique index or primary key on an [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") table automatically results in the creation of both an ordered
+    index and a hash index, each of which indexes the same set of columns.
+  id: totrans-188
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")表列上的索引，`USING`选项只能用于唯一索引或主键。`USING
+    HASH`阻止有序索引的创建；否则，在[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")表上创建唯一索引或主键将自动导致有序索引和哈希索引的创建，每个索引相同的列集。
+- en: For unique indexes that include one or more `NULL` columns of an [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") table, the hash index can be used only to
+    look up literal values, which means that `IS [NOT] NULL` conditions require a
+    full scan of the table. One workaround is to make sure that a unique index using
+    one or more `NULL` columns on such a table is always created in such a way that
+    it includes the ordered index; that is, avoid employing `USING HASH` when creating
+    the index.
+  id: totrans-189
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于包含一个或多个`NULL`列的[`NDB`](mysql-cluster.html "第 25 章 MySQL NDB Cluster 8.0")表的唯一索引，哈希索引只能用于查找文字值，这意味着`IS
+    [NOT] NULL`条件需要对表进行全面扫描。一个解决方法是确保在这种表上始终以包含有序索引的方式创建使用一个或多个`NULL`列的唯一索引；也就是说，在创建索引时避免使用`USING
+    HASH`。
+- en: If you specify an index type that is not valid for a given storage engine, but
+    another index type is available that the engine can use without affecting query
+    results, the engine uses the available type. The parser recognizes `RTREE` as
+    a type name, but currently this cannot be specified for any storage engine.
+  id: totrans-190
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您指定了对于给定存储引擎无效的索引类型，但另一种索引类型可用且不会影响查询结果，那么引擎将使用可用的类型。解析器将`RTREE`识别为一种类型名称，但目前不能为任何存储引擎指定此类型。
+- en: Note
+  id: totrans-191
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Use of the *`index_type`* option before the `ON *`tbl_name`*` clause is deprecated;
+    expect support for use of the option in this position to be removed in a future
+    MySQL release. If an *`index_type`* option is given in both the earlier and later
+    positions, the final option applies.
+  id: totrans-192
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在`ON *`tbl_name`*`子句之前使用*`index_type`*选项已被弃用；预计在未来的 MySQL 版本中将删除在此位置使用该选项的支持。如果在较早和较晚的位置都给出了*`index_type`*选项，则最终选项生效。
+- en: '`TYPE *`type_name`*` is recognized as a synonym for `USING *`type_name`*`.
+    However, `USING` is the preferred form.'
+  id: totrans-193
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`TYPE *`type_name`*` 被识别为`USING *`type_name`*`的同义词。然而，`USING`是首选形式。'
+- en: The following tables show index characteristics for the storage engines that
+    support the *`index_type`* option.
+  id: totrans-194
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 下表显示了支持*`index_type`*选项的存储引擎的索引特性。
+- en: '**Table 15.2 InnoDB Storage Engine Index Characteristics**'
+  id: totrans-195
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '**表 15.2 InnoDB 存储引擎索引特性**'
+- en: '| Index Class | Index Type | Stores NULL VALUES | Permits Multiple NULL Values
+    | IS NULL Scan Type | IS NOT NULL Scan Type |'
+  id: totrans-196
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 索引类别 | 索引类型 | 存储 NULL 值 | 允许多个 NULL 值 | IS NULL 扫描类型 | IS NOT NULL 扫描类型 |'
+- en: '| Primary key | `BTREE` | No | No | N/A | N/A |'
+  id: totrans-197
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 主键 | `BTREE` | 否 | 否 | N/A | N/A |'
+- en: '| Unique | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-198
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 独特 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| Key | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-199
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 键 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| `FULLTEXT` | N/A | Yes | Yes | Table | Table |'
+  id: totrans-200
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `FULLTEXT` | N/A | 是 | 是 | 表 | 表 |'
+- en: '| `SPATIAL` | N/A | No | No | N/A | N/A |'
+  id: totrans-201
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `SPATIAL` | N/A | 否 | 否 | N/A | N/A |'
+- en: '**Table 15.3 MyISAM Storage Engine Index Characteristics**'
+  id: totrans-202
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '**表 15.3 MyISAM 存储引擎索引特性**'
+- en: '| Index Class | Index Type | Stores NULL VALUES | Permits Multiple NULL Values
+    | IS NULL Scan Type | IS NOT NULL Scan Type |'
+  id: totrans-203
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 索引类别 | 索引类型 | 存储 NULL 值 | 允���多个 NULL 值 | IS NULL 扫描类型 | IS NOT NULL 扫描类型
+    |'
+- en: '| Primary key | `BTREE` | No | No | N/A | N/A |'
+  id: totrans-204
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 主键 | `BTREE` | 否 | 否 | N/A | N/A |'
+- en: '| Unique | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-205
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 独特 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| Key | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-206
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 键 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| `FULLTEXT` | N/A | Yes | Yes | Table | Table |'
+  id: totrans-207
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `FULLTEXT` | N/A | 是 | 是 | 表 | 表 |'
+- en: '| `SPATIAL` | N/A | No | No | N/A | N/A |'
+  id: totrans-208
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `SPATIAL` | N/A | 否 | 否 | N/A | N/A |'
+- en: '**Table 15.4 MEMORY Storage Engine Index Characteristics**'
+  id: totrans-209
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '**表 15.4 MEMORY 存储引擎索引特性**'
+- en: '| Index Class | Index Type | Stores NULL VALUES | Permits Multiple NULL Values
+    | IS NULL Scan Type | IS NOT NULL Scan Type |'
+  id: totrans-210
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 索引类别 | 索引类型 | 存储 NULL 值 | 允许多个 NULL 值 | IS NULL 扫描类型 | IS NOT NULL 扫描类型 |'
+- en: '| Primary key | `BTREE` | No | No | N/A | N/A |'
+  id: totrans-211
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 主键 | `BTREE` | 否 | 否 | N/A | N/A |'
+- en: '| Unique | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-212
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 独特 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| Key | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-213
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 键 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| Primary key | `HASH` | No | No | N/A | N/A |'
+  id: totrans-214
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 主键 | `HASH` | 否 | 否 | N/A | N/A |'
+- en: '| Unique | `HASH` | Yes | Yes | Index | Index |'
+  id: totrans-215
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 独特 | `HASH` | 是 | 是 | 索引 | 索引 |'
+- en: '| Key | `HASH` | Yes | Yes | Index | Index |'
+  id: totrans-216
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 键 | `HASH` | 是 | 是 | 索引 | 索引 |'
+- en: '**Table 15.5 NDB Storage Engine Index Characteristics**'
+  id: totrans-217
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '**表 15.5 NDB 存储引擎索引特性**'
+- en: '| Index Class | Index Type | Stores NULL VALUES | Permits Multiple NULL Values
+    | IS NULL Scan Type | IS NOT NULL Scan Type |'
+  id: totrans-218
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 索引类别 | 索引类型 | 存储 NULL 值 | 允许多个 NULL 值 | IS NULL 扫描类型 | IS NOT NULL 扫描类型 |'
+- en: '| Primary key | `BTREE` | No | No | Index | Index |'
+  id: totrans-219
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 主键 | `BTREE` | 否 | 否 | 索引 | 索引 |'
+- en: '| Unique | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-220
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 独特 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| Key | `BTREE` | Yes | Yes | Index | Index |'
+  id: totrans-221
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 键 | `BTREE` | 是 | 是 | 索引 | 索引 |'
+- en: '| Primary key | `HASH` | No | No | Table (see note 1) | Table (see note 1)
+    |'
+  id: totrans-222
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 主键 | `HASH` | 否 | 否 | 表（见注1） | 表（见注1） |'
+- en: '| Unique | `HASH` | Yes | Yes | Table (see note 1) | Table (see note 1) |'
+  id: totrans-223
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 唯一 | `HASH` | 是 | 是 | 表（见注1） | 表（见注1） |'
+- en: '| Key | `HASH` | Yes | Yes | Table (see note 1) | Table (see note 1) |'
+  id: totrans-224
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 键 | `HASH` | 是 | 是 | 表（见注1） | 表（见注1） |'
+- en: 'Table note:'
+  id: totrans-225
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表注释：
+- en: 1\. `USING HASH` prevents creation of an implicit ordered index.
+  id: totrans-226
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 1\. `USING HASH`防止创建隐式有序索引。
+- en: '`WITH PARSER *`parser_name`*`'
+  id: totrans-227
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`WITH PARSER *`parser_name`*`'
+- en: This option can be used only with `FULLTEXT` indexes. It associates a parser
+    plugin with the index if full-text indexing and searching operations need special
+    handling. [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage
+    Engine") and [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine")
+    support full-text parser plugins. If you have a [`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine") table with an associated full-text parser plugin,
+    you can convert the table to `InnoDB` using `ALTER TABLE`. See [Full-Text Parser
+    Plugins](/doc/extending-mysql/8.0/en/plugin-types.html#full-text-plugin-type)
+    and [Writing Full-Text Parser Plugins](/doc/extending-mysql/8.0/en/writing-full-text-plugins.html)
+    for more information.
+  id: totrans-228
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项仅适用于`FULLTEXT`索引。如果全文索引和搜索操作需要特殊处理，则将解析器插件与索引关联起来。[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")和[`MyISAM`](myisam-storage-engine.html "第18.2章 MyISAM存储引擎")支持全文解析器插件。如果您有一个关联有全文解析器插件的[`MyISAM`](myisam-storage-engine.html
+    "第18.2章 MyISAM存储引擎")表，您可以使用`ALTER TABLE`将表转换为`InnoDB`。有关更多信息，请参见[全文解析器插件](/doc/extending-mysql/8.0/en/plugin-types.html#full-text-plugin-type)和[编写全文解析器插件](/doc/extending-mysql/8.0/en/writing-full-text-plugins.html)。
+- en: '`COMMENT ''*`string`*''`'
+  id: totrans-229
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COMMENT ''*`string`*''`'
+- en: Index definitions can include an optional comment of up to 1024 characters.
+  id: totrans-230
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 索引定义可以包括最多1024个字符的可选注释。
+- en: 'The [`MERGE_THRESHOLD`](index-page-merge-threshold.html "17.8.11 Configuring
+    the Merge Threshold for Index Pages") for index pages can be configured for individual
+    indexes using the *`index_option`* `COMMENT` clause of the [`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement") statement. For example:'
+  id: totrans-231
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 索引页的[`MERGE_THRESHOLD`](index-page-merge-threshold.html "17.8.11 Configuring
+    the Merge Threshold for Index Pages")可以通过[`CREATE INDEX`](create-index.html "15.1.15 CREATE
+    INDEX Statement")语句的*`index_option`* `COMMENT`子句为单个索引进行配置。例如：
+- en: '[PRE30]'
+  id: totrans-232
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE30]'
+- en: If the page-full percentage for an index page falls below the `MERGE_THRESHOLD`
+    value when a row is deleted or when a row is shortened by an update operation,
+    [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    attempts to merge the index page with a neighboring index page. The default `MERGE_THRESHOLD`
+    value is 50, which is the previously hardcoded value.
+  id: totrans-233
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果索引页的页面满百分比低于`MERGE_THRESHOLD`值，当删除行或更新操作缩短行时，[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")会尝试将索引页与相邻的索引页合并。默认的`MERGE_THRESHOLD`值为50，这是以前硬编码的值。
+- en: '`MERGE_THRESHOLD` can also be defined at the index level and table level using
+    [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") and [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statements. For more
+    information, see [Section 17.8.11, “Configuring the Merge Threshold for Index
+    Pages”](index-page-merge-threshold.html "17.8.11 Configuring the Merge Threshold
+    for Index Pages").'
+  id: totrans-234
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`MERGE_THRESHOLD`也可以在索引级别和表级别使用[`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement")和[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")语句进行定义。有关更多信息，请参见[第17.8.11节，“配置索引页合并阈值”](index-page-merge-threshold.html
+    "17.8.11 Configuring the Merge Threshold for Index Pages")。'
+- en: '`VISIBLE`, `INVISIBLE`'
+  id: totrans-235
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`VISIBLE`，`INVISIBLE`'
+- en: Specify index visibility. Indexes are visible by default. An invisible index
+    is not used by the optimizer. Specification of index visibility applies to indexes
+    other than primary keys (either explicit or implicit). For more information, see
+    [Section 10.3.12, “Invisible Indexes”](invisible-indexes.html "10.3.12 Invisible
+    Indexes").
+  id: totrans-236
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指定索引可见性。索引默认可见。不可见索引不会被优化器使用。索引可见性的指定适用于主键以外的索引（显式或隐式）。有关更多信息，请参见[第10.3.12节，“不可见索引”](invisible-indexes.html
+    "10.3.12 Invisible Indexes")。
+- en: '`ENGINE_ATTRIBUTE` and `SECONDARY_ENGINE_ATTRIBUTE` options (available as of
+    MySQL 8.0.21) are used to specify index attributes for primary and secondary storage
+    engines. The options are reserved for future use.'
+  id: totrans-237
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ENGINE_ATTRIBUTE`和`SECONDARY_ENGINE_ATTRIBUTE`选项（自MySQL 8.0.21起可用）用于指定主要和次要存储引擎的索引属性。这些选项保留供将来使用。'
+- en: Permitted values are a string literal containing a valid `JSON` document or
+    an empty string (''). Invalid `JSON` is rejected.
+  id: totrans-238
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 允许的值是包含有效`JSON`文档的字符串文字或空字符串（''）。无效的`JSON`将被拒绝。
+- en: '[PRE31]'
+  id: totrans-239
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE31]'
+- en: '`ENGINE_ATTRIBUTE` and `SECONDARY_ENGINE_ATTRIBUTE` values can be repeated
+    without error. In this case, the last specified value is used.'
+  id: totrans-240
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`ENGINE_ATTRIBUTE`和`SECONDARY_ENGINE_ATTRIBUTE`值可以重复而不会出错。在这种情况下，将使用最后指定的值。'
+- en: '`ENGINE_ATTRIBUTE` and `SECONDARY_ENGINE_ATTRIBUTE` values are not checked
+    by the server, nor are they cleared when the table''s storage engine is changed.'
+  id: totrans-241
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 服务器不会检查`ENGINE_ATTRIBUTE`和`SECONDARY_ENGINE_ATTRIBUTE`值，也不会在更改表的存储引擎时清除它们。
+- en: Table Copying and Locking Options
+  id: totrans-242
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 表复制和锁定选项
+- en: '`ALGORITHM` and `LOCK` clauses may be given to influence the table copying
+    method and level of concurrency for reading and writing the table while its indexes
+    are being modified. They have the same meaning as for the [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") statement. For more information, see [Section 15.1.9,
+    “ALTER TABLE Statement”](alter-table.html "15.1.9 ALTER TABLE Statement")'
+  id: totrans-243
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以提供`ALGORITHM`和`LOCK`子句以影响表复制方法和在修改其索引时读写表的并发级别。它们的含义与[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE语句")语句相同。有关更多信息，请参见[第15.1.9节，“ALTER TABLE语句”](alter-table.html
+    "15.1.9 ALTER TABLE语句")。
+- en: NDB Cluster supports online operations using the same `ALGORITHM=INPLACE` syntax
+    used with the standard MySQL Server. See [Section 25.6.12, “Online Operations
+    with ALTER TABLE in NDB Cluster”](mysql-cluster-online-operations.html "25.6.12 Online
+    Operations with ALTER TABLE in NDB Cluster"), for more information.
+  id: totrans-244
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster支持使用与标准MySQL服务器相同的`ALGORITHM=INPLACE`语法进行在线操作。有关更多信息，请参见[第25.6.12节，“NDB
+    Cluster中的ALTER TABLE在线操作”](mysql-cluster-online-operations.html "25.6.12 NDB Cluster中的ALTER
+    TABLE在线操作")。

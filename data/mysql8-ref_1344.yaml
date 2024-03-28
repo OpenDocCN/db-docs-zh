@@ -1,0 +1,442 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-concepts.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-concepts.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-concepts.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-concepts.html)
+- en: 19.1.3.1 GTID Format and Storage
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.3.1 GTID 格式和存储
+- en: A global transaction identifier (GTID) is a unique identifier created and associated
+    with each transaction committed on the server of origin (the source). This identifier
+    is unique not only to the server on which it originated, but is unique across
+    all servers in a given replication topology.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全局事务标识符（GTID）是在源服务器上（源）提交的每个事务创建并关联的唯一标识符。该标识符不仅对于其起源的服务器是唯一的，而且在给定复制拓扑结构中的所有服务器上都是唯一的。
+- en: GTID assignment distinguishes between client transactions, which are committed
+    on the source, and replicated transactions, which are reproduced on a replica.
+    When a client transaction is committed on the source, it is assigned a new GTID,
+    provided that the transaction was written to the binary log. Client transactions
+    are guaranteed to have monotonically increasing GTIDs without gaps between the
+    generated numbers. If a client transaction is not written to the binary log (for
+    example, because the transaction was filtered out, or the transaction was read-only),
+    it is not assigned a GTID on the server of origin.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTID 分配区分了客户端事务（在源上提交）和复制事务（在副本上重现）。当客户端事务在源上提交时，如果事务已写入二进制日志，则会分配一个新的 GTID。客户端事务保证具有单调递增的
+    GTID，生成的数字之间没有间隙。如果客户端事务未写入二进制日志（例如，因为事务被过滤掉，或者事务是只读的），则在源服务器上不会分配 GTID。
+- en: Replicated transactions retain the same GTID that was assigned to the transaction
+    on the server of origin. The GTID is present before the replicated transaction
+    begins to execute, and is persisted even if the replicated transaction is not
+    written to the binary log on the replica, or is filtered out on the replica. The
+    MySQL system table `mysql.gtid_executed` is used to preserve the assigned GTIDs
+    of all the transactions applied on a MySQL server, except those that are stored
+    in a currently active binary log file.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 复制事务保留在源服务器上分配给事务的相同 GTID。GTID 在复制事务开始执行之前存在，并且即使在副本上未将复制事务写入二进制日志或在副本上被过滤掉，也会持久存在。MySQL
+    系统表 `mysql.gtid_executed` 用于保留应用于 MySQL 服务器上的所有事务的分配 GTID，除了那些存储在当前活动二进制日志文件中的事务。
+- en: The auto-skip function for GTIDs means that a transaction committed on the source
+    can be applied no more than once on the replica, which helps to guarantee consistency.
+    Once a transaction with a given GTID has been committed on a given server, any
+    attempt to execute a subsequent transaction with the same GTID is ignored by that
+    server. No error is raised, and no statement in the transaction is executed.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTID 的自动跳过功能意味着在源上提交的事务在副本上最多只能应用一次，这有助于保证一致性。一旦具有特定 GTID 的事务在给定服务器上提交，那么该服务器将忽略执行具有相同
+    GTID 的后续事务的任何尝试。不会引发错误，也不会执行事务中的任何语句。
+- en: If a transaction with a given GTID has started to execute on a server, but has
+    not yet committed or rolled back, any attempt to start a concurrent transaction
+    on the server with the same GTID blocks. The server neither begins to execute
+    the concurrent transaction nor returns control to the client. Once the first attempt
+    at the transaction commits or rolls back, concurrent sessions that were blocking
+    on the same GTID may proceed. If the first attempt rolled back, one concurrent
+    session proceeds to attempt the transaction, and any other concurrent sessions
+    that were blocking on the same GTID remain blocked. If the first attempt committed,
+    all the concurrent sessions stop being blocked, and auto-skip all the statements
+    of the transaction.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果具有特定 GTID 的事务已经在服务器上开始执行，但尚未提交或回滚，则在服务器上尝试启动具有相同 GTID 的并发事务会被阻塞。服务器既不开始执行并发事务，也不将控制权返回给客户端。一旦第一次尝试的事务提交或回滚，那些在相同
+    GTID 上阻塞的并发会话可以继续。如果第一次尝试回滚，一个并发会话将继续尝试事务，而任何其他在相同 GTID 上阻塞的并发会话将保持阻塞。如果第一次尝试提交，所有并发会话将停止被阻塞，并自动跳过事务的所有语句。
+- en: 'A GTID is represented as a pair of coordinates, separated by a colon character
+    (`:`), as shown here:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTID 表示为一对坐标，用冒号字符（`:`）分隔，如下所示：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The *`source_id`* identifies the originating server. Normally, the source''s
+    [`server_uuid`](replication-options.html#sysvar_server_uuid) is used for this
+    purpose. The *`transaction_id`* is a sequence number determined by the order in
+    which the transaction was committed on the source. For example, the first transaction
+    to be committed has `1` as its *`transaction_id`*, and the tenth transaction to
+    be committed on the same originating server is assigned a *`transaction_id`* of
+    `10`. It is not possible for a transaction to have `0` as a sequence number in
+    a GTID. For example, the twenty-third transaction to be committed originally on
+    the server with the UUID `3E11FA47-71CA-11E1-9E33-C80AA9429562` has this GTID:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*`source_id`* 标识了来源服务器。通常，使用源的 [`server_uuid`](replication-options.html#sysvar_server_uuid)
+    来实现此目的。*`transaction_id`* 是由事务在源上提交的顺序确定的序列号。例如，第一个提交的事务的 *`transaction_id`* 为
+    `1`，在同一来源服务器上提交的第十个事务被分配一个 *`transaction_id`* 为 `10`。在 GTID 中，事务不可能具有 `0` 作为序列号。例如，在具有
+    UUID `3E11FA47-71CA-11E1-9E33-C80AA9429562` 的服务器上最初提交的第二十三个事务具有以下 GTID：'
+- en: '[PRE1]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The upper limit for sequence numbers for GTIDs on a server instance is the number
+    of non-negative values for a signed 64-bit integer (2 to the power of 63 minus
+    1, or 9,223,372,036,854,775,807). If the server runs out of GTIDs, it takes the
+    action specified by [`binlog_error_action`](replication-options-binary-log.html#sysvar_binlog_error_action).
+    From MySQL 8.0.23, a warning message is issued when the server instance is approaching
+    the limit.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器实例上 GTID 的序列号上限是有符号 64 位整数的非负值数量（2 的 63 次方减 1，即 9,223,372,036,854,775,807）。如果服务器用尽了
+    GTID，将执行 [`binlog_error_action`](replication-options-binary-log.html#sysvar_binlog_error_action)
+    中指定的操作。从 MySQL 8.0.23 开始，当服务器实例接近限制时会发出警告消息。
+- en: The GTID for a transaction is shown in the output from [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files"), and it is used
+    to identify an individual transaction in the Performance Schema replication status
+    tables, for example, [`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table"). The value stored
+    by the [`gtid_next`](replication-options-gtids.html#sysvar_gtid_next) system variable
+    (`@@GLOBAL.gtid_next`) is a single GTID.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事务的 GTID 在 [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for
+    Processing Binary Log Files") 的输出中显示，并用于在性能模式复制状态表中标识单个事务，例如 [`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table")。[`gtid_next`](replication-options-gtids.html#sysvar_gtid_next)
+    系统变量 (`@@GLOBAL.gtid_next`) 存储的是单个 GTID。
+- en: GTID Sets
+  id: totrans-13
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: GTID 集合
+- en: A GTID set is a set comprising one or more single GTIDs or ranges of GTIDs.
+    GTID sets are used in a MySQL server in several ways. For example, the values
+    stored by the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    and [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) system
+    variables are GTID sets. The [`START REPLICA`](start-replica.html "15.4.2.6 START
+    REPLICA Statement") (or before MySQL 8.0.22, [`START SLAVE`](start-slave.html
+    "15.4.2.7 START SLAVE Statement")) clauses `UNTIL SQL_BEFORE_GTIDS` and `UNTIL
+    SQL_AFTER_GTIDS` can be used to make a replica process transactions only up to
+    the first GTID in a GTID set, or stop after the last GTID in a GTID set. The built-in
+    functions [`GTID_SUBSET()`](gtid-functions.html#function_gtid-subset) and [`GTID_SUBTRACT()`](gtid-functions.html#function_gtid-subtract)
+    require GTID sets as input.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个 GTID 集合由一个或多个单个 GTID 或 GTID 范围组成。在 MySQL 服务器中，GTID 集合有多种用途。例如，[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    和 [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged) 系统变量存储的值就是
+    GTID 集合。[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement")（或
+    MySQL 8.0.22 之前的 [`START SLAVE`](start-slave.html "15.4.2.7 START SLAVE Statement")）子句
+    `UNTIL SQL_BEFORE_GTIDS` 和 `UNTIL SQL_AFTER_GTIDS` 可以用来使复制进程仅处理 GTID 集合中第一个 GTID
+    之前的事务，或在 GTID 集合中最后一个 GTID 之后停止。内置函数 [`GTID_SUBSET()`](gtid-functions.html#function_gtid-subset)
+    和 [`GTID_SUBTRACT()`](gtid-functions.html#function_gtid-subtract) 需要 GTID 集合作为输入。
+- en: 'A range of GTIDs originating from the same server can be collapsed into a single
+    expression, as shown here:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 来自同一服务器的一系列 GTID 可以合并为一个表达式，如下所示：
+- en: '[PRE2]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The above example represents the first through fifth transactions originating
+    on the MySQL server whose [`server_uuid`](replication-options.html#sysvar_server_uuid)
+    is `3E11FA47-71CA-11E1-9E33-C80AA9429562`. Multiple single GTIDs or ranges of
+    GTIDs originating from the same server can also be included in a single expression,
+    with the GTIDs or ranges separated by colons, as in the following example:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 上述示例代表了在MySQL服务器上起源的第一到第五个事务，其[`server_uuid`](replication-options.html#sysvar_server_uuid)为`3E11FA47-71CA-11E1-9E33-C80AA9429562`。来自同一服务器的多个单个GTID或GTID范围也可以包含在单个表达式中，GTID或范围之间用冒号分隔，如下例所示：
+- en: '[PRE3]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'A GTID set can include any combination of single GTIDs and ranges of GTIDs,
+    and it can include GTIDs originating from different servers. This example shows
+    the GTID set stored in the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable (`@@GLOBAL.gtid_executed`) of a replica that has applied transactions
+    from more than one source:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTID集可以包含任意组合的单个GTID和GTID范围，并且可以包含来自不同服务器的GTID。此示例显示了存储在副本的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量（`@@GLOBAL.gtid_executed`）中的GTID集，该副本已应用来自多个来源的事务：
+- en: '[PRE4]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: When GTID sets are returned from server variables, UUIDs are in alphabetical
+    order, and numeric intervals are merged and in ascending order.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当从服务器变量返回GTID集时，UUID按字母顺序排列，数字间隔被合并并按升序排列。
+- en: 'The syntax for a GTID set is as follows:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTID集的语法如下：
+- en: '[PRE5]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: mysql.gtid_executed Table
+  id: totrans-24
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: mysql.gtid_executed表
+- en: GTIDs are stored in a table named `gtid_executed`, in the `mysql` database.
+    A row in this table contains, for each GTID or set of GTIDs that it represents,
+    the UUID of the originating server, and the starting and ending transaction IDs
+    of the set; for a row referencing only a single GTID, these last two values are
+    the same.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTIDs存储在名为`gtid_executed`的表中，位于`mysql`数据库中。此表中的一行包含每个GTID或其代表的GTID集的起始服务器的UUID，以及集合的起始和结束事务ID；对于仅引用单个GTID的行，这两个值相同。
+- en: 'The `mysql.gtid_executed` table is created (if it does not already exist) when
+    MySQL Server is installed or upgraded, using a [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statement similar to that shown here:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当安装或升级MySQL服务器时，将创建（如果尚不存在）`mysql.gtid_executed`表，使用类似于以下所示的[`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement")语句：
+- en: '[PRE6]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Warning
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: As with other MySQL system tables, do not attempt to create or modify this table
+    yourself.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与其他MySQL系统表一样，请不要尝试自行创建或修改此表。
+- en: The `mysql.gtid_executed` table is provided for internal use by the MySQL server.
+    It enables a replica to use GTIDs when binary logging is disabled on the replica,
+    and it enables retention of the GTID state when the binary logs have been lost.
+    Note that the `mysql.gtid_executed` table is cleared if you issue [`RESET MASTER`](reset-master.html
+    "15.4.1.2 RESET MASTER Statement").
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mysql.gtid_executed`表供MySQL服务器内部使用。当在副本上禁用二进制日志记录时，它使副本能够使用GTIDs，并在二进制日志丢失时保留GTID状态。请注意，如果发出[`RESET
+    MASTER`](reset-master.html "15.4.1.2 RESET MASTER Statement")命令，`mysql.gtid_executed`表将被清除。'
+- en: GTIDs are stored in the `mysql.gtid_executed` table only when [`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)
+    is `ON` or `ON_PERMISSIVE`. If binary logging is disabled (`log_bin` is `OFF`),
+    or if [`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    or [`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    is disabled, the server stores the GTID belonging to each transaction together
+    with the transaction in the buffer when the transaction is committed, and the
+    background thread adds the contents of the buffer periodically as one or more
+    entries to the `mysql.gtid_executed` table. In addition, the table is compressed
+    periodically at a user-configurable rate, as described in [mysql.gtid_executed
+    Table Compression](replication-gtids-concepts.html#replication-gtids-gtid-executed-table-compression
+    "mysql.gtid_executed Table Compression").
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅当[`gtid_mode`](replication-options-gtids.html#sysvar_gtid_mode)为`ON`或`ON_PERMISSIVE`时，GTIDs才存储在`mysql.gtid_executed`表中。如果二进制日志记录已禁用（`log_bin`为`OFF`），或者如果[`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)或[`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)已禁用，则服务器将每个事务的GTID与事务一起存储在缓冲区中提交事务时，并且后台线程定期将缓冲区的内容作为一个或多个条目添加到`mysql.gtid_executed`表中。此外，表会定期以用户可配置的速率进行压缩，如[mysql.gtid_executed表压缩](replication-gtids-concepts.html#replication-gtids-gtid-executed-table-compression
+    "mysql.gtid_executed Table Compression")中所述。
+- en: 'If binary logging is enabled (`log_bin` is `ON`), from MySQL 8.0.17 for the
+    `InnoDB` storage engine only, the server updates the `mysql.gtid_executed` table
+    in the same way as when binary logging or replica update logging is disabled,
+    storing the GTID for each transaction at transaction commit time. However, in
+    releases before MySQL 8.0.17, and for other storage engines, the server only updates
+    the `mysql.gtid_executed` table when the binary log is rotated or the server is
+    shut down. At these times, the server writes GTIDs for all transactions that were
+    written into the previous binary log into the `mysql.gtid_executed` table. This
+    situation applies on a source prior to MySQL 8.0.17, or on a replica prior to
+    MySQL 8.0.17 where binary logging is enabled, or with storage engines other than
+    `InnoDB`, it has the following consequences:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果启用了二进制日志记录（`log_bin`为`ON`），从MySQL 8.0.17开始，仅适用于`InnoDB`存储引擎，服务器会在事务提交时以与禁用二进制日志记录或复制更新日志相同的方式更新`mysql.gtid_executed`表，存储每个事务的GTID。然而，在MySQL
+    8.0.17之前的版本中，以及对于其他存储引擎，服务器仅在二进制日志轮换或服务器关闭时更新`mysql.gtid_executed`表。在这些时候，服务器会将之前二进制日志中写入的所有事务的GTID写入`mysql.gtid_executed`表。这种情况适用于MySQL
+    8.0.17之前的源端，或者在启用二进制日志记录的MySQL 8.0.17之前的复制端，或者使用除`InnoDB`之外的存储引擎，它具有以下后果：
+- en: In the event of the server stopping unexpectedly, the set of GTIDs from the
+    current binary log file is not saved in the `mysql.gtid_executed` table. These
+    GTIDs are added to the table from the binary log file during recovery so that
+    replication can continue. The exception to this is if you disable binary logging
+    when the server is restarted (using [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    or [`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)).
+    In that case, the server cannot access the binary log file to recover the GTIDs,
+    so replication cannot be started.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在服务器意外停止的情况下，当前二进制日志文件中的GTID集合不会保存在`mysql.gtid_executed`表中。这些GTID在恢复过程中从二进制日志文件中添加到表中，以便复制可以继续进行。唯一的例外是，如果在服务器重新启动时禁用了二进制日志记录（使用[`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)或[`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)）。在这种情况下，服务器无法访问二进制日志文件以恢复GTID，因此无法启动复制。
+- en: The `mysql.gtid_executed` table does not hold a complete record of the GTIDs
+    for all executed transactions. That information is provided by the global value
+    of the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    system variable. In releases before MySQL 8.0.17 and with storage engines other
+    than `InnoDB`, always use `@@GLOBAL.gtid_executed`, which is updated after every
+    commit, to represent the GTID state for the MySQL server, instead of querying
+    the `mysql.gtid_executed` table.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysql.gtid_executed`表不包含所有已执行事务的GTID的完整记录。这些信息由全局值[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)系统变量提供。在MySQL
+    8.0.17之前的版本和使用除`InnoDB`之外的存储引擎时，始终使用`@@GLOBAL.gtid_executed`，该值在每次提交后更新，以表示MySQL服务器的GTID状态，而不是查询`mysql.gtid_executed`表。'
+- en: The MySQL server can write to the `mysql.gtid_executed` table even when the
+    server is in read only or super read only mode. In releases before MySQL 8.0.17,
+    this ensures that the binary log file can still be rotated in these modes. If
+    the `mysql.gtid_executed` table cannot be accessed for writes, and the binary
+    log file is rotated for any reason other than reaching the maximum file size ([`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size)),
+    the current binary log file continues to be used. An error message is returned
+    to the client that requested the rotation, and a warning is logged on the server.
+    If the `mysql.gtid_executed` table cannot be accessed for writes and [`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size)
+    is reached, the server responds according to its [`binlog_error_action`](replication-options-binary-log.html#sysvar_binlog_error_action)
+    setting. If `IGNORE_ERROR` is set, an error is logged on the server and binary
+    logging is halted, or if `ABORT_SERVER` is set, the server shuts down.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 服务器在只读或超级只读模式下仍可以写入`mysql.gtid_executed`表。在 MySQL 8.0.17 之前的版本中，这确保了在这些模式下仍然可以旋转二进制日志文件。如果无法访问`mysql.gtid_executed`表进行写入，并且二进制日志文件因其他原因而旋转（而不是达到最大文件大小[`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size)），则继续使用当前的二进制日志文件。向请求旋转的客户端返回错误消息，并在服务器上记录警告。如果无法访问`mysql.gtid_executed`表进行写入，并且达到[`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size)，则服务器根据其[`binlog_error_action`](replication-options-binary-log.html#sysvar_binlog_error_action)设置做出响应。如果设置为`IGNORE_ERROR`，则在服务器上记录错误并停止二进制日志记录，或者如果设置为`ABORT_SERVER`，则服务器关闭。
+- en: mysql.gtid_executed Table Compression
+  id: totrans-36
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: mysql.gtid_executed 表压缩
+- en: 'Over the course of time, the `mysql.gtid_executed` table can become filled
+    with many rows referring to individual GTIDs that originate on the same server,
+    and whose transaction IDs make up a range, similar to what is shown here:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 随着时间的推移，`mysql.gtid_executed`表可能会填满许多行，这些行引用在同一服务器上起源的单个 GTID，并且其事务 ID 组成一个范围，类似于这里显示的内容：
+- en: '[PRE7]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'To save space, the MySQL server can compress the `mysql.gtid_executed` table
+    periodically by replacing each such set of rows with a single row that spans the
+    entire interval of transaction identifiers, like this:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为节省空间，MySQL 服务器可以定期压缩`mysql.gtid_executed`表，通过用跨越整个事务标识符间隔的单行替换每个这样的行集，如下所示：
+- en: '[PRE8]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'The server can carry out compression using a dedicated foreground thread named
+    `thread/sql/compress_gtid_table`. This thread is not listed in the output of [`SHOW
+    PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW PROCESSLIST Statement"), but
+    it can be viewed as a row in the [`threads`](performance-schema-threads-table.html
+    "29.12.21.8 The threads Table") table, as shown here:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器可以使用名为`thread/sql/compress_gtid_table`的专用前台线程执行压缩。此线程不在[`SHOW PROCESSLIST`](show-processlist.html
+    "15.7.7.29 SHOW PROCESSLIST Statement")的输出中列出，但可以在[`threads`](performance-schema-threads-table.html
+    "29.12.21.8 The threads Table")表中查看，如下所示：
+- en: '[PRE9]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: When binary logging is enabled on the server, this compression method is not
+    used, and instead the `mysql.gtid_executed` table is compressed on each binary
+    log rotation. However, when binary logging is disabled on the server, the `thread/sql/compress_gtid_table`
+    thread sleeps until a specified number of transactions have been executed, then
+    wakes up to perform compression of the `mysql.gtid_executed` table. It then sleeps
+    until the same number of transactions have taken place, then wakes up to perform
+    the compression again, repeating this loop indefinitely. The number of transactions
+    that elapse before the table is compressed, and thus the compression rate, is
+    controlled by the value of the [`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)
+    system variable. Setting that value to 0 means that the thread never wakes up,
+    meaning that this explicit compression method is not used. Instead, compression
+    occurs implicitly as required.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当服务器启用二进制日志记录时，不使用此压缩方法，而是在每次二进制日志旋转时压缩`mysql.gtid_executed`表。但是，当服务器禁用二进制日志记录时，`thread/sql/compress_gtid_table`线程会休眠，直到执行了指定数量的事务，然后唤醒以压缩`mysql.gtid_executed`表。然后再休眠，直到发生相同数量的事务，然后再次唤醒以执行压缩，无限循环。在表被压缩之前经过的事务数量，因此压缩速率，由[`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)系统变量的值控制。将该值设置为0意味着线程永远不会唤醒，这意味着不使用此显式压缩方法。相反，根据需要隐式进行压缩。
+- en: From MySQL 8.0.17, [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") transactions are written to the `mysql.gtid_executed` table by
+    a separate process to non-`InnoDB` transactions. This process is controlled by
+    a different thread, `innodb/clone_gtid_thread`. This GTID persister thread collects
+    GTIDs in groups, flushes them to the `mysql.gtid_executed` table, then compresses
+    the table. If the server has a mix of [`InnoDB`](innodb-storage-engine.html "Chapter 17 The
+    InnoDB Storage Engine") transactions and non-[`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") transactions, which are written to the
+    `mysql.gtid_executed` table individually, the compression carried out by the `compress_gtid_table`
+    thread interferes with the work of the GTID persister thread and can slow it significantly.
+    For this reason, from that release it is recommended that you set [`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)
+    to 0, so that the `compress_gtid_table` thread is never activated.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.17开始，[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎") 事务由一个独立进程写入到`mysql.gtid_executed`表，与非`InnoDB`事务分开。这个进程由不同的线程`innodb/clone_gtid_thread`控制。这个GTID持久化线程将GTID分组收集，将它们刷新到`mysql.gtid_executed`表，然后压缩表格。如果服务器同时有[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")事务和非[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")事务，它们分别写入到`mysql.gtid_executed`表，那么`compress_gtid_table`线程执行的压缩会干扰GTID持久化线程的工作，并且可能显著减慢速度。因此，从那个版本开始，建议将[`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)设置为0，这样`compress_gtid_table`线程就永远不会被激活。
+- en: From MySQL 8.0.23, the [`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)
+    default value is 0, and both `InnoDB` and non-`InnoDB` transactions are written
+    to the `mysql.gtid_executed` table by the GTID persister thread.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.23开始，[`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)的默认值为0，`InnoDB`和非`InnoDB`事务都由GTID持久化线程写入到`mysql.gtid_executed`表。
+- en: For releases before MySQL 8.0.17, the default value of 1000 for [`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)
+    can be used, meaning that compression of the table is performed after each 1000
+    transactions, or you can choose an alternative value. In those releases, if you
+    set a value of 0 and binary logging is disabled, explicit compression is not performed
+    on the `mysql.gtid_executed` table, and you should be prepared for a potentially
+    large increase in the amount of disk space that may be required by the table if
+    you do this.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于MySQL 8.0.17之前的版本，默认值为1000的[`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)可以使用，意味着每1000个事务后对表进行压缩，或者您可以选择另一个值。在这些版本中，如果将值设置为0且禁用了二进制日志记录，则不会对`mysql.gtid_executed`表执行显式压缩，如果这样做，您应该准备好表可能需要的磁盘空间可能会大幅增加。
+- en: When a server instance is started, if [`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)
+    is set to a nonzero value and the `thread/sql/compress_gtid_table` thread is launched,
+    in most server configurations, explicit compression is performed for the `mysql.gtid_executed`
+    table. In releases before MySQL 8.0.17 when binary logging is enabled, compression
+    is triggered by the fact of the binary log being rotated at startup. In releases
+    from MySQL 8.0.20, compression is triggered by the thread launch. In the intervening
+    releases, compression does not take place at startup.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当启动服务器实例时，如果[`gtid_executed_compression_period`](replication-options-gtids.html#sysvar_gtid_executed_compression_period)设置为非零值并且启动了`thread/sql/compress_gtid_table`线程，在大多数服务器配置中，将为`mysql.gtid_executed`表执行显式压缩。在MySQL
+    8.0.17之前的版本中，启用二进制日志时，压缩是由于启动时二进制日志轮换触发的。在MySQL 8.0.20之后的版本中，压缩是由线程启动触发的。在这些版本之间的版本中，启动时不会进行压缩。

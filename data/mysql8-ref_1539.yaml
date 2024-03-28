@@ -1,0 +1,73 @@
+- en: 20.7.6 XCom Cache Management
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.7.6 XCom缓存管理
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance-xcom-cache.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance-xcom-cache.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance-xcom-cache.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-performance-xcom-cache.html)
+- en: '[20.7.6.1 Increasing the cache size](group-replication-performance-xcom-cache-increase.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.6.1 增加缓存大小](group-replication-performance-xcom-cache-increase.html)'
+- en: '[20.7.6.2 Reducing the cache size](group-replication-performance-xcom-cache-reduce.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.6.2 减少缓存大小](group-replication-performance-xcom-cache-reduce.html)'
+- en: The group communication engine for Group Replication (XCom, a Paxos variant)
+    includes a cache for messages (and their metadata) exchanged between the group
+    members as a part of the consensus protocol. Among other functions, the message
+    cache is used for recovery of missed messages by members that reconnect with the
+    group after a period where they were unable to communicate with the other group
+    members.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于Group Replication的组通信引擎（XCom，一种Paxos变体）包括一个用于在共识协议的一部分中交换组成员之间的消息（及其元数据）的缓存。消息缓存除了其他功能外，还用于在成员在与其他组成员无法通信的一段时间后重新连接到组时恢复丢失的消息。
+- en: From MySQL 8.0.16, a cache size limit can be set for XCom's message cache using
+    the [`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)
+    system variable. If the cache size limit is reached, XCom removes the oldest entries
+    that have been decided and delivered. The same cache size limit should be set
+    on all group members, because an unreachable member that is attempting to reconnect
+    selects any other member at random for recovery of missed messages. The same messages
+    should therefore be available in each member's cache.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.16开始，可以使用[`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)系统变量为XCom的消息缓存设置缓存大小限制。如果达到缓存大小限制，XCom会删除已经决定和传递的最旧条目。因为正在尝试重新连接的不可达成员会随机选择任何其他成员来恢复丢失的消息，所以所有组成员都应该设置相同的缓存大小限制。因此，每个成员的缓存中应该有相同的消息。
+- en: Before MySQL 8.0.16, the cache size was 1 GB, and the default setting for the
+    cache size from MySQL 8.0.16 is the same. Ensure that sufficient memory is available
+    on your system for your chosen cache size limit, considering the size of MySQL
+    Server's other caches and object pools. Note that the limit set using [`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)
+    applies only to the data stored in the cache, and the cache structures require
+    an additional 50 MB of memory.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.16之前，缓存大小为1 GB，从MySQL 8.0.16开始，默认设置的缓存大小相同。请确保系统上有足够的内存可用于您选择的缓存大小限制，考虑到MySQL
+    Server的其他缓存和对象池的大小。请注意，使用[`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)设置的限制仅适用于缓存中存储的数据，缓存结构需要额外的50
+    MB内存。
+- en: When selecting a [`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)
+    setting, do so with reference to the expected volume of messages in the time period
+    before a member is expelled. The length of this time period is controlled by the
+    [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable, which determines the waiting period (up to an hour) that is allowed
+    in addition to the initial 5-second detection period for members to return to
+    the group rather than being expelled. Note that before MySQL 8.0.21, this time
+    period defaulted to 5 seconds from the member becoming unavailable, which is just
+    the detection period before a suspicion is created, because the additional expel
+    timeout set by the [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable defaulted to zero. From 8.0.21 the expel timeout defaults to 5
+    seconds, so by default a member is not expelled until it has been absent for at
+    least 10 seconds.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在选择[`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)设置时，应参考成员被驱逐之前的时间段内预期的消息量。这段时间的长度由[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)系统变量控制，该变量确定了等待期限（最长一小时），除了成员最初的5秒检测期外，允许成员返回到组中而不被驱逐。请注意，在MySQL
+    8.0.21之前，这段时间默认为成员变得不可用后的5秒，这只是在产生怀疑之前的检测期，因为[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)系统变量设置的额外驱逐超时默认为零。从8.0.21开始，驱逐超时默认为5秒，因此默认情况下，成员在至少离开10秒后才会被驱逐。

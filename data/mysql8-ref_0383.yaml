@@ -1,0 +1,148 @@
+- en: 8.2.23 SQL-Based Account Activity Auditing
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.2.23 基于SQL的账户活动审计
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/account-activity-auditing.html](https://dev.mysql.com/doc/refman/8.0/en/account-activity-auditing.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/account-activity-auditing.html](https://dev.mysql.com/doc/refman/8.0/en/account-activity-auditing.html)
+- en: Applications can use the following guidelines to perform SQL-based auditing
+    that ties database activity to MySQL accounts.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应用程序可以使用以下准则执行基于SQL的审计，将数据库活动与MySQL账户关联起来。
+- en: MySQL accounts correspond to rows in the `mysql.user` system table. When a client
+    connects successfully, the server authenticates the client to a particular row
+    in this table. The `User` and `Host` column values in this row uniquely identify
+    the account and correspond to the `'*`user_name`*'@'*`host_name`*'` format in
+    which account names are written in SQL statements.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL账户对应于`mysql.user`系统表中的行。当客户端成功连接时，服务器会将客户端验证为此表中的特定行。此行中的`User`和`Host`列值唯一标识账户，并对应于SQL语句中写入账户名称的`'*`user_name`*'@'*`host_name`*'`格式。
+- en: The account used to authenticate a client determines which privileges the client
+    has. Normally, the [`CURRENT_USER()`](information-functions.html#function_current-user)
+    function can be invoked to determine which account this is for the client user.
+    Its value is constructed from the `User` and `Host` columns of the `user` table
+    row for the account.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于验证客户端的账户决定客户端拥有哪些权限。通常，可以调用[`CURRENT_USER()`](information-functions.html#function_current-user)函数来确定客户端用户的账户是什么。其值是从账户的`user`表行的`User`和`Host`列构造的。
+- en: 'However, there are circumstances under which the [`CURRENT_USER()`](information-functions.html#function_current-user)
+    value corresponds not to the client user but to a different account. This occurs
+    in contexts when privilege checking is not based the client''s account:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，在某些情况下，[`CURRENT_USER()`](information-functions.html#function_current-user)值不对应于客户端用户，而对应于不同的账户。这发生在不基于客户端账户进行权限检查的情况下：
+- en: Stored routines (procedures and functions) defined with the `SQL SECURITY DEFINER`
+    characteristic
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用`SQL SECURITY DEFINER`特性定义的存储过程（过程和函数）
+- en: Views defined with the `SQL SECURITY DEFINER` characteristic
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用`SQL SECURITY DEFINER`特性定义的视图
+- en: Triggers and events
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 触发器和事件
+- en: In those contexts, privilege checking is done against the `DEFINER` account
+    and [`CURRENT_USER()`](information-functions.html#function_current-user) refers
+    to that account, not to the account for the client who invoked the stored routine
+    or view or who caused the trigger to activate. To determine the invoking user,
+    you can call the [`USER()`](information-functions.html#function_user) function,
+    which returns a value indicating the actual user name provided by the client and
+    the host from which the client connected. However, this value does not necessarily
+    correspond directly to an account in the `user` table, because the [`USER()`](information-functions.html#function_user)
+    value never contains wildcards, whereas account values (as returned by [`CURRENT_USER()`](information-functions.html#function_current-user))
+    may contain user name and host name wildcards.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这些情境中，权限检查针对`DEFINER`账户进行，而[`CURRENT_USER()`](information-functions.html#function_current-user)指的是该账户，而不是调用存储过程或视图的客户端账户或导致触发器激活的账户。要确定调用用户，可以调用[`USER()`](information-functions.html#function_user)函数，该函数返回一个值，指示客户端提供的实际用户名和客户端连接的主机。然而，这个值不一定直接对应`user`表中的账户，因为[`USER()`](information-functions.html#function_user)值从不包含通配符，而账户值（由[`CURRENT_USER()`](information-functions.html#function_current-user)返回）可能包含用户名和主机名通配符。
+- en: 'For example, a blank user name matches any user, so an account of `''''@''localhost''`
+    enables clients to connect as an anonymous user from the local host with any user
+    name. In this case, if a client connects as `user1` from the local host, [`USER()`](information-functions.html#function_user)
+    and [`CURRENT_USER()`](information-functions.html#function_current-user) return
+    different values:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，空用户名称匹配任何用户，因此`''@'localhost'`账户允许客户端以任何用户名作为本地主机的匿名用户连接。在这种情况下，如果客户端以本地主机的`user1`连接，[`USER()`](information-functions.html#function_user)和[`CURRENT_USER()`](information-functions.html#function_current-user)返回不同的值：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The host name part of an account can also contain wildcards. If the host name
+    contains a `''%''` or `''_''` pattern character or uses netmask notation, the
+    account can be used for clients connecting from multiple hosts and the [`CURRENT_USER()`](information-functions.html#function_current-user)
+    value does not indicate which one. For example, the account `''user2''@''%.example.com''`
+    can be used by `user2` to connect from any host in the `example.com` domain. If
+    `user2` connects from `remote.example.com`, [`USER()`](information-functions.html#function_user)
+    and [`CURRENT_USER()`](information-functions.html#function_current-user) return
+    different values:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 账户的主机名部分也可以包含通配符。如果主机名包含`'%'`或`'_'`模式字符或使用网络掩码表示法，该账户可以用于从多个主机连接的客户端，并且[`CURRENT_USER()`](information-functions.html#function_current-user)值不会指示哪一个。例如，账户`'user2'@'%.example.com'`可以被`user2`用于从`example.com`域中的任何主机连接。如果`user2`从`remote.example.com`连接，[`USER()`](information-functions.html#function_user)和[`CURRENT_USER()`](information-functions.html#function_current-user)返回不同的值：
+- en: '[PRE1]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If an application must invoke [`USER()`](information-functions.html#function_user)
+    for user auditing (for example, if it does auditing from within triggers) but
+    must also be able to associate the [`USER()`](information-functions.html#function_user)
+    value with an account in the `user` table, it is necessary to avoid accounts that
+    contain wildcards in the `User` or `Host` column. Specifically, do not permit
+    `User` to be empty (which creates an anonymous-user account), and do not permit
+    pattern characters or netmask notation in `Host` values. All accounts must have
+    a nonempty `User` value and literal `Host` value.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果应用程序必须调用[`USER()`](information-functions.html#function_user)进行用户审计（例如，如果它在触发器内部进行审计），但必须能够将[`USER()`](information-functions.html#function_user)值与`user`表中的账户关联起来，则必须避免在`User`或`Host`列中包含通配符的账户。具体来说，不要允许`User`为空（这会创建一个匿名用户账户），也不要在`Host`值中允许模式字符或网络掩码表示法。所有账户必须具有非空的`User`值和字面的`Host`值。
+- en: 'With respect to the previous examples, the `''''@''localhost''` and `''user2''@''%.example.com''`
+    accounts should be changed not to use wildcards:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于前面的例子，`''@'localhost'`和`'user2'@'%.example.com'`账户应该被修改，不要使用通配符：
+- en: '[PRE2]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: If `user2` must be able to connect from several hosts in the `example.com` domain,
+    there should be a separate account for each host.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`user2`必须能够从`example.com`域中的多个主机连接，应该为每个主机单独创建一个账户。
+- en: 'To extract the user name or host name part from a [`CURRENT_USER()`](information-functions.html#function_current-user)
+    or [`USER()`](information-functions.html#function_user) value, use the [`SUBSTRING_INDEX()`](string-functions.html#function_substring-index)
+    function:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从[`CURRENT_USER()`](information-functions.html#function_current-user)或[`USER()`](information-functions.html#function_user)值中提取用户名称或主机名部分，请使用[`SUBSTRING_INDEX()`](string-functions.html#function_substring-index)函数：
+- en: '[PRE3]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'

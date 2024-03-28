@@ -1,0 +1,117 @@
+- en: 10.5.3 Optimizing InnoDB Read-Only Transactions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.5.3 优化 InnoDB 只读事务
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-ro-txn.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-ro-txn.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-ro-txn.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-ro-txn.html)
+- en: '`InnoDB` can avoid the overhead associated with setting up the [transaction
+    ID](glossary.html#glos_transaction_id "transaction ID") (`TRX_ID` field) for transactions
+    that are known to be read-only. A transaction ID is only needed for a [transaction](glossary.html#glos_transaction
+    "transaction") that might perform write operations or [locking reads](glossary.html#glos_locking_read
+    "locking read") such as `SELECT ... FOR UPDATE`. Eliminating unnecessary transaction
+    IDs reduces the size of internal data structures that are consulted each time
+    a query or data change statement constructs a [read view](glossary.html#glos_read_view
+    "read view").'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 可以避免为已知为只读的事务设置[事务 ID](glossary.html#glos_transaction_id "transaction
+    ID")（`TRX_ID` 字段）所带来的开销。只有可能执行写操作或[锁定读取](glossary.html#glos_locking_read "locking
+    read")（如 `SELECT ... FOR UPDATE`）的[事务](glossary.html#glos_transaction "transaction")才需要事务
+    ID。消除不必要的事务 ID 可减少每次查询或数据更改语句构建[读视图](glossary.html#glos_read_view "read view")时所查询的内部数据结构的大小。'
+- en: '`InnoDB` detects read-only transactions when:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当：
+- en: 'The transaction is started with the [`START TRANSACTION READ ONLY`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") statement. In this
+    case, attempting to make changes to the database (for `InnoDB`, `MyISAM`, or other
+    types of tables) causes an error, and the transaction continues in read-only state:'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 事务是通过 [`START TRANSACTION READ ONLY`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") 语句启动的。在这种情况下，尝试对数据库进行更改（对于 `InnoDB`、`MyISAM`
+    或其他类型的表）会导致错误，并且事务将继续处于只读状态：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: You can still make changes to session-specific temporary tables in a read-only
+    transaction, or issue locking queries for them, because those changes and locks
+    are not visible to any other transaction.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在只读事务中，您仍然可以对会话特定的临时表进行更改，或者为其发出锁定查询，因为这些更改和锁定对任何其他事务都不可见。
+- en: The [`autocommit`](server-system-variables.html#sysvar_autocommit) setting is
+    turned on, so that the transaction is guaranteed to be a single statement, and
+    the single statement making up the transaction is a “non-locking” [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statement. That is, a `SELECT` that does not use a
+    `FOR UPDATE` or `LOCK IN SHARED MODE` clause.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`autocommit`](server-system-variables.html#sysvar_autocommit) 设置已打开，因此可以保证事务是单个语句，并且组成事务的单个语句是“非锁定”
+    [`SELECT`](select.html "15.2.13 SELECT Statement") 语句。也就是说，不使用 `FOR UPDATE` 或
+    `LOCK IN SHARED MODE` 子句的 `SELECT`。'
+- en: The transaction is started without the `READ ONLY` option, but no updates or
+    statements that explicitly lock rows have been executed yet. Until updates or
+    explicit locks are required, a transaction stays in read-only mode.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 事务是在没有 `READ ONLY` 选项的情况下启动的，但尚未执行更新或明确锁定行的语句。在需要更新或明确锁定之前，事务保持在只读模式下。
+- en: Thus, for a read-intensive application such as a report generator, you can tune
+    a sequence of `InnoDB` queries by grouping them inside [`START TRANSACTION READ
+    ONLY`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")
+    and [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements"),
+    or by turning on the [`autocommit`](server-system-variables.html#sysvar_autocommit)
+    setting before running the `SELECT` statements, or simply by avoiding any data
+    change statements interspersed with the queries.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，对于像报表生成器这样的读密集型应用程序，您可以通过将它们组合在 [`START TRANSACTION READ ONLY`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") 和 [`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") 中，或者在运行 `SELECT`
+    语句之前打开 [`autocommit`](server-system-variables.html#sysvar_autocommit) 设置，或者简单地避免在查询中插入任何数据更改语句来调整一系列
+    `InnoDB` 查询。
+- en: For information about [`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") and [`autocommit`](server-system-variables.html#sysvar_autocommit),
+    see [Section 15.3.1, “START TRANSACTION, COMMIT, and ROLLBACK Statements”](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements").
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 [`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION, COMMIT, and
+    ROLLBACK Statements") 和 [`autocommit`](server-system-variables.html#sysvar_autocommit)
+    的信息，请参见 [Section 15.3.1, “START TRANSACTION, COMMIT, and ROLLBACK Statements”](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")。
+- en: Note
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Transactions that qualify as auto-commit, non-locking, and read-only (AC-NL-RO)
+    are kept out of certain internal `InnoDB` data structures and are therefore not
+    listed in [`SHOW ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE
+    Statement") output.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 符合自动提交、非锁定和只读（AC-NL-RO）条件的事务将被排除在某些内部`InnoDB`数据结构之外，因此不会在[`SHOW ENGINE INNODB
+    STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")输出中列出。

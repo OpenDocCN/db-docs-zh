@@ -1,0 +1,135 @@
+- en: 9.4 Using mysqldump for Backups
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 9.4 使用 mysqldump 进行备份
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/using-mysqldump.html](https://dev.mysql.com/doc/refman/8.0/en/using-mysqldump.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: '[https://dev.mysql.com/doc/refman/8.0/en/using-mysqldump.html](https://dev.mysql.com/doc/refman/8.0/en/using-mysqldump.html)'
+- en: '[9.4.1 Dumping Data in SQL Format with mysqldump](mysqldump-sql-format.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.4.1 使用 mysqldump 以 SQL 格式导出数据](mysqldump-sql-format.html)'
+- en: '[9.4.2 Reloading SQL-Format Backups](reloading-sql-format-dumps.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.4.2 重新加载 SQL 格式备份](reloading-sql-format-dumps.html)'
+- en: '[9.4.3 Dumping Data in Delimited-Text Format with mysqldump](mysqldump-delimited-text.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.4.3 使用 mysqldump 以分隔文本格式导出数据](mysqldump-delimited-text.html)'
+- en: '[9.4.4 Reloading Delimited-Text Format Backups](reloading-delimited-text-dumps.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.4.4 重新加载分隔文本格式备份](reloading-delimited-text-dumps.html)'
+- en: '[9.4.5 mysqldump Tips](mysqldump-tips.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.4.5 mysqldump 技巧](mysqldump-tips.html)'
+- en: Tip
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 提示
+- en: Consider using the [MySQL Shell dump utilities](/doc/mysql-shell/8.0/en/mysql-shell-utilities-dump-instance-schema.html),
+    which provide parallel dumping with multiple threads, file compression, and progress
+    information display, as well as cloud features such as Oracle Cloud Infrastructure
+    Object Storage streaming, and MySQL HeatWave Service compatibility checks and
+    modifications. Dumps can be easily imported into a MySQL Server instance or a
+    MySQL HeatWave Service DB System using the [MySQL Shell load dump utilities](/doc/mysql-shell/8.0/en/mysql-shell-utilities-load-dump.html).
+    Installation instructions for MySQL Shell can be found [here](/doc/mysql-shell/8.0/en/mysql-shell-install.html).
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑使用[MySQL Shell dump 工具](/doc/mysql-shell/8.0/en/mysql-shell-utilities-dump-instance-schema.html)，提供多线程并行导出、文件压缩、进度信息显示，以及云功能，如
+    Oracle Cloud Infrastructure Object Storage 流式传输，以及 MySQL HeatWave Service 兼容性检查和修改。导出的数据可以轻松导入到
+    MySQL Server 实例或 MySQL HeatWave Service DB System 中，使用[MySQL Shell load dump 工具](/doc/mysql-shell/8.0/en/mysql-shell-utilities-load-dump.html)。MySQL
+    Shell 的安装说明可在[这里](/doc/mysql-shell/8.0/en/mysql-shell-install.html)找到。
+- en: 'This section describes how to use [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program") to produce dump files, and how to reload dump files.
+    A dump file can be used in several ways:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program")生成导出文件，以及如何重新加载导出文件。导出文件可以以多种方式使用：
+- en: As a backup to enable data recovery in case of data loss.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为备份，以便在数据丢失时进行数据恢复。
+- en: As a source of data for setting up replicas.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为设置副本的数据源。
+- en: 'As a source of data for experimentation:'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为实验的数据源：
+- en: To make a copy of a database that you can use without changing the original
+    data.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 复制数据库的副本，可以在不更改原始数据的情况下使用。
+- en: To test potential upgrade incompatibilities.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于测试潜在的升级不兼容性。
+- en: '[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    produces two types of output, depending on whether the [`--tab`](mysqldump.html#option_mysqldump_tab)
+    option is given:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")生成两种类型的输出，取决于是否给出[`--tab`](mysqldump.html#option_mysqldump_tab)选项：'
+- en: Without [`--tab`](mysqldump.html#option_mysqldump_tab), [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") writes SQL statements to the standard
+    output. This output consists of `CREATE` statements to create dumped objects (databases,
+    tables, stored routines, and so forth), and `INSERT` statements to load data into
+    tables. The output can be saved in a file and reloaded later using [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") to recreate the dumped objects.
+    Options are available to modify the format of the SQL statements, and to control
+    which objects are dumped.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有[`--tab`](mysqldump.html#option_mysqldump_tab)选项时，[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")将 SQL 语句写入标准输出。这些输出包括用于创建导出对象（数据库、表、存储过程等）的`CREATE`语句，以及用于将数据加载到表中的`INSERT`语句。输出可以保存在文件中，并使用[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")稍后重新加载，以重新创建导出的对象。有选项可修改 SQL 语句的格式，并控制导出哪些对象。
+- en: With [`--tab`](mysqldump.html#option_mysqldump_tab), [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") produces two output files for each
+    dumped table. The server writes one file as tab-delimited text, one line per table
+    row. This file is named `*`tbl_name`*.txt` in the output directory. The server
+    also sends a [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    statement for the table to [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A
+    Database Backup Program"), which writes it as a file named `*`tbl_name`*.sql`
+    in the output directory.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[`--tab`](mysqldump.html#option_mysqldump_tab)，[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")为每个转储的表生成两个输出文件。服务器将一个文件写为制表符分隔的文本，每行一个表行。该文件在输出目录中命名为`*`tbl_name`*.txt`。服务器还向[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")发送一个[`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement")语句，该语句被写入一个名为`*`tbl_name`*.sql`的文件中。

@@ -1,0 +1,258 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-to-different-version.html](https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-to-different-version.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-to-different-version.html](https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-to-different-version.html)
+- en: 25.5.23.1 Restoring an NDB Backup to a Different Version of NDB Cluster
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.5.23.1 将NDB备份还原到不同版本的NDB集群
+- en: The following two sections provide information about restoring a native NDB
+    backup to a different version of NDB Cluster from the version in which the backup
+    was taken.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下两个部分提供了有关将本机NDB备份还原到与备份所在版本不同的NDB集群版本的信息。
+- en: In addition, you should consult [Section 25.3.7, “Upgrading and Downgrading
+    NDB Cluster”](mysql-cluster-upgrade-downgrade.html "25.3.7 Upgrading and Downgrading
+    NDB Cluster"), for other issues you may encounter when attempting to restore an
+    NDB backup to a cluster running a different version of the NDB software.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，您应该参考[第25.3.7节，“升级和降级NDB集群”](mysql-cluster-upgrade-downgrade.html "25.3.7 Upgrading
+    and Downgrading NDB Cluster")，了解尝试将NDB备份还原到运行不同版本NDB软件的集群时可能遇到的其他问题。
+- en: It is also advisable to review [What is New in NDB Cluster 8.0](mysql-cluster-what-is-new.html#mysql-cluster-what-is-new-8-0
+    "What is New in NDB Cluster 8.0"), as well as [Section 3.5, “Changes in MySQL
+    8.0”](upgrading-from-previous-series.html "3.5 Changes in MySQL 8.0"), for other
+    changes between NDB 8.0 and previous versions of NDB Cluster that may be relevant
+    to your particular circumstances.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，建议查看[What is New in NDB Cluster 8.0](mysql-cluster-what-is-new.html#mysql-cluster-what-is-new-8-0
+    "What is New in NDB Cluster 8.0")以及[第3.5节，“MySQL 8.0中的更改”](upgrading-from-previous-series.html
+    "3.5 Changes in MySQL 8.0")，了解NDB 8.0与NDB集群以前版本之间的其他变化，这些变化可能与您的特定情况相关。
+- en: 25.5.23.1.1 Restoring an NDB backup to a previous version of NDB Cluster
+  id: totrans-5
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 25.5.23.1.1 将NDB备份还原到较旧版本的NDB集群
+- en: 'You may encounter issues when restoring a backup taken from a later version
+    of NDB Cluster to a previous one, due to the use of features which do not exist
+    in the earlier version. Some of these issues are listed here:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当尝试将从较新版本的NDB集群中获取的备份还原到较旧版本时，可能会遇到问题，原因是使用了在较早版本中不存在的功能。以下列出了一些问题：
+- en: '**utf8mb4_ai_ci character set. ** Tables created in NDB 8.0 by default use
+    the `utf8mb4_ai_ci` character set, which is not available in NDB 7.6 and earlier,
+    and so cannot be read by an [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") binary from one of these
+    earlier versions. In such cases, it is necessary to alter any tables using `utf8mb4_ai_ci`
+    so that they use a character set supported in the older version prior to performing
+    the backup.'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**utf8mb4_ai_ci字符集。** NDB 8.0中默认使用`utf8mb4_ai_ci`字符集创建的表，在NDB 7.6及更早版本中不可用，因此无法被这些较早版本中的[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup")二进制文件读取。在这种情况下，必须修改任何使用`utf8mb4_ai_ci`的表，以便它们使用较旧版本支持的字符集进行备份前的操作。'
+- en: '**Table metadata format. ** Due to changes in how the MySQL Server and NDB
+    handle table metadata, tables created or altered using the included MySQL server
+    binary from NDB 8.0 cannot be restored using [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") to NDB 7.6 or an earlier
+    version of NDB Cluster. Such tables use `.sdi` files which are not understood
+    by older versions of [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server").'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**表元数据格式。** 由于MySQL服务器和NDB处理表元数据的方式发生了变化，使用NDB 8.0中包含的MySQL服务器二进制文件创建或更改的表无法使用[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup")还原到NDB 7.6或更早版本的NDB集群。这些表使用`.sdi`文件，较旧版本的[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")无法理解。'
+- en: A backup taken in NDB 8.0 of tables which were created in NDB 7.6 or earlier,
+    and which have not been altered since upgrading to NDB 8.0, should be restorable
+    to older versions of NDB Cluster.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个在NDB 8.0中备份的表，该表在NDB 7.6或更早版本中创建，并且自升级到NDB 8.0以来未被修改，应该可以恢复到较旧版本的NDB集群。
+- en: Since it is possible to restore metadata and table data separately, you can
+    in such cases restore the table schemas from a dump made using [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program"), or by executing the necessary
+    [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") statements
+    manually, then import only the table data using [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") with the [`--restore-data`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_restore-data)
+    option.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于可以分别恢复元数据和表数据，因此在这种情况下，您可以使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program")制作的转储文件恢复表模式，或者手动执行必要的[`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement")语句，然后仅使用[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup")和[`--restore-data`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_restore-data)选项导入表数据。
+- en: '**Multi-threaded backups. ** Multi-threaded backups taken in NDB 8.0 can be
+    restored to an cluster running an earlier version of `NDB` in either of the following
+    two ways:'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**多线程备份。** 在NDB 8.0中进行的多线程备份可以通过以下两种方式之一还原到运行较早版本`NDB`的集群中：'
+- en: Using an [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") binary from NDB 8.0, perform a parallel restore.
+    See [Section 25.5.23.3.1, “Restoring a parallel backup in parallel”](ndb-restore-parallel-data-node-backup.html#ndb-restore-parallel-backup-in-parallel
+    "25.5.23.3.1 Restoring a parallel backup in parallel").
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用NDB 8.0中的[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup")二进制文件执行并行还原。参见[第25.5.23.3.1节，“并行还原并行备份”](ndb-restore-parallel-data-node-backup.html#ndb-restore-parallel-backup-in-parallel
+    "25.5.23.3.1 Restoring a parallel backup in parallel")。
+- en: Restore the backups serially; in this case, a later version of [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") is not required. See [Section 25.5.23.3.2,
+    “Restoring a parallel backup serially”](ndb-restore-parallel-data-node-backup.html#ndb-restore-parallel-backup-serial
+    "25.5.23.3.2 Restoring a parallel backup serially").
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 串行还原备份；在这种情况下，不需要较新版本的[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup")。请参见[第25.5.23.3.2节，“串行还原并行备份”](ndb-restore-parallel-data-node-backup.html#ndb-restore-parallel-backup-serial
+    "25.5.23.3.2 Restoring a parallel backup serially")。
+- en: '**Encrypted backups. ** Encrypted backups created in NDB 8.0.22 and later cannot
+    be restored using [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") from NDB 8.0.21 or earlier.'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**加密备份。** 在NDB 8.0.22及更高版本中创建的加密备份无法使用NDB 8.0.21或更早版本的[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup")进行还原。'
+- en: '**NDB_STORED_USER privilege. ** The [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)
+    privilege is supported only in NDB 8.0.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**NDB_STORED_USER权限。** [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)权限仅在NDB
+    8.0中受支持。'
+- en: '**Maximum number of data nodes. ** NDB Cluster 8.0 supports up to 144 data
+    nodes, while earlier versions support a maximum of only 48 data nodes. See [Section 25.5.23.2.1,
+    “Restoring to Fewer Nodes Than the Original”](ndb-restore-different-number-nodes.html#ndb-restore-to-fewer-nodes
+    "25.5.23.2.1 Restoring to Fewer Nodes Than the Original"), for information with
+    situations in which this incompatibility causes an issue.'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**数据节点的最大数量。** NDB Cluster 8.0支持最多144个数据节点，而较早版本仅支持最多48个数据节点。有关此不兼容性引起问题的情况，请参见[第25.5.23.2.1节，“还原到少于原始节点数”](ndb-restore-different-number-nodes.html#ndb-restore-to-fewer-nodes
+    "25.5.23.2.1 Restoring to Fewer Nodes Than the Original")。'
+- en: 25.5.23.1.2 Restoring an NDB backup to a later version of NDB Cluster
+  id: totrans-17
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 25.5.23.1.2 将NDB备份还原到较新版本的NDB Cluster
+- en: 'In general, it should be possible to restore a backup created using the [**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html
+    "25.5.5 ndb_mgm — The NDB Cluster Management Client") client [`START BACKUP`](mysql-cluster-backup-using-management-client.html
+    "25.6.8.2 Using The NDB Cluster Management Client to Create a Backup") command
+    in an older version of NDB to a newer version, provided that you use the [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") binary that comes with
+    the newer version. (It may be possible to use the older version of [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup"), but this is not recommended.)
+    Additional potential issues are listed here:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一般来说，应该可以将使用 [**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm
+    — The NDB Cluster Management Client") 客户端的 [`START BACKUP`](mysql-cluster-backup-using-management-client.html
+    "25.6.8.2 Using The NDB Cluster Management Client to Create a Backup") 命令创建的备份从旧版本的
+    NDB 恢复到新版本，只要你使用新版本附带的 [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") 二进制文件即可。（可能可以使用旧版本的 [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup")，但不建议这样做。）其他潜在问题列在这里：
+- en: When restoring the metadata from a backup ([`--restore-meta`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_restore-meta)
+    option), [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") normally attempts to reproduce the captured
+    table schema exactly as it was when the backup was taken.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在从备份中恢复元数据时（[`--restore-meta`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_restore-meta)
+    选项），[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") 通常会尝试精确复制备份时的表模式。
+- en: Tables created in versions of NDB prior to 8.0 use `.frm` files for their metadata.
+    These files can be read by the [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server") in NDB 8.0, which can use the information contained therein to create
+    the `.sdi` files used by the MySQL data dictionary in later versions.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 NDB 8.0 之前的版本中创建的表使用 `.frm` 文件存储它们的元数据。这些文件可以被 [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") 在 NDB 8.0 中读取，mysqld 可以使用其中包含的信息来创建后续版本中 MySQL 数据字典使用的 `.sdi`
+    文件。
+- en: When restoring an older backup to a newer version of NDB, it may not be possible
+    to take advantage of newer features such as hashmap partitioning, greater number
+    of hashmap buckets, read backup, and different partitioning layouts. For this
+    reason, it may be preferable to restore older schemas using [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") and the [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") client, which allows NDB to make
+    use of the new schema features.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在将旧备份恢复到新版本的 NDB 时，可能无法利用新功能，如 hashmap 分区、更多的 hashmap 桶、读取备份和不同的分区布局。因此，最好使用
+    [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    和 [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") 客户端来恢复旧模式，这样
+    NDB 就可以利用新的模式功能。
+- en: Tables using the old temporal types which did not support fractional seconds
+    (used prior to MySQL 5.6.4 and NDB 7.3.31) cannot be restored to NDB 8.0 using
+    [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup"). You can check such tables using [`CHECK TABLE`](check-table.html
+    "15.7.3.2 CHECK TABLE Statement"), and then upgrade them to the newer temporal
+    column format, if necessary, using [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR
+    TABLE Statement") in the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") client; this must be done prior to taking the backup. See [Section 3.6,
+    “Preparing Your Installation for Upgrade”](upgrade-prerequisites.html "3.6 Preparing
+    Your Installation for Upgrade"), for more information.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用旧的时间类型且不支持小数秒（用于 MySQL 5.6.4 之前和 NDB 7.3.31 之前）的表无法使用 [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") 恢复到 NDB 8.0。您可以使用 [`CHECK
+    TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement") 检查这样的表，然后在 [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") 客户端中使用 [`REPAIR TABLE`](repair-table.html
+    "15.7.3.5 REPAIR TABLE Statement") 必要时将其升级到新的时间列格式；这必须在进行备份之前完成。有关更多信息，请参见 [Section 3.6,
+    “Preparing Your Installation for Upgrade”](upgrade-prerequisites.html "3.6 Preparing
+    Your Installation for Upgrade")。
+- en: You also restore such tables using a dump created with [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program").
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您还可以使用使用 [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program") 创建的转储来恢复这样的表。
+- en: Distributed grant tables created in NDB 7.6 and earlier are not supported in
+    NDB 8.0\. Such tables can be restored to an NDB 8.0 cluster, but they have no
+    effect on access control.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在NDB 7.6及更早版本中创建的分布式授权表在NDB 8.0中不受支持。这些表可以恢复到NDB 8.0集群，但对访问控制没有影响。

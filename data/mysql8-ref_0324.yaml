@@ -1,0 +1,697 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/locking-service.html](https://dev.mysql.com/doc/refman/8.0/en/locking-service.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/locking-service.html](https://dev.mysql.com/doc/refman/8.0/en/locking-service.html)
+- en: 7.6.9.1 The Locking Service
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.6.9.1 锁定服务
+- en: 'MySQL distributions provide a locking interface that is accessible at two levels:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL发行版提供了一个可在两个级别访问的锁定接口：
+- en: At the SQL level, as a set of loadable functions that each map onto calls to
+    the service routines.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在SQL级别上，作为一组可加载函数，每个函数映射到对服务例程的调用。
+- en: As a C language interface, callable as a plugin service from server plugins
+    or loadable functions.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为C语言接口，可作为服务器插件或可加载函数的插件服务调用。
+- en: For general information about plugin services, see [Section 7.6.9, “MySQL Plugin
+    Services”](plugin-services.html "7.6.9 MySQL Plugin Services"). For general information
+    about loadable functions, see [Adding a Loadable Function](/doc/extending-mysql/8.0/en/adding-loadable-function.html).
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关插件服务的一般信息，请参见[Section 7.6.9, “MySQL Plugin Services”](plugin-services.html
+    "7.6.9 MySQL Plugin Services")。有关可加载函数的一般信息，请参见[添加可加载函数](/doc/extending-mysql/8.0/en/adding-loadable-function.html)。
+- en: 'The locking interface has these characteristics:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁定接口具有以下特点：
+- en: 'Locks have three attributes: Lock namespace, lock name, and lock mode:'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 锁具有三个属性：锁命名空间、锁名称和锁模式：
+- en: Locks are identified by the combination of namespace and lock name. The namespace
+    enables different applications to use the same lock names without colliding by
+    creating locks in separate namespaces. For example, if applications A and B use
+    namespaces of `ns1` and `ns2`, respectively, each application can use lock names
+    `lock1` and `lock2` without interfering with the other application.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 锁由命名空间和锁名称的组合标识。命名空间使不同应用程序可以在不发生冲突的情况下使用相同的锁名称，方法是在不同的命名空间中创建锁。例如，如果应用程序A和B使用命名空间`ns1`和`ns2`，则每个应用程序可以使用锁名称`lock1`和`lock2`而不会干扰另一个应用程序。
+- en: 'A lock mode is either read or write. Read locks are shared: If a session has
+    a read lock on a given lock identifier, other sessions can acquire a read lock
+    on the same identifier. Write locks are exclusive: If a session has a write lock
+    on a given lock identifier, other sessions cannot acquire a read or write lock
+    on the same identifier.'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 锁模式为读或写。读锁是共享的：如果一个会话对给定的锁标识符有读锁定，则其他会话可以对相同标识符获取读锁定。写锁是排他的：如果一个会话对给定的锁标识符有写锁定，则其他会话无法对相同标识符获取读或写锁定。
+- en: Namespace and lock names must be non-`NULL`, nonempty, and have a maximum length
+    of 64 characters. A namespace or lock name specified as `NULL`, the empty string,
+    or a string longer than 64 characters results in an [`ER_LOCKING_SERVICE_WRONG_NAME`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_wrong_name)
+    error.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 命名空间和锁名称必须为非`NULL`、非空，并且最大长度为64个字符。如果命名空间或锁名称指定为`NULL`、空字符串或长度超过64个字符，则会导致[`ER_LOCKING_SERVICE_WRONG_NAME`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_wrong_name)错误。
+- en: The locking interface treats namespace and lock names as binary strings, so
+    comparisons are case-sensitive.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 锁定接口将命名空间和锁名称视为二进制字符串，因此比较区分大小写。
+- en: The locking interface provides functions to acquire locks and release locks.
+    No special privilege is required to call these functions. Privilege checking is
+    the responsibility of the calling application.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 锁定接口提供了获取锁定和释放锁定的函数。调用这些函数不需要特殊权限。权限检查是调用应用程序的责任。
+- en: Locks can be waited for if not immediately available. Lock acquisition calls
+    take an integer timeout value that indicates how many seconds to wait to acquire
+    locks before giving up. If the timeout is reached without successful lock acquisition,
+    an [`ER_LOCKING_SERVICE_TIMEOUT`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_timeout)
+    error occurs. If the timeout is 0, there is no waiting and the call produces an
+    error if locks cannot be acquired immediately.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果锁定不可立即获得，可以等待锁定。锁定获取调用需要一个整数超时值，指示在放弃之前等待多少秒以获取锁定。如果超时到达而未成功获取锁定，则会发生[`ER_LOCKING_SERVICE_TIMEOUT`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_timeout)错误。如果超时为0，则不会等待，如果无法立即获取锁定，则调用会产生错误。
+- en: The locking interface detects deadlock between lock-acquisition calls in different
+    sessions. In this case, the locking service chooses a caller and terminates its
+    lock-acquisition request with an [`ER_LOCKING_SERVICE_DEADLOCK`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_deadlock)
+    error. This error does not cause transactions to roll back. To choose a session
+    in case of deadlock, the locking service prefers sessions that hold read locks
+    over sessions that hold write locks.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 锁定接口检测不同会话中的锁获取调用之间的死锁。在这种情况下，锁定服务选择一个调用者，并以[`ER_LOCKING_SERVICE_DEADLOCK`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_deadlock)错误终止其锁获取请求。此错误不会导致事务回滚。在死锁情况下选择会话时，锁定服务更喜欢持有读锁的会话而不是持有写锁的会话。
+- en: 'A session can acquire multiple locks with a single lock-acquisition call. For
+    a given call, lock acquisition is atomic: The call succeeds if all locks are acquired.
+    If acquisition of any lock fails, the call acquires no locks and fails, typically
+    with an [`ER_LOCKING_SERVICE_TIMEOUT`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_timeout)
+    or [`ER_LOCKING_SERVICE_DEADLOCK`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_deadlock)
+    error.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个会话可以通过单个锁获取调用获取多个锁。对于给定的调用，锁获取是原子的：如果所有锁都被获取，则调用成功。如果任何锁的获取失败，则调用不会获取任何锁并失败，通常会出现[`ER_LOCKING_SERVICE_TIMEOUT`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_timeout)或[`ER_LOCKING_SERVICE_DEADLOCK`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_locking_service_deadlock)错误。
+- en: A session can acquire multiple locks for the same lock identifier (namespace
+    and lock name combination). These lock instances can be read locks, write locks,
+    or a mix of both.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个会话可以为相同的锁标识符（命名空间和锁名称组合）获取多个锁。这些锁实例可以是读锁、写锁或两者的混合。
+- en: Locks acquired within a session are released explicitly by calling a release-locks
+    function, or implicitly when the session terminates (either normally or abnormally).
+    Locks are not released when transactions commit or roll back.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在会话中获取的锁通过显式调用释放锁函数释放，或者在会话正常或异常终止时隐式释放。当事务提交或回滚时不会释放锁。
+- en: Within a session, all locks for a given namespace when released are released
+    together.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在一个会话中，释放给定命名空间的所有锁时会一起释放。
+- en: The interface provided by the locking service is distinct from that provided
+    by [`GET_LOCK()`](locking-functions.html#function_get-lock) and related SQL functions
+    (see [Section 14.14, “Locking Functions”](locking-functions.html "14.14 Locking
+    Functions")). For example, [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    does not implement namespaces and provides only exclusive locks, not distinct
+    read and write locks.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁定服务提供的接口与[`GET_LOCK()`](locking-functions.html#function_get-lock)及相关SQL函数提供的接口不同（请参见[第14.14节，“锁定函数”](locking-functions.html
+    "14.14 锁定函数")）。例如，[`GET_LOCK()`](locking-functions.html#function_get-lock)不实现命名空间，并且仅提供排他锁，而不是不同的读锁和写锁。
+- en: 7.6.9.1.1 The Locking Service C Interface
+  id: totrans-20
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.6.9.1.1 锁定服务C接口
+- en: This section describes how to use the locking service C language interface.
+    To use the function interface instead, see [Section 7.6.9.1.2, “The Locking Service
+    Function Interface”](locking-service.html#locking-service-interface "7.6.9.1.2 The
+    Locking Service Function Interface") For general characteristics of the locking
+    service interface, see [Section 7.6.9.1, “The Locking Service”](locking-service.html
+    "7.6.9.1 The Locking Service"). For general information about plugin services,
+    see [Section 7.6.9, “MySQL Plugin Services”](plugin-services.html "7.6.9 MySQL
+    Plugin Services").
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述如何使用锁定服务的C语言接口。要使用函数接口，请参见[第7.6.9.1.2节，“锁定服务函数接口”](locking-service.html#locking-service-interface
+    "7.6.9.1.2 锁定服务函数接口")有关锁定服务接口的一般特性，请参见[第7.6.9.1节，“锁定服务”](locking-service.html
+    "7.6.9.1 锁定服务")有关插件服务的一般信息，请参见[第7.6.9节，“MySQL插件服务”](plugin-services.html "7.6.9 MySQL插件服务")。
+- en: 'Source files that use the locking service should include this header file:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用锁定服务的源文件应包含此头文件：
+- en: '[PRE0]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To acquire one or more locks, call this function:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要获取一个或多个锁，请调用此函数：
+- en: '[PRE1]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The arguments have these meanings:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 参数的含义如下：
+- en: '`opaque_thd`: A thread handle. If specified as `NULL`, the handle for the current
+    thread is used.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`opaque_thd`: 一个线程句柄。如果指定为`NULL`，则使用当前线程的句柄。'
+- en: '`lock_namespace`: A null-terminated string that indicates the lock namespace.'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`lock_namespace`: 一个以空字符结尾的字符串，表示锁命名空间。'
+- en: '`lock_names`: An array of null-terminated strings that provides the names of
+    the locks to acquire.'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`lock_names`: 一个以空字符结尾的字符串数组，提供要获取的锁的名称。'
+- en: '`lock_num`: The number of names in the `lock_names` array.'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`lock_num`: `lock_names`数组中名称的数量。'
+- en: '`lock_type`: The lock mode, either `LOCKING_SERVICE_READ` or `LOCKING_SERVICE_WRITE`
+    to acquire read locks or write locks, respectively.'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`lock_type`: 锁定模式，可以是`LOCKING_SERVICE_READ`或`LOCKING_SERVICE_WRITE`，分别用于获取读锁或写锁。'
+- en: '`lock_timeout`: An integer number of seconds to wait to acquire the locks before
+    giving up.'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`lock_timeout`: 等待获取锁的秒数，超时放弃。'
+- en: 'To release locks acquired for a given namespace, call this function:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要释放为给定命名空间获取的锁，请调用此函数：
+- en: '[PRE2]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The arguments have these meanings:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 参数的含义如下：
+- en: '`opaque_thd`: A thread handle. If specified as `NULL`, the handle for the current
+    thread is used.'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`opaque_thd`: 一个线程句柄。如果指定为`NULL`，则使用当前线程的句柄。'
+- en: '`lock_namespace`: A null-terminated string that indicates the lock namespace.'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`lock_namespace`: 一个以空字符结尾的字符串，表示锁定命名空间。'
+- en: Locks acquired or waited for by the locking service can be monitored at the
+    SQL level using the Performance Schema. For details, see [Locking Service Monitoring](locking-service.html#locking-service-monitoring
+    "Locking Service Monitoring").
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过性能模式可以在SQL级别监视由锁定服务获取或等待的锁。详情请参见[锁定服务监视](locking-service.html#locking-service-monitoring
+    "锁定服务监视")。
+- en: 7.6.9.1.2 The Locking Service Function Interface
+  id: totrans-39
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.6.9.1.2 锁定服务函数接口
+- en: This section describes how to use the locking service interface provided by
+    its loadable functions. To use the C language interface instead, see [Section 7.6.9.1.1,
+    “The Locking Service C Interface”](locking-service.html#locking-service-c-interface
+    "7.6.9.1.1 The Locking Service C Interface") For general characteristics of the
+    locking service interface, see [Section 7.6.9.1, “The Locking Service”](locking-service.html
+    "7.6.9.1 The Locking Service"). For general information about loadable functions,
+    see [Adding a Loadable Function](/doc/extending-mysql/8.0/en/adding-loadable-function.html).
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何使用其可加载函数提供的锁定服务接口。要使用C语言接口，请参见[Section 7.6.9.1.1, “锁定服务C接口”](locking-service.html#locking-service-c-interface
+    "7.6.9.1.1 锁定服务C接口")。有关锁定服务接口的一般特性，请参见[Section 7.6.9.1, “锁定服务”](locking-service.html
+    "7.6.9.1 锁定服务")。有关可加载函数的一般信息，请参见[添加可加载函数](/doc/extending-mysql/8.0/en/adding-loadable-function.html)。
+- en: '[Installing or Uninstalling the Locking Service Function Interface](locking-service.html#locking-service-function-installation
+    "Installing or Uninstalling the Locking Service Function Interface")'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[安装或卸载锁定服务函数接口](locking-service.html#locking-service-function-installation
+    "安装或卸载锁定服务函数接口")'
+- en: '[Using the Locking Service Function Interface](locking-service.html#locking-service-function-usage
+    "Using the Locking Service Function Interface")'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用锁定服务函数接口](locking-service.html#locking-service-function-usage "使用锁定服务函数接口")'
+- en: '[Locking Service Monitoring](locking-service.html#locking-service-monitoring
+    "Locking Service Monitoring")'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[锁定服务监视](locking-service.html#locking-service-monitoring "锁定服务监视")'
+- en: '[Locking Service Interface Function Reference](locking-service.html#locking-service-function-reference
+    "Locking Service Interface Function Reference")'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[锁定服务接口函数参考](locking-service.html#locking-service-function-reference "锁定服务接口函数参考")'
+- en: Installing or Uninstalling the Locking Service Function Interface
+  id: totrans-45
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 安装或卸载锁定服务函数接口
+- en: 'The locking service routines described in [Section 7.6.9.1.1, “The Locking
+    Service C Interface”](locking-service.html#locking-service-c-interface "7.6.9.1.1 The
+    Locking Service C Interface") need not be installed because they are built into
+    the server. The same is not true of the loadable functions that map onto calls
+    to the service routines: The functions must be installed before use. This section
+    describes how to do that. For general information about loadable function installation,
+    see [Section 7.7.1, “Installing and Uninstalling Loadable Functions”](function-loading.html
+    "7.7.1 Installing and Uninstalling Loadable Functions").'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 描述在[Section 7.6.9.1.1, “锁定服务C接口”](locking-service.html#locking-service-c-interface
+    "7.6.9.1.1 锁定服务C接口")中的锁定服务例程不需要安装，因为它们已经内置在服务器中。但映射到服务例程调用的可加载函数不是这样的：这些函数必须在使用之前安装。本节描述了如何进行安装。有关可加载函数安装的一般信息，请参见[Section 7.7.1,
+    “安装和卸载可加载函数”](function-loading.html "7.7.1 安装和卸载可加载函数")。
+- en: The locking service functions are implemented in a plugin library file located
+    in the directory named by the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    system variable. The file base name is `locking_service`. The file name suffix
+    differs per platform (for example, `.so` for Unix and Unix-like systems, `.dll`
+    for Windows).
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁定服务函数实现在一个插件库文件中，该文件位于由[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量命名的目录中。文件基本名称为`locking_service`。文件名后缀因平台而异（例如，Unix和类Unix系统为`.so`，Windows为`.dll`）。
+- en: 'To install the locking service functions, use the [`CREATE FUNCTION`](create-function.html
+    "15.1.14 CREATE FUNCTION Statement") statement, adjusting the `.so` suffix for
+    your platform as necessary:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要安装锁定服务函数，请使用[`CREATE FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION
+    Statement")语句，并根据需要调整`.so`后缀以适配您的平台：
+- en: '[PRE3]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: If the functions are used on a replication source server, install them on all
+    replica servers as well to avoid replication problems.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在复制源服务器上使用这些函数，请在所有副本服务器上安装它们，以避免复制问题。
+- en: 'Once installed, the functions remain installed until uninstalled. To remove
+    them, use the [`DROP FUNCTION`](drop-function.html "15.1.26 DROP FUNCTION Statement")
+    statement:'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦安装，函数将一直保持安装状态，直到卸载。要删除它们，请使用[`DROP FUNCTION`](drop-function.html "15.1.26 DROP
+    FUNCTION Statement")语句：
+- en: '[PRE4]'
+  id: totrans-52
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Using the Locking Service Function Interface
+  id: totrans-53
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 使用锁定服务函数接口
+- en: Before using the locking service functions, install them according to the instructions
+    provided at [Installing or Uninstalling the Locking Service Function Interface](locking-service.html#locking-service-function-installation
+    "Installing or Uninstalling the Locking Service Function Interface").
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用锁定服务函数之前，请根据提供的说明安装它们，详情请参阅[安装或卸载锁定服务函数接口](locking-service.html#locking-service-function-installation
+    "Installing or Uninstalling the Locking Service Function Interface")。
+- en: 'To acquire one or more read locks, call this function:'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要获取一个或多个读锁，请调用此函数：
+- en: '[PRE5]'
+  id: totrans-56
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: The first argument is the lock namespace. The final argument is an integer timeout
+    indicating how many seconds to wait to acquire the locks before giving up. The
+    arguments in between are the lock names.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一个参数是锁定命名空间。最后一个参数是一个整数超时，指示在放弃之前等待多少秒才能获取锁。中间的参数是锁定名称。
+- en: For the example just shown, the function acquires locks with lock identifiers
+    `(mynamespace, rlock1)` and `(mynamespace, rlock2)`.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于刚刚显示的示例，该函数获取具有锁定标识符`(mynamespace, rlock1)`和`(mynamespace, rlock2)`的锁。
+- en: 'To acquire write locks rather than read locks, call this function:'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要获取写锁而不是读锁，请调用此函数：
+- en: '[PRE6]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: In this case, the lock identifiers are `(mynamespace, wlock1)` and `(mynamespace,
+    wlock2)`.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，锁定标识符为`(mynamespace, wlock1)`和`(mynamespace, wlock2)`。
+- en: 'To release all locks for a namespace, use this function:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要释放命名空间的所有锁，请使用此函数：
+- en: '[PRE7]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Each locking function returns nonzero for success. If the function fails, an
+    error occurs. For example, the following error occurs because lock names cannot
+    be empty:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个锁定函数成功返回非零值。如果函数失败，将会发生错误。例如，由于锁定名称不能为空，会发生以下错误：
+- en: '[PRE8]'
+  id: totrans-65
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'A session can acquire multiple locks for the same lock identifier. As long
+    as a different session does not have a write lock for an identifier, the session
+    can acquire any number of read or write locks. Each lock request for the identifier
+    acquires a new lock. The following statements acquire three write locks with the
+    same identifier, then three read locks for the same identifier:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个会话可以为相同的锁标识符获取多个锁。只要不同会话没有对标识符的写锁，该会话可以获取任意数量的读锁或写锁。对于标识符的每个锁请求都会获取一个新锁。以下语句获取具有相同标识符的三个写锁，然后获取相同标识符的三个读锁：
+- en: '[PRE9]'
+  id: totrans-67
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: If you examine the Performance Schema `metadata_locks` table at this point,
+    you should find that the session holds six distinct locks with the same `(ns,
+    lock1)` identifier. (For details, see [Locking Service Monitoring](locking-service.html#locking-service-monitoring
+    "Locking Service Monitoring").)
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果此时检查性能模式`metadata_locks`表，您应该发现会话持有六个具有相同`(ns, lock1)`标识符的不同锁。（详情请参阅[锁定服务监控](locking-service.html#locking-service-monitoring
+    "Locking Service Monitoring")。）
+- en: Because the session holds at least one write lock on `(ns, lock1)`, no other
+    session can acquire a lock for it, either read or write. If the session held only
+    read locks for the identifier, other sessions could acquire read locks for it,
+    but not write locks.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为会话至少持有一个对`(ns, lock1)`的写锁，其他会话无法为其获取读锁或写锁。如果会话仅持有标识符的读锁，其他会话可以获取其读锁，但无法获取写锁。
+- en: 'Locks for a single lock-acquisition call are acquired atomically, but atomicity
+    does not hold across calls. Thus, for a statement such as the following, where
+    [`service_get_write_locks()`](locking-service.html#function_service-get-write-locks)
+    is called once per row of the result set, atomicity holds for each individual
+    call, but not for the statement as a whole:'
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 单个锁获取调用的锁是原子获取的，但原子性不适用于跨调用。因此，对于以下语句，其中每行结果集调用一次 [`service_get_write_locks()`](locking-service.html#function_service-get-write-locks)，每个单独调用的原子性保持，但对于整个语句不保持：
+- en: '[PRE10]'
+  id: totrans-71
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: Caution
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'Because the locking service returns a separate lock for each successful request
+    for a given lock identifier, it is possible for a single statement to acquire
+    a large number of locks. For example:'
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为锁定服务为给定锁标识符的每个成功请求返回一个单独的锁，所以一个语句可能获取大量锁。例如：
+- en: '[PRE11]'
+  id: totrans-74
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: These types of statements may have certain adverse effects. For example, if
+    the statement fails part way through and rolls back, locks acquired up to the
+    point of failure still exist. If the intent is for there to be a correspondence
+    between rows inserted and locks acquired, that intent is not satisfied. Also,
+    if it is important that locks are granted in a certain order, be aware that result
+    set order may differ depending on which execution plan the optimizer chooses.
+    For these reasons, it may be best to limit applications to a single lock-acquisition
+    call per statement.
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些类型的语句可能会产生某些不良影响。例如，如果语句在中途失败并回滚，则在失败点之前获取的锁仍然存在。如果意图是要求插入的行与获取的锁对应，那么这个意图就无法实现。此外，如果重要的是按照特定顺序授予锁，请注意结果集顺序可能会因优化器选择的执行计划而有所不同。因此，最好限制每个语句对单个锁获取调用。
+- en: Locking Service Monitoring
+  id: totrans-76
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 锁定服务监控
+- en: The locking service is implemented using the MySQL Server metadata locks framework,
+    so you monitor locking service locks acquired or waited for by examining the Performance
+    Schema `metadata_locks` table.
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁定服务是使用 MySQL Server 元数据锁框架实现的，因此您可以通过检查性能模式 `metadata_locks` 表来监视锁定服务获取或等待的锁。
+- en: 'First, enable the metadata lock instrument:'
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，启用元数据锁仪器：
+- en: '[PRE12]'
+  id: totrans-79
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'Then acquire some locks and check the contents of the `metadata_locks` table:'
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后获取一些锁并检查 `metadata_locks` 表的内容：
+- en: '[PRE13]'
+  id: totrans-81
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Locking service locks have an `OBJECT_TYPE` value of `LOCKING SERVICE`. This
+    is distinct from, for example, locks acquired with the [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    function, which have an `OBJECT_TYPE` of `USER LEVEL LOCK`.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁定服务锁的 `OBJECT_TYPE` 值为 `LOCKING SERVICE`。这与例如使用 [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    函数获取的锁不同，后者的 `OBJECT_TYPE` 为 `USER LEVEL LOCK`。
+- en: The lock namespace, name, and mode appear in the `OBJECT_SCHEMA`, `OBJECT_NAME`,
+    and `LOCK_TYPE` columns. Read and write locks have `LOCK_TYPE` values of `SHARED`
+    and `EXCLUSIVE`, respectively.
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁定命名空间、名称和模式出现在 `OBJECT_SCHEMA`、`OBJECT_NAME` 和 `LOCK_TYPE` 列中。读取和写入锁的 `LOCK_TYPE`
+    值分别为 `SHARED` 和 `EXCLUSIVE`。
+- en: The `LOCK_STATUS` value is `GRANTED` for an acquired lock, `PENDING` for a lock
+    that is being waited for. You can expect to see `PENDING` if one session holds
+    a write lock and another session is attempting to acquire a lock having the same
+    identifier.
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`LOCK_STATUS` 值为 `GRANTED` 表示已获取锁，`PENDING` 表示正在等待锁。如果一个会话持有写锁，另一个会话正在尝试获取具有相同标识符的锁，则可以期望看到
+    `PENDING`。'
+- en: Locking Service Interface Function Reference
+  id: totrans-85
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 锁定服务接口函数参考
+- en: The SQL interface to the locking service implements the loadable functions described
+    in this section. For usage examples, see [Using the Locking Service Function Interface](locking-service.html#locking-service-function-usage
+    "Using the Locking Service Function Interface").
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 锁定服务的 SQL 接口实现了本节中描述的可加载函数。有关使用示例，请参见 [使用锁定服务函数接口](locking-service.html#locking-service-function-usage
+    "Using the Locking Service Function Interface")。
+- en: 'The functions share these characteristics:'
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些函数具有以下特征：
+- en: The return value is nonzero for success. Otherwise, an error occurs.
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 返回值为非零表示成功。否则，将发生错误。
+- en: Namespace and lock names must be non-`NULL`, nonempty, and have a maximum length
+    of 64 characters.
+  id: totrans-89
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 命名空间和锁名称必须为非`NULL`、非空，并且最大长度为64个字符。
+- en: Timeout values must be integers indicating how many seconds to wait to acquire
+    locks before giving up with an error. If the timeout is 0, there is no waiting
+    and the function produces an error if locks cannot be acquired immediately.
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 超时值必须是整数，表示在放弃并产生错误之前等待获取锁的秒数。如果超时为0，则不会等待，如果无法立即获取锁，则函数会产生错误。
+- en: 'These locking service functions are available:'
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些锁定服务函数可用：
+- en: '[`service_get_read_locks(*`namespace`*, *`lock_name`*[, *`lock_name`*] ...,
+    *`timeout`*)`](locking-service.html#function_service-get-read-locks)'
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`service_get_read_locks(*`namespace`*, *`lock_name`*[, *`lock_name`*] ...,
+    *`timeout`*)`](locking-service.html#function_service-get-read-locks)'
+- en: Acquires one or more read (shared) locks in the given namespace using the given
+    lock names, timing out with an error if the locks are not acquired within the
+    given timeout value.
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用给定的锁名称在给定的命名空间中获取一个或多个读（共享）锁，在给定的超时值内未获取到锁时会超时报错。
+- en: '[`service_get_write_locks(*`namespace`*, *`lock_name`*[, *`lock_name`*] ...,
+    *`timeout`*)`](locking-service.html#function_service-get-write-locks)'
+  id: totrans-94
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`service_get_write_locks(*`namespace`*, *`lock_name`*[, *`lock_name`*] ...,
+    *`timeout`*)`](locking-service.html#function_service-get-write-locks)'
+- en: Acquires one or more write (exclusive) locks in the given namespace using the
+    given lock names, timing out with an error if the locks are not acquired within
+    the given timeout value.
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用给定的锁名称在给定的命名空间中获取一个或多个写（独占）锁，在给定的超时值内未获取到锁时会超时报错。
+- en: '[`service_release_locks(*`namespace`*)`](locking-service.html#function_service-release-locks)'
+  id: totrans-96
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`service_release_locks(*`namespace`*)`](locking-service.html#function_service-release-locks)'
+- en: For the given namespace, releases all locks that were acquired within the current
+    session using [`service_get_read_locks()`](locking-service.html#function_service-get-read-locks)
+    and [`service_get_write_locks()`](locking-service.html#function_service-get-write-locks).
+  id: totrans-97
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于给定的命名空间，释放当前会话中使用[`service_get_read_locks()`](locking-service.html#function_service-get-read-locks)和[`service_get_write_locks()`](locking-service.html#function_service-get-write-locks)获取的所有锁。
+- en: It is not an error for there to be no locks in the namespace.
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在命名空间中没有锁也不是错误。

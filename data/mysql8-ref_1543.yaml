@@ -1,0 +1,181 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-expel.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-expel.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-expel.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-expel.html)
+- en: 20.7.7.1 Expel Timeout
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.7.7.1 驱逐超时
+- en: You can use the [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable, which is available from MySQL 8.0.13, to allow additional time
+    between the creation of a suspicion and the expulsion of the suspect member. A
+    suspicion is created when one server does not receive messages from another server,
+    as explained in [Section 20.1.4.2, “Failure Detection”](group-replication-failure-detection.html
+    "20.1.4.2 Failure Detection").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以使用[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)系统变量，该变量从MySQL
+    8.0.13开始提供，以允许在怀疑创建和怀疑成员被驱逐之间提供额外时间。当一个服务器没有从另一个服务器接收消息时，就会创建怀疑，如[第20.1.4.2节“故障检测”](group-replication-failure-detection.html
+    "20.1.4.2 Failure Detection")中所解释的那样。
+- en: There is an initial 5-second detection period before a Group Replication group
+    member creates a suspicion of another member (or of itself). A group member is
+    then expelled when another member's suspicion of it (or its own suspicion of itself)
+    times out. A further short period of time might elapse after that before the expelling
+    mechanism detects and implements the expulsion. [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    specifies the period of time in seconds, called the expel timeout, that a group
+    member waits between creating a suspicion, and expelling the suspected member.
+    Suspect members are listed as `UNREACHABLE` during this waiting period, but are
+    not removed from the group's membership list.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在Group Replication组成员创建对另一个成员（或自身）的怀疑之前，会有一个初始的5秒检测期。然后，在另一个成员对其（或自身对自身）的怀疑超时后，该组成员将被驱逐。在此之后可能会有一个短暂的时间段，然后驱逐机制会检测并执行驱逐。[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)指定了在创建怀疑和驱逐被怀疑成员之间等待的时间段，称为驱逐超时，期间组成员被列为`UNREACHABLE`，但不会从组的成员列表中移除。
+- en: If a suspect member becomes active again before the suspicion times out at the
+    end of the waiting period, the member applies all the messages that were buffered
+    by the remaining group members in XCom's message cache and enters `ONLINE` state,
+    without operator intervention. In this situation, the member is considered by
+    the group as the same incarnation.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果怀疑成员在等待期结束时再次活动，成员将应用由剩余组成员在XCom消息缓存中缓冲的所有消息，并进入`ONLINE`状态，无需操作员干预。在这种情况下，组将认为该成员是同一实例。
+- en: If a suspect member becomes active only after the suspicion times out and is
+    able to resume communications, it receives a view where it is expelled and at
+    that point realises it was expelled. You can use the [`group_replication_autorejoin_tries`](group-replication-system-variables.html#sysvar_group_replication_autorejoin_tries)
+    system variable, which is available from MySQL 8.0.16, to make the member automatically
+    try to rejoin the group at this point. From MySQL 8.0.21, this feature is activated
+    by default and the member makes three auto-rejoin attempts. If the auto-rejoin
+    procedure does not succeed or is not attempted, the expelled member then follows
+    the exit action specified by [`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action).
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果怀疑成员在怀疑超时后才重新活动并能恢复通信，它会收到一个被驱逐的视图，此时意识到自己被驱逐。你可以使用[`group_replication_autorejoin_tries`](group-replication-system-variables.html#sysvar_group_replication_autorejoin_tries)系统变量，该变量从MySQL
+    8.0.16开始提供，使成员在此时自动尝试重新加入组。从MySQL 8.0.21开始，默认情况下激活此功能，并且成员会进行三次自动重新加入尝试。如果自动重新加入过程失败或未尝试，则被驱逐成员将按照[`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action)指定的退出操作进行。
+- en: The waiting period before expelling a member only applies to members that have
+    previously been active in the group. Non-members that were never active in the
+    group do not get this waiting period and are removed after the initial detection
+    period because they took too long to join.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在驱逐成员之前的等待时间仅适用于先前在组中活动过的成员。从未在组中活动过的非成员不会获得此等待时间，并且在初始检测期结束后因加入时间过长而被移除。
+- en: If [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    is set to 0, there is no waiting period, and a suspected member is liable for
+    expulsion immediately after the 5-second detection period ends. This setting is
+    the default up to and including MySQL 8.0.20\. This is also the behavior of a
+    group member which is at a MySQL Server version that does not support the [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable. From MySQL 8.0.21, the value defaults to 5, meaning that a suspected
+    member is liable for expulsion 5 seconds after the 5-second detection period.
+    It is not mandatory for all members of a group to have the same setting for [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout),
+    but it is recommended in order to avoid unexpected expulsions. Any member can
+    create a suspicion of any other member, including itself, so the effective expel
+    timeout is that of the member with the lowest setting.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)设置为0，则没有等待期，而在5秒检测期结束后，疑似成员立即有可能被驱逐。这是MySQL
+    8.0.20及更早版本的默认设置。这也是不支持[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)系统变量的MySQL服务器版本的组成员的行为。从MySQL
+    8.0.21开始，默认值为5，意味着在5秒检测期后的5秒内，疑似成员有可能被驱逐。并非所有组成员都必须具有相同的[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)设置，但建议这样做以避免意外驱逐。任何成员都可以对任何其他成员（包括自身）产生怀疑，因此有效的驱逐超时是具有最低设置的成员的超时。
+- en: 'Consider increasing the value of [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    from the default in the following scenarios:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以下情况下考虑增加[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)的值，而不使用默认值：
+- en: The network is slow and the default 5 or 10 seconds before expulsion is not
+    long enough for group members to always exchange at least one message.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 网络速度较慢，默认的5或10秒在驱逐之前不足以确保组成员始终交换至少一条消息。
+- en: The network sometimes has transient outages and you want to avoid unnecessary
+    expulsions and primary member changes at these times.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 网络有时会出现短暂中断，您希望在这些时候避免不必要的驱逐和主要成员更改。
+- en: The network is not under your direct control and you want to minimize the need
+    for operator intervention.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 网络不在您的直接控制之下，您希望最大程度减少操作员干预的需求。
+- en: A temporary network outage is expected and you do not want some or all of the
+    members to be expelled due to this.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 预计会发生临时网络中断，您不希望因此而有些或全部成员被驱逐。
+- en: An individual machine is experiencing a slowdown and you do not want it to be
+    expelled from the group.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 个别机器正在经历减速，您不希望它被从组中驱逐。
+- en: You can specify an expel timeout up to a maximum of 3600 seconds (1 hour). It
+    is important to ensure that XCom's message cache is sufficiently large to contain
+    the expected volume of messages in your specified time period, plus the initial
+    5-second detection period, otherwise members cannot reconnect. You can adjust
+    the cache size limit using the [`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)
+    system variable. For more information, see [Section 20.7.6, “XCom Cache Management”](group-replication-performance-xcom-cache.html
+    "20.7.6 XCom Cache Management").
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以指定最长达3600秒（1小时）的驱逐超时。重要的是要确保XCom的消息缓存足够大，以容纳在指定时间段内预期的消息量，再加上初始的5秒检测期，否则成员无法重新连接。您可以使用[`group_replication_message_cache_size`](group-replication-system-variables.html#sysvar_group_replication_message_cache_size)系统变量来调整缓存大小限制。有关更多信息，请参见[第20.7.6节，“XCom缓存管理”](group-replication-performance-xcom-cache.html
+    "20.7.6 XCom缓存管理")。
+- en: If any members in a group are currently under suspicion, the group membership
+    cannot be reconfigured (by adding or removing members or electing a new leader).
+    If group membership changes need to be implemented while one or more members are
+    under suspicion, and you want the suspect members to remain in the group, take
+    any actions required to make the members active again, if that is possible. If
+    you cannot make the members active again and you want them to be expelled from
+    the group, you can force the suspicions to time out immediately. Do this by changing
+    the value of [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    on any active members to a value lower than the time that has already elapsed
+    since the suspicions were created. The suspect members then become liable for
+    expulsion immediately.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个群组中的任何成员目前受到怀疑，那么群组成员资格不能重新配置（通过添加或删除成员或选举新领导者）。如果需要实施群组成员变更，而其中一个或多个成员受到怀疑，并且你希望怀疑成员继续留在群组中，那么请采取任何必要行动使这些成员重新活跃，如果可能的话。如果你无法使这些成员重新活跃，并且希望将他们从群组中驱逐，你可以立即强制怀疑超时。方法是在任何活跃成员上更改[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)的值为低于自怀疑创建以来已经经过的时间的值。这样一来，怀疑成员将立即有可能被驱逐。
+- en: If a replication group member stops unexpectedly and is immediately restarted
+    (for example, because it was started with `mysqld_safe`), it automatically attempts
+    to rejoin the group if [`group_replication_start_on_boot=on`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    is set. In this situation, it is possible for the restart and rejoin attempt to
+    take place before the member's previous incarnation has been expelled from the
+    group, in which case the member cannot rejoin. From MySQL 8.0.19, Group Replication
+    automatically uses a Group Communication System (GCS) feature to retry the rejoin
+    attempt for the member 10 times, with a 5-second interval between each retry.
+    This should cover most cases and allow enough time for the previous incarnation
+    to be expelled from the group, letting the member rejoin. Note that if the [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable is set to specify a longer waiting period before the member is
+    expelled, the automatic rejoin attempts might still not succeed.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个复制组成员意外停止并立即重新启动（例如，因为它是使用`mysqld_safe`启动的），如果设置了[`group_replication_start_on_boot=on`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)，它会自动尝试重新加入群组。在这种情况下，重新启动和重新加入尝试可能发生在成员的先前实例被驱逐出群组之前，这样该成员就无法重新加入。从MySQL
+    8.0.19开始，Group Replication自动使用群组通信系统（GCS）功能为成员重试重新加入尝试10次，每次重试之间间隔5秒。这应该涵盖大多数情况，并允许足够的时间让先前的实例被驱逐出群组，从而让成员重新加入。请注意，如果[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)系统变量设置为指定成员被驱逐之前等待的较长时间，自动重新加入尝试可能仍然不会成功。
+- en: For alternative mitigation strategies to avoid unnecessary expulsions where
+    the [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable is not available, see [Section 20.3.2, “Group Replication Limitations”](group-replication-limitations.html
+    "20.3.2 Group Replication Limitations").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于在[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)系统变量不可用的情况下避免不必要驱逐的替代缓解策略，请参阅[Section 20.3.2,
+    “Group Replication Limitations”](group-replication-limitations.html "20.3.2 Group
+    Replication Limitations")。

@@ -1,0 +1,165 @@
+- en: 9.5.2 Point-in-Time Recovery Using Event Positions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 9.5.2 使用事件位置进行时间点恢复
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-positions.html](https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-positions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-positions.html](https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-positions.html)
+- en: The last section, [Section 9.5.1, “Point-in-Time Recovery Using Binary Log”](point-in-time-recovery-binlog.html
+    "9.5.1 Point-in-Time Recovery Using Binary Log"), explains the general idea of
+    using the binary log to perform a point-in-time-recovery. The section explains
+    the operation in details with an example.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最后一节，[第9.5.1节，“使用二进制日志进行时间点恢复”](point-in-time-recovery-binlog.html "9.5.1 使用二进制日志进行时间点恢复")，解释了使用二进制日志执行时间点恢复的一般思路。该部分通过示例详细解释了操作。
+- en: 'As an example, suppose that around 20:06:00 on March 11, 2020, an SQL statement
+    was executed that deleted a table. You can perform a point-in-time recovery to
+    restore the server up to its state right before the table deletion. These are
+    some sample steps to achieve that:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，假设在2020年3月11日20:06:00左右执行了一个删除表的SQL语句。您可以执行时间点恢复，将服务器恢复到表删除之前的状态。以下是一些实现这一目标的示例步骤：
+- en: Restore the last full backup created before the point-in-time of interest (call
+    it `t[p]`, which is 20:06:00 on March 11, 2020 in our example). When finished,
+    note the binary log position up to which you have restored the server for later
+    use, and restart the server.
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 恢复在感兴趣时间点之前创建的最后一个完整备份（我们的示例中是2020年3月11日20:06:00的`t[p]`）。完成后，记录已恢复服务器的二进制日志位置以供以后使用，并重新启动服务器。
+- en: Note
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'While the last binary log position recovered is also displayed by InnoDB after
+    the restore and server restart, that is *not* a reliable means for obtaining the
+    ending log position of your restore, as there could be DDL events and non-InnoDB
+    changes that have taken place after the time reflected by the displayed position.
+    Your backup and restore tool should provide you with the last binary log position
+    for your recovery: for example, if you are using [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") for the task, check
+    the stop position of the binary log replay; if you are using MySQL Enterprise
+    Backup, the last binary log position has been saved in your backup. See [Point-in-Time
+    Recovery](/doc/mysql-enterprise-backup/8.0/en/advanced.point.html).'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 虽然InnoDB在恢复和服务器重新启动后也会显示最后一个恢复的二进制日志位置，但这*不*是获取恢复结束日志位置的可靠方法，因为在显示位置之后可能发生了DDL事件和非InnoDB更改。您的备份和恢复工具应为您提供用于恢复的最后一个二进制日志位置：例如，如果您正在使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")执行任务，请检查二进制日志重放的停止位置；如果您正在使用MySQL企业版备份，则最后一个二进制日志位置已保存在您的备份中。请参阅[时间点恢复](/doc/mysql-enterprise-backup/8.0/en/advanced.point.html)。
+- en: 'Find the precise binary log event position corresponding to the point in time
+    up to which you want to restore your database. In our example, given that we know
+    the rough time where the table deletion took place (`t[p]`), we can find the log
+    position by checking the log contents around that time using the [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") utility. Use the
+    [`--start-datetime`](mysqlbinlog.html#option_mysqlbinlog_start-datetime) and [`--stop-datetime`](mysqlbinlog.html#option_mysqlbinlog_stop-datetime)
+    options to specify a short time period around `t[p]`, and then look for the event
+    in the output. For example:'
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 找到与您想要恢复数据库的时间点对应的精确二进制日志事件位置。在我们的示例中，假设我们知道表删除发生的大致时间（`t[p]`），我们可以通过使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")实用程序来检查该时间周围的日志内容，找到日志位置。使用[`--start-datetime`](mysqlbinlog.html#option_mysqlbinlog_start-datetime)和[`--stop-datetime`](mysqlbinlog.html#option_mysqlbinlog_stop-datetime)选项来指定围绕`t[p]`的短时间段，然后在输出中查找事件。例如：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: From the output of [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files"), the `DROP TABLE `pets`.`cats`` statement can
+    be found in the segment of the binary log between the line `# at 232` and `# at
+    355`, which means the statement takes place *after* the log position 232, and
+    the log is at position 355 after the `DROP TABLE` statement.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")的输出中，可以在二进制日志的段中找到`DROP
+    TABLE `pets`.`cats``语句，该语句位于`# at 232`和`# at 355`之间，这意味着该语句发生在日志位置232之后，并且在`DROP
+    TABLE`语句之后的位置355处。
+- en: Note
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'Only use the [`--start-datetime`](mysqlbinlog.html#option_mysqlbinlog_start-datetime)
+    and [`--stop-datetime`](mysqlbinlog.html#option_mysqlbinlog_stop-datetime) options
+    to help you find the actual event positions of interest. Using the two options
+    to specify the range of binary log segment to apply is not recommended: there
+    is a higher risk of missing binary log events when using the options. Use [`--start-position`](mysqlbinlog.html#option_mysqlbinlog_start-position)
+    and [`--stop-position`](mysqlbinlog.html#option_mysqlbinlog_stop-position) instead.'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 仅使用[`--start-datetime`](mysqlbinlog.html#option_mysqlbinlog_start-datetime)和[`--stop-datetime`](mysqlbinlog.html#option_mysqlbinlog_stop-datetime)选项来帮助您找到感兴趣的实际事件位置。不建议使用这两个选项来指定要应用的二进制日志段的范围：使用这些选项时更容易错过二进制日志事件。请改用[`--start-position`](mysqlbinlog.html#option_mysqlbinlog_start-position)和[`--stop-position`](mysqlbinlog.html#option_mysqlbinlog_stop-position)。
+- en: 'Apply the events in binary log file to the server, starting with the log position
+    your found in step 1 (assume it is 155) and ending at the position you have found
+    in step 2 that is *before* your point-in-time of interest (which is 232):'
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将二进制日志文件中的事件应用到服务器上，从您在第1步中找到的日志位置开始（假设为155），直到您在第2步中找到的在您感兴趣的时间点之前的位置（即232）：
+- en: '[PRE1]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The command recovers all the transactions from the starting position until just
+    before the stop position. Because the output of [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") includes `SET TIMESTAMP`
+    statements before each SQL statement recorded, the recovered data and related
+    MySQL logs reflect the original times at which the transactions were executed.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 该命令从起始位置恢复所有事务，直到停止位置之前。因为[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files")的输出在每个记录的SQL语句之前包含`SET TIMESTAMP`语句，恢复的数据和相关的MySQL日志反映了事务执行的原始时间。
+- en: Your database has now been restored to the point-in-time of interest, `t[p]`,
+    right before the table `pets.cats` was dropped.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您的数据库现在已经恢复到感兴趣的时间点`t[p]`，就在表`pets.cats`被删除之前。
+- en: 'Beyond the point-in-time recovery that has been finished, if you also want
+    to reexecute all the statements *after* your point-in-time of interest, use [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") again to apply
+    all the events after `t[p]` to the server. We noted in step 2 that after the statement
+    we wanted to skip, the log is at position 355; we can use it for the [`--start-position`](mysqlbinlog.html#option_mysqlbinlog_start-position)
+    option, so that any statements after the position are included:'
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 完成了点时间恢复后，如果您还想重新执行您感兴趣的时间点*之后*的所有语句，请再次使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")来将`t[p]`之后的所有事件应用到服务器上。我们在第2步中指出，在我们想要跳过的语句之后，日志位于位置355；我们可以将其用于[`--start-position`](mysqlbinlog.html#option_mysqlbinlog_start-position)选项，以便包括位置之后的任何语句：
+- en: '[PRE2]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Your database has been restored the latest statement recorded in the binary
+    log file, but with the selected event skipped.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您的数据库已经恢复到二进制日志文件中记录的最新语句，但跳过了选定的事件。

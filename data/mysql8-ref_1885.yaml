@@ -1,0 +1,435 @@
+- en: 27.5.3 Updatable and Insertable Views
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 27.5.3 可更新和可插入视图
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/view-updatability.html](https://dev.mysql.com/doc/refman/8.0/en/view-updatability.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/view-updatability.html](https://dev.mysql.com/doc/refman/8.0/en/view-updatability.html)
+- en: Some views are updatable and references to them can be used to specify tables
+    to be updated in data change statements. That is, you can use them in statements
+    such as [`UPDATE`](update.html "15.2.17 UPDATE Statement"), [`DELETE`](delete.html
+    "15.2.2 DELETE Statement"), or [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    to update the contents of the underlying table. Derived tables and common table
+    expressions can also be specified in multiple-table [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement") and [`DELETE`](delete.html "15.2.2 DELETE Statement") statements,
+    but can only be used for reading data to specify rows to be updated or deleted.
+    Generally, the view references must be updatable, meaning that they may be merged
+    and not materialized. Composite views have more complex rules.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些视图是可更新的，并且对它们的引用可以用于指定在数据更改语句中要更新的表。也就是说，您可以在[`UPDATE`](update.html "15.2.17 UPDATE
+    Statement")、[`DELETE`](delete.html "15.2.2 DELETE Statement")或[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")等语句中使用它们来更新基础表的内容。派生表和公共表达式也可以在多表[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")语句中指定，但只能用于读取数据以指定要更新或删除的行。通常，视图引用必须是可更新的，这意味着它们可以合并而不是实体化。复合视图有更复杂的规则。
+- en: 'For a view to be updatable, there must be a one-to-one relationship between
+    the rows in the view and the rows in the underlying table. There are also certain
+    other constructs that make a view nonupdatable. To be more specific, a view is
+    not updatable if it contains any of the following:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使视图可更新，视图中的行与基础表中的行之间必须是一对一的关系。还有一些其他构造使视图不可更新。更具体地说，如果视图包含以下任何内容，则视图不可更新：
+- en: Aggregate functions or window functions ([`SUM()`](aggregate-functions.html#function_sum),
+    [`MIN()`](aggregate-functions.html#function_min), [`MAX()`](aggregate-functions.html#function_max),
+    [`COUNT()`](aggregate-functions.html#function_count), and so forth)
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 聚合函数或窗口函数（[`SUM()`](aggregate-functions.html#function_sum)、[`MIN()`](aggregate-functions.html#function_min)、[`MAX()`](aggregate-functions.html#function_max)、[`COUNT()`](aggregate-functions.html#function_count)等）
+- en: '`DISTINCT`'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DISTINCT`'
+- en: '`GROUP BY`'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GROUP BY`'
+- en: '`HAVING`'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`HAVING`'
+- en: '[`UNION`](union.html "15.2.18 UNION Clause") or [`UNION ALL`](union.html "15.2.18 UNION
+    Clause")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`UNION`](union.html "15.2.18 UNION Clause")或[`UNION ALL`](union.html "15.2.18 UNION
+    Clause")'
+- en: Subquery in the select list
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在选择列表中的子查询
+- en: Nondependent subqueries in the select list fail for [`INSERT`](insert.html "15.2.7 INSERT
+    Statement"), but are okay for [`UPDATE`](update.html "15.2.17 UPDATE Statement"),
+    [`DELETE`](delete.html "15.2.2 DELETE Statement"). For dependent subqueries in
+    the select list, no data change statements are permitted.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在选择列表中，非依赖子查询对于[`INSERT`](insert.html "15.2.7 INSERT Statement")失败，但对于[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")可行。对于选择列表中的依赖子查询，不允许数据更改语句。
+- en: Certain joins (see additional join discussion later in this section)
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 某些连接（请参阅本节后面的其他连接讨论）
+- en: Reference to nonupdatable view in the `FROM` clause
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`FROM`子句中引用不可更新的视图
+- en: Subquery in the `WHERE` clause that refers to a table in the `FROM` clause
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`FROM`子句中引用`WHERE`子句中的子查询
+- en: Refers only to literal values (in this case, there is no underlying table to
+    update)
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅引用文字值（在这种情况下，没有要更新的基础表）
+- en: '`ALGORITHM = TEMPTABLE` (use of a temporary table always makes a view nonupdatable)'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ALGORITHM = TEMPTABLE`（始终使用临时表会使视图不可更新）'
+- en: Multiple references to any column of a base table (fails for [`INSERT`](insert.html
+    "15.2.7 INSERT Statement"), okay for [`UPDATE`](update.html "15.2.17 UPDATE Statement"),
+    [`DELETE`](delete.html "15.2.2 DELETE Statement"))
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对基表的任何列的多次引用（对于[`INSERT`](insert.html "15.2.7 INSERT Statement")失败，对于[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")可行）
+- en: A generated column in a view is considered updatable because it is possible
+    to assign to it. However, if such a column is updated explicitly, the only permitted
+    value is `DEFAULT`. For information about generated columns, see [Section 15.1.20.8,
+    “CREATE TABLE and Generated Columns”](create-table-generated-columns.html "15.1.20.8 CREATE
+    TABLE and Generated Columns").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图中的生成列被视为可更新，因为可以对其进行赋值。但是，如果显式更新此类列，则唯一允许的值是`DEFAULT`。有关生成列的信息，请参见[第15.1.20.8节，“CREATE
+    TABLE and Generated Columns”](create-table-generated-columns.html "15.1.20.8 CREATE
+    TABLE and Generated Columns")。
+- en: It is sometimes possible for a multiple-table view to be updatable, assuming
+    that it can be processed with the `MERGE` algorithm. For this to work, the view
+    must use an inner join (not an outer join or a [`UNION`](union.html "15.2.18 UNION
+    Clause")). Also, only a single table in the view definition can be updated, so
+    the `SET` clause must name only columns from one of the tables in the view. Views
+    that use [`UNION ALL`](union.html "15.2.18 UNION Clause") are not permitted even
+    though they might be theoretically updatable.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有时，多表视图可能是可更新的，假设它可以使用`MERGE`算法处理。为使其工作，视图必须使用内连接（而不是外连接或[`UNION`](union.html
+    "15.2.18 UNION子句")）。此外，视图定义中只能更新一个表，因此`SET`子句必须仅命名视图中一个表的列。即使理论上可更新，也不允许使用[`UNION
+    ALL`](union.html "15.2.18 UNION子句")的视图。
+- en: 'With respect to insertability (being updatable with [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements), an updatable view is insertable if it
+    also satisfies these additional requirements for the view columns:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 就插入性（使用[`INSERT`](insert.html "15.2.7 INSERT语句")语句可更新）而言，如果可更新视图还满足视图列的以下附加要求，则可插入：
+- en: There must be no duplicate view column names.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 视图列名称不能重复。
+- en: The view must contain all columns in the base table that do not have a default
+    value.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 视图必须包含基表中没有默认值的所有列。
+- en: 'The view columns must be simple column references. They must not be expressions,
+    such as these:'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 视图列必须是简单的列引用。不能是表达式，比如这些：
+- en: '[PRE0]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: MySQL sets a flag, called the view updatability flag, at [`CREATE VIEW`](create-view.html
+    "15.1.23 CREATE VIEW Statement") time. The flag is set to `YES` (true) if [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") and [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    (and similar operations) are legal for the view. Otherwise, the flag is set to
+    `NO` (false). The `IS_UPDATABLE` column in the Information Schema [`VIEWS`](information-schema-views-table.html
+    "28.3.48 The INFORMATION_SCHEMA VIEWS Table") table displays the status of this
+    flag. It means that the server always knows whether a view is updatable.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL在[`CREATE VIEW`](create-view.html "15.1.23 CREATE VIEW语句")时设置一个称为视图可更新性标志的标志。如果视图对[`UPDATE`](update.html
+    "15.2.17 UPDATE语句")和[`DELETE`](delete.html "15.2.2 DELETE语句")（以及类似操作）是合法的，则将该标志设置为`YES`（true）。否则，将该标志设置为`NO`（false）。信息模式[`VIEWS`](information-schema-views-table.html
+    "28.3.48 INFORMATION_SCHEMA VIEWS表")表中的`IS_UPDATABLE`列显示此标志的状态。这意味着服务器始终知道视图是否可更新。
+- en: If a view is not updatable, statements such [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement"), [`DELETE`](delete.html "15.2.2 DELETE Statement"), and [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") are illegal and are rejected. (Even if a view is updatable,
+    it might not be possible to insert into it, as described elsewhere in this section.)
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果视图不可更新，则[`UPDATE`](update.html "15.2.17 UPDATE语句")、[`DELETE`](delete.html
+    "15.2.2 DELETE语句")和[`INSERT`](insert.html "15.2.7 INSERT语句")等语句是非法的并将被拒绝。（即使视图是可更新的，也可能无法插入，如本节其他地方所述。）
+- en: The updatability of views may be affected by the value of the [`updatable_views_with_limit`](server-system-variables.html#sysvar_updatable_views_with_limit)
+    system variable. See [Section 7.1.8, “Server System Variables”](server-system-variables.html
+    "7.1.8 Server System Variables").
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图的可更新性可能会受到[`updatable_views_with_limit`](server-system-variables.html#sysvar_updatable_views_with_limit)系统变量值的影响。请参阅[第7.1.8节，“服务器系统变量”](server-system-variables.html
+    "7.1.8 服务器系统变量")。
+- en: 'For the following discussion, suppose that these tables and views exist:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于以下讨论，假设存在这些表和视图：
+- en: '[PRE1]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '[`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement"), and [`DELETE`](delete.html "15.2.2 DELETE Statement") statements
+    are permitted as follows:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 允许[`INSERT`](insert.html "15.2.7 INSERT语句")、[`UPDATE`](update.html "15.2.17 UPDATE语句")和[`DELETE`](delete.html
+    "15.2.2 DELETE语句")语句如下：
+- en: '[`INSERT`](insert.html "15.2.7 INSERT Statement"): The insert table of an [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statement may be a view reference that is merged. If
+    the view is a join view, all components of the view must be updatable (not materialized).
+    For a multiple-table updatable view, [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    can work if it inserts into a single table.'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INSERT`](insert.html "15.2.7 INSERT语句")：[`INSERT`](insert.html "15.2.7 INSERT语句")语句的插入表可以是一个合并的视图引用。如果视图是一个连接视图，则视图的所有组件必须是可更新的（非物化的）。对于多表可更新视图，如果插入到单个表，则[`INSERT`](insert.html
+    "15.2.7 INSERT语句")可以工作。'
+- en: 'This statement is invalid because one component of the join view is nonupdatable:'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 该语句无效，因为连接视图的一个组件是不可更新的：
+- en: '[PRE2]'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'This statement is valid; the view contains no materialized components:'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是有效的；视图不包含实体组件：
+- en: '[PRE3]'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '[`UPDATE`](update.html "15.2.17 UPDATE Statement"): The table or tables to
+    be updated in an [`UPDATE`](update.html "15.2.17 UPDATE Statement") statement
+    may be view references that are merged. If a view is a join view, at least one
+    component of the view must be updatable (this differs from [`INSERT`](insert.html
+    "15.2.7 INSERT Statement")).'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`UPDATE`](update.html "15.2.17 UPDATE Statement")：在[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")语句中要更新的表或表可以是合并的视图引用。如果一个视图是连接视图，视图的至少一个组件必须是可更新的（这与[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")不同）。'
+- en: In a multiple-table [`UPDATE`](update.html "15.2.17 UPDATE Statement") statement,
+    the updated table references of the statement must be base tables or updatable
+    view references. Nonupdated table references may be materialized views or derived
+    tables.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在多表[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句中，语句的更新表引用必须是基本表或可更新的视图引用。未更新的表引用可以是物化视图或派生表。
+- en: 'This statement is valid; column `c` is from the updatable part of the join
+    view:'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是有效的；列`c`来自连接视图的可更新部分：
+- en: '[PRE4]'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'This statement is invalid; column `x` is from the nonupdatable part:'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是无效的；列`x`来自不可更新的部分：
+- en: '[PRE5]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'This statement is valid; the updated table reference of the multiple-table
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement") is an updatable view (`vup`):'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是有效的；多表[`UPDATE`](update.html "15.2.17 UPDATE Statement")的更新表引用是一个可更新的视图（`vup`）：
+- en: '[PRE6]'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'This statement is invalid; it tries to update a materialized derived table:'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是无效的；它试图更新一个实体派生表：
+- en: '[PRE7]'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '[`DELETE`](delete.html "15.2.2 DELETE Statement"): The table or tables to be
+    deleted from in a [`DELETE`](delete.html "15.2.2 DELETE Statement") statement
+    must be merged views. Join views are not allowed (this differs from [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") and [`UPDATE`](update.html "15.2.17 UPDATE Statement")).'
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`DELETE`](delete.html "15.2.2 DELETE Statement")：在[`DELETE`](delete.html "15.2.2 DELETE
+    Statement")语句中要从中删除的表或表必须是合并视图。不允许连接视图（这与[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")和[`UPDATE`](update.html "15.2.17 UPDATE Statement")不同）。'
+- en: 'This statement is invalid because the view is a join view:'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是无效的，因为视图是一个连接视图：
+- en: '[PRE8]'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'This statement is valid because the view is a merged (updatable) view:'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是有效的，因为视图是一个合并的（可更新的）视图：
+- en: '[PRE9]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'This statement is valid because it deletes from a merged (updatable) view:'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个语句是有效的，因为它从一个合并的（可更新的）视图中删除：
+- en: '[PRE10]'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: Additional discussion and examples follow.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 附加讨论和示例如下。
+- en: 'Earlier discussion in this section pointed out that a view is not insertable
+    if not all columns are simple column references (for example, if it contains columns
+    that are expressions or composite expressions). Although such a view is not insertable,
+    it can be updatable if you update only columns that are not expressions. Consider
+    this view:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节早期讨论指出，如果视图不是所有列都是简单列引用（例如，如果包含表达式或复合表达式的列），则视图是不可插入的。尽管这样的视图不可插入，但如果只更新非表达式列，则可以更新。考虑这个视图：
+- en: '[PRE11]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'This view is not insertable because `col2` is an expression. But it is updatable
+    if the update does not try to update `col2`. This update is permissible:'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个视图不可插入，因为`col2`是一个表达式。但如果更新不尝试更新`col2`，则可以更新。这个更新是允许的：
+- en: '[PRE12]'
+  id: totrans-56
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'This update is not permissible because it attempts to update an expression
+    column:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此更新不允许，因为它试图更新一个表达式列：
+- en: '[PRE13]'
+  id: totrans-58
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: If a table contains an `AUTO_INCREMENT` column, inserting into an insertable
+    view on the table that does not include the `AUTO_INCREMENT` column does not change
+    the value of [`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id),
+    because the side effects of inserting default values into columns not part of
+    the view should not be visible.
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果表包含一个`AUTO_INCREMENT`列，在对不包括`AUTO_INCREMENT`列的表上插入可插入视图时，不会改变[`LAST_INSERT_ID()`](information-functions.html#function_last-insert-id)的值，因为插入默认值到视图中不是可见的列的副作用不应该可见。

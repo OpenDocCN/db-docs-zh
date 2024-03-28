@@ -1,0 +1,593 @@
+- en: 10.5.8 Optimizing InnoDB Disk I/O
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.5.8 优化 InnoDB 磁盘 I/O
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-diskio.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-diskio.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-diskio.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-diskio.html)
+- en: If you follow best practices for database design and tuning techniques for SQL
+    operations, but your database is still slow due to heavy disk I/O activity, consider
+    these disk I/O optimizations. If the Unix `top` tool or the Windows Task Manager
+    shows that the CPU usage percentage with your workload is less than 70%, your
+    workload is probably disk-bound.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您遵循数据库设计的最佳实践和 SQL 操作的调优技术，但由于大量磁盘 I/O 活动而导致数据库仍然缓慢，请考虑这些磁盘 I/O 优化。如果 Unix
+    的 `top` 工具或 Windows 任务管理器显示您的工作负载的 CPU 使用率百分比低于 70%，那么您的工作负载可能受到磁盘限制。
+- en: Increase buffer pool size
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 增加缓冲池大小
+- en: When table data is cached in the `InnoDB` buffer pool, it can be accessed repeatedly
+    by queries without requiring any disk I/O. Specify the size of the buffer pool
+    with the [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    option. This memory area is important enough that it is typically recommended
+    that [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    is configured to 50 to 75 percent of system memory. For more information see,
+    [Section 10.12.3.1, “How MySQL Uses Memory”](memory-use.html "10.12.3.1 How MySQL
+    Uses Memory").
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当表数据被缓存在 `InnoDB` 缓冲池中时，可以通过查询重复访问而无需进行任何磁盘 I/O。使用 [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    选项指定缓冲池的大小。这个内存区域非常重要，通常建议将 [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    配置为系统内存的 50 到 75%。有关更多信息，请参见 [Section 10.12.3.1, “How MySQL Uses Memory”](memory-use.html
+    "10.12.3.1 How MySQL Uses Memory")。
+- en: Adjust the flush method
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 调整刷新方法
+- en: In some versions of GNU/Linux and Unix, flushing files to disk with the Unix
+    `fsync()` call (which `InnoDB` uses by default) and similar methods is surprisingly
+    slow. If database write performance is an issue, conduct benchmarks with the [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)
+    parameter set to `O_DSYNC`.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在某些 GNU/Linux 和 Unix 版本中，使用 Unix 的 `fsync()` 调用（`InnoDB` 默认使用）和类似方法将文件刷新到磁盘的速度令人惊讶地慢。如果数据库写入性能成为问题，可以通过将
+    [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method) 参数设置为
+    `O_DSYNC` 进行基准测试。
+- en: Configure a threshold for operating system flushes
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 配置操作系统刷新的阈值
+- en: By default, when `InnoDB` creates a new data file, such as a new log file or
+    tablespace file, the file is fully written to the operating system cache before
+    it is flushed to disk, which can cause a large amount of disk write activity to
+    occur at once. To force smaller, periodic flushes of data from the operating system
+    cache, you can use the [`innodb_fsync_threshold`](innodb-parameters.html#sysvar_innodb_fsync_threshold)
+    variable to define a threshold value, in bytes. When the byte threshold is reached,
+    the contents of the operating system cache are flushed to disk. The default value
+    of 0 forces the default behavior, which is to flush data to disk only after a
+    file is fully written to the cache.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认情况下，当 `InnoDB` 创建一个新的数据文件，例如新的日志文件或表空间文件时，该文件会在刷新到磁盘之前完全写入操作系统缓存，这可能会导致大量的磁盘写入活动一次性发生。为了强制操作系统缓存中的数据进行较小的周期性刷新，可以使用
+    [`innodb_fsync_threshold`](innodb-parameters.html#sysvar_innodb_fsync_threshold)
+    变量定义一个阈值值，以字节为单位。当达到字节阈值时，操作系统缓存的内容将被刷新到磁盘。默认值为 0，强制默认行为，即仅在文件完全写入缓存后才将数据刷新到磁盘。
+- en: Specifying a threshold to force smaller, periodic flushes may be beneficial
+    in cases where multiple MySQL instances use the same storage devices. For example,
+    creating a new MySQL instance and its associated data files could cause large
+    surges of disk write activity, impeding the performance of other MySQL instances
+    that use the same storage devices. Configuring a threshold helps avoid such surges
+    in write activity.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指定阈值以强制进行较小的周期性刷新，在多个 MySQL 实例使用相同存储设备的情况下可能会有益。例如，创建一个新的 MySQL 实例及其关联的数据文件可能会导致大量的磁盘写入活动，影响使用相同存储设备的其他
+    MySQL 实例的性能。配置阈值有助于避免这种写入活动的激增。
+- en: Use fdatasync() instead of fsync()
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 fdatasync() 替代 fsync()
+- en: On platforms that support `fdatasync()` system calls, the [`innodb_use_fdatasync`](innodb-parameters.html#sysvar_innodb_use_fdatasync)
+    variable, introduced in MySQL 8.0.26, permits using `fdatasync()` instead of `fsync()`
+    for operating system flushes. An `fdatasync()` system call does not flush changes
+    to file metadata unless required for subsequent data retrieval, providing a potential
+    performance benefit.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在支持 `fdatasync()` 系统调用的平台上，MySQL 8.0.26 中引入的 [`innodb_use_fdatasync`](innodb-parameters.html#sysvar_innodb_use_fdatasync)
+    变量允许使用 `fdatasync()` 而不是 `fsync()` 进行操作系统刷新。`fdatasync()` 系统调用不会刷新文件元数据，除非需要进行后续数据检索，从而提供潜在的性能优势。
+- en: A subset of [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)
+    settings such as `fsync`, `O_DSYNC`, and `O_DIRECT` use `fsync()` system calls.
+    The [`innodb_use_fdatasync`](innodb-parameters.html#sysvar_innodb_use_fdatasync)
+    variable is applicable when using those settings.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些 [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)
+    设置的子集，如 `fsync`、`O_DSYNC` 和 `O_DIRECT` 使用 `fsync()` 系统调用。当使用这些设置时，[`innodb_use_fdatasync`](innodb-parameters.html#sysvar_innodb_use_fdatasync)
+    变量适用。
+- en: Use a noop or deadline I/O scheduler with native AIO on Linux
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 Linux 上使用本机 AIO 时，请使用 noop 或 deadline I/O 调度程序
+- en: '`InnoDB` uses the asynchronous I/O subsystem (native AIO) on Linux to perform
+    read-ahead and write requests for data file pages. This behavior is controlled
+    by the [`innodb_use_native_aio`](innodb-parameters.html#sysvar_innodb_use_native_aio)
+    configuration option, which is enabled by default. With native AIO, the type of
+    I/O scheduler has greater influence on I/O performance. Generally, noop and deadline
+    I/O schedulers are recommended. Conduct benchmarks to determine which I/O scheduler
+    provides the best results for your workload and environment. For more information,
+    see [Section 17.8.6, “Using Asynchronous I/O on Linux”](innodb-linux-native-aio.html
+    "17.8.6 Using Asynchronous I/O on Linux").'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 在 Linux 上使用异步 I/O 子系统（本机 AIO）来执行数据文件页的预读和写入请求。此行为由 [`innodb_use_native_aio`](innodb-parameters.html#sysvar_innodb_use_native_aio)
+    配置选项控制，默认情况下已启用。使用本机 AIO 时，I/O 调度程序的类型对 I/O 性能有更大的影响。通常建议使用 noop 和 deadline I/O
+    调度程序。进行基准测试，以确定哪种 I/O 调度程序为您的工作负载和环境提供最佳结果。有关更多信息，请参见 [第 17.8.6 节，“在 Linux 上使用异步
+    I/O”](innodb-linux-native-aio.html "17.8.6 在 Linux 上使用异步 I/O")。'
+- en: Use direct I/O on Solaris 10 for x86_64 architecture
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 Solaris 10 的 x86_64 架构上使用直接 I/O
+- en: When using the `InnoDB` storage engine on Solaris 10 for x86_64 architecture
+    (AMD Opteron), use direct I/O for `InnoDB`-related files to avoid degradation
+    of `InnoDB` performance. To use direct I/O for an entire UFS file system used
+    for storing `InnoDB`-related files, mount it with the `forcedirectio` option;
+    see `mount_ufs(1M)`. (The default on Solaris 10/x86_64 is *not* to use this option.)
+    To apply direct I/O only to `InnoDB` file operations rather than the whole file
+    system, set [`innodb_flush_method = O_DIRECT`](innodb-parameters.html#sysvar_innodb_flush_method).
+    With this setting, `InnoDB` calls `directio()` instead of `fcntl()` for I/O to
+    data files (not for I/O to log files).
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 Solaris 10 的 x86_64 架构（AMD Opteron）上使用 `InnoDB` 存储引擎时，为避免降低 `InnoDB` 性能，请对
+    `InnoDB` 相关文件使用直接 I/O。要为用于存储 `InnoDB` 相关文件的整个 UFS 文件系统使用直接 I/O，请使用 `forcedirectio`
+    选项挂载它；参见 `mount_ufs(1M)`。（Solaris 10/x86_64 的默认设置 *不* 使用此选项。）要仅对 `InnoDB` 文件操作应用直接
+    I/O 而不是整个文件系统，请设置 [`innodb_flush_method = O_DIRECT`](innodb-parameters.html#sysvar_innodb_flush_method)。使用此设置，`InnoDB`
+    调用 `directio()` 而不是 `fcntl()` 进行数据文件的 I/O（不适用于日志文件的 I/O）。
+- en: Use raw storage for data and log files with Solaris 2.6 or later
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 Solaris 2.6 或更高版本上为数据和日志文件使用原始存储
+- en: When using the `InnoDB` storage engine with a large [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    value on any release of Solaris 2.6 and up and any platform (sparc/x86/x64/amd64),
+    conduct benchmarks with `InnoDB` data files and log files on raw devices or on
+    a separate direct I/O UFS file system, using the `forcedirectio` mount option
+    as described previously. (It is necessary to use the mount option rather than
+    setting [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)
+    if you want direct I/O for the log files.) Users of the Veritas file system VxFS
+    should use the `convosync=direct` mount option.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 Solaris 2.6 及更高版本和任何平台（sparc/x86/x64/amd64）上使用具有大 [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    值的 `InnoDB` 存储引擎时，使用如前所述的 `forcedirectio` 挂载选项在原始设备或单独的直接 I/O UFS 文件系统上进行 `InnoDB`
+    数据文件和日志文件的基准测试。如果要对日志文件使用直接 I/O，则需要使用挂载选项而不是设置 [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)。使用
+    Veritas 文件系统 VxFS 的用户应使用 `convosync=direct` 挂载选项。
+- en: Do not place other MySQL data files, such as those for `MyISAM` tables, on a
+    direct I/O file system. Executables or libraries *must not* be placed on a direct
+    I/O file system.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不要将其他MySQL数据文件，如`MyISAM`表的文件，放在直接I/O文件系统上。可执行文件或库*不得*放在直接I/O文件系统上。
+- en: Use additional storage devices
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用额外的存储设备
+- en: Additional storage devices could be used to set up a RAID configuration. For
+    related information, see [Section 10.12.1, “Optimizing Disk I/O”](disk-issues.html
+    "10.12.1 Optimizing Disk I/O").
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以使用额外的存储设备设置RAID配置。有关相关信息，请参见[第10.12.1节，“优化磁��I/O”](disk-issues.html "10.12.1 Optimizing
+    Disk I/O")。
+- en: 'Alternatively, `InnoDB` tablespace data files and log files can be placed on
+    different physical disks. For more information, refer to the following sections:'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者，`InnoDB`表空间数据文件和日志文件可以放在不同的物理磁盘上。有关更多信息，请参考以下章节：
+- en: '[Section 17.8.1, “InnoDB Startup Configuration”](innodb-init-startup-configuration.html
+    "17.8.1 InnoDB Startup Configuration")'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[第17.8.1节，“InnoDB启动配置”](innodb-init-startup-configuration.html "17.8.1 InnoDB
+    Startup Configuration")'
+- en: '[Section 17.6.1.2, “Creating Tables Externally”](innodb-create-table-external.html
+    "17.6.1.2 Creating Tables Externally")'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[第17.6.1.2节，“外部创建表”](innodb-create-table-external.html "17.6.1.2 Creating Tables
+    Externally")'
+- en: '[Creating a General Tablespace](general-tablespaces.html#general-tablespaces-creating
+    "Creating a General Tablespace")'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建通用表空间](general-tablespaces.html#general-tablespaces-creating "Creating a
+    General Tablespace")'
+- en: '[Section 17.6.1.4, “Moving or Copying InnoDB Tables”](innodb-migration.html
+    "17.6.1.4 Moving or Copying InnoDB Tables")'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[第17.6.1.4节，“移动或复制InnoDB表”](innodb-migration.html "17.6.1.4 Moving or Copying
+    InnoDB Tables")'
+- en: Consider non-rotational storage
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 考虑非旋转存储
+- en: Non-rotational storage generally provides better performance for random I/O
+    operations; and rotational storage for sequential I/O operations. When distributing
+    data and log files across rotational and non-rotational storage devices, consider
+    the type of I/O operations that are predominantly performed on each file.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 非旋转存储通常为随机I/O操作提供更好的性能；而旋转存储适用于顺序I/O操作。在将数据和日志文件分布在旋转和非旋转存储设备上时，请考虑每个文件上主要执行的I/O操作类型。
+- en: Random I/O-oriented files typically include [file-per-table](glossary.html#glos_file_per_table
+    "file-per-table") and [general tablespace](glossary.html#glos_general_tablespace
+    "general tablespace") data files, [undo tablespace](glossary.html#glos_undo_tablespace
+    "undo tablespace") files, and [temporary tablespace](glossary.html#glos_temporary_tablespace
+    "temporary tablespace") files. Sequential I/O-oriented files include `InnoDB`
+    [system tablespace](glossary.html#glos_system_tablespace "system tablespace")
+    files (due to [doublewrite buffering](glossary.html#glos_doublewrite_buffer "doublewrite
+    buffer") prior to MySQL 8.0.20 and [change buffering](glossary.html#glos_change_buffer
+    "change buffer")), doublewrite files introduced in MySQL 8.0.20, and log files
+    such as [binary log](glossary.html#glos_binary_log "binary log") files and [redo
+    log](glossary.html#glos_redo_log "redo log") files.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 随机I/O导向的文件通常包括[file-per-table](glossary.html#glos_file_per_table "file-per-table")和[general
+    tablespace](glossary.html#glos_general_tablespace "general tablespace")数据文件，[undo
+    tablespace](glossary.html#glos_undo_tablespace "undo tablespace")文件，以及[temporary
+    tablespace](glossary.html#glos_temporary_tablespace "temporary tablespace")文件。顺序I/O导向的文件包括`InnoDB`[system
+    tablespace](glossary.html#glos_system_tablespace "system tablespace")文件（由于MySQL
+    8.0.20之前的[Doublewrite buffering](glossary.html#glos_doublewrite_buffer "doublewrite
+    buffer")和[change buffering](glossary.html#glos_change_buffer "change buffer")），MySQL
+    8.0.20引入的doublewrite文件，以及诸如[binary log](glossary.html#glos_binary_log "binary
+    log")文件和[redo log](glossary.html#glos_redo_log "redo log")文件等日志文件。
+- en: 'Review settings for the following configuration options when using non-rotational
+    storage:'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用非旋转存储时，请查看以下配置选项的设置：
+- en: '[`innodb_checksum_algorithm`](innodb-parameters.html#sysvar_innodb_checksum_algorithm)'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_checksum_algorithm`](innodb-parameters.html#sysvar_innodb_checksum_algorithm)'
+- en: The `crc32` option uses a faster checksum algorithm and is recommended for fast
+    storage systems.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`crc32`选项使用更快的校验算法，建议用于快速存储系统。'
+- en: '[`innodb_flush_neighbors`](innodb-parameters.html#sysvar_innodb_flush_neighbors)'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_flush_neighbors`](innodb-parameters.html#sysvar_innodb_flush_neighbors)'
+- en: Optimizes I/O for rotational storage devices. Disable it for non-rotational
+    storage or a mix of rotational and non-rotational storage. It is disabled by default.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为旋转存储设备优化I/O。对于非旋转存储或旋转和非旋转存储的混合情况，请禁用它。默认情况下禁用。
+- en: '[`innodb_idle_flush_pct`](innodb-parameters.html#sysvar_innodb_idle_flush_pct)'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_idle_flush_pct`](innodb-parameters.html#sysvar_innodb_idle_flush_pct)'
+- en: Permits placing a limit on page flushing during idle periods, which can help
+    extend the life of non-rotational storage devices. Introduced in MySQL 8.0.18.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 允许在空闲时期限制页面刷新，这有助于延长非旋转存储设备的寿命。在MySQL 8.0.18中引入。
+- en: '[`innodb_io_capacity`](innodb-parameters.html#sysvar_innodb_io_capacity)'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_io_capacity`](innodb-parameters.html#sysvar_innodb_io_capacity)'
+- en: The default setting of 200 is generally sufficient for a lower-end non-rotational
+    storage device. For higher-end, bus-attached devices, consider a higher setting
+    such as 1000.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认设置为200通常足以满足低端非旋转存储设备的需求。对于高端、总线连接设备，请考虑更高的设置，例如1000。
+- en: '[`innodb_io_capacity_max`](innodb-parameters.html#sysvar_innodb_io_capacity_max)'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_io_capacity_max`](innodb-parameters.html#sysvar_innodb_io_capacity_max)'
+- en: The default value of 2000 is intended for workloads that use non-rotational
+    storage. For a high-end, bus-attached non-rotational storage device, consider
+    a higher setting such as 2500.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认值为2000适用于使用非旋转存储的工作负载。对于高端、总线连接的非旋转存储设备，请考虑更高的设置，例如2500。
+- en: '[`innodb_log_compressed_pages`](innodb-parameters.html#sysvar_innodb_log_compressed_pages)'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_log_compressed_pages`](innodb-parameters.html#sysvar_innodb_log_compressed_pages)'
+- en: If redo logs are on non-rotational storage, consider disabling this option to
+    reduce logging. See [Disable logging of compressed pages](optimizing-innodb-diskio.html#innodb-disable-log-compressed-pages).
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果重做日志存储在非旋转存储上，请考虑禁用此选项以减少日志记录。参见[禁用压缩页面的日志记录](optimizing-innodb-diskio.html#innodb-disable-log-compressed-pages)。
+- en: '[`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size)
+    (deprecated in MySQL 8.0.30)'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size)（在MySQL
+    8.0.30中已弃用）'
+- en: If redo logs are on non-rotational storage, configure this option to maximize
+    caching and write combining.
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果重做日志存储在非旋转存储上，请配置此选项以最大化缓存和写入组合。
+- en: '[`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)'
+- en: If redo logs are on non-rotational storage, configure this option to maximize
+    caching and write combining.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果重做日志存储在非旋转存储上，请配置此选项以最大化缓存和写入组合。
+- en: '[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)'
+- en: Consider using a page size that matches the internal sector size of the disk.
+    Early-generation SSD devices often have a 4KB sector size. Some newer devices
+    have a 16KB sector size. The default `InnoDB` page size is 16KB. Keeping the page
+    size close to the storage device block size minimizes the amount of unchanged
+    data that is rewritten to disk.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 考虑使用与磁盘内部扇区大小匹配的页面大小。早期的SSD设备通常具有4KB扇区大小。一些新设备具有16KB扇区大小。默认的`InnoDB`页面大小为16KB。保持页面大小接近存储设备块大小可以最大程度地减少被重写到磁盘的未更改数据量。
+- en: '[`binlog_row_image`](replication-options-binary-log.html#sysvar_binlog_row_image)'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`binlog_row_image`](replication-options-binary-log.html#sysvar_binlog_row_image)'
+- en: If binary logs are on non-rotational storage and all tables have primary keys,
+    consider setting this option to `minimal` to reduce logging.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果二进制日志存储在非旋转存储上，并且所有表都有主键，请考虑将此选项设置为`minimal`以减少日志记录。
+- en: Ensure that TRIM support is enabled for your operating system. It is typically
+    enabled by default.
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 确保您的操作系统已启用TRIM支持。通常情况下，默认情况下已启用。
+- en: Increase I/O capacity to avoid backlogs
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 增加I/O容量以避免积压
+- en: If throughput drops periodically because of `InnoDB` [checkpoint](glossary.html#glos_checkpoint
+    "checkpoint") operations, consider increasing the value of the [`innodb_io_capacity`](innodb-parameters.html#sysvar_innodb_io_capacity)
+    configuration option. Higher values cause more frequent [flushing](glossary.html#glos_flush
+    "flush"), avoiding the backlog of work that can cause dips in throughput.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果由于`InnoDB`[检查点](glossary.html#glos_checkpoint "checkpoint")操作而导致吞吐量周期性下降，请考虑增加[`innodb_io_capacity`](innodb-parameters.html#sysvar_innodb_io_capacity)配置选项的值。较高的值会导致更频繁的[刷新](glossary.html#glos_flush
+    "flush")，避免积压的工作导致吞吐量下降。
+- en: Lower I/O capacity if flushing does not fall behind
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果刷新没有落后，请降低I/O容量
+- en: 'If the system is not falling behind with `InnoDB` [flushing](glossary.html#glos_flush
+    "flush") operations, consider lowering the value of the [`innodb_io_capacity`](innodb-parameters.html#sysvar_innodb_io_capacity)
+    configuration option. Typically, you keep this option value as low as practical,
+    but not so low that it causes periodic drops in throughput as mentioned in the
+    preceding bullet. In a typical scenario where you could lower the option value,
+    you might see a combination like this in the output from [`SHOW ENGINE INNODB
+    STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement"):'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果系统没有落后于`InnoDB` [刷新](glossary.html#glos_flush "flush")操作，请考虑降低[`innodb_io_capacity`](innodb-parameters.html#sysvar_innodb_io_capacity)配置选项的值。通常情况下，您应该尽可能保持此选项值较低，但不要太低以至于导致吞吐量周期性下降，如前述项目所述。在您可以降低选项值的典型情况下，您可能会在[`SHOW
+    ENGINE INNODB STATUS`](show-engine.html "15.7.7.15 SHOW ENGINE Statement")的输出中看到类似以下组合：
+- en: History list length low, below a few thousand.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 历史列表长度较低，低于几千。
+- en: Insert buffer merges close to rows inserted.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 插入缓冲区合并接近插入的行数。
+- en: Modified pages in buffer pool consistently well below [`innodb_max_dirty_pages_pct`](innodb-parameters.html#sysvar_innodb_max_dirty_pages_pct)
+    of the buffer pool. (Measure at a time when the server is not doing bulk inserts;
+    it is normal during bulk inserts for the modified pages percentage to rise significantly.)
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 缓冲池中修改的页面始终远低于[`innodb_max_dirty_pages_pct`](innodb-parameters.html#sysvar_innodb_max_dirty_pages_pct)的缓冲池。（在服务器不进行大量插入操作时进行测量；在进行大量插入操作时，修改页面的百分比会显著上升是正常的。）
+- en: '`Log sequence number - Last checkpoint` is at less than 7/8 or ideally less
+    than 6/8 of the total size of the `InnoDB` [log files](glossary.html#glos_log_file
+    "log file").'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`日志序列号 - 最后检查点`小于总`InnoDB` [日志文件](glossary.html#glos_log_file "log file")大小的7/8或理想情况下小于6/8。'
+- en: Store system tablespace files on Fusion-io devices
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将系统表空间文件存储在Fusion-io设备上
+- en: You can take advantage of a doublewrite buffer-related I/O optimization by storing
+    the files that contain the doublewrite storage area on Fusion-io devices that
+    support atomic writes. (Prior to MySQL 8.0.20, the doublewrite buffer storage
+    are resides in the system tablespace data files. As of MySQL 8.0.20, the storage
+    area resides in doublewrite files. See [Section 17.6.4, “Doublewrite Buffer”](innodb-doublewrite-buffer.html
+    "17.6.4 Doublewrite Buffer").) When doublewrite storage area files are placed
+    on Fusion-io devices that support atomic writes, the doublewrite buffer is automatically
+    disabled and Fusion-io atomic writes are used for all data files. This feature
+    is only supported on Fusion-io hardware and is only enabled for Fusion-io NVMFS
+    on Linux. To take full advantage of this feature, an [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)
+    setting of `O_DIRECT` is recommended.
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以通过将包含双写存储区域的文件存储在支持原子写入的Fusion-io设备上，利用双写缓冲区相关的I/O优化。（在MySQL 8.0.20之前，双写缓冲区存储区域位于系统表空间数据文件中。从MySQL
+    8.0.20开始，存储区域位于双写文件中。请参阅[Section 17.6.4, “Doublewrite Buffer”](innodb-doublewrite-buffer.html
+    "17.6.4 Doublewrite Buffer")。）当双写存储区域文件放置在支持原子写入的Fusion-io设备上时，双写缓冲区会自动禁用，并且Fusion-io原子写入会用于所有数据文件。此功能仅在Fusion-io硬件上受支持，并且仅在Linux上为Fusion-io
+    NVMFS启用。为充分利用此功能，建议将[`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)设置为`O_DIRECT`。
+- en: Note
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Because the doublewrite buffer setting is global, the doublewrite buffer is
+    also disabled for data files that do not reside on Fusion-io hardware.
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于双写缓冲区设置是全局的，因此对于不位于Fusion-io硬件上的数据文件，双写缓冲区也被禁用。
+- en: Disable logging of compressed pages
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 禁用压缩页面的日志记录
+- en: When using the `InnoDB` table [compression](glossary.html#glos_compression "compression")
+    feature, images of re-compressed [pages](glossary.html#glos_page "page") are written
+    to the [redo log](glossary.html#glos_redo_log "redo log") when changes are made
+    to compressed data. This behavior is controlled by [`innodb_log_compressed_pages`](innodb-parameters.html#sysvar_innodb_log_compressed_pages),
+    which is enabled by default to prevent corruption that can occur if a different
+    version of the `zlib` compression algorithm is used during recovery. If you are
+    certain that the `zlib` version is not subject to change, disable [`innodb_log_compressed_pages`](innodb-parameters.html#sysvar_innodb_log_compressed_pages)
+    to reduce redo log generation for workloads that modify compressed data.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当使用`InnoDB`表的[压缩](glossary.html#glos_compression "compression")功能时，重新压缩的[页](glossary.html#glos_page
+    "page")的图像在对压缩数据进行更改时会被写入[重做日志](glossary.html#glos_redo_log "redo log")。这种行为由[`innodb_log_compressed_pages`](innodb-parameters.html#sysvar_innodb_log_compressed_pages)控制，默认情况下启用，以防止在恢复过程中使用不同版本的`zlib`压缩算法导致的损坏。如果您确定`zlib`版本不会更改，请禁用[`innodb_log_compressed_pages`](innodb-parameters.html#sysvar_innodb_log_compressed_pages)以减少修改压缩数据的工作负载生成的重做日志。

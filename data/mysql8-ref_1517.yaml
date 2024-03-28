@@ -1,0 +1,356 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery-connections.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery-connections.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery-connections.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-distributed-recovery-connections.html)
+- en: 20.5.4.1 Connections for Distributed Recovery
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.5.4.1 分布式恢复的连接
+- en: When a joining member connects to an online existing member for state transfer
+    during distributed recovery, the joining member acts as a client on the connection
+    and the existing member acts as a server. When state transfer from the donor's
+    binary log is in progress over this connection (using the asynchronous replication
+    channel `group_replication_recovery`), the joining member acts as the replica
+    and the existing member acts as the source. When a remote cloning operation is
+    in progress over this connection, the joining member acts as a recipient and the
+    existing member acts as a donor. Configuration settings that apply to those roles
+    outside the Group Replication context can apply for Group Replication also, unless
+    they are overridden by a Group Replication-specific configuration setting or behavior.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当一个加入成员在分布式恢复期间连接到在线现有成员进行状态传输时，加入成员在连接上充当客户端，而现有成员充当服务器。当通过这个连接从捐赠者的二进制日志进行状态传输（使用异步复制通道`group_replication_recovery`）时，加入成员充当副本，而现有成员充当源。当远程克隆操作在这个连接上进行时，加入成员充当接收者，而现有成员充当捐赠者。适用于这些角色的配置设置在Group
+    Replication上下文之外也适用于Group Replication，除非它们被Group Replication特定的配置设置或行为所覆盖。
+- en: The connection that an existing member offers to a joining member for distributed
+    recovery is not the same connection that is used by Group Replication for communication
+    between online members of the group.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现有成员为分布式恢复向加入成员提供的连接并不是Group Replication用于组内在线成员之间通信的连接。
+- en: The connection used by the group communication engine for Group Replication
+    (XCom, a Paxos variant) for TCP communication between remote XCom instances is
+    specified by the [`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)
+    system variable. This connection is used for TCP/IP messages between online members.
+    Communication with the local instance is over an input channel using shared memory.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Group Replication的组通信引擎（XCom，一种Paxos变体）用于远程XCom实例之间的TCP通信的连接由[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)系统变量指定。这个连接用于在线成员之间的TCP/IP消息。与本地实例的通信通过使用共享内存的输入通道进行。
+- en: For distributed recovery, up to MySQL 8.0.20, group members offer their standard
+    SQL client connection to joining members, as specified by MySQL Server's [`hostname`](server-system-variables.html#sysvar_hostname)
+    and [`port`](server-system-variables.html#sysvar_port) system variables. If an
+    alternative port number is specified by the [`report_port`](replication-options-replica.html#sysvar_report_port)
+    system variable, that one is used instead.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于分布式恢复，直到MySQL 8.0.20，组成员向加入成员提供他们的标准SQL客户端连接，由MySQL Server的[`hostname`](server-system-variables.html#sysvar_hostname)和[`port`](server-system-variables.html#sysvar_port)系统变量指定。如果[`report_port`](replication-options-replica.html#sysvar_report_port)系统变量指定了替代端口号，则使用该端口号。
+- en: From MySQL 8.0.21, group members may advertise an alternative list of distributed
+    recovery endpoints as dedicated client connections for joining members, allowing
+    you to control distributed recovery traffic separately from connections by regular
+    client users of the member. You specify this list using the [`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints)
+    system variable, and the member transmits their list of distributed recovery endpoints
+    to the group when they join the group. The default is that the member continues
+    to offer the standard SQL client connection as in earlier releases.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.21开始，组成员可以向加入成员提供一组专用客户端连接作为分布式恢复端点的替代列表，允许您单独控制分布式恢复流量，而不是由成员的常规客户端用户连接。您可以使用[`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints)系统变量指定此列表，并在加入组时成员将其分布式恢复端点列表传输给组。默认情况下，成员继续像早期版本一样提供标准SQL客户端连接。
+- en: Important
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Distributed recovery can fail if a joining member cannot correctly identify
+    the other members using the host name as defined by MySQL Server's [`hostname`](server-system-variables.html#sysvar_hostname)
+    system variable. It is recommended that operating systems running MySQL have a
+    properly configured unique host name, either using DNS or local settings. The
+    host name that the server is using for SQL client connections can be verified
+    in the `Member_host` column of the Performance Schema table [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table"). If multiple group members
+    externalize a default host name set by the operating system, there is a chance
+    of the joining member not resolving it to the correct member address and not being
+    able to connect for distributed recovery. In this situation you can use MySQL
+    Server's [`report_host`](replication-options-replica.html#sysvar_report_host)
+    system variable to configure a unique host name to be externalized by each of
+    the servers.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果加入成员无法使用由MySQL Server的[`hostname`](server-system-variables.html#sysvar_hostname)系统变量定义的主机名正确识别其他成员，则分布式恢复可能会失败。建议运行MySQL的操作系统具有经过正确配置的唯一主机名，可以使用DNS或本地设置。服务器用于SQL客户端连接的主机名可以在性能模式表[`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table")的`Member_host`列中验证。如果多个组成员外部化由操作系统设置的默认主机名，那么加入成员可能无法将其解析为正确的成员地址并无法连接进行分布式恢复。在这种情况下，您可以使用MySQL
+    Server的[`report_host`](replication-options-replica.html#sysvar_report_host)系统变量为每个服务器配置一个唯一的主机名来外部化。
+- en: 'The steps for a joining member to establish a connection for distributed recovery
+    are as follows:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 加入成员建立分布式恢复连接的步骤如下：
+- en: When the member joins the group, it connects with one of the seed members included
+    in the list in its [`group_replication_group_seeds`](group-replication-system-variables.html#sysvar_group_replication_group_seeds)
+    system variable, initially using the [`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)
+    connection as specified in that list. The seed members might be a subset of the
+    group.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当成员加入组时，它使用其[`group_replication_group_seeds`](group-replication-system-variables.html#sysvar_group_replication_group_seeds)系统变量中包含的种子成员列表中的一个连接，最初使用该列表中指定的[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)连接。种子成员可能是组的子集。
+- en: Over this connection, the seed member uses Group Replication's membership service
+    to provide the joining member with a list of all the members that are online in
+    the group, in the form of a view. The membership information includes the details
+    of the distributed recovery endpoints or standard SQL client connection offered
+    by each member for distributed recovery.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过此连接，种子成员使用Group Replication的成员服务向加入成员提供了一个在线组中所有成员的列表，以视图的形式呈现。成员信息包括每个成员提供的用于分布式恢复的分布式恢复端点或标准SQL客户端连接的详细信息。
+- en: The joining member selects a suitable group member from this list to be its
+    donor for distributed recovery, following the behaviors described in [Section 20.5.4.4,
+    “Fault Tolerance for Distributed Recovery”](group-replication-distributed-recovery-fault.html
+    "20.5.4.4 Fault Tolerance for Distributed Recovery").
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 加入成员从此列表中选择一个适合的组成员作为其分布式恢复的捐赠者，遵循[第20.5.4.4节“分布式恢复的容错”](group-replication-distributed-recovery-fault.html
+    "20.5.4.4 Fault Tolerance for Distributed Recovery")中描述的行为。
+- en: The joining member then attempts to connect to the donor using the donor's advertised
+    distributed recovery endpoints, trying each in turn in the order they are specified
+    in the list. If the donor provides no endpoints, the joining member attempts to
+    connect using the donor's standard SQL client connection. The SSL requirements
+    for the connection are as specified by the `group_replication_recovery_ssl_*`
+    options described in [Section 20.5.4.1.4, “SSL and Authentication for Distributed
+    Recovery”](group-replication-distributed-recovery-connections.html#group-replication-distributed-recovery-connections-ssl
+    "20.5.4.1.4 SSL and Authentication for Distributed Recovery").
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 然后，加入成员尝试使用捐赠者广告的分布式恢复端点连接到捐赠者，依次尝试列表中指定的顺序。如果捐赠者没有提供端点，则加入成员尝试使用捐赠者的标准SQL客户端连接。连接的SSL要求如[第20.5.4.1.4节“分布式恢复的SSL和身份验证”](group-replication-distributed-recovery-connections.html#group-replication-distributed-recovery-connections-ssl
+    "20.5.4.1.4 SSL and Authentication for Distributed Recovery")中描述的`group_replication_recovery_ssl_*`选项所指定。
+- en: If the joining member is not able to connect to the selected donor, it retries
+    with other suitable donors, following the behaviors described in [Section 20.5.4.4,
+    “Fault Tolerance for Distributed Recovery”](group-replication-distributed-recovery-fault.html
+    "20.5.4.4 Fault Tolerance for Distributed Recovery"). Note that if the joining
+    member exhausts the list of advertised endpoints without making a connection,
+    it does not fall back to the donor's standard SQL client connection, but switches
+    to another donor.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果加入成员无法连接到所选的提供者，它将尝试与其他适当的提供者重试，遵循 [第 20.5.4.4 节，“分布式恢复的容错性”](group-replication-distributed-recovery-fault.html
+    "20.5.4.4 分布式恢复的容错性") 中描述的行为。请注意，如果加入成员在不建立连接的情况下耗尽了广告端点列表，则不会回退到提供者的标准 SQL 客户端连接，而是切换到另一个提供者。
+- en: When the joining member establishes a distributed recovery connection with a
+    donor, it uses that connection for state transfer as described in [Section 20.5.4,
+    “Distributed Recovery”](group-replication-distributed-recovery.html "20.5.4 Distributed
+    Recovery"). The host and port for the connection that is used are shown in the
+    joining member's log. Note that if a remote cloning operation is used, when the
+    joining member has restarted at the end of the operation, it establishes a connection
+    with a new donor for state transfer from the binary log. This might be a connection
+    to a different member from the original donor used for the remote cloning operation,
+    or it might be a different connection to the original donor. In any case, the
+    distributed recovery process continues in the same way as it would have with the
+    original donor.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当加入成员与提供者建立分布式恢复连接时，它将使用该连接进行状态传输，如 [第 20.5.4 节，“分布式恢复”](group-replication-distributed-recovery.html
+    "20.5.4 分布式恢复") 中所述。用于连接的主机和端口在加入成员的日志中显示。请注意，如果使用远程克隆操作，当加入成员在操作结束时重新启动时，它将与新的提供者建立连接，以从二进制日志进行状态传输。这可能是与用于远程克隆操作的原始提供者不同的成员的连接，或者可能是与原始提供者的不同连接。无论如何，分布式恢复过程都将像在原始提供者的情况下一样继续。
+- en: 20.5.4.1.1 Selecting addresses for distributed recovery endpoints
+  id: totrans-16
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.1.1 选择分布式恢复端点的地址
+- en: IP addresses supplied by the [`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints)
+    system variable as distributed recovery endpoints do not have to be configured
+    for MySQL Server (that is, they do not have to be specified by the [`admin_address`](server-system-variables.html#sysvar_admin_address)
+    system variable or in the list for the [`bind_address`](server-system-variables.html#sysvar_bind_address)
+    system variable). They do have to be assigned to the server. Any host names used
+    must resolve to a local IP address. IPv4 and IPv6 addresses can be used.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由 [`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints)
+    系统变量提供的 IP 地址作为分布式恢复端点不需要为 MySQL Server 配置（即，它们不需要由 [`admin_address`](server-system-variables.html#sysvar_admin_address)
+    系统变量指定或在 [`bind_address`](server-system-variables.html#sysvar_bind_address) 系统变量的列表中）。它们必须分配给服务器。使用的任何主机名必须解析为本地
+    IP 地址。可以使用 IPv4 和 IPv6 地址。
+- en: The ports supplied for the distributed recovery endpoints do have to be configured
+    for MySQL Server, so they must be specified by the [`port`](server-system-variables.html#sysvar_port),
+    [`report_port`](replication-options-replica.html#sysvar_report_port), or [`admin_port`](server-system-variables.html#sysvar_admin_port)
+    system variable. The server must listen for TCP/IP connections on these ports.
+    If you specify the [`admin_port`](server-system-variables.html#sysvar_admin_port),
+    the replication user for distributed recovery needs the [`SERVICE_CONNECTION_ADMIN`](privileges-provided.html#priv_service-connection-admin)
+    privilege to connect. Selecting the [`admin_port`](server-system-variables.html#sysvar_admin_port)
+    keeps distributed recovery connections separate from regular MySQL client connections.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了 MySQL Server 配置分布式恢复端点所提供的端口必须通过 [`port`](server-system-variables.html#sysvar_port)、[`report_port`](replication-options-replica.html#sysvar_report_port)
+    或 [`admin_port`](server-system-variables.html#sysvar_admin_port) 系统变量指定。服务器必须在这些端口上监听
+    TCP/IP 连接。如果指定了 [`admin_port`](server-system-variables.html#sysvar_admin_port)，则分布式恢复的复制用户需要
+    [`SERVICE_CONNECTION_ADMIN`](privileges-provided.html#priv_service-connection-admin)
+    权限才能连接。选择 [`admin_port`](server-system-variables.html#sysvar_admin_port) 可以将分布式恢复连接与常规
+    MySQL 客户端连接分开。
+- en: Joining members try each of the endpoints in turn in the order they are specified
+    on the list. If [`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints)
+    is set to `DEFAULT` rather than a list of endpoints, the standard SQL client connection
+    is offered. Note that the standard SQL client connection is not automatically
+    included on a list of distributed recovery endpoints, and is not offered as a
+    fallback if the donor's list of endpoints is exhausted without a connection. If
+    you want to offer the standard SQL client connection as one of a number of distributed
+    recovery endpoints, you must include it explicitly in the list specified by [`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints).
+    You can put it in the last place so that it acts as a last resort for connection.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 加入的成员依次尝试列表中指定的每个端点。如果[`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints)设置为`DEFAULT`而不是端点列表，则提供标准的
+    SQL 客户端连接。请注意，标准的 SQL 客户端连接不会自动包含在分布式恢复端点列表中，并且不会作为备用方案提供，如果捐赠者的端点列表在没有连接的情况下耗尽。如果您希望将标准的
+    SQL 客户端连接作为多个分布式恢复端点之一提供，您必须在由[`group_replication_advertise_recovery_endpoints`](group-replication-system-variables.html#sysvar_group_replication_advertise_recovery_endpoints)指定的列表中显式包含它。您可以将其放在最后一位，以便作为连接的最后手段。
+- en: A group member's distributed recovery endpoints (or standard SQL client connection
+    if endpoints are not provided) do not need to be added to the Group Replication
+    allowlist specified by the [`group_replication_ip_allowlist`](group-replication-system-variables.html#sysvar_group_replication_ip_allowlist)
+    (from MySQL 8.0.22) or [`group_replication_ip_whitelist`](group-replication-system-variables.html#sysvar_group_replication_ip_whitelist)
+    system variable. The allowlist is only for the address specified by [`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)
+    for each member. A joining member must have its initial connection to the group
+    permitted by the allowlist in order to retrieve the address or addresses for distributed
+    recovery.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个组成员的分布式恢复端点（或标准的 SQL 客户端连接，如果没有提供端点）不需要添加到由[`group_replication_ip_allowlist`](group-replication-system-variables.html#sysvar_group_replication_ip_allowlist)（从
+    MySQL 8.0.22 开始）或[`group_replication_ip_whitelist`](group-replication-system-variables.html#sysvar_group_replication_ip_whitelist）系统变量指定的
+    Group Replication 允许列表中。允许列表仅适用于每个成员指定的[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)地址。加入的成员必须通过允许列表允许的初始连接到组，以便检索分布式恢复的地址或地址。
+- en: The distributed recovery endpoints that you list are validated when the system
+    variable is set and when a [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") statement has been issued. If the
+    list cannot be parsed correctly, or if any of the endpoints cannot be accessed
+    on the host because the server is not listening on them, Group Replication logs
+    an error and does not start.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当设置系统变量并发出[`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement")语句时，您列出的分布式恢复端点将得到验证。如果列表无法正确解析，或者如果主机上的任何端点无法访问，因为服务器没有在其上监听，Group
+    Replication 将记录错误并且不会启动。
+- en: 20.5.4.1.2 Compression for Distributed Recovery
+  id: totrans-22
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.1.2 分布式恢复的压缩
+- en: From MySQL 8.0.18, you can optionally configure compression for distributed
+    recovery by the method of state transfer from a donor's binary log. Compression
+    can benefit distributed recovery where network bandwidth is limited and the donor
+    has to transfer many transactions to the joining member. The [`group_replication_recovery_compression_algorithms`](group-replication-system-variables.html#sysvar_group_replication_recovery_compression_algorithms)
+    and [`group_replication_recovery_zstd_compression_level`](group-replication-system-variables.html#sysvar_group_replication_recovery_zstd_compression_level)
+    system variables configure permitted compression algorithms, and the `zstd` compression
+    level, used when carrying out state transfer from a donor's binary log. For more
+    information, see [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 Connection Compression Control").
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.18开始，您可以选择通过从捐赠者的二进制日志进行状态传输的方法为分布式恢复配置压缩。压缩可以使分布式恢复受益，特别是在网络带宽有限且捐赠者必须向加入成员传输许多事务时。[`group_replication_recovery_compression_algorithms`](group-replication-system-variables.html#sysvar_group_replication_recovery_compression_algorithms)和[`group_replication_recovery_zstd_compression_level`](group-replication-system-variables.html#sysvar_group_replication_recovery_zstd_compression_level)系统变量配置允许的压缩算法，以及在从捐赠者的二进制日志进行状态传输时使用的`zstd`压缩级别。有关更多信息，请参见[第6.2.8节，“连接压缩控制”](connection-compression-control.html
+    "6.2.8 连接压缩控制")。
+- en: Note that these compression settings do not apply for remote cloning operations.
+    When a remote cloning operation is used for distributed recovery, the clone plugin's
+    [`clone_enable_compression`](clone-plugin-options-variables.html#sysvar_clone_enable_compression)
+    setting applies.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，这些压缩设置不适用于远程克隆操作。当远程克隆操作用于分布式恢复时，克隆插件的[`clone_enable_compression`](clone-plugin-options-variables.html#sysvar_clone_enable_compression)设置适用。
+- en: 20.5.4.1.3 Replication User for Distributed Recovery
+  id: totrans-25
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.1.3 分布式恢复的复制用户
+- en: Distributed recovery requires a replication user that has the correct permissions
+    so that Group Replication can establish direct member-to-member replication channels.
+    The replication user must also have the correct permissions to act as the clone
+    user on the donor for a remote cloning operation. The same replication user must
+    be used for distributed recovery on every group member. For instructions to set
+    up this replication user, see [Section 20.2.1.3, “User Credentials For Distributed
+    Recovery”](group-replication-user-credentials.html "20.2.1.3 User Credentials
+    For Distributed Recovery"). For instructions to secure the replication user credentials,
+    see [Section 20.6.3.1, “Secure User Credentials for Distributed Recovery”](group-replication-secure-user.html
+    "20.6.3.1 Secure User Credentials for Distributed Recovery").
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分布式恢复需要一个具有正确权限的复制用户，以便Group Replication可以建立直接成员间的复制通道。复制用户还必须具有正确权限，以在捐赠者上充当远程克隆操作的克隆用户。在每个组成员上进行分布式恢复时必须使用相同的复制用户。有关设置此复制用户的说明，请参见[第20.2.1.3节，“分布式恢复的用户凭据”](group-replication-user-credentials.html
+    "20.2.1.3 分布式恢复的用户凭据")。有关保护复制用户凭据的说明，请参见[第20.6.3.1节，“分布式恢复的安全用户凭据”](group-replication-secure-user.html
+    "20.6.3.1 分布式恢复的安全用户凭据")。
+- en: 20.5.4.1.4 SSL and Authentication for Distributed Recovery
+  id: totrans-27
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.1.4 分布式恢复的SSL和身份验证
+- en: SSL for distributed recovery is configured separately from SSL for normal group
+    communications, which is determined by the server's SSL settings and the [`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)
+    system variable. For distributed recovery connections, dedicated Group Replication
+    distributed recovery SSL system variables are available to configure the use of
+    certificates and ciphers specifically for distributed recovery.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分布式恢复的SSL配置与正常组通信的SSL配置是分开的，由服务器的SSL设置和[`group_replication_ssl_mode`](group-replication-system-variables.html#sysvar_group_replication_ssl_mode)系统变量确定。对于分布式恢复连接，专用的Group
+    Replication分布式恢复SSL系统变量可用于配置专门用于分布式恢复的证书和密码。
+- en: By default, SSL is not used for distributed recovery connections. To activate
+    it, set [`group_replication_recovery_use_ssl=ON`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl),
+    and configure the Group Replication distributed recovery SSL system variables
+    as described in [Section 20.6.3, “Securing Distributed Recovery Connections”](group-replication-distributed-recovery-securing.html
+    "20.6.3 Securing Distributed Recovery Connections"). You need a replication user
+    that is set up to use SSL.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，分布式恢复连接不使用SSL。要激活它，请设置[`group_replication_recovery_use_ssl=ON`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)，并按照[Section 20.6.3,
+    “Securing Distributed Recovery Connections”](group-replication-distributed-recovery-securing.html
+    "20.6.3 Securing Distributed Recovery Connections")中描述的方式配置Group Replication分布式恢复SSL系统变量。您需要设置一个用于SSL的复制用户。
+- en: When distributed recovery is configured to use SSL, Group Replication applies
+    this setting for remote cloning operations, as well as for state transfer from
+    a donor's binary log. Group Replication automatically configures the settings
+    for the clone SSL options ([`clone_ssl_ca`](clone-plugin-options-variables.html#sysvar_clone_ssl_ca),
+    [`clone_ssl_cert`](clone-plugin-options-variables.html#sysvar_clone_ssl_cert),
+    and [`clone_ssl_key`](clone-plugin-options-variables.html#sysvar_clone_ssl_key))
+    to match your settings for the corresponding Group Replication distributed recovery
+    options ([`group_replication_recovery_ssl_ca`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_ca),
+    [`group_replication_recovery_ssl_cert`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_cert),
+    and [`group_replication_recovery_ssl_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_key)).
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当配置分布式恢复使用SSL时，Group Replication会将此设置应用于远程克隆操作，以及从捐赠者的二进制日志进行状态传输。Group Replication会自动配置克隆SSL选项（[`clone_ssl_ca`](clone-plugin-options-variables.html#sysvar_clone_ssl_ca)，[`clone_ssl_cert`](clone-plugin-options-variables.html#sysvar_clone_ssl_cert)，和[`clone_ssl_key`](clone-plugin-options-variables.html#sysvar_clone_ssl_key)）的设置，以匹配相应的Group
+    Replication分布式恢复选项（[`group_replication_recovery_ssl_ca`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_ca)，[`group_replication_recovery_ssl_cert`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_cert)，和[`group_replication_recovery_ssl_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_key))的设置。
+- en: If you are not using SSL for distributed recovery (so [`group_replication_recovery_use_ssl`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)
+    is set to `OFF`), and the replication user account for Group Replication authenticates
+    with the `caching_sha2_password` plugin (which is the default in MySQL 8.0) or
+    the `sha256_password` plugin, RSA key-pairs are used for password exchange. In
+    this case, either use the [`group_replication_recovery_public_key_path`](group-replication-system-variables.html#sysvar_group_replication_recovery_public_key_path)
+    system variable to specify the RSA public key file, or use the [`group_replication_recovery_get_public_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_get_public_key)
+    system variable to request the public key from the source, as described in [Section 20.6.3.1.1,
+    “Replication User With The Caching SHA-2 Authentication Plugin”](group-replication-secure-user.html#group-replication-caching-sha2-user-credentials
+    "20.6.3.1.1 Replication User With The Caching SHA-2 Authentication Plugin").
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您没有为分布式恢复使用SSL（因此[`group_replication_recovery_use_ssl`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)设置为`OFF`），并且Group
+    Replication的复制用户帐户使用`caching_sha2_password`插件（这是MySQL 8.0中的默认设置）或`sha256_password`插件进行身份验证，则会使用RSA密钥对进行密码交换。在这种情况下，要么使用[`group_replication_recovery_public_key_path`](group-replication-system-variables.html#sysvar_group_replication_recovery_public_key_path)系统变量指定RSA公钥文件，要么使用[`group_replication_recovery_get_public_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_get_public_key)系统变量从源请求公钥，如[Section 20.6.3.1.1,
+    “Replication User With The Caching SHA-2 Authentication Plugin”](group-replication-secure-user.html#group-replication-caching-sha2-user-credentials
+    "20.6.3.1.1 Replication User With The Caching SHA-2 Authentication Plugin")中所述。

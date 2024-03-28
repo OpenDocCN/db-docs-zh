@@ -1,0 +1,107 @@
+- en: 20.7.2 Flow Control
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.7.2 流量控制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-flow-control.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-flow-control.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-flow-control.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-flow-control.html)
+- en: '[20.7.2.1 Probes and Statistics](group-replication-probes-and-statistics.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.2.1 探针和统计信息](group-replication-probes-and-statistics.html)'
+- en: '[20.7.2.2 Group Replication Throttling](group-replication-throttling.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.2.2 Group Replication 限流](group-replication-throttling.html)'
+- en: Group Replication ensures that a transaction only commits after a majority of
+    the members in a group have received it and agreed on the relative order between
+    all transactions that were sent concurrently. This approach works well if the
+    total number of writes to the group does not exceed the write capacity of any
+    member in the group. If it does and some of the members have less write throughput
+    than others, particularly less than the writer members, those members can start
+    lagging behind of the writers.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication 确保事务仅在组中的大多数成员接收并就同时发送的所有事务之间的相对顺序达成一致后才提交。如果组中的总写入次数超过任何成员的写入容量，则此方法效果良好。如果确实如此，并且一些成员的写入吞吐量低于其他成员，特别是低于写入成员，则这些成员可能会开始落后于写入者。
+- en: Having some members lagging behind the group brings some problematic consequences,
+    particularly, the reads on such members may externalize very old data. Depending
+    on why the member is lagging behind, other members in the group may have to save
+    more or less replication context to be able to fulfil potential data transfer
+    requests from the slow member.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使一些成员落后于组带来一些问题后果，特别是，这些成员上的读取可能会显示非常旧的数据。根据成员落后的原因，组中的其他成员可能需要保存更多或更少的复制上下文，以便能够满足来自慢速成员的潜在数据传输请求。
+- en: 'There is however a mechanism in the replication protocol to avoid having too
+    much distance, in terms of transactions applied, between fast and slow members.
+    This is known as the flow control mechanism. It tries to address several goals:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，在复制协议中有一种机制可以避免快速成员和慢速成员之间在应用的事务方面有太大的距离。这被称为流量控制机制。它试图解决几个目标：
+- en: to keep the members close enough to make buffering and de-synchronization between
+    members a small problem;
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 保持成员之间足够接近，使缓冲和成员之间的去同步问题变得不那么严重；
+- en: to adapt quickly to changing conditions like different workloads or more writers
+    in the group;
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 快速适应不同工作负载或组中更多写入者等不同条件；
+- en: to give each member a fair share of the available write capacity;
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 给每个成员公平分享可用写入容量；
+- en: to not reduce throughput more than strictly necessary to avoid wasting resources.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 不要将吞吐量降低到绝对必要的程度以避免浪费资源。
+- en: 'Given the design of Group Replication, the decision whether to throttle or
+    not may be decided taking into account two work queues: *(i)* the *certification*
+    queue; *(ii)* and on the binary log *applier* queue. Whenever the size of one
+    of these queues exceeds the user-defined threshold, the throttling mechanism is
+    triggered. Only configure: *(i)* whether to do flow control at the certifier or
+    at the applier level, or both; and *(ii)* what is the threshold for each queue.'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑到 Group Replication 的设计，是否进行限流取决于两个工作队列：*(i)* *认证* 队列；*(ii)* 以及二进制日志 *应用程序*
+    队列。每当其中一个队列的大小超过用户定义的阈值时，限流机制就会被触发。只需配置：*(i)* 在认证者或应用程序级别进行流量控制，或两者都进行；以及 *(ii)*
+    每个队列的阈值是多少。
+- en: 'The flow control depends on two basic mechanisms:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 流量控制取决于两种基本机制：
+- en: the monitoring of members to collect some statistics on throughput and queue
+    sizes of all group members to make educated guesses on what is the maximum write
+    pressure each member should be subjected to;
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 监控成员以收集有关所有组成员的吞吐量和队列大小的一些统计信息，以便对每个成员应受到的最大写入压力进行合理猜测；
+- en: the throttling of members that are trying to write beyond their fair-share of
+    the available capacity at each moment in time.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对于试图在每个时间点写入超出其公平份额的成员进行限流。

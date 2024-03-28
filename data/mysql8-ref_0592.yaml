@@ -1,0 +1,236 @@
+- en: 10.6.2 Bulk Data Loading for MyISAM Tables
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.6.2 MyISAM表的批量数据加载
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-myisam-bulk-data-loading.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-myisam-bulk-data-loading.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-myisam-bulk-data-loading.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-myisam-bulk-data-loading.html)
+- en: These performance tips supplement the general guidelines for fast inserts in
+    [Section 10.2.5.1, “Optimizing INSERT Statements”](insert-optimization.html "10.2.5.1 Optimizing
+    INSERT Statements").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些性能提示补充了[Section 10.2.5.1, “Optimizing INSERT Statements”](insert-optimization.html
+    "10.2.5.1 Optimizing INSERT Statements")中快速插入的��般准则。
+- en: For a `MyISAM` table, you can use concurrent inserts to add rows at the same
+    time that [`SELECT`](select.html "15.2.13 SELECT Statement") statements are running,
+    if there are no deleted rows in middle of the data file. See [Section 10.11.3,
+    “Concurrent Inserts”](concurrent-inserts.html "10.11.3 Concurrent Inserts").
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`MyISAM`表，如果数据文件中间没有删除的行，可以使用并发插入同时添加行，同时运行[`SELECT`](select.html "15.2.13 SELECT
+    Statement")语句。参见[Section 10.11.3, “Concurrent Inserts”](concurrent-inserts.html
+    "10.11.3 Concurrent Inserts")。
+- en: 'With some extra work, it is possible to make [`LOAD DATA`](load-data.html "15.2.9 LOAD
+    DATA Statement") run even faster for a `MyISAM` table when the table has many
+    indexes. Use the following procedure:'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 经过一些额外工作，可以使[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")在`MyISAM`表中运行得更快，尤其是当表中有许多索引时。使用以下过程：
+- en: Execute a [`FLUSH TABLES`](flush.html#flush-tables) statement or a [**mysqladmin
+    flush-tables**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program") command.
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行[`FLUSH TABLES`](flush.html#flush-tables)语句或[**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")命令。
+- en: Use [**myisamchk --keys-used=0 -rq *`/path/to/db/tbl_name`***](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") to remove all use of indexes
+    for the table.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[**myisamchk --keys-used=0 -rq *`/path/to/db/tbl_name`***](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")来删除表中所有索引的使用。
+- en: Insert data into the table with [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA
+    Statement"). This does not update any indexes and therefore is very fast.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")向表中插入数据。这不会更新任何索引，因此非常快。
+- en: If you intend only to read from the table in the future, use [**myisampack**](myisampack.html
+    "6.6.6 myisampack — Generate Compressed, Read-Only MyISAM Tables") to compress
+    it. See [Section 18.2.3.3, “Compressed Table Characteristics”](compressed-format.html
+    "18.2.3.3 Compressed Table Characteristics").
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果将来只打算从表中读取数据，请使用[**myisampack**](myisampack.html "6.6.6 myisampack — Generate
+    Compressed, Read-Only MyISAM Tables")对其进行压缩。参见[Section 18.2.3.3, “Compressed Table
+    Characteristics”](compressed-format.html "18.2.3.3 Compressed Table Characteristics")。
+- en: Re-create the indexes with [**myisamchk -rq *`/path/to/db/tbl_name`***](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility"). This creates the index
+    tree in memory before writing it to disk, which is much faster than updating the
+    index during [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") because
+    it avoids lots of disk seeks. The resulting index tree is also perfectly balanced.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[**myisamchk -rq *`/path/to/db/tbl_name`***](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")重新创建索引。这会在将索引写入磁盘之前在内存中创建索引树，比在[`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement")期间更新索引要快得多，因为它避免了大量的磁盘查找。生成的索引树也是完全平衡的。
+- en: Execute a [`FLUSH TABLES`](flush.html#flush-tables) statement or a [**mysqladmin
+    flush-tables**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program") command.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行[`FLUSH TABLES`](flush.html#flush-tables)语句或[**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")命令。
+- en: '[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") performs the preceding
+    optimization automatically if the `MyISAM` table into which you insert data is
+    empty. The main difference between automatic optimization and using the procedure
+    explicitly is that you can let [**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") allocate much more temporary memory for the
+    index creation than you might want the server to allocate for index re-creation
+    when it executes the [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")
+    statement.'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") 如果你要插入数据的`MyISAM`表是空的，它会自动执行前述优化。自动优化和显式使用该过程的主要区别在于，你可以让[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")为索引创建分配更多临时内存，而不是在执行[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement")语句时让服务器为索引重建分配更多内存。'
+- en: 'You can also disable or enable the nonunique indexes for a `MyISAM` table by
+    using the following statements rather than [**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility"). If you use these statements, you can skip
+    the [`FLUSH TABLES`](flush.html#flush-tables) operations:'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 你也可以通过以下语句来禁用或启用`MyISAM`表的非唯一索引，而不是使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")。如果使用这些语句，你可以跳过[`FLUSH TABLES`](flush.html#flush-tables)操作：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To speed up [`INSERT`](insert.html "15.2.7 INSERT Statement") operations that
+    are performed with multiple statements for nontransactional tables, lock your
+    tables:'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了加快对非事务表执行的多语句[`INSERT`](insert.html "15.2.7 INSERT Statement")操作的速度，锁定你的表：
+- en: '[PRE1]'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: This benefits performance because the index buffer is flushed to disk only once,
+    after all [`INSERT`](insert.html "15.2.7 INSERT Statement") statements have completed.
+    Normally, there would be as many index buffer flushes as there are [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statements. Explicit locking statements are not needed
+    if you can insert all rows with a single [`INSERT`](insert.html "15.2.7 INSERT
+    Statement").
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这有助于性能，因为索引缓冲区仅在所有[`INSERT`](insert.html "15.2.7 INSERT Statement")语句完成后一次性刷新到磁盘。通常情况下，会有与[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句数量相同的索引缓冲区刷新。如果你可以使用单个[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")插入所有行，则不需要显式的锁定语句。
+- en: 'Locking also lowers the total time for multiple-connection tests, although
+    the maximum wait time for individual connections might go up because they wait
+    for locks. Suppose that five clients attempt to perform inserts simultaneously
+    as follows:'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 锁定还降低了多连接测试的总时间，尽管单个连接的最大等待时间可能会增加，因为它们在等待锁。假设五个客户端同时尝试执行插入操作如下：
+- en: Connection 1 does 1000 inserts
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 连接1执行1000次插入
+- en: Connections 2, 3, and 4 do 1 insert
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 连接2、3和4执行1次插入
+- en: Connection 5 does 1000 inserts
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 连接5执行1000次插入
+- en: If you do not use locking, connections 2, 3, and 4 finish before 1 and 5\. If
+    you use locking, connections 2, 3, and 4 probably do not finish before 1 or 5,
+    but the total time should be about 40% faster.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果不使用锁定，连接2、3和4会在1和5之前完成。如果使用锁定，连接2、3和4可能不会在1或5之前完成，但总时间应该快约40%。
+- en: '[`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement"), and [`DELETE`](delete.html "15.2.2 DELETE Statement") operations
+    are very fast in MySQL, but you can obtain better overall performance by adding
+    locks around everything that does more than about five successive inserts or updates.
+    If you do very many successive inserts, you could do a [`LOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") followed by an [`UNLOCK TABLES`](lock-tables.html
+    "15.3.6 LOCK TABLES and UNLOCK TABLES Statements") once in a while (each 1,000
+    rows or so) to permit other threads to access table. This would still result in
+    a nice performance gain.'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在MySQL中，[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")操作非常快，但通过在进行超过约五次连续插入或更新的操作周围添加锁，你可以获得更好的整体性能。如果你进行了很多连续的插入操作，你可以偶尔执行一次[`LOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")，然后再执行一次[`UNLOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")（每1000行左右），以允许其他线程访问表。这仍然会带来良好的性能提升。
+- en: '[`INSERT`](insert.html "15.2.7 INSERT Statement") is still much slower for
+    loading data than [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement"),
+    even when using the strategies just outlined.'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于加载数据，[`INSERT`](insert.html "15.2.7 INSERT Statement")仍然比[`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement")慢得多，即使使用了刚刚概述的策略。
+- en: To increase performance for `MyISAM` tables, for both [`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement") and [`INSERT`](insert.html "15.2.7 INSERT Statement"),
+    enlarge the key cache by increasing the [`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)
+    system variable. See [Section 7.1.1, “Configuring the Server”](server-configuration.html
+    "7.1.1 Configuring the Server").
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了提高`MyISAM`表的性能，无论是对于[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")还是[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")，都可以通过增加[`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)系统变量来扩大键缓存。参见[第7.1.1节，“配置服务器”](server-configuration.html
+    "7.1.1 Configuring the Server")。

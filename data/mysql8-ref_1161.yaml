@@ -1,0 +1,1014 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-table-import.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-table-import.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-table-import.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-table-import.html)
+- en: 17.6.1.3 Importing InnoDB Tables
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.6.1.3 导入InnoDB表
+- en: 'This section describes how to import tables using the *Transportable Tablespaces*
+    feature, which permits importing tables, partitioned tables, or individual table
+    partitions that reside in file-per-table tablespaces. There are many reasons why
+    you might want to import tables:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述如何使用*可传输表空间*功能导入表，该功能允许导入位于文件-每表表空间中的表、分区表或单个表分区。有许多原因您可能想要导入表：
+- en: To run reports on a non-production MySQL server instance to avoid placing extra
+    load on a production server.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在非生产MySQL服务器实例上运行报告，以避免对生产服务器造成额外负载。
+- en: To copy data to a new replica server.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将数据复制到新的副本服务器。
+- en: To restore a table from a backed-up tablespace file.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从备份的表空间文件中恢复表。
+- en: As a faster way of moving data than importing a dump file, which requires reinserting
+    data and rebuilding indexes.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为比导入转储文件更快的移动数据的方法，后者需要重新插入数据和重建索引。
+- en: To move a data to a server with storage media that is better suited to your
+    storage requirements. For example, you might move busy tables to an SSD device,
+    or move large tables to a high-capacity HDD device.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将数据移动到一个存储介质更适合您存储需求的服务器上。例如，您可以将繁忙的表移动到SSD设备，或将大表移动到高容量的HDD设备。
+- en: 'The *Transportable Tablespaces* feature is described under the following topics
+    in this section:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*可传输表空间*功能在本节中的以下主题中进行了描述：'
+- en: '[Prerequisites](innodb-table-import.html#innodb-table-import-prerequsites "Prerequisites")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[先决条件](innodb-table-import.html#innodb-table-import-prerequsites "先决条件")'
+- en: '[Importing Tables](innodb-table-import.html#innodb-table-import-example "Importing
+    Tables")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[导入表](innodb-table-import.html#innodb-table-import-example "导入表")'
+- en: '[Importing Partitioned Tables](innodb-table-import.html#innodb-table-import-partitioned-table
+    "Importing Partitioned Tables")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[导入分区表](innodb-table-import.html#innodb-table-import-partitioned-table "导入分区表")'
+- en: '[Importing Table Partitions](innodb-table-import.html#innodb-table-import-partitions
+    "Importing Table Partitions")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[导入表分区](innodb-table-import.html#innodb-table-import-partitions "导入表分区")'
+- en: '[Limitations](innodb-table-import.html#innodb-table-import-limitations "Limitations")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[限制](innodb-table-import.html#innodb-table-import-limitations "限制")'
+- en: '[Usage Notes](innodb-table-import.html#innodb-table-import-usage-notes "Usage
+    Notes")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用说明](innodb-table-import.html#innodb-table-import-usage-notes "使用说明")'
+- en: '[Internals](innodb-table-import.html#innodb-table-import-internals "Internals")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[内部结构](innodb-table-import.html#innodb-table-import-internals "内部结构")'
+- en: Prerequisites
+  id: totrans-16
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 先决条件
+- en: The [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    variable must be enabled, which it is by default.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)变量必须启用，默认情况下已启用。'
+- en: The page size of the tablespace must match the page size of the destination
+    MySQL server instance. `InnoDB` page size is defined by the [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    variable, which is configured when initializing a MySQL server instance.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表空间的页面大小必须与目标MySQL服务器实例的页面大小匹配。`InnoDB`页面大小由[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)变量定义，在初始化MySQL服务器实例时配置。
+- en: If the table has a foreign key relationship, [`foreign_key_checks`](server-system-variables.html#sysvar_foreign_key_checks)
+    must be disabled before executing `DISCARD TABLESPACE`. Also, you should export
+    all foreign key related tables at the same logical point in time, as [`ALTER TABLE
+    ... IMPORT TABLESPACE`](alter-table.html "15.1.9 ALTER TABLE Statement") does
+    not enforce foreign key constraints on imported data. To do so, stop updating
+    the related tables, commit all transactions, acquire shared locks on the tables,
+    and perform the export operations.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表具有外键关系，在执行`DISCARD TABLESPACE`之前必须禁用[`foreign_key_checks`](server-system-variables.html#sysvar_foreign_key_checks)。此外，应在同一逻辑时间点导出所有相关的外键表，因为[`ALTER
+    TABLE ... IMPORT TABLESPACE`](alter-table.html "15.1.9 ALTER TABLE Statement")不会对导入的数据强制执行外键约束。为此，请停止更新相关表，提交所有事务，在表上获取共享锁，并执行导出操作。
+- en: When importing a table from another MySQL server instance, both MySQL server
+    instances must have General Availability (GA) status and must be the same version.
+    Otherwise, the table must be created on the same MySQL server instance into which
+    it is being imported.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当从另一个MySQL服务器实例导入表时，两个MySQL服务器实例必须具有通用可用性（GA）状态，并且必须是相同版本。否则，表必须在导入的MySQL服务器实例中创建。
+- en: If the table was created in an external directory by specifying the `DATA DIRECTORY`
+    clause in the [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    statement, the table that you replace on the destination instance must be defined
+    with the same `DATA DIRECTORY` clause. A schema mismatch error is reported if
+    the clauses do not match. To determine if the source table was defined with a
+    `DATA DIRECTORY` clause, use [`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW
+    CREATE TABLE Statement") to view the table definition. For information about using
+    the `DATA DIRECTORY` clause, see [Section 17.6.1.2, “Creating Tables Externally”](innodb-create-table-external.html
+    "17.6.1.2 Creating Tables Externally").
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表是通过在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句中指定`DATA
+    DIRECTORY`子句在外部目录中创建的，则在目标实例上替换的表必须使用相同的`DATA DIRECTORY`子句进行定义。如果子句不匹配，则会报告模式不匹配错误。要确定源表是否使用`DATA
+    DIRECTORY`子句定义，请使用[`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW
+    CREATE TABLE Statement")查看表定义。有关使用`DATA DIRECTORY`子句的信息，请参见[第17.6.1.2节，“外部创建表”](innodb-create-table-external.html
+    "17.6.1.2 Creating Tables Externally")。
+- en: If a `ROW_FORMAT` option is not defined explicitly in the table definition or
+    `ROW_FORMAT=DEFAULT` is used, the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    setting must be the same on the source and destination instances. Otherwise, a
+    schema mismatch error is reported when you attempt the import operation. Use [`SHOW
+    CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE TABLE Statement")
+    to check the table definition. Use [`SHOW VARIABLES`](show-variables.html "15.7.7.41 SHOW
+    VARIABLES Statement") to check the [`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)
+    setting. For related information, see [Defining the Row Format of a Table](innodb-row-format.html#innodb-row-format-defining
+    "Defining the Row Format of a Table").
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表定义中未明确定义`ROW_FORMAT`选项或使用了`ROW_FORMAT=DEFAULT`，则源实例和目标实例上的[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)设置必须相同。否则，在尝试导入操作时会报告模式不匹配错误。使用[`SHOW
+    CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE TABLE Statement")检查表定义。使用[`SHOW
+    VARIABLES`](show-variables.html "15.7.7.41 SHOW VARIABLES Statement")检查[`innodb_default_row_format`](innodb-parameters.html#sysvar_innodb_default_row_format)设置。有关相关信息，请参见[定义表的行格式](innodb-row-format.html#innodb-row-format-defining
+    "Defining the Row Format of a Table")。
+- en: Importing Tables
+  id: totrans-23
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 导入表
+- en: This example demonstrates how to import a regular non-partitioned table that
+    resides in a file-per-table tablespace.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此示例演示了如何导入一个位于文件表空间中的常规非分区表。
+- en: On the destination instance, create a table with the same definition as the
+    table you intend to import. (You can obtain the table definition using [`SHOW
+    CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE TABLE Statement")
+    syntax.) If the table definition does not match, a schema mismatch error is reported
+    when you attempt the import operation.
+  id: totrans-25
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，创建一个与您打算导入的表具有相同定义的表。（您可以使用[`SHOW CREATE TABLE`](show-create-table.html
+    "15.7.7.10 SHOW CREATE TABLE Statement")语法获取表定义。）如果表定义不匹配，在尝试导入操作时会报告模式不匹配错误。
+- en: '[PRE0]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: On the destination instance, discard the tablespace of the table that you just
+    created. (Before importing, you must discard the tablespace of the receiving table.)
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，丢弃刚刚创建的表的表空间。（在导入之前，您必须丢弃接收表的表空间。）
+- en: '[PRE1]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: On the source instance, run [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    to quiesce the table you intend to import. When a table is quiesced, only read-only
+    transactions are permitted on the table.
+  id: totrans-29
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源实例上，运行[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)以使您打算导入的表静止。当表被静止时，只允许对表进行只读事务。
+- en: '[PRE2]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    ensures that changes to the named table are flushed to disk so that a binary table
+    copy can be made while the server is running. When [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    is run, `InnoDB` generates a `.cfg` metadata file in the schema directory of the
+    table. The `.cfg` file contains metadata that is used for schema verification
+    during the import operation.'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)确保对命名表的更改刷新到磁盘，以便在服务器运行时可以进行二进制表复制。运行[`FLUSH
+    TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)时，`InnoDB`在表的模式目录中生成一个`.cfg`元数据文件。`.cfg`文件包含在导入操作期间用于模式验证的元数据。'
+- en: Note
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The connection executing [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    must remain open while the operation is running; otherwise, the `.cfg` file is
+    removed as locks are released upon connection closure.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 执行[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)的连接在操作运行时必须保持打开状态；否则，随着连接关闭，`.cfg`文件将被删除，因为锁在连接关闭时被释放。
+- en: 'Copy the `.ibd` file and `.cfg` metadata file from the source instance to the
+    destination instance. For example:'
+  id: totrans-34
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从源实例复制`.ibd`文件和`.cfg`元数据文件到目标实例。例如：
+- en: '[PRE3]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The `.ibd` file and `.cfg` file must be copied before releasing the shared locks,
+    as described in the next step.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在释放共享锁之前，必须复制`.ibd`文件和`.cfg`文件，如下一步骤所述。
+- en: Note
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you are importing a table from an encrypted tablespace, `InnoDB` generates
+    a `.cfp` file in addition to a `.cfg` metadata file. The `.cfp` file must be copied
+    to the destination instance together with the `.cfg` file. The `.cfp` file contains
+    a transfer key and an encrypted tablespace key. On import, `InnoDB` uses the transfer
+    key to decrypt the tablespace key. For related information, see [Section 17.13,
+    “InnoDB Data-at-Rest Encryption”](innodb-data-encryption.html "17.13 InnoDB Data-at-Rest
+    Encryption").
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您从加密表空间导入表，`InnoDB`会生成一个`.cfp`文件，除了一个`.cfg`元数据文件。`.cfp`文件必须与`.cfg`文件一起复制到目标实例。`.cfp`文件包含一个传输密钥和一个加密表空间密钥。在导入时，`InnoDB`使用传输密钥解密表空间密钥。有关相关信息，请参见[第17.13节，“InnoDB数据静止加密”](innodb-data-encryption.html
+    "17.13 InnoDB Data-at-Rest Encryption")。
+- en: 'On the source instance, use [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements") to release the locks acquired by the [`FLUSH
+    TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list) statement:'
+  id: totrans-39
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源实例上，使用[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")释放[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)语句获取的锁：
+- en: '[PRE4]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") operation also removes the `.cfg` file.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")操作也会删除`.cfg`文件。'
+- en: 'On the destination instance, import the tablespace:'
+  id: totrans-42
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，导入表空间：
+- en: '[PRE5]'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Importing Partitioned Tables
+  id: totrans-44
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 导入分区表
+- en: This example demonstrates how to import a partitioned table, where each table
+    partition resides in a file-per-table tablespace.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本示例演示了如何导入一个分区表，其中每个表分区都驻留在一个文件表表空间中。
+- en: On the destination instance, create a partitioned table with the same definition
+    as the partitioned table that you want to import. (You can obtain the table definition
+    using [`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW CREATE TABLE
+    Statement") syntax.) If the table definition does not match, a schema mismatch
+    error is reported when you attempt the import operation.
+  id: totrans-46
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，创建一个与要导入的分区表相同定义的分区表。（您可以使用[`SHOW CREATE TABLE`](show-create-table.html
+    "15.7.7.10 SHOW CREATE TABLE Statement")语法获取表定义。）如果表定义不匹配，则在尝试导入操作时会报告模式不匹配错误。
+- en: '[PRE6]'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: In the `/*`datadir`*/test` directory, there is a tablespace `.ibd` file for
+    each of the three partitions.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在`/*`datadir`*/test`目录中，每个分区都有一个`.ibd`文件的表空间。
+- en: '[PRE7]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: On the destination instance, discard the tablespace for the partitioned table.
+    (Before the import operation, you must discard the tablespace of the receiving
+    table.)
+  id: totrans-50
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，丢弃分区表的表空间。（在导入操作之前，必须丢弃接收表的表空间。）
+- en: '[PRE8]'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: The three tablespace `.ibd` files of the partitioned table are discarded from
+    the `/*`datadir`*/test` directory.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 分区表的三个表空间`.ibd`文件将从`/*`datadir`*/test`目录中丢弃。
+- en: On the source instance, run [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    to quiesce the partitioned table that you intend to import. When a table is quiesced,
+    only read-only transactions are permitted on the table.
+  id: totrans-53
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源实例上，运行[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)来使您打算导入的分区表静止。当表被静止时，只允许对表进行只读事务。
+- en: '[PRE9]'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: '[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    ensures that changes to the named table are flushed to disk so that binary table
+    copy can be made while the server is running. When [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    is run, `InnoDB` generates `.cfg` metadata files in the schema directory of the
+    table for each of the table''s tablespace files.'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)确保将对命名表的更改刷新到磁盘，以便在服务器运行时可以进行二进制表复制。当运行[`FLUSH
+    TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)时，`InnoDB`为表的每个表空间文件在表的模式目录中生成`.cfg`元数据文件。'
+- en: '[PRE10]'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: The `.cfg` files contain metadata that is used for schema verification when
+    importing the tablespace. [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    can only be run on the table, not on individual table partitions.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`.cfg`文件包含在导入表空间时用于模式验证的元数据。[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)只能在表上运行，而不能在单个表分区上运行。'
+- en: 'Copy the `.ibd` and `.cfg` files from the source instance schema directory
+    to the destination instance schema directory. For example:'
+  id: totrans-58
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将`.ibd`和`.cfg`文件从源实例模式目录复制到目标实例模式目录。例如：
+- en: '[PRE11]'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: The `.ibd` and `.cfg` files must be copied before releasing the shared locks,
+    as described in the next step.
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在释放共享锁之前，必须复制`.ibd`和`.cfg`文件，如下一步所述。
+- en: Note
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you are importing a table from an encrypted tablespace, `InnoDB` generates
+    a `.cfp` files in addition to a `.cfg` metadata files. The `.cfp` files must be
+    copied to the destination instance together with the `.cfg` files. The `.cfp`
+    files contain a transfer key and an encrypted tablespace key. On import, `InnoDB`
+    uses the transfer key to decrypt the tablespace key. For related information,
+    see [Section 17.13, “InnoDB Data-at-Rest Encryption”](innodb-data-encryption.html
+    "17.13 InnoDB Data-at-Rest Encryption").
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果从加密表空间导入表，则`InnoDB`会生成一个`.cfp`文件，除了一个`.cfg`元数据文件。`.cfp`文件必须与`.cfg`文件一起复制到目标实例。`.cfp`文件包含传输密钥和加密表空间密钥。在导入时，`InnoDB`使用传输密钥解密表空间密钥。有关相关信息，请参见[第17.13节，“InnoDB数据静止加密”](innodb-data-encryption.html
+    "17.13 InnoDB Data-at-Rest Encryption")。
+- en: 'On the source instance, use [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements") to release the locks acquired by [`FLUSH
+    TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list):'
+  id: totrans-63
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源实例上，使用[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")释放由[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)获取的锁：
+- en: '[PRE12]'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'On the destination instance, import the tablespace of the partitioned table:'
+  id: totrans-65
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，导入分区表的表空间：
+- en: '[PRE13]'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Importing Table Partitions
+  id: totrans-67
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 导入表分区
+- en: This example demonstrates how to import individual table partitions, where each
+    partition resides in a file-per-table tablespace file.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本示例演示了如何导入单个表分区，其中每个分区都驻留在一个文件表空间文件中。
+- en: In the following example, two partitions (`p2` and `p3`) of a four-partition
+    table are imported.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在下面的示例中，导入了一个四分区表的两个分区（`p2`和`p3`）。
+- en: On the destination instance, create a partitioned table with the same definition
+    as the partitioned table that you want to import partitions from. (You can obtain
+    the table definition using [`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW
+    CREATE TABLE Statement") syntax.) If the table definition does not match, a schema
+    mismatch error is reported when you attempt the import operation.
+  id: totrans-70
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，创建一个与要导入分区的分区表定义相同的分区表（可以使用[`SHOW CREATE TABLE`](show-create-table.html
+    "15.7.7.10 SHOW CREATE TABLE Statement")语法获取表定义）。如果表定义不匹配，则在尝试导入操作时会报告模式不匹配错误。
+- en: '[PRE14]'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: In the `/*`datadir`*/test` directory, there is a tablespace `.ibd` file for
+    each of the four partitions.
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在`/*`datadir`*/test`目录中，每个分区都有一个`.ibd`文件。
+- en: '[PRE15]'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: On the destination instance, discard the partitions that you intend to import
+    from the source instance. (Before importing partitions, you must discard the corresponding
+    partitions from the receiving partitioned table.)
+  id: totrans-74
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，丢弃要从源实例导入的分区。（在导入分区之前，必须从接收分区表中丢弃相应的分区。）
+- en: '[PRE16]'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'The tablespace `.ibd` files for the two discarded partitions are removed from
+    the `/*`datadir`*/test` directory on the destination instance, leaving the following
+    files:'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 两个丢弃分区（`p2`和`p3`）的表空间`.ibd`文件从目标实例的`/*`datadir`*/test`目录中移除，留下以下文件：
+- en: '[PRE17]'
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: Note
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When [`ALTER TABLE ... DISCARD PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") is run on subpartitioned tables, both partition and subpartition
+    table names are permitted. When a partition name is specified, subpartitions of
+    that partition are included in the operation.
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当在子分区表上运行[`ALTER TABLE ... DISCARD PARTITION ... TABLESPACE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")时，允许使用分区和子分区表名称。指定分区名称时，该分区的子分区也包括在操作中。
+- en: On the source instance, run [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    to quiesce the partitioned table. When a table is quiesced, only read-only transactions
+    are permitted on the table.
+  id: totrans-80
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源实例上，运行[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)使分区表静止。当表被静止时，只允许对表进行只读事务。
+- en: '[PRE18]'
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: '[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    ensures that changes to the named table are flushed to disk so that binary table
+    copy can be made while the instance is running. When [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    is run, `InnoDB` generates a `.cfg` metadata file for each of the table''s tablespace
+    files in the schema directory of the table.'
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)确保将对命名表的更改刷新到磁盘，以便在实例运行时可以进行二进制表复制。运行[`FLUSH
+    TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)时，`InnoDB`为表模式目录中的每个表空间文件生成一个`.cfg`元数据文件。'
+- en: '[PRE19]'
+  id: totrans-83
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: The `.cfg` files contain metadata that used for schema verification during the
+    import operation. [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    can only be run on the table, not on individual table partitions.
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`.cfg`文件包含在导入操作期间用于模式验证的元数据。[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)只能在表上运行，而不能在单独的表分区上运行。'
+- en: Copy the `.ibd` and `.cfg` files for partition `p2` and partition `p3` from
+    the source instance schema directory to the destination instance schema directory.
+  id: totrans-85
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从源实例模式目录复制分区`p2`和分区`p3`的`.ibd`和`.cfg`文件到目标实例模式目录。
+- en: '[PRE20]'
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: The `.ibd` and `.cfg` files must be copied before releasing the shared locks,
+    as described in the next step.
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在释放共享锁之前，必须复制`.ibd`和`.cfg`文件，如下一步骤所述。
+- en: Note
+  id: totrans-88
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you are importing partitions from an encrypted tablespace, `InnoDB` generates
+    a `.cfp` files in addition to a `.cfg` metadata files. The `.cfp` files must be
+    copied to the destination instance together with the `.cfg` files. The `.cfp`
+    files contain a transfer key and an encrypted tablespace key. On import, `InnoDB`
+    uses the transfer key to decrypt the tablespace key. For related information,
+    see [Section 17.13, “InnoDB Data-at-Rest Encryption”](innodb-data-encryption.html
+    "17.13 InnoDB Data-at-Rest Encryption").
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您从加密表空间导入分区，则`InnoDB`会生成一个`.cfg`元数据文件以及一个`.cfp`文件。`.cfp`文件必须与`.cfg`文件一起复制到目标实例。`.cfp`文件包含传输密钥和加密表空间密钥。在导入时，`InnoDB`使用传输密钥解密表空间密钥。有关更多信息，请参见[第17.13节，“InnoDB数据静态加密”](innodb-data-encryption.html
+    "17.13 InnoDB Data-at-Rest Encryption")。
+- en: 'On the source instance, use [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK
+    TABLES and UNLOCK TABLES Statements") to release the locks acquired by [`FLUSH
+    TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list):'
+  id: totrans-90
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源实例上，使用[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")释放由[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)获取的锁：
+- en: '[PRE21]'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: 'On the destination instance, import table partitions `p2` and `p3`:'
+  id: totrans-92
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在目标实例上，导入表分区`p2`和`p3`：
+- en: '[PRE22]'
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: Note
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When [`ALTER TABLE ... IMPORT PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") is run on subpartitioned tables, both partition and subpartition
+    table names are permitted. When a partition name is specified, subpartitions of
+    that partition are included in the operation.
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当在分区化表上运行[`ALTER TABLE ... IMPORT PARTITION ... TABLESPACE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")时，允许使用分区和子分区表名称。指定分区名称时，该分区的子分区将包含在操作中。
+- en: Limitations
+  id: totrans-96
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 限制
+- en: The *Transportable Tablespaces* feature is only supported for tables that reside
+    in file-per-table tablespaces. It is not supported for the tables that reside
+    in the system tablespace or general tablespaces. Tables in shared tablespaces
+    cannot be quiesced.
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*可传输表空间*功能仅支持驻留在文件表空间中的表。不支持驻留在系统表空间或通用表空间中的表。共享表空间中的表无法静止。'
+- en: '[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    is not supported on tables with a `FULLTEXT` index, as full-text search auxiliary
+    tables cannot be flushed. After importing a table with a `FULLTEXT` index, run
+    [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement") to
+    rebuild the `FULLTEXT` indexes. Alternatively, drop `FULLTEXT` indexes before
+    the export operation and recreate the indexes after importing the table on the
+    destination instance.'
+  id: totrans-98
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不支持在具有`FULLTEXT`索引的表上运行[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)，因为无法刷新全文搜索辅助表。在导入具有`FULLTEXT`索引的表后，运行[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")来重建`FULLTEXT`索引。或者，在导出操作之前删除`FULLTEXT`索引，并在目标实例上导入表后重新创建索引。
+- en: Due to a `.cfg` metadata file limitation, schema mismatches are not reported
+    for partition type or partition definition differences when importing a partitioned
+    table. Column differences are reported.
+  id: totrans-99
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由于`.cfg`元数据文件的限制，当导入分区表时，不会报告分区类型或分区定义差异，但会报告列差异。
+- en: Prior to MySQL 8.0.19, index key part sort order information is not stored to
+    the `.cfg` metadata file used during a tablespace import operation. The index
+    key part sort order is therefore assumed to be ascending, which is the default.
+    As a result, records could be sorted in an unintended order if one table involved
+    in the import operation is defined with a DESC index key part sort order and the
+    other table is not. The workaround is to drop and recreate affected indexes. For
+    information about index key part sort order, see [Section 15.1.15, “CREATE INDEX
+    Statement”](create-index.html "15.1.15 CREATE INDEX Statement").
+  id: totrans-100
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.19之前，在表空间导入操作期间，索引键部分排序顺序信息不会存储到使用的`.cfg`元数据文件中。因此，假定索引键部分排序顺序为升序，这是默认值。因此，如果一个表在导入操作中定义为具有DESC索引键部分排序顺序，而另一个表没有，则记录可能以意外的顺序排序。解决方法是删除并重新创建受影响的索引。有关索引键部分排序顺序的信息，请参见[第15.1.15节，“CREATE
+    INDEX Statement”](create-index.html "15.1.15 CREATE INDEX Statement")。
+- en: The `.cfg` file format was updated in MySQL 8.0.19 to include index key part
+    sort order information. The issue described above does not affect import operations
+    between MySQL 8.0.19 server instances or higher.
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.19中更新了`.cfg`文件格式，包括索引键部分排序顺序信息。上述问题不会影响MySQL 8.0.19服务器实例或更高版本之间的导入操作。
+- en: Usage Notes
+  id: totrans-102
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用说明
+- en: 'With the exception of tables that contain instantly added or dropped columns,
+    [`ALTER TABLE ... IMPORT TABLESPACE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    does not require a `.cfg` metadata file to import a table. However, metadata checks
+    are not performed when importing without a `.cfg` file, and a warning similar
+    to the following is issued:'
+  id: totrans-103
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 除了包含立即添加或删除列的表之外，[`ALTER TABLE ... IMPORT TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")在导入表时不需要`.cfg`元数据文件。然而，在没有使用`.cfg`文件导入时不会执行元数据检查，并会发出类似以下警告：
+- en: '[PRE23]'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: Importing a table without a `.cfg` metadata file should only be considered if
+    no schema mismatches are expected and the table does not contain any instantly
+    added or dropped columns. The ability to import without a `.cfg` file could be
+    useful in crash recovery scenarios where metadata is not accessible.
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 只有在不期望出现模式不匹配且表不包含任何立即添加或删除列时，才应考虑在没有`.cfg`元数据文件的情况下导入表。在无法访问元数据的崩溃恢复场景中，无需`.cfg`文件即可导入可能是有用的。
+- en: Attempting to import a table with columns that were added or dropped using `ALGORITHM=INSTANT`
+    without using a `.cfg` file can result in undefined behavior.
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 尝试使用`ALGORITHM=INSTANT`导入包含已添加或删除列的表而没有使用`.cfg`文件可能导致未定义的行为。
+- en: On Windows, `InnoDB` stores database, tablespace, and table names internally
+    in lowercase. To avoid import problems on case-sensitive operating systems such
+    as Linux and Unix, create all databases, tablespaces, and tables using lowercase
+    names. A convenient way to ensure that names are created in lowercase is to set
+    [`lower_case_table_names`](server-system-variables.html#sysvar_lower_case_table_names)
+    to 1 before initializing the server. (It is prohibited to start the server with
+    a [`lower_case_table_names`](server-system-variables.html#sysvar_lower_case_table_names)
+    setting that is different from the setting used when the server was initialized.)
+  id: totrans-107
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在Windows上，`InnoDB`在内部以小写存储数据库、表空间和表名。为避免在Linux和Unix等区分大小写的操作系统上出现导入问题，请使用小写名称创建所有数据库、表空间和表。确保名称以小写创建的一种便捷方法是在初始化服务器之前将[`lower_case_table_names`](server-system-variables.html#sysvar_lower_case_table_names)设置为1。（禁止使用与服务器初始化时使用的设置不同的[`lower_case_table_names`](server-system-variables.html#sysvar_lower_case_table_names)设置启动服务器。）
+- en: '[PRE24]'
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: When running [`ALTER TABLE ... DISCARD PARTITION ... TABLESPACE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") and [`ALTER TABLE ... IMPORT PARTITION ... TABLESPACE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") on subpartitioned tables, both partition and subpartition
+    table names are permitted. When a partition name is specified, subpartitions of
+    that partition are included in the operation.
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在子分区表上运行[`ALTER TABLE ... DISCARD PARTITION ... TABLESPACE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")和[`ALTER TABLE ... IMPORT PARTITION ... TABLESPACE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")时，允许使用分区和子分区表名称。指定分区名称时，该分区的子分区将包含在操作中。
+- en: Internals
+  id: totrans-110
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 内部结构
+- en: The following information describes internals and messages written to the error
+    log during a table import procedure.
+  id: totrans-111
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下信息描述了在表导入过程中写入错误日志的内部和消息。
+- en: 'When [`ALTER TABLE ... DISCARD TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") is run on the destination instance:'
+  id: totrans-112
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在目标实例上运行[`ALTER TABLE ... DISCARD TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")时：
+- en: The table is locked in X mode.
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表以X模式被锁定。
+- en: The tablespace is detached from the table.
+  id: totrans-114
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表空间从表中分离。
+- en: 'When [`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)
+    is run on the source instance:'
+  id: totrans-115
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在源实例上运行[`FLUSH TABLES ... FOR EXPORT`](flush.html#flush-tables-for-export-with-list)时：
+- en: The table being flushed for export is locked in shared mode.
+  id: totrans-116
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于导出的表被以共享模式锁定。
+- en: The purge coordinator thread is stopped.
+  id: totrans-117
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 清理协调器线程被停止。
+- en: Dirty pages are synchronized to disk.
+  id: totrans-118
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 脏页被同步到磁盘。
+- en: Table metadata is written to the binary `.cfg` file.
+  id: totrans-119
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表元数据被写入二进制`.cfg`文件。
+- en: 'Expected error log messages for this operation:'
+  id: totrans-120
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该操作的预期错误日志消息：
+- en: '[PRE25]'
+  id: totrans-121
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: 'When [`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements") is run on the source instance:'
+  id: totrans-122
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在源实例上运行[`UNLOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES
+    Statements")时：
+- en: The binary `.cfg` file is deleted.
+  id: totrans-123
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 二进制`.cfg`文件被删除。
+- en: The shared lock on the table or tables being imported is released and the purge
+    coordinator thread is restarted.
+  id: totrans-124
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 被导入的表或表的共享锁被释放，并且清理协调器线程被重新启动。
+- en: 'Expected error log messages for this operation:'
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该操作的预期错误日志消息：
+- en: '[PRE26]'
+  id: totrans-126
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: 'When [`ALTER TABLE ... IMPORT TABLESPACE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") is run on the destination instance, the import algorithm performs
+    the following operations for each tablespace being imported:'
+  id: totrans-127
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在目标实例上运行[`ALTER TABLE ... IMPORT TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")时，导入算法对每个被导入的表空间执行以下操作：
+- en: Each tablespace page is checked for corruption.
+  id: totrans-128
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 检查每个表空间页是否损坏。
+- en: The space ID and log sequence numbers (LSNs) on each page are updated.
+  id: totrans-129
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更新每个页面上的空间ID和日志序列号（LSN）。
+- en: Flags are validated and LSN updated for the header page.
+  id: totrans-130
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 标志被验证并且头页的LSN被更新。
+- en: Btree pages are updated.
+  id: totrans-131
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: B树页被更新。
+- en: The page state is set to dirty so that it is written to disk.
+  id: totrans-132
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 页面状态被设置为脏，以便写入磁盘。
+- en: 'Expected error log messages for this operation:'
+  id: totrans-133
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该操作的预期错误日志消息：
+- en: '[PRE27]'
+  id: totrans-134
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: Note
+  id: totrans-135
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'You may also receive a warning that a tablespace is discarded (if you discarded
+    the tablespace for the destination table) and a message stating that statistics
+    could not be calculated due to a missing `.ibd` file:'
+  id: totrans-136
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可能还会收到一个警告，表空间被丢弃了（如果你丢弃了目标表的表空间），以及一个消息说明由于缺少`.ibd`文件而无法计算统计信息：
+- en: '[PRE28]'
+  id: totrans-137
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE28]'

@@ -1,0 +1,469 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-preload-buffer-pool.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-preload-buffer-pool.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-preload-buffer-pool.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-preload-buffer-pool.html)
+- en: 17.8.3.6 Saving and Restoring the Buffer Pool State
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.8.3.6 保存和恢复缓冲池状态
+- en: To reduce the [warmup](glossary.html#glos_warm_up "warm up") period after restarting
+    the server, `InnoDB` saves a percentage of the most recently used pages for each
+    buffer pool at server shutdown and restores these pages at server startup. The
+    percentage of recently used pages that is stored is defined by the [`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)
+    configuration option.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了在服务器重新启动后减少热身期，`InnoDB` 在服务器关闭时保存每个缓冲池中最近使用的页面的一定百分比，并在服务器启动时恢复这些页面。存储的最近使用页面的百分比由
+    [`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)
+    配置选项定义。
+- en: After restarting a busy server, there is typically a warmup period with steadily
+    increasing throughput, as disk pages that were in the buffer pool are brought
+    back into memory (as the same data is queried, updated, and so on). The ability
+    to restore the buffer pool at startup shortens the warmup period by reloading
+    disk pages that were in the buffer pool before the restart rather than waiting
+    for DML operations to access corresponding rows. Also, I/O requests can be performed
+    in large batches, making the overall I/O faster. Page loading happens in the background,
+    and does not delay database startup.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重启繁忙的服务器后，通常会有一个热身期，吞吐量稳步增加，因为缓冲池中的磁盘页被重新加载到内存中（当相同数据被查询、更新等时）。在启动时恢复缓冲池的能力通过重新加载重启前在缓冲池中的磁盘页，缩短了热身期，而不是等待
+    DML 操作访问相应的行。此外，I/O 请求可以批量执行，使整体 I/O 更快。页面加载在后台进行，不会延迟数据库启动。
+- en: In addition to saving the buffer pool state at shutdown and restoring it at
+    startup, you can save and restore the buffer pool state at any time, while the
+    server is running. For example, you can save the state of the buffer pool after
+    reaching a stable throughput under a steady workload. You could also restore the
+    previous buffer pool state after running reports or maintenance jobs that bring
+    data pages into the buffer pool that are only requited for those operations, or
+    after running some other non-typical workload.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了在关闭时保存缓冲池状态并在启动时恢复它之外，您还可以在服务器运行时的任何时候保存和恢复缓冲池状态。例如，在稳定的工作负载下达到稳定吞吐量后，您可以保存缓冲池的状态。您还可以在运行报告或将数据页带入缓冲池的维护作业后，或在运行其他非典型工作负载后，恢复先前的缓冲池状态。
+- en: Even though a buffer pool can be many gigabytes in size, the buffer pool data
+    that `InnoDB` saves to disk is tiny by comparison. Only tablespace IDs and page
+    IDs necessary to locate the appropriate pages are saved to disk. This information
+    is derived from the [`INNODB_BUFFER_PAGE_LRU`](information-schema-innodb-buffer-page-lru-table.html
+    "28.4.3 The INFORMATION_SCHEMA INNODB_BUFFER_PAGE_LRU Table") `INFORMATION_SCHEMA`
+    table. By default, tablespace ID and page ID data is saved in a file named `ib_buffer_pool`,
+    which is saved to the `InnoDB` data directory. The file name and location can
+    be modified using the [`innodb_buffer_pool_filename`](innodb-parameters.html#sysvar_innodb_buffer_pool_filename)
+    configuration parameter.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使缓冲池的大小可能达到几个千兆字节，但相比之下，`InnoDB` 保存到磁盘的缓冲池数据非常小。只保存用于定位适当页面的表空间 ID 和页面 ID。此信息来自
+    [`INNODB_BUFFER_PAGE_LRU`](information-schema-innodb-buffer-page-lru-table.html
+    "28.4.3 INFORMATION_SCHEMA INNODB_BUFFER_PAGE_LRU 表") `INFORMATION_SCHEMA` 表。默认情况下，表空间
+    ID 和页面 ID 数据保存在名为 `ib_buffer_pool` 的文件中，该文件保存在 `InnoDB` 数据目录中。文件名和位置可以使用 [`innodb_buffer_pool_filename`](innodb-parameters.html#sysvar_innodb_buffer_pool_filename)
+    配置参数进行修改。
+- en: Because data is cached in and aged out of the buffer pool as it is with regular
+    database operations, there is no problem if the disk pages are recently updated,
+    or if a DML operation involves data that has not yet been loaded. The loading
+    mechanism skips requested pages that no longer exist.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为数据像常规数据库操作一样在缓冲池中缓存并被淘汰，所以如果磁盘页最近被更新，或者 DML 操作涉及尚未加载的数据，都不会有问题。加载机制会跳过不再存在的请求页面。
+- en: The underlying mechanism involves a background thread that is dispatched to
+    perform the dump and load operations.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 底层机制涉及一个后台线程，用于执行转储和加载操作。
+- en: Disk pages from compressed tables are loaded into the buffer pool in their compressed
+    form. Pages are uncompressed as usual when page contents are accessed during DML
+    operations. Because uncompressing pages is a CPU-intensive process, it is more
+    efficient for concurrency to perform the operation in a connection thread rather
+    than in the single thread that performs the buffer pool restore operation.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 来自压缩表的磁盘页面以压缩形式加载到缓冲池中。在进行DML操作期间访问页面内容时，页面将像往常一样解压缩。因为解压缩页面是一个消耗CPU的过程，所以为了并发性能更高，最好在连接线程中执行操作，而不是在执行缓冲池恢复操作的单个线程中执行操作。
+- en: 'Operations related to saving and restoring the buffer pool state are described
+    in the following topics:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关保存和恢复缓冲池状态的操作描述在以下主题中：
+- en: '[Configuring the Dump Percentage for Buffer Pool Pages](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-dump-pct
+    "Configuring the Dump Percentage for Buffer Pool Pages")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置缓冲池页面转储百分比](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-dump-pct
+    "配置缓冲池页面转储百分比")'
+- en: '[Saving the Buffer Pool State at Shutdown and Restoring it at Startup](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-offline
+    "Saving the Buffer Pool State at Shutdown and Restoring it at Startup")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[在关闭时保存缓冲池状态并在启动时恢复](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-offline
+    "在关闭时保存缓冲池状态并在启动时恢复")'
+- en: '[Saving and Restoring the Buffer Pool State Online](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-online
+    "Saving and Restoring the Buffer Pool State Online")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[在线保存和恢复缓冲池状态](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-online
+    "在线保存和恢复缓冲池状态")'
+- en: '[Displaying Buffer Pool Dump Progress](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-dump-progress
+    "Displaying Buffer Pool Dump Progress")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[显示缓冲池转储进度](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-dump-progress
+    "显示缓冲池转储进度")'
+- en: '[Displaying Buffer Pool Load Progress](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-load-progress
+    "Displaying Buffer Pool Load Progress")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[显示缓冲池加载进度](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-load-progress
+    "显示缓冲池加载进度")'
+- en: '[Aborting a Buffer Pool Load Operation](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-abort-load
+    "Aborting a Buffer Pool Load Operation")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[中止缓冲池加载操作](innodb-preload-buffer-pool.html#innodb-preload-buffer-pool-abort-load
+    "中止缓冲池加载操作")'
+- en: '[Monitoring Buffer Pool Load Progress Using Performance Schema](innodb-preload-buffer-pool.html#monitor-buffer-pool-load-performance-schema
+    "Monitoring Buffer Pool Load Progress Using Performance Schema")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用性能模式监视缓冲池加载进度](innodb-preload-buffer-pool.html#monitor-buffer-pool-load-performance-schema
+    "使用性能模式监视缓冲池加载进度")'
+- en: Configuring the Dump Percentage for Buffer Pool Pages
+  id: totrans-17
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 配置缓冲池页面转储百分比
+- en: 'Before dumping pages from the buffer pool, you can configure the percentage
+    of most-recently-used buffer pool pages that you want to dump by setting the [`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)
+    option. If you plan to dump buffer pool pages while the server is running, you
+    can configure the option dynamically:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在从缓冲池转储页面之前，您可以通过设置[`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)选项来配置要转储的最近使用的缓冲池页面的百分比。如果您计划在服务器运行时转储缓冲池页面，可以动态配置该选项：
+- en: '[PRE0]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: If you plan to dump buffer pool pages at server shutdown, set [`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)
+    in your configuration file.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您计划在服务器关闭时转储缓冲池页面，请在配置文件中设置[`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)。
+- en: '[PRE1]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The [`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)
+    default value is 25 (dump 25% of most-recently-used pages).
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_buffer_pool_dump_pct`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_pct)的默认值为25（转储最近使用的页面的25%）。'
+- en: Saving the Buffer Pool State at Shutdown and Restoring it at Startup
+  id: totrans-23
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 在关闭时保存缓冲池状态并在启动时恢复
+- en: 'To save the state of the buffer pool at server shutdown, issue the following
+    statement prior to shutting down the server:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在关闭服务器之前，请在关闭服务器之前发出以下语句以保存缓冲池状态：
+- en: '[PRE2]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '[`innodb_buffer_pool_dump_at_shutdown`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_at_shutdown)
+    is enabled by default.'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_buffer_pool_dump_at_shutdown`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_at_shutdown)默认启用。'
+- en: 'To restore the buffer pool state at server startup, specify the `--innodb-buffer-pool-load-at-startup`
+    option when starting the server:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器启动时恢复缓冲池状态，请在启动服务器时指定`--innodb-buffer-pool-load-at-startup`选项：
+- en: '[PRE3]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '[`innodb_buffer_pool_load_at_startup`](innodb-parameters.html#sysvar_innodb_buffer_pool_load_at_startup)
+    is enabled by default.'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_buffer_pool_load_at_startup`](innodb-parameters.html#sysvar_innodb_buffer_pool_load_at_startup)默认启用。'
+- en: Saving and Restoring the Buffer Pool State Online
+  id: totrans-30
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 在线保存和恢复缓冲池状态
+- en: 'To save the state of the buffer pool while MySQL server is running, issue the
+    following statement:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在MySQL服务器运行时保存缓冲池状态，请执行以下语句：
+- en: '[PRE4]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'To restore the buffer pool state while MySQL is running, issue the following
+    statement:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL运行时恢复缓冲池状态，请执行以下语句：
+- en: '[PRE5]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Displaying Buffer Pool Dump Progress
+  id: totrans-35
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 显示缓冲池转储进度
+- en: 'To display progress when saving the buffer pool state to disk, issue the following
+    statement:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在将缓冲池状态保存到磁盘时显示进度，请执行以下语句：
+- en: '[PRE6]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: If the operation has not yet started, “not started” is returned. If the operation
+    is complete, the completion time is printed (e.g. Finished at 110505 12:18:02).
+    If the operation is in progress, status information is provided (e.g. Dumping
+    buffer pool 5/7, page 237/2873).
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果操作尚未开始，则返回“未开始”。如果操作已完成，则打印完成时间（例如 完成于 110505 12:18:02）。如果操作正在进行中，则提供状态信息（例如
+    正在转储缓冲池 5/7，页码 237/2873）。
+- en: Displaying Buffer Pool Load Progress
+  id: totrans-39
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 显示缓冲池加载进度
+- en: 'To display progress when loading the buffer pool, issue the following statement:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在加载缓冲池时显示进度，请执行以下语句：
+- en: '[PRE7]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: If the operation has not yet started, “not started” is returned. If the operation
+    is complete, the completion time is printed (e.g. Finished at 110505 12:23:24).
+    If the operation is in progress, status information is provided (e.g. Loaded 123/22301
+    pages).
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果操作尚未开始，则返回“未开始”。如果操作已完成，则打印完成时间（例如 完成于 110505 12:23:24）。如果操作正在进行中，则提供状态信息（例如
+    已加载 123/22301 页）。
+- en: Aborting a Buffer Pool Load Operation
+  id: totrans-43
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 中止缓冲池加载操作
+- en: 'To abort a buffer pool load operation, issue the following statement:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要中止缓冲池加载操作，请执行以下语句：
+- en: '[PRE8]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Monitoring Buffer Pool Load Progress Using Performance Schema
+  id: totrans-46
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用性能模式监视缓冲池加载进度
+- en: You can monitor buffer pool load progress using [Performance Schema](performance-schema.html
+    "Chapter 29 MySQL Performance Schema").
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[性能模式](performance-schema.html "第29章 MySQL性能模式")监视缓冲池加载进度。
+- en: The following example demonstrates how to enable the `stage/innodb/buffer pool
+    load` stage event instrument and related consumer tables to monitor buffer pool
+    load progress.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例演示了如何启用`stage/innodb/buffer pool load`阶段事件工具和相关的消费者表以监视缓冲池加载进度。
+- en: For information about buffer pool dump and load procedures used in this example,
+    see [Section 17.8.3.6, “Saving and Restoring the Buffer Pool State”](innodb-preload-buffer-pool.html
+    "17.8.3.6 Saving and Restoring the Buffer Pool State"). For information about
+    Performance Schema stage event instruments and related consumers, see [Section 29.12.5,
+    “Performance Schema Stage Event Tables”](performance-schema-stage-tables.html
+    "29.12.5 Performance Schema Stage Event Tables").
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关本示例中使用的缓冲池转储和加载过程的信息，请参阅[第17.8.3.6节，“保存和恢复缓冲池状态”](innodb-preload-buffer-pool.html
+    "17.8.3.6 保存和恢复缓冲池状态")。有关性能模式阶段事件工具和相关消费者的信息，请参阅[第29.12.5节，“性能模式阶段事件表”](performance-schema-stage-tables.html
+    "29.12.5 性能模式阶段事件表")。
+- en: 'Enable the `stage/innodb/buffer pool load` instrument:'
+  id: totrans-50
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启用`stage/innodb/buffer pool load`工具：
+- en: '[PRE9]'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Enable the stage event consumer tables, which include [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table"), [`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table"), and [`events_stages_history_long`](performance-schema-events-stages-history-long-table.html
+    "29.12.5.3 The events_stages_history_long Table").
+  id: totrans-52
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启用阶段事件消费者表，包括[`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 events_stages_current表")、[`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 events_stages_history表")和[`events_stages_history_long`](performance-schema-events-stages-history-long-table.html
+    "29.12.5.3 events_stages_history_long表")。
+- en: '[PRE10]'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: Dump the current buffer pool state by enabling [`innodb_buffer_pool_dump_now`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_now).
+  id: totrans-54
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过启用[`innodb_buffer_pool_dump_now`](innodb-parameters.html#sysvar_innodb_buffer_pool_dump_now)来转储当前缓冲池状态。
+- en: '[PRE11]'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: Check the buffer pool dump status to ensure that the operation has completed.
+  id: totrans-56
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查缓冲池转储状态以确保操作已完成。
+- en: '[PRE12]'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'Load the buffer pool by enabling [`innodb_buffer_pool_load_now`](innodb-parameters.html#sysvar_innodb_buffer_pool_load_now):'
+  id: totrans-58
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过启用[`innodb_buffer_pool_load_now`](innodb-parameters.html#sysvar_innodb_buffer_pool_load_now)来加载缓冲池：
+- en: '[PRE13]'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Check the current status of the buffer pool load operation by querying the Performance
+    Schema [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table") table. The `WORK_COMPLETED` column
+    shows the number of buffer pool pages loaded. The `WORK_ESTIMATED` column provides
+    an estimate of the remaining work, in pages.
+  id: totrans-60
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过查询性能模式[`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 events_stages_current表")表，检查缓冲池加载操作的当前状态。`WORK_COMPLETED`列显示加载的缓冲池页面数。`WORK_ESTIMATED`列提供剩余工作的估计，以页面为单位。
+- en: '[PRE14]'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'The [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table") table returns an empty set if the
+    buffer pool load operation has completed. In this case, you can check the [`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 The events_stages_history Table") table to view data for the completed
+    event. For example:'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果缓冲池加载操作已完成，则[`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 events_stages_current表")表将返回一个空集。在这种情况下，您可以查询[`events_stages_history`](performance-schema-events-stages-history-table.html
+    "29.12.5.2 events_stages_history表")表查看已完成事件的数据。例如：
+- en: '[PRE15]'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Note
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: You can also monitor buffer pool load progress using Performance Schema when
+    loading the buffer pool at startup using [`innodb_buffer_pool_load_at_startup`](innodb-parameters.html#sysvar_innodb_buffer_pool_load_at_startup).
+    In this case, the `stage/innodb/buffer pool load` instrument and related consumers
+    must be enabled at startup. For more information, see [Section 29.3, “Performance
+    Schema Startup Configuration”](performance-schema-startup-configuration.html "29.3 Performance
+    Schema Startup Configuration").
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在启动时使用[`innodb_buffer_pool_load_at_startup`](innodb-parameters.html#sysvar_innodb_buffer_pool_load_at_startup)加载缓冲池时，您还可以使用性能模式监视缓冲池加载进度。在这种情况下，必须在启动时启用`stage/innodb/buffer
+    pool load`工具和相关消费者。有关更多信息，请参见[第29.3节，“性能模式启动配置”](performance-schema-startup-configuration.html
+    "29.3 性能模式启动配置")。

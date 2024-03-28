@@ -1,0 +1,418 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-cloning.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-cloning.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-cloning.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-cloning.html)
+- en: 20.5.4.2 Cloning for Distributed Recovery
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.5.4.2 分布式恢复的克隆
+- en: MySQL Server's clone plugin is available from MySQL 8.0.17\. If you want to
+    use remote cloning operations for distributed recovery in a group, you must set
+    up existing members and joining members beforehand to support this function. If
+    you do not want to use this function in a group, do not set it up, in which case
+    Group Replication only uses state transfer from the binary log.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL Server 的克隆插件从 MySQL 8.0.17 开始提供。如果要在组中使用远程克隆操作进行分布式恢复，必须事先设置现有成员和加入成员以支持此功能。如果不想在组中使用此功能，请不要设置，此时组复制仅使用来自二进制日志的状态传输。
+- en: To use cloning, at least one existing group member and the joining member must
+    be set up beforehand to support remote cloning operations. As a minimum, you must
+    install the clone plugin on the donor and joining member, grant the [`BACKUP_ADMIN`](privileges-provided.html#priv_backup-admin)
+    permission to the replication user for distributed recovery, and set the [`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)
+    system variable to an appropriate level. To ensure the maximum availability of
+    donors, it is advisable to set up all current and future group members to support
+    remote cloning operations.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用克隆，至少一个现有组成员和加入成员必须事先设置以支持远程克隆操作。最低要求是，在捐赠者和加入成员上安装克隆插件，为分布式恢复的复制用户授予[`BACKUP_ADMIN`](privileges-provided.html#priv_backup-admin)权限，并将[`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)系统变量设置为适当的级别。为确保捐赠者的最大可用性，建议设置所有当前和未来的组成员以支持远程克隆操作。
+- en: Be aware that a remote cloning operation removes user-created tablespaces and
+    data from the joining member before transferring the data from the donor. If the
+    operation is stopped while in progress, the joining member might be left with
+    partial data or no data. This can be repaired by retrying the remote cloning operation,
+    which Group Replication does automatically.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，远程克隆操作会在从捐赠者传输数据之前，从加入成员中删除用户创建的表空间和数据。如果操作在进行中停止，加入成员可能会留下部分数据或没有数据。这可以通过重新尝试远程克隆操作来修复，组复制会自动执行此操作。
+- en: 20.5.4.2.1 Prerequisites for Cloning
+  id: totrans-5
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.2.1 克隆的先决条件
+- en: 'For full instructions to set up and configure the clone plugin, see [Section 7.6.7,
+    “The Clone Plugin”](clone-plugin.html "7.6.7 The Clone Plugin") . Detailed prerequisites
+    for a remote cloning operation are covered in [Section 7.6.7.3, “Cloning Remote
+    Data”](clone-plugin-remote.html "7.6.7.3 Cloning Remote Data") . For Group Replication,
+    note the following key points and differences:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要设置和配置克隆插件的完整说明，请参阅[第 7.6.7 节，“克隆插件”](clone-plugin.html "7.6.7 克隆插件")。有关远程克隆操作的详细先决条件，请参阅[第
+    7.6.7.3 节，“克隆远程数据”](clone-plugin-remote.html "7.6.7.3 克隆远程数据")。对于组复制，请注意以下关键点和差异：
+- en: The donor (an existing group member) and the recipient (the joining member)
+    must have the clone plugin installed and active. For instructions to do this,
+    see [Section 7.6.7.1, “Installing the Clone Plugin”](clone-plugin-installation.html
+    "7.6.7.1 Installing the Clone Plugin") .
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 捐赠者（现有组成员）和接收者（加入成员）必须安装并激活克隆插件。有关如何执行此操作的说明，请参阅[第 7.6.7.1 节，“安装克隆插件”](clone-plugin-installation.html
+    "7.6.7.1 安装克隆插件")。
+- en: The donor and the recipient must run on the same operating system, and must
+    have the same MySQL Server version series. Cloning is therefore not suitable for
+    groups where members run different minor MySQL Server versions, such as MySQL
+    8.0 and 8.4.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 捐赠者和接收者必须运行在相同的操作系统上，并且必须具有相同的 MySQL Server 版本系列。因此，对于运行不同次要 MySQL Server 版本的组，如
+    MySQL 8.0 和 8.4，克隆不适用。
+- en: Before MySQL 8.0.37, cloning required that donors and recipients be the same
+    point release and this restriction still applies if either donor or recipient
+    are MySQL 8.0.36 or earlier.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.37 之前，克隆要求捐赠者和接收者是相同的点版本，如果捐赠者或接收者是 MySQL 8.0.36 或更早版本，则仍然适用此限制。
+- en: The donor and the recipient must have the Group Replication plugin installed
+    and active, and any other plugins that are active on the donor (such as a keyring
+    plugin) must also be active on the recipient.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 捐赠者和接收者必须安装并激活组复制插件，捐赠者上激活的任何其他插件（如密钥环插件）也必须在接收者上激活。
+- en: If distributed recovery is configured to use SSL ([`group_replication_recovery_use_ssl=ON`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)),
+    Group Replication applies this setting for remote cloning operations. Group Replication
+    automatically configures the settings for the clone SSL options ([`clone_ssl_ca`](clone-plugin-options-variables.html#sysvar_clone_ssl_ca),
+    [`clone_ssl_cert`](clone-plugin-options-variables.html#sysvar_clone_ssl_cert),
+    and [`clone_ssl_key`](clone-plugin-options-variables.html#sysvar_clone_ssl_key))
+    to match your settings for the corresponding Group Replication distributed recovery
+    options ([`group_replication_recovery_ssl_ca`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_ca),
+    [`group_replication_recovery_ssl_cert`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_cert),
+    and [`group_replication_recovery_ssl_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_key)).
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果分布式恢复配置为使用SSL（[`group_replication_recovery_use_ssl=ON`](group-replication-system-variables.html#sysvar_group_replication_recovery_use_ssl)），组复制会将此设置应用于远程克隆操作。组复制会自动配置克隆SSL选项的设置（[`clone_ssl_ca`](clone-plugin-options-variables.html#sysvar_clone_ssl_ca)、[`clone_ssl_cert`](clone-plugin-options-variables.html#sysvar_clone_ssl_cert)和[`clone_ssl_key`](clone-plugin-options-variables.html#sysvar_clone_ssl_key)），以匹配您对应的组复制分布式恢复选项的设置（[`group_replication_recovery_ssl_ca`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_ca)、[`group_replication_recovery_ssl_cert`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_cert)和[`group_replication_recovery_ssl_key`](group-replication-system-variables.html#sysvar_group_replication_recovery_ssl_key)）。
+- en: You do not need to set up a list of valid donors in the [`clone_valid_donor_list`](clone-plugin-options-variables.html#sysvar_clone_valid_donor_list)
+    system variable for the purpose of joining a replication group. Group Replication
+    configures this setting automatically for you after it selects a donor from the
+    existing group members. Note that remote cloning operations use the server's SQL
+    protocol hostname and port.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在加入复制组的过程中，您无需在[`clone_valid_donor_list`](clone-plugin-options-variables.html#sysvar_clone_valid_donor_list)系统变量中设置有效捐赠者列表。组复制会在从现有组成员中选择捐赠者后自动为您配置此设置。请注意，远程克隆操作使用服务器的SQL协议主机名和端口。
+- en: The clone plugin has a number of system variables to manage the network load
+    and performance impact of the remote cloning operation. Group Replication does
+    not configure these settings, so you can review them and set them if you want
+    to, or allow them to default. Note that when a remote cloning operation is used
+    for distributed recovery, the clone plugin's [`clone_enable_compression`](clone-plugin-options-variables.html#sysvar_clone_enable_compression)
+    setting applies to the operation, rather than the Group Replication compression
+    setting.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 克隆插件有许多系统变量来管理远程克隆操作的网络负载和性能影响。组复制不会配置这些设置，因此您可以查看并设置它们，或者允许它们使用默认设置。请注意，当远程克隆操作用于分布式恢复时，克隆插件的[`clone_enable_compression`](clone-plugin-options-variables.html#sysvar_clone_enable_compression)设置适用于操作，而不是组复制的压缩设置。
+- en: To invoke the remote cloning operation on the recipient, Group Replication uses
+    the internal `mysql.session` user, which already has the [`CLONE_ADMIN`](privileges-provided.html#priv_clone-admin)
+    privilege, so you do not need to set this up.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了在接收端调用远程克隆操作，组复制使用内部的`mysql.session`用户，该用户已经具有[`CLONE_ADMIN`](privileges-provided.html#priv_clone-admin)权限，因此您无需设置此权限。
+- en: 'As the clone user on the donor for the remote cloning operation, Group Replication
+    uses the replication user that you set up for distributed recovery (which is covered
+    in [Section 20.2.1.3, “User Credentials For Distributed Recovery”](group-replication-user-credentials.html
+    "20.2.1.3 User Credentials For Distributed Recovery")). You must therefore give
+    the [`BACKUP_ADMIN`](privileges-provided.html#priv_backup-admin) privilege to
+    this replication user on all group members that support cloning. Also give the
+    privilege to the replication user on joining members when you are configuring
+    them for Group Replication, because they can act as donors after they join the
+    group. The same replication user is used for distributed recovery on every group
+    member. To give this privilege to the replication user on existing members, you
+    can issue this statement on each group member individually with binary logging
+    disabled, or on one group member with binary logging enabled:'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为远程克隆操作的捐赠者上的克隆用户，Group Replication使用您为分布式恢复设置的复制用户（在[Section 20.2.1.3, “User
+    Credentials For Distributed Recovery”](group-replication-user-credentials.html
+    "20.2.1.3 User Credentials For Distributed Recovery")中介绍）。因此，您必须在支持克隆的所有组成员上为此复制用户授予[`BACKUP_ADMIN`](privileges-provided.html#priv_backup-admin)权限。在为Group
+    Replication配置加入成员时，还必须为复制用户授予权限，因为它们在加入组后可以充当捐赠者。在每个组成员上为复制用户授予此权限，您可以在禁用二进制日志记录的每个组成员上单独发出此语句，或者在启用二进制日志记录的一个组成员上发出：
+- en: '[PRE0]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: If you use [`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement") to specify the replication user credentials on a
+    server that previously supplied the user credentials using [`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement"), ensure that you remove the user credentials from the replication
+    metadata repositories before any remote cloning operations take place. Also ensure
+    that [`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    is set on the joining member. For instructions, see [Section 20.6.3, “Securing
+    Distributed Recovery Connections”](group-replication-distributed-recovery-securing.html
+    "20.6.3 Securing Distributed Recovery Connections"). If you do not unset the user
+    credentials, they are transferred to the joining member during remote cloning
+    operations. The `group_replication_recovery` channel could then be inadvertently
+    started with the stored credentials, on either the original member or members
+    that were cloned from it. An automatic start of Group Replication on server boot
+    (including after a remote cloning operation) would use the stored user credentials,
+    and they would also be used if an operator did not specify the distributed recovery
+    credentials on a [`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement") command.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您使用[`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement")在服务器上指定复制用户凭据，而该服务器先前使用[`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement")提供用户凭据，请确保在进行任何远程克隆操作之前从复制元数据存储库中删除用户凭据。还要确保[`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)在加入成员上设置。有关说明，请参见[Section 20.6.3,
+    “Securing Distributed Recovery Connections”](group-replication-distributed-recovery-securing.html
+    "20.6.3 Securing Distributed Recovery Connections")。如果不取消用户凭据，则在远程克隆操作期间，这些凭据将传输到加入成员。然后，`group_replication_recovery`通道可能会意外地使用存储的凭据在原始成员或从原始成员克隆的成员上启动。服务器启动时（包括远程克隆操作后）自动启动Group
+    Replication将使用存储的用户凭据，如果操作员未在[`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement")命令中指定分布式恢复凭据，则也会使用这些凭据。
+- en: 20.5.4.2.2 Threshold for Cloning
+  id: totrans-18
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.2.2 克隆门槛
+- en: When group members have been set up to support cloning, the [`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)
+    system variable specifies a threshold, expressed as a number of transactions,
+    for the use of a remote cloning operation in distributed recovery. If the gap
+    between the transactions on the donor and the transactions on the joining member
+    is larger than this number, a remote cloning operation is used for state transfer
+    to the joining member when this is technically possible. Group Replication calculates
+    whether the threshold has been exceeded based on the [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    sets of the existing group members. Using a remote cloning operation in the event
+    of a large transaction gap lets you add new members to the group without transferring
+    the group's data to the server manually beforehand, and also enables a member
+    that is very out of date to catch up more efficiently.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当组成员已经设置支持克隆时，[`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)
+    系统变量指定了一个阈值，以事务数量表示，用于在分布式恢复中使用远程克隆操作。如果捐赠者的事务和加入成员的事务之间的差距大于这个数字，当技术上可能时，将使用远程克隆操作进行状态传输到加入成员。Group
+    Replication 根据现有组成员的 [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    集合计算是否已超过阈值。在存在较大事务差距的情况下使用远程克隆操作，可以让您向组中添加新成员，而无需事先手动将组的数据传输到服务器，并且还可以使非常过时的成员更有效地追赶。
+- en: The default setting for the [`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)
+    Group Replication system variable is extremely high (the maximum permitted sequence
+    number for a transaction in a GTID), so it effectively deactivates cloning wherever
+    state transfer from the binary log is possible. To enable Group Replication to
+    select a remote cloning operation for state transfer where this is more appropriate,
+    set the system variable to specify a number of transactions as the transaction
+    gap above which you want cloning to take place.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)
+    Group Replication 系统变量的默认设置非常高（GTID 中事务的最大允许序列号），因此在可能从二进制日志进行状态传输的地方，它有效地停用了克隆。要使
+    Group Replication 在更合适的情况下选择远程克隆操作进行状态传输，请设置系统变量以指定一个事务数量作为您希望进行克隆的事务差距的上限。'
+- en: Warning
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Do not use a low setting for [`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)
+    in an active group. If a number of transactions above the threshold takes place
+    in the group while the remote cloning operation is in progress, the joining member
+    triggers a remote cloning operation again after restarting, and could continue
+    this indefinitely. To avoid this situation, ensure that you set the threshold
+    to a number higher than the number of transactions that you would expect to occur
+    in the group during the time taken for the remote cloning operation.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在活动组中不要使用低设置的 [`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)。如果在远程克隆操作正在进行时组中发生超过阈值的事务数量，那么加入成员在重新启动后会再次触发远程克隆操作，并且可能会无限继续这样做。为避免这种情况，请确保将阈值设置为高于您预期在远程克隆操作所需时间内组中可能发生的事务数量。
+- en: Group Replication attempts to execute a remote cloning operation regardless
+    of your threshold when state transfer from a donor's binary log is impossible,
+    for example because the transactions needed by the joining member are not available
+    in the binary log on any existing group member. Group Replication identifies this
+    based on the [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    sets of the existing group members. You cannot use the [`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)
+    system variable to deactivate cloning when the required transactions are not available
+    in any member's binary log files, because in that situation cloning is the only
+    alternative to transferring data to the joining member manually.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 集群复制尝试执行远程克隆操作，无论您的阈值如何，当从捐赠者的二进制日志中无法进行状态转移时，例如因为加入成员所需的事务在任何现有组成员的二进制日志中都不可用时。集群复制根据现有组成员的[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)集合来识别这一点。当任何成员的二进制日志文件中没有所需的事务时，您不能使用[`group_replication_clone_threshold`](group-replication-system-variables.html#sysvar_group_replication_clone_threshold)系统变量来停用克隆，因为在这种情况下，克隆是将数据传输到加入成员的唯一选择。
+- en: 20.5.4.2.3 Cloning Operations
+  id: totrans-24
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.2.3 克隆操作
+- en: When group members and joining members are set up for cloning, Group Replication
+    manages remote cloning operations for you. A remote cloning operation might take
+    some time to complete, depending on the size of the data. See [Section 7.6.7.10,
+    “Monitoring Cloning Operations”](clone-plugin-monitoring.html "7.6.7.10 Monitoring
+    Cloning Operations") for information on monitoring the process.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当组成员和加入成员设置为进行克隆时，集群复制会为您管理远程克隆操作。远程克隆操作可能需要一些时间才能完成，具体取决于数据的大小。有关监视过程的信息，请参见[第7.6.7.10节，“监视克隆操作”](clone-plugin-monitoring.html
+    "7.6.7.10 Monitoring Cloning Operations")。
+- en: Note
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When state transfer is complete, Group Replication restarts the joining member
+    to complete the process. If [`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    is set on the joining member, for example because you specify the replication
+    user credentials on the [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") statement, you must issue [`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement") manually again following this restart. If [`group_replication_start_on_boot=ON`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    and other settings required to start Group Replication were set in a configuration
+    file or using a `SET PERSIST` statement, you do not need to intervene and the
+    process continues automatically to bring the joining member online.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当状态转移完成时，集群复制会重新启动加入成员以完成该过程。如果在加入成员上设置了[`group_replication_start_on_boot=OFF`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)，例如因为您在[`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement")语句中指定了复制用户凭据，那么您必须在此重新启动后再次手动发出[`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement")。如果[`group_replication_start_on_boot=ON`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)和启动集群复制所需的其他设置是在配置文件中设置或使用`SET
+    PERSIST`语句设置的，则您无需干预，该过程将自动继续以使加入成员在线。
+- en: 'If the remote cloning procedure takes a long time, in releases before MySQL
+    8.0.22, it is possible for the set of certification information that accumulates
+    for the group during that time to become too large to transmit to the joining
+    member. In that case, the joining member logs an error message and does not join
+    the group. From MySQL 8.0.22, Group Replication manages the garbage collection
+    process for applied transactions differently to avoid this scenario. In earlier
+    releases, if you do see this error, after the remote cloning operation completes,
+    wait two minutes to allow a round of garbage collection to take place to reduce
+    the size of the group''s certification information. Then issue the following statement
+    on the joining member, so that it stops trying to apply the previous set of certification
+    information:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果远程克隆过程花费很长时间，在MySQL 8.0.22之前的版本中，可能会出现在此期间为组积累的证书信息集合过大而无法传输给加入成员的情况。在这种情况下，加入成员会记录错误消息并且不会加入组。从MySQL
+    8.0.22开始，组复制以不同的方式管理已应用事务的垃圾收集过程，以避免这种情况发生。在早期版本中，如果您看到此错误，请在远程克隆操作完成后等待两分钟，以便进行一轮垃圾收集以减小组的证书信息大小。然后在加入成员上发出以下语句，以使其停止尝试应用先前的证书信息：
+- en: '[PRE1]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: A remote cloning operation clones settings that are persisted in tables from
+    the donor to the recipient, as well as the data. Group Replication manages the
+    settings that relate specifically to Group Replication channels. Group Replication
+    member settings that are persisted in configuration files, such as the group replication
+    local address, are not cloned and are not changed on the joining member. Group
+    Replication also preserves the channel settings that relate to the use of SSL,
+    so these are unique to the individual member.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 远程克隆操作会将存储在表中的设置从捐赠者克隆到接收者，以及数据。组复制管理与组复制通道相关的设置。在配置文件中持久化的组复制成员设置，如组复制本地地址，不会被克隆，也不会在加入成员时更改。组复制还保留与SSL使用相关的通道设置，因此这些设置对于每个成员都是独一无二的。
+- en: If the replication user credentials used by the donor for the `group_replication_recovery`
+    replication channel have been stored in the replication metadata repositories
+    using a [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement, they are transferred to and
+    used by the joining member after cloning, and they must be valid there. With stored
+    credentials, all group members that received state transfer by a remote cloning
+    operation therefore automatically receive the replication user and password for
+    distributed recovery. If you specify the replication user credentials on the [`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement") statement, these are used to start the remote cloning operation, but
+    they are not transferred to and used by the joining member after cloning. If you
+    do not want the credentials transferred to new joiners and recorded there, ensure
+    that you unset them before remote cloning operations take place, as described
+    in [Section 20.6.3, “Securing Distributed Recovery Connections”](group-replication-distributed-recovery-securing.html
+    "20.6.3 Securing Distributed Recovery Connections"), and use [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") to supply them instead.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果捐赠者用于`group_replication_recovery`复制通道的复制用户凭据已使用[`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement")语句存储在复制元数据存储库中，则在克隆后将其传输到并由加入成员使用，并且必须在那里有效。使用存储的凭据，通过远程克隆操作接收状态转移的所有组成员因此自动接收用于分布式恢复的复制用户和密码。如果在[`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement")语句中指定了复制用户凭据，则这些凭据用于启动远程克隆操作，但在克隆后不会被传输到并由加入成员使用。如果不希望将凭据传输给新加入者并记录在那里，请确保在进行远程克隆操作之前取消设置它们，如[第20.6.3节“保护分布式恢复连接”](group-replication-distributed-recovery-securing.html
+    "20.6.3 Securing Distributed Recovery Connections")中所述，并使用[`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement")来代替提供它们。
+- en: If a `PRIVILEGE_CHECKS_USER` account has been used to help secure the replication
+    appliers (see [Section 19.3.3.2, “Privilege Checks For Group Replication Channels”](replication-privilege-checks-gr.html
+    "19.3.3.2 Privilege Checks For Group Replication Channels")), from MySQL 8.0.19,
+    the `PRIVILEGE_CHECKS_USER` account and related settings from the donor are cloned
+    to the joining member. If the joining member is set to start Group Replication
+    on boot, it automatically uses the account for privilege checks on the appropriate
+    replication channels. (In MySQL 8.0.18, due to a number of limitations, it is
+    recommended that you do not use a `PRIVILEGE_CHECKS_USER` account with Group Replication
+    channels.)
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用`PRIVILEGE_CHECKS_USER`帐户来帮助保护复制应用程序（请参阅[Section 19.3.3.2, “Group Replication通道的权限检查”](replication-privilege-checks-gr.html
+    "19.3.3.2 Group Replication通道的权限检查")），从MySQL 8.0.19开始，将从捐赠者克隆`PRIVILEGE_CHECKS_USER`帐户和相关设置到加入的成员。如果设置加入的成员在启动时启动Group
+    Replication，则自动在适当的复制通道上使用该帐户进行权限检查。（在MySQL 8.0.18中，由于一些限制，建议不要在Group Replication通道中使用`PRIVILEGE_CHECKS_USER`帐户。）
+- en: 20.5.4.2.4 Cloning for Other Purposes
+  id: totrans-33
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.5.4.2.4 其他目的的克隆
+- en: Group Replication initiates and manages cloning operations for distributed recovery.
+    Group members that have been set up to support cloning may also participate in
+    cloning operations that a user initiates manually. For example, you might want
+    to create a new server instance by cloning from a group member as the donor, but
+    you do not want the new server instance to join the group immediately, or maybe
+    not ever.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication启动并管理分布式恢复的克隆操作。已设置为支持克隆的组成员也可以参与用户手动启动的克隆操作。例如，您可能希望通过从组成员作为捐赠者进行克隆来创建一个新的服务器实例，但您不希望新的服务器实例立即加入组，甚至可能永远不加入。
+- en: 'In all releases that support cloning, you can initiate a cloning operation
+    manually involving a group member on which Group Replication is stopped. Note
+    that because cloning requires that the active plugins on a donor and recipient
+    must match, the Group Replication plugin must be installed and active on the other
+    server instance, even if you do not intend that server instance to join a group.
+    You can install the plugin by issuing this statement:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在支持克隆的所有版本中，您可以手动启动涉及Group Replication已停止的组成员的克隆操作。请注意，由于克隆要求捐赠者和接收者上的活动插件必须匹配，因此即使您不打算使服务器实例加入组，Group
+    Replication插件也必须在另一个服务器实例上安装并激活。您可以通过发出以下语句来安装插件：
+- en: '[PRE2]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: In releases before MySQL 8.0.20, you cannot initiate a cloning operation manually
+    if the operation involves a group member on which Group Replication is running.
+    From MySQL 8.0.20, you can do this, provided that the cloning operation does not
+    remove and replace the data on the recipient. The statement to initiate the cloning
+    operation must therefore include the `DATA DIRECTORY` clause if Group Replication
+    is running.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.20之前的版本中，如果克隆操作涉及正在运行Group Replication的组成员，则无法手动启动克隆操作。从MySQL 8.0.20开始，您可以这样做，前提是克隆操作不会删除并替换接收方的数据。因此，启动克隆操作的语句必须包含`DATA
+    DIRECTORY`子句，如果Group Replication正在运行。

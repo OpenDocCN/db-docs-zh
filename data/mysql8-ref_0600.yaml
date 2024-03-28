@@ -1,0 +1,62 @@
+- en: 10.8.5 Estimating Query Performance
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.8.5 估计查询性能
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/estimating-performance.html](https://dev.mysql.com/doc/refman/8.0/en/estimating-performance.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/estimating-performance.html](https://dev.mysql.com/doc/refman/8.0/en/estimating-performance.html)
+- en: 'In most cases, you can estimate query performance by counting disk seeks. For
+    small tables, you can usually find a row in one disk seek (because the index is
+    probably cached). For bigger tables, you can estimate that, using B-tree indexes,
+    you need this many seeks to find a row: `log(*`row_count`*) / log(*`index_block_length`*
+    / 3 * 2 / (*`index_length`* + *`data_pointer_length`*)) + 1`.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在大多数情况下，您可以通过计算磁盘寻道次数来估计查询性能。对于小表，您通常可以在一个磁盘寻道中找到一行（因为索引可能已缓存）。对于更大的表，您可以估计使用B树索引，您需要这么多次寻道才能找到一行：`log(*`row_count`*)
+    / log(*`index_block_length`* / 3 * 2 / (*`index_length`* + *`data_pointer_length`*))
+    + 1`。
+- en: In MySQL, an index block is usually 1,024 bytes and the data pointer is usually
+    four bytes. For a 500,000-row table with a key value length of three bytes (the
+    size of [`MEDIUMINT`](integer-types.html "13.1.2 Integer Types (Exact Value) -
+    INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")), the formula indicates `log(500,000)/log(1024/3*2/(3+4))
+    + 1` = `4` seeks.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL中，索引块通常为1,024字节，数据指针通常为四个字节。对于一个具有500,000行的表，关键值长度为三个字节（[`MEDIUMINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT")的大小），该公式指示 `log(500,000)/log(1024/3*2/(3+4)) + 1` = `4` 次寻道。
+- en: This index would require storage of about 500,000 * 7 * 3/2 = 5.2MB (assuming
+    a typical index buffer fill ratio of 2/3), so you probably have much of the index
+    in memory and so need only one or two calls to read data to find the row.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个索引需要存储大约500,000 * 7 * 3/2 = 5.2MB的空间（假设典型索引缓冲填充比为2/3），所以你可能已经将大部分索引存储在内存中，因此只需要一两次读取数据来找到行。
+- en: For writes, however, you need four seek requests to find where to place a new
+    index value and normally two seeks to update the index and write the row.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，对于写入操作，您需要四个寻道请求来找到新索引值的放置位置，并通常需要两次寻道来更新索引并写入行。
+- en: The preceding discussion does not mean that your application performance slowly
+    degenerates by log *`N`*. As long as everything is cached by the OS or the MySQL
+    server, things become only marginally slower as the table gets bigger. After the
+    data gets too big to be cached, things start to go much slower until your applications
+    are bound only by disk seeks (which increase by log *`N`*). To avoid this, increase
+    the key cache size as the data grows. For `MyISAM` tables, the key cache size
+    is controlled by the [`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)
+    system variable. See [Section 7.1.1, “Configuring the Server”](server-configuration.html
+    "7.1.1 Configuring the Server").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前面的讨论并不意味着您的应用性能会随着log *`N`* 而缓慢下降。只要一切都被操作系统或MySQL服务器缓存，随着表变得更大，事情只会变得稍微慢一点。当数据变得太大无法缓存时，事情开始变得慢得多，直到您的应用程序仅受磁盘寻道的限制（这些寻道按log
+    *`N`* 增加）。为了避免这种情况，随着数据增长，增加关键缓存大小。对于`MyISAM`表，关键缓存大小由[`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)系统变量控制。请参阅[第7.1.1节，“配置服务器”](server-configuration.html
+    "7.1.1 配置服务器")。

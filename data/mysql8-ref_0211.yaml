@@ -1,0 +1,477 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysqlbinlog-backup.html](https://dev.mysql.com/doc/refman/8.0/en/mysqlbinlog-backup.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysqlbinlog-backup.html](https://dev.mysql.com/doc/refman/8.0/en/mysqlbinlog-backup.html)
+- en: 6.6.9.3 Using mysqlbinlog to Back Up Binary Log Files
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 6.6.9.3 使用 mysqlbinlog 备份二进制日志文件
+- en: By default, [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") reads binary log files and displays their contents
+    in text format. This enables you to examine events within the files more easily
+    and to re-execute them (for example, by using the output as input to [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")). [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") can read log files
+    directly from the local file system, or, with the [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    option, it can connect to a server and request binary log contents from that server.
+    [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") writes text output to its standard output, or to the file named
+    as the value of the [`--result-file=*`file_name`*`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    option if that option is given.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") 读取二进制日志文件并以文本格式显示其内容。这使您能够更轻松地检查文件中的事件，并重新执行它们（例如，通过将输出用作 [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") 的输入）。[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") 可以直接从本地文件系统读取日志文件，或者使用
+    [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    选项，它可以连接到服务器并从该服务器请求二进制日志内容。[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") 将文本输出写入其标准输出，或者如果给定了 [`--result-file=*`file_name`*`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    选项，则写入到指定文件名的文件中。
+- en: '[mysqlbinlog Backup Capabilities](mysqlbinlog-backup.html#mysqlbinlog-backup-capabilities
+    "mysqlbinlog Backup Capabilities")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[mysqlbinlog 备份功能](mysqlbinlog-backup.html#mysqlbinlog-backup-capabilities
+    "mysqlbinlog Backup Capabilities")'
+- en: '[mysqlbinlog Backup Options](mysqlbinlog-backup.html#mysqlbinlog-backup-options
+    "mysqlbinlog Backup Options")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[mysqlbinlog 备份选项](mysqlbinlog-backup.html#mysqlbinlog-backup-options "mysqlbinlog
+    Backup Options")'
+- en: '[Static and Live Backups](mysqlbinlog-backup.html#mysqlbinlog-backup-static-live
+    "Static and Live Backups")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[静态和实时备份](mysqlbinlog-backup.html#mysqlbinlog-backup-static-live "Static and
+    Live Backups")'
+- en: '[Output File Naming](mysqlbinlog-backup.html#mysqlbinlog-backup-output-file-naming
+    "Output File Naming")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[输出文件命名](mysqlbinlog-backup.html#mysqlbinlog-backup-output-file-naming "Output
+    File Naming")'
+- en: '[Example: mysqldump + mysqlbinlog for Backup and Restore](mysqlbinlog-backup.html#mysqlbinlog-backup-example
+    "Example: mysqldump + mysqlbinlog for Backup and Restore")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[示例：使用 mysqldump + mysqlbinlog 进行备份和恢复](mysqlbinlog-backup.html#mysqlbinlog-backup-example
+    "Example: mysqldump + mysqlbinlog for Backup and Restore")'
+- en: '[mysqlbinlog Backup Restrictions](mysqlbinlog-backup.html#mysqlbinlog-backup-restrictions
+    "mysqlbinlog Backup Restrictions")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[mysqlbinlog 备份限制](mysqlbinlog-backup.html#mysqlbinlog-backup-restrictions
+    "mysqlbinlog Backup Restrictions")'
+- en: mysqlbinlog Backup Capabilities
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: mysqlbinlog 备份功能
+- en: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") can read binary log files and write new files containing the
+    same content—that is, in binary format rather than text format. This capability
+    enables you to easily back up a binary log in its original format. [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") can make a static
+    backup, backing up a set of log files and stopping when the end of the last file
+    is reached. It can also make a continuous (“live”) backup, staying connected to
+    the server when it reaches the end of the last log file and continuing to copy
+    new events as they are generated. In continuous-backup operation, [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") runs until the
+    connection ends (for example, when the server exits) or [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") is forcibly terminated.
+    When the connection ends, [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") does not wait and retry the connection,
+    unlike a replica server. To continue a live backup after the server has been restarted,
+    you must also restart [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog —
+    Utility for Processing Binary Log Files").'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files")可以读取二进制日志文件并写入包含相同内容的新文件，即以二进制格式而不是文本格式。这种能力使您可以轻松地以原始格式备份二进制日志。[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")可以进行静态备份，备份一组日志文件并在到达最后一个文件的末尾时停止。它还可以进行连续（“实时”）备份，在到达最后一个日志文件的末尾时保持与服务器的连接，并继续复制生成的新事件。在连续备份操作中，[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")会一直运行，直到连接结束（例如，服务器退出）或[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")被强制终止。当连接结束时，[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")不会等待并重试连接，不像复制服务器。要在服务器重新启动后继续实时备份，您还必须重新启动[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")。'
+- en: Important
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") can back up both encrypted and unencrypted binary log files
+    . However, copies of encrypted binary log files that are generated using [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") are stored in an
+    unencrypted format.'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files")可以备份加密和未加密的二进制日志文件。然而，使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files")生成的加密二进制日志文件的副本以未加密格式存储。'
+- en: mysqlbinlog Backup Options
+  id: totrans-13
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: mysqlbinlog备份选项
+- en: 'Binary log backup requires that you invoke [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") with two options
+    at minimum:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志备份要求您至少使用两个选项调用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog —
+    Utility for Processing Binary Log Files")：
+- en: The [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    (or `-R`) option tells [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog —
+    Utility for Processing Binary Log Files") to connect to a server and request its
+    binary log. (This is similar to a replica server connecting to its replication
+    source server.)
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)（或`-R`）选项告诉[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")连接到服务器并请求其二进制日志。（这类似于复制服务器连接到其复制源服务器。）'
+- en: The [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw) option tells [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") to write raw (binary)
+    output, not text output.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw)选项告诉[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")写入原始（二进制）输出，而不是文本输出。'
+- en: 'Along with [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server),
+    it is common to specify other options: [`--host`](mysqlbinlog.html#option_mysqlbinlog_host)
+    indicates where the server is running, and you may also need to specify connection
+    options such as [`--user`](mysqlbinlog.html#option_mysqlbinlog_user) and [`--password`](mysqlbinlog.html#option_mysqlbinlog_password).'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了[`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)之外，通常还需要指定其他选项：[`--host`](mysqlbinlog.html#option_mysqlbinlog_host)指示服务器运行的位置，您可能还需要指定连接选项，如[`--user`](mysqlbinlog.html#option_mysqlbinlog_user)和[`--password`](mysqlbinlog.html#option_mysqlbinlog_password)。
+- en: 'Several other options are useful in conjunction with [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw):'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与[`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw)一起使用的其他几个选项很有用：
+- en: '[`--stop-never`](mysqlbinlog.html#option_mysqlbinlog_stop-never): Stay connected
+    to the server after reaching the end of the last log file and continue to read
+    new events.'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--stop-never`](mysqlbinlog.html#option_mysqlbinlog_stop-never)：在到达最后一个日志文件并继续读取新事件后，保持与服务器的连接。'
+- en: '[`--connection-server-id=*`id`*`](mysqlbinlog.html#option_mysqlbinlog_connection-server-id):
+    The server ID that [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") reports when it connects to a server. When [`--stop-never`](mysqlbinlog.html#option_mysqlbinlog_stop-never)
+    is used, the default reported server ID is 1\. If this causes a conflict with
+    the ID of a replica server or another [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") process, use [`--connection-server-id`](mysqlbinlog.html#option_mysqlbinlog_connection-server-id)
+    to specify an alternative server ID. See [Section 6.6.9.4, “Specifying the mysqlbinlog
+    Server ID”](mysqlbinlog-server-id.html "6.6.9.4 Specifying the mysqlbinlog Server
+    ID").'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--connection-server-id=*`id`*`](mysqlbinlog.html#option_mysqlbinlog_connection-server-id)：连接到服务器时[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")报告的服务器ID。当使用[`--stop-never`](mysqlbinlog.html#option_mysqlbinlog_stop-never)时，默认报告的服务器ID为1。如果这与复制服务器或另一个[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")进程的ID发生冲突，请使用[`--connection-server-id`](mysqlbinlog.html#option_mysqlbinlog_connection-server-id)指定替代服务器ID。参见[第6.6.9.4节，“指定mysqlbinlog服务器ID”](mysqlbinlog-server-id.html
+    "6.6.9.4 Specifying the mysqlbinlog Server ID")。'
+- en: '[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file): A prefix
+    for output file names, as described later.'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)：输出文件名的前缀，稍后会描述。'
+- en: Static and Live Backups
+  id: totrans-22
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 静态和实时备份
+- en: 'To back up a server''s binary log files with [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files"), you must specify
+    file names that actually exist on the server. If you do not know the names, connect
+    to the server and use the [`SHOW BINARY LOGS`](show-binary-logs.html "15.7.7.1 SHOW
+    BINARY LOGS Statement") statement to see the current names. Suppose that the statement
+    produces this output:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files")备份服务器的二进制日志文件时，必须指定服务器上实际存在的文件名。如果不知道文件名，连接到服务器并使用[`SHOW BINARY
+    LOGS`](show-binary-logs.html "15.7.7.1 SHOW BINARY LOGS Statement")语句查看当前的文件名。假设该语句产生以下输出：
+- en: '[PRE0]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'With that information, you can use [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") to back up the binary log to the current
+    directory as follows (enter each command on a single line):'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有了这些信息，您可以使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files")将二进制日志备份到当前目录，如下所示（每个命令单独一行输入）：
+- en: 'To make a static backup of `binlog.000130` through `binlog.000132`, use either
+    of these commands:'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要对`binlog.000130`到`binlog.000132`进行静态备份，请使用以下任一命令：
+- en: '[PRE1]'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The first command specifies every file name explicitly. The second names only
+    the first file and uses [`--to-last-log`](mysqlbinlog.html#option_mysqlbinlog_to-last-log)
+    to read through the last. A difference between these commands is that if the server
+    happens to open `binlog.000133` before [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") reaches the end of `binlog.000132`,
+    the first command does not read it, but the second command does.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 第一个命令明确指定每个文件名。第二个只命名第一个文件，并使用[`--to-last-log`](mysqlbinlog.html#option_mysqlbinlog_to-last-log)来读取到最后一个文件。这两个命令之间的区别在于，如果服务器在[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")到达`binlog.000132`的末尾之前打开`binlog.000133`，第一个命令不会读取它，但第二个命令会。
+- en: 'To make a live backup in which [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") starts with `binlog.000130` to copy
+    existing log files, then stays connected to copy new events as the server generates
+    them:'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要进行实时备份，其中[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for
+    Processing Binary Log Files")从`binlog.000130`开始复制现有日志文件，然后保持连接以复制服务器生成的新事件：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: With [`--stop-never`](mysqlbinlog.html#option_mysqlbinlog_stop-never), it is
+    not necessary to specify [`--to-last-log`](mysqlbinlog.html#option_mysqlbinlog_to-last-log)
+    to read to the last log file because that option is implied.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用[`--stop-never`](mysqlbinlog.html#option_mysqlbinlog_stop-never)，不需要指定[`--to-last-log`](mysqlbinlog.html#option_mysqlbinlog_to-last-log)以读取到最后一个日志文件，因为该选项已经隐含。
+- en: Output File Naming
+  id: totrans-32
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 输出文件命名
+- en: Without [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw), [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") produces text output
+    and the [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file) option,
+    if given, specifies the name of the single file to which all output is written.
+    With [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw), [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") writes one binary
+    output file for each log file transferred from the server. By default, [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") writes the files
+    in the current directory with the same names as the original log files. To modify
+    the output file names, use the [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    option. In conjunction with [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw),
+    the [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file) option
+    value is treated as a prefix that modifies the output file names.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不使用[`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw)，[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")会生成文本输出，而[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)选项（如果提供）指定了所有输出写入的单个文件的名称。使用[`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw)，[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")为从服务器传输的每个日志文件写入一个二进制输出文件。默认情况下，[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")将文件写入当前目录，文件名与原始日志文件相同。要修改输出文件名，请使用[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)选项。与[`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw)一起，[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)选项值被视为修改输出文件名的前缀。
+- en: Suppose that a server currently has binary log files named `binlog.000999` and
+    up. If you use [**mysqlbinlog --raw**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") to back up the files, the [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    option produces output file names as shown in the following table. You can write
+    the files to a specific directory by beginning the [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    value with the directory path. If the [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    value consists only of a directory name, the value must end with the pathname
+    separator character. Output files are overwritten if they exist.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设服务器当前有名为`binlog.000999`及以上的二进制日志文件。如果使用[**mysqlbinlog --raw**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")备份文件，则[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)选项会生成如下表所示的输出文件名。您可以通过在[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)值前加上目录路径来将文件写入特定目录。如果[`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file)值仅包含目录名，则该值必须以路径名分隔符字符结尾。如果文件存在，则输出文件将被覆盖。
+- en: '| [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file) Option
+    | Output File Names |'
+  id: totrans-35
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`--result-file`](mysqlbinlog.html#option_mysqlbinlog_result-file) 选项 | 输出文件名
+    |'
+- en: '| [`--result-file=x`](mysqlbinlog.html#option_mysqlbinlog_result-file) | `xbinlog.000999`
+    and up |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`--result-file=x`](mysqlbinlog.html#option_mysqlbinlog_result-file) | `xbinlog.000999`及以上
+    |'
+- en: '| [`--result-file=/tmp/`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    | `/tmp/binlog.000999` and up |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`--result-file=/tmp/`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    | `/tmp/binlog.000999`及以上 |'
+- en: '| [`--result-file=/tmp/x`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    | `/tmp/xbinlog.000999` and up |'
+  id: totrans-38
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`--result-file=/tmp/x`](mysqlbinlog.html#option_mysqlbinlog_result-file)
+    | `/tmp/xbinlog.000999`及以上 |'
+- en: 'Example: mysqldump + mysqlbinlog for Backup and Restore'
+  id: totrans-39
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 示例：备份和恢复的mysqldump + mysqlbinlog
+- en: The following example describes a simple scenario that shows how to use [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") and [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") together to back
+    up a server's data and binary log, and how to use the backup to restore the server
+    if data loss occurs. The example assumes that the server is running on host *`host_name`*
+    and its first binary log file is named `binlog.000999`. Enter each command on
+    a single line.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例描述了一个简单的场景，展示了如何使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database
+    Backup Program")和[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files")一起备份服务器的数据和二进制日志，以及如何使用备份来恢复服务器，如果发生数据丢失。该示例假定服务器运行在主机*`host_name`*上，其第一个二进制日志文件名为`binlog.000999`。每个命令都要单独输入。
+- en: 'Use [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") to make a continuous backup of the binary log:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files")进行二进制日志的连续备份：
+- en: '[PRE3]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Use [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    to create a dump file as a snapshot of the server's data. Use [`--all-databases`](mysqldump.html#option_mysqldump_all-databases),
+    [`--events`](mysqldump.html#option_mysqldump_events), and [`--routines`](mysqldump.html#option_mysqldump_routines)
+    to back up all data, and [`--master-data=2`](mysqldump.html#option_mysqldump_master-data)
+    to include the current binary log coordinates in the dump file.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — 数据库备份程序")创建一个转储文件作为服务器数据的快照。使用[`--all-databases`](mysqldump.html#option_mysqldump_all-databases)，[`--events`](mysqldump.html#option_mysqldump_events)和[`--routines`](mysqldump.html#option_mysqldump_routines)来备份所有数据，并使用[`--master-data=2`](mysqldump.html#option_mysqldump_master-data)在转储文件中包含当前的二进制日志坐标。
+- en: '[PRE4]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Execute the [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program") command periodically to create newer snapshots as desired.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 定期执行[**mysqldump**](mysqldump.html "6.5.4 mysqldump — 数据库备份程序")命令以根据需要创建更新的快照。
+- en: 'If data loss occurs (for example, if the server unexpectedly exits), use the
+    most recent dump file to restore the data:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果发生数据丢失（例如，服务器意外退出），请使用最近的转储文件来恢复数据：
+- en: '[PRE5]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Then use the binary log backup to re-execute events that were written after
+    the coordinates listed in the dump file. Suppose that the coordinates in the file
+    look like this:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后使用二进制日志备份来重新执行在转储文件中列出坐标之后编写的事件。假设文件中的坐标看起来像这样：
+- en: '[PRE6]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'If the most recent backed-up log file is named `binlog.001004`, re-execute
+    the log events like this:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果最近备份的日志文件命名为`binlog.001004`，请像这样重新执行日志事件：
+- en: '[PRE7]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: You might find it easier to copy the backup files (dump file and binary log
+    files) to the server host to make it easier to perform the restore operation,
+    or if MySQL does not allow remote `root` access.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可能会发现将备份文件（转储文件和二进制日志文件）复制到服务器主机上会更容易执行恢复操作，或者如果MySQL不允许远程`root`访问。
+- en: mysqlbinlog Backup Restrictions
+  id: totrans-53
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: mysqlbinlog备份限制
+- en: 'Binary log backups with [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") are subject to these restrictions:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 处理二进制日志文件的实用程序")的二进制日志备份受到以下限制：
+- en: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") does not automatically reconnect to the MySQL server if the
+    connection is lost (for example, if a server restart occurs or there is a network
+    outage).'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 处理二进制日志文件的实用程序")在连接丢失时（例如，服务器重新启动或网络中断）不会自动重新连接到MySQL服务器。'
+- en: The delay for a backup is similar to the delay for a replica server.
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 备份的延迟类似于复制服务器的延迟。

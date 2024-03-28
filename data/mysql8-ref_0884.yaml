@@ -1,0 +1,726 @@
+- en: 15.1.1 Atomic Data Definition Statement Support
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 15.1.1 原子数据定义语句支持
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/atomic-ddl.html](https://dev.mysql.com/doc/refman/8.0/en/atomic-ddl.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/atomic-ddl.html](https://dev.mysql.com/doc/refman/8.0/en/atomic-ddl.html)
+- en: MySQL 8.0 supports atomic Data Definition Language (DDL) statements. This feature
+    is referred to as *atomic DDL*. An atomic DDL statement combines the data dictionary
+    updates, storage engine operations, and binary log writes associated with a DDL
+    operation into a single, atomic operation. The operation is either committed,
+    with applicable changes persisted to the data dictionary, storage engine, and
+    binary log, or is rolled back, even if the server halts during the operation.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0 支持原子数据定义语言（DDL）语句。这一特性被称为*原子DDL*。原子DDL语句将与DDL操作相关的数据字典更新、存储引擎操作和二进制日志写入合并为单个原子操作。该操作要么被提交，适用更改被持久化到数据字典、存储引擎和二进制日志中，要么被回滚，即使服务器在操作过程中停止。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '*Atomic DDL* is not *transactional DDL*. DDL statements, atomic or otherwise,
+    implicitly end any transaction that is active in the current session, as if you
+    had done a [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements") before executing the statement. This means that DDL statements cannot
+    be performed within another transaction, within transaction control statements
+    such as [`START TRANSACTION ... COMMIT`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements"), or combined with other statements within the
+    same transaction.'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*原子DDL*不是*事务性DDL*。DDL语句，无论是原子的还是其他的，都会隐式结束当前会话中活动的任何事务，就好像在执行该语句之前执行了[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")一样。这意味着DDL语句不能在另一个事务中执行，在事务控制语句中（如[`START
+    TRANSACTION ... COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements")）中执行，或者与同一事务中的其他语句组合。'
+- en: Atomic DDL is made possible by the introduction of the MySQL data dictionary
+    in MySQL 8.0\. In earlier MySQL versions, metadata was stored in metadata files,
+    nontransactional tables, and storage engine-specific dictionaries, which necessitated
+    intermediate commits. Centralized, transactional metadata storage provided by
+    the MySQL data dictionary removed this barrier, making it possible to restructure
+    DDL statement operations to be atomic.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0 中引入的MySQL数据字典使原子DDL成为可能。在早期的MySQL版本中，元数据存储在元数据文件、非事务表和存储引擎特定的字典中，这需要中间提交。MySQL数据字典提供的集中式、事务性元数据存储消除了这一障碍，使得重构DDL语句操作成为原子操作成为可能。
+- en: 'The atomic DDL feature is described under the following topics in this section:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节中以下主题描述了原子DDL特性：
+- en: '[Supported DDL Statements](atomic-ddl.html#atomic-ddl-supported-statements
+    "Supported DDL Statements")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[支持的DDL语句](atomic-ddl.html#atomic-ddl-supported-statements "支持的DDL语句")'
+- en: '[Atomic DDL Characteristics](atomic-ddl.html#atomic-ddl-characteristics "Atomic
+    DDL Characteristics")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[原子DDL特性](atomic-ddl.html#atomic-ddl-characteristics "原子DDL特性")'
+- en: '[Changes in DDL Statement Behavior](atomic-ddl.html#atomic-ddl-statement-behavior
+    "Changes in DDL Statement Behavior")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[DDL语句行为变化](atomic-ddl.html#atomic-ddl-statement-behavior "DDL语句行为变化")'
+- en: '[Storage Engine Support](atomic-ddl.html#atomic-ddl-storage-engine-support
+    "Storage Engine Support")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[存储引擎支持](atomic-ddl.html#atomic-ddl-storage-engine-support "存储引擎支持")'
+- en: '[Viewing DDL Logs](atomic-ddl.html#atomic-ddl-view-logs "Viewing DDL Logs")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[查看DDL日志](atomic-ddl.html#atomic-ddl-view-logs "查看DDL日志")'
+- en: Supported DDL Statements
+  id: totrans-12
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 支持的DDL语句
+- en: The atomic DDL feature supports both table and non-table DDL statements. Table-related
+    DDL operations require storage engine support, whereas non-table DDL operations
+    do not. Currently, only the `InnoDB` storage engine supports atomic DDL.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 原子DDL特性支持表和非表DDL语句。与表相关的DDL操作需要存储引擎支持，而非表DDL操作则不需要。目前，只有`InnoDB`存储引擎支持原子DDL。
+- en: Supported table DDL statements include `CREATE`, `ALTER`, and `DROP` statements
+    for databases, tablespaces, tables, and indexes, and the [`TRUNCATE TABLE`](truncate-table.html
+    "15.1.37 TRUNCATE TABLE Statement") statement.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 支持的表DDL语句包括对数据库、表空间、表和索引的`CREATE`、`ALTER`和`DROP`语句，以及[`TRUNCATE TABLE`](truncate-table.html
+    "15.1.37 TRUNCATE TABLE语句")语句。
+- en: 'Supported non-table DDL statements include:'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 支持的非表DDL语句包括：
+- en: '`CREATE` and `DROP` statements, and, if applicable, `ALTER` statements for
+    stored programs, triggers, views, and loadable functions.'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CREATE`和`DROP`语句，以及（如果适用）用于存储过程、触发器、视图和可加载函数的`ALTER`语句。'
+- en: 'Account management statements: `CREATE`, `ALTER`, `DROP`, and, if applicable,
+    `RENAME` statements for users and roles, as well as [`GRANT`](grant.html "15.7.1.6 GRANT
+    Statement") and [`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement") statements.'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 帐户管理语句：用户和角色的`CREATE`，`ALTER`，`DROP`，以及如果适用的`RENAME`语句，以及[`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement")和[`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement")语句。
+- en: 'The following statements are not supported by the atomic DDL feature:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 原子DDL功能不支持以下语句：
+- en: Table-related DDL statements that involve a storage engine other than `InnoDB`.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与`InnoDB`不同的存储引擎涉及的与表相关的DDL语句。
+- en: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")
+    and [`UNINSTALL PLUGIN`](uninstall-plugin.html "15.7.4.6 UNINSTALL PLUGIN Statement")
+    statements.'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")和[`UNINSTALL
+    PLUGIN`](uninstall-plugin.html "15.7.4.6 UNINSTALL PLUGIN Statement")语句。'
+- en: '[`INSTALL COMPONENT`](install-component.html "15.7.4.3 INSTALL COMPONENT Statement")
+    and [`UNINSTALL COMPONENT`](uninstall-component.html "15.7.4.5 UNINSTALL COMPONENT
+    Statement") statements.'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INSTALL COMPONENT`](install-component.html "15.7.4.3 INSTALL COMPONENT Statement")和[`UNINSTALL
+    COMPONENT`](uninstall-component.html "15.7.4.5 UNINSTALL COMPONENT Statement")语句。'
+- en: '[`CREATE SERVER`](create-server.html "15.1.18 CREATE SERVER Statement"), [`ALTER
+    SERVER`](alter-server.html "15.1.8 ALTER SERVER Statement"), and [`DROP SERVER`](drop-server.html
+    "15.1.30 DROP SERVER Statement") statements.'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CREATE SERVER`](create-server.html "15.1.18 CREATE SERVER Statement")，[`ALTER
+    SERVER`](alter-server.html "15.1.8 ALTER SERVER Statement")和[`DROP SERVER`](drop-server.html
+    "15.1.30 DROP SERVER Statement")语句。'
+- en: Atomic DDL Characteristics
+  id: totrans-23
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 原子DDL特性
+- en: 'The characteristics of atomic DDL statements include the following:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 原子DDL语句的特性包括以下内容：
+- en: Metadata updates, binary log writes, and storage engine operations, where applicable,
+    are combined into a single atomic operation.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 元数据更新，二进制日志写入和存储引擎操作（如果适用）被合并为单个原子操作。
+- en: There are no intermediate commits at the SQL layer during the DDL operation.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在DDL操作期间，SQL层没有中间提交。
+- en: 'Where applicable:'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果适用：
+- en: The state of data dictionary, routine, event, and loadable function caches is
+    consistent with the status of the DDL operation, meaning that caches are updated
+    to reflect whether or not the DDL operation was completed successfully or rolled
+    back.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数据字典，例程，事件和可加载函数缓存的状态与DDL操作的状态一致，这意味着缓存将根据DDL操作是否成功完成或回滚而更新。
+- en: The storage engine methods involved in a DDL operation do not perform intermediate
+    commits, and the storage engine registers itself as part of the DDL operation.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: DDL操作涉及的存储引擎方法不执行中间提交，并且存储引擎将自身注册为DDL操作的一部分。
+- en: The storage engine supports redo and rollback of DDL operations, which is performed
+    in the *Post-DDL* phase of the DDL operation.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储引擎支持DDL操作的重做和回滚，这是在DDL操作的*后DDL*阶段执行的。
+- en: The visible behaviour of DDL operations is atomic, which changes the behavior
+    of some DDL statements. See [Changes in DDL Statement Behavior](atomic-ddl.html#atomic-ddl-statement-behavior
+    "Changes in DDL Statement Behavior").
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: DDL操作的可见行为是原子的，这改变了一些DDL语句的行为。请参阅[DDL语句行为的变化](atomic-ddl.html#atomic-ddl-statement-behavior
+    "Changes in DDL Statement Behavior")。
+- en: Changes in DDL Statement Behavior
+  id: totrans-32
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: DDL语句行为的变化
+- en: This section describes changes in DDL statement behavior due to the introduction
+    of atomic DDL support.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了由于引入原子DDL支持而导致的DDL语句行为的变化。
+- en: '[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") operations are
+    fully atomic if all named tables use an atomic DDL-supported storage engine. The
+    statement either drops all tables successfully or is rolled back.'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果所有命名表使用支持原子DDL的存储引擎，则[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")操作是完全原子的。该语句要么成功删除所有表，要么回滚。
+- en: '[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") fails with an
+    error if a named table does not exist, and no changes are made, regardless of
+    the storage engine. This change in behavior is demonstrated in the following example,
+    where the [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") statement
+    fails because a named table does not exist:'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果命名表不存在，则[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")将失败并显示错误，无论存储引擎如何，都不会进行任何更改。下面的示例演示了行为的变化，[`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句因为命名表不存在而失败：
+- en: '[PRE0]'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Prior to the introduction of atomic DDL, [`DROP TABLE`](drop-table.html "15.1.32 DROP
+    TABLE Statement") reports an error for the named table that does not exist but
+    succeeds for the named table that does exist:'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在引入原子DDL之前，[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")对于不存在的命名表报告错误，但对于存在的命名表成功：
+- en: '[PRE1]'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Note
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Due to this change in behavior, a partially completed [`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement") statement on a MySQL 5.7 replication source server
+    fails when replicated on a MySQL 8.0 replica. To avoid this failure scenario,
+    use `IF EXISTS` syntax in [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")
+    statements to prevent errors from occurring for tables that do not exist.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于这种行为变化，当在MySQL 5.7复制源服务器上复制到MySQL 8.0副本时，部分完成的[`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement")语句会失败。为避免此失败场景，在[`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement")语句中使用`IF EXISTS`语法，以防止对不存在的表发生错误。
+- en: '[`DROP DATABASE`](drop-database.html "15.1.24 DROP DATABASE Statement") is
+    atomic if all tables use an atomic DDL-supported storage engine. The statement
+    either drops all objects successfully or is rolled back. However, removal of the
+    database directory from the file system occurs last and is not part of the atomic
+    operation. If removal of the database directory fails due to a file system error
+    or server halt, the [`DROP DATABASE`](drop-database.html "15.1.24 DROP DATABASE
+    Statement") transaction is not rolled back.'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果所有表使用支持原子DDL的存储引擎，则[`DROP DATABASE`](drop-database.html "15.1.24 DROP DATABASE
+    Statement")是原子的。该语句要么成功删除所有对象，要么回滚。然而，从文件系统中删除数据库目录是最后发生的，不是原子操作的一部分。如果由于文件系统错误或服务器停止而导致无法删除数据库目录，则不会回滚[`DROP
+    DATABASE`](drop-database.html "15.1.24 DROP DATABASE Statement")事务。
+- en: For tables that do not use an atomic DDL-supported storage engine, table deletion
+    occurs outside of the atomic [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE
+    Statement") or [`DROP DATABASE`](drop-database.html "15.1.24 DROP DATABASE Statement")
+    transaction. Such table deletions are written to the binary log individually,
+    which limits the discrepancy between the storage engine, data dictionary, and
+    binary log to one table at most in the case of an interrupted [`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement") or [`DROP DATABASE`](drop-database.html "15.1.24 DROP
+    DATABASE Statement") operation. For operations that drop multiple tables, the
+    tables that do not use an atomic DDL-supported storage engine are dropped before
+    tables that do.
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于不使用支持原子DDL的存储引擎的表，表删除发生在原子[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE
+    Statement")或[`DROP DATABASE`](drop-database.html "15.1.24 DROP DATABASE Statement")事务之外。这种表删除会单独写入二进制日志，这限制了在中断的[`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")或[`DROP DATABASE`](drop-database.html
+    "15.1.24 DROP DATABASE Statement")操作中存储引擎、数据字典和二进制日志之间的差异至多为一个表。对于删除多个表的操作，不使用支持原子DDL的存储引擎的表会在支持原子DDL的表之前被删除。
+- en: '[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement"), [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement"), [`RENAME TABLE`](rename-table.html
+    "15.1.36 RENAME TABLE Statement"), [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE
+    TABLE Statement"), [`CREATE TABLESPACE`](create-tablespace.html "15.1.21 CREATE
+    TABLESPACE Statement"), and [`DROP TABLESPACE`](drop-tablespace.html "15.1.33 DROP
+    TABLESPACE Statement") operations for tables that use an atomic DDL-supported
+    storage engine are either fully committed or rolled back if the server halts during
+    their operation. In earlier MySQL releases, interruption of these operations could
+    cause discrepancies between the storage engine, data dictionary, and binary log,
+    or leave behind orphan files. [`RENAME TABLE`](rename-table.html "15.1.36 RENAME
+    TABLE Statement") operations are only atomic if all named tables use an atomic
+    DDL-supported storage engine.'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用支持原子DDL的存储引擎的表，[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE
+    Statement")、[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")、[`RENAME
+    TABLE`](rename-table.html "15.1.36 RENAME TABLE Statement")、[`TRUNCATE TABLE`](truncate-table.html
+    "15.1.37 TRUNCATE TABLE Statement")、[`CREATE TABLESPACE`](create-tablespace.html
+    "15.1.21 CREATE TABLESPACE Statement")和[`DROP TABLESPACE`](drop-tablespace.html
+    "15.1.33 DROP TABLESPACE Statement")操作在操作过程中如果服务器停止，要么完全提交，要么回滚。在早期的MySQL版本中，这些操作的中断可能导致存储引擎、数据字典和二进制日志之间的差异，或留下孤立文件。只有所有命名表使用支持原子DDL的存储引擎时，[`RENAME
+    TABLE`](rename-table.html "15.1.36 RENAME TABLE Statement")操作才是原子的。
+- en: As of MySQL 8.0.21, on storage engines that support atomic DDL, the [`CREATE
+    TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE ... SELECT
+    Statement") statement is logged as one transaction in the binary log when row-based
+    replication is in use. Previously, it was logged as two transactions, one to create
+    the table, and the other to insert data. A server failure between the two transactions
+    or while inserting data could result in replication of an empty table. With the
+    introduction of atomic DDL support, [`CREATE TABLE ... SELECT`](create-table-select.html
+    "15.1.20.4 CREATE TABLE ... SELECT Statement") statements are now safe for row-based
+    replication and permitted for use with GTID-based replication.
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.21 开始，在支持原子 DDL 的存储引擎上，当使用基于行的复制时，[`CREATE TABLE ... SELECT`](create-table-select.html
+    "15.1.20.4 CREATE TABLE ... SELECT Statement") 语句被记录为二进制日志中的一个事务。以前，它被记录为两个事务，一个用于创建表，另一个用于插入数据。在两个事务之间或插入数据时发生服务器故障可能导致复制一个空表。随着原子
+    DDL 支持的引入，[`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE
+    TABLE ... SELECT Statement") 语句现在对基于行的复制是安全的，并且允许在基于 GTID 的复制中使用。
+- en: On storage engines that support both atomic DDL and foreign key constraints,
+    creation of foreign keys is not permitted in [`CREATE TABLE ... SELECT`](create-table-select.html
+    "15.1.20.4 CREATE TABLE ... SELECT Statement") statements when row-based replication
+    is in use. Foreign key constraints can be added later using [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement").
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在支持原子 DDL 和外键约束的存储引擎上，在使用基于行的复制时，不允许在 [`CREATE TABLE ... SELECT`](create-table-select.html
+    "15.1.20.4 CREATE TABLE ... SELECT Statement") 语句中创建外键约束。可以稍后使用 [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") 添加外键约束。
+- en: When [`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE
+    TABLE ... SELECT Statement") is applied as an atomic operation, a metadata lock
+    is held on the table while data is inserted, which prevents concurrent access
+    to the table for the duration of the operation.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当 [`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE
+    ... SELECT Statement") 作为原子操作应用时，插入数据时会在表上持有元数据锁，这会阻止在操作期间对表的并发访问。
+- en: '[`DROP VIEW`](drop-view.html "15.1.35 DROP VIEW Statement") fails if a named
+    view does not exist, and no changes are made. The change in behavior is demonstrated
+    in this example, where the [`DROP VIEW`](drop-view.html "15.1.35 DROP VIEW Statement")
+    statement fails because a named view does not exist:'
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果命名视图不存在，[`DROP VIEW`](drop-view.html "15.1.35 DROP VIEW Statement") 失败，并且不会进行任何更改。行为变更在这个例子中得到展示，[`DROP
+    VIEW`](drop-view.html "15.1.35 DROP VIEW Statement") 语句因为命名视图不存在而失败：
+- en: '[PRE2]'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Prior to the introduction of atomic DDL, [`DROP VIEW`](drop-view.html "15.1.35 DROP
+    VIEW Statement") returns an error for the named view that does not exist but succeeds
+    for the named view that does exist:'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在引入原子 DDL 之前，[`DROP VIEW`](drop-view.html "15.1.35 DROP VIEW Statement") 对不存在的命名视图返回错误，但对存在的命名视图成功：
+- en: '[PRE3]'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Note
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Due to this change in behavior, a partially completed [`DROP VIEW`](drop-view.html
+    "15.1.35 DROP VIEW Statement") operation on a MySQL 5.7 replication source server
+    fails when replicated on a MySQL 8.0 replica. To avoid this failure scenario,
+    use `IF EXISTS` syntax in [`DROP VIEW`](drop-view.html "15.1.35 DROP VIEW Statement")
+    statements to prevent an error from occurring for views that do not exist.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于这种行为变更，在 MySQL 5.7 复制源服务器上部分完成的 [`DROP VIEW`](drop-view.html "15.1.35 DROP
+    VIEW Statement") 操作在 MySQL 8.0 复制品上复制时会失败。为避免这种失败场景，在 [`DROP VIEW`](drop-view.html
+    "15.1.35 DROP VIEW Statement") 语句中使用 `IF EXISTS` 语法，以防止对不存在的视图发生错误。
+- en: Partial execution of account management statements is no longer permitted. Account
+    management statements either succeed for all named users or roll back and have
+    no effect if an error occurs. In earlier MySQL versions, account management statements
+    that name multiple users could succeed for some users and fail for others.
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 部分执行账户管理语句不再被允许。如果发生错误，账户管理语句要么对所有命名用户成功，要么回滚并且没有效果。在早期的 MySQL 版本中，命名多个用户的账户管理语句可能对一些用户成功，对另一些用户失败。
+- en: The change in behavior is demonstrated in this example, where the second [`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement returns an
+    error but fails because it cannot succeed for all named users.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 行为变更在这个例子中得到展示，第二个 [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    语句返回错误但失败，因为它无法对所有命名用户成功。
+- en: '[PRE4]'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Prior to the introduction of atomic DDL, the second `CREATE USER` statement
+    returns an error for the named user that does not exist but succeeds for the named
+    user that does exist:'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在引入原子DDL之前，第二个`CREATE USER`语句对于不存在的命名用户返回错误，但对于已存在的命名用户成功：
+- en: '[PRE5]'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Note
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Due to this change in behavior, partially completed account management statements
+    on a MySQL 5.7 replication source server fail when replicated on a MySQL 8.0 replica.
+    To avoid this failure scenario, use `IF EXISTS` or `IF NOT EXISTS` syntax, as
+    appropriate, in account management statements to prevent errors related to named
+    users.
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于这种行为变化，MySQL 5.7复制源服务器上部分完成的帐户管理语句在MySQL 8.0副本上复制时会失败。为避免此失败场景，在帐户管理语句中使用`IF
+    EXISTS`或`IF NOT EXISTS`语法，适当地防止与命名用户相关的错误。
+- en: Storage Engine Support
+  id: totrans-60
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 存储引擎支持
+- en: Currently, only the `InnoDB` storage engine supports atomic DDL. Storage engines
+    that do not support atomic DDL are exempted from DDL atomicity. DDL operations
+    involving exempted storage engines remain capable of introducing inconsistencies
+    that can occur when operations are interrupted or only partially completed.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 目前，只有`InnoDB`存储引擎支持原子DDL。不支持原子DDL的存储引擎不受DDL原子性的约束。涉及免除的存储引擎的DDL操作仍然可能引入不一致性，当操作被中断或仅部分完成时可能发生。
+- en: To support redo and rollback of DDL operations, `InnoDB` writes DDL logs to
+    the `mysql.innodb_ddl_log` table, which is a hidden data dictionary table that
+    resides in the `mysql.ibd` data dictionary tablespace.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为支持DDL操作的重做和回滚，`InnoDB`将DDL日志写入`mysql.innodb_ddl_log`表，这是一个隐藏的数据字典表，驻留在`mysql.ibd`数据字典表空间中。
+- en: To view DDL logs that are written to the `mysql.innodb_ddl_log` table during
+    a DDL operation, enable the [`innodb_print_ddl_logs`](innodb-parameters.html#sysvar_innodb_print_ddl_logs)
+    configuration option. For more information, see [Viewing DDL Logs](atomic-ddl.html#atomic-ddl-view-logs
+    "Viewing DDL Logs").
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看在DDL操作期间写入`mysql.innodb_ddl_log`表的DDL日志，请启用[`innodb_print_ddl_logs`](innodb-parameters.html#sysvar_innodb_print_ddl_logs)配置选项。有关更多信息，请参见[查看DDL日志](atomic-ddl.html#atomic-ddl-view-logs
+    "查看DDL日志")。
+- en: Note
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The redo logs for changes to the `mysql.innodb_ddl_log` table are flushed to
+    disk immediately regardless of the [`innodb_flush_log_at_trx_commit`](innodb-parameters.html#sysvar_innodb_flush_log_at_trx_commit)
+    setting. Flushing the redo logs immediately avoids situations where data files
+    are modified by DDL operations but the redo logs for changes to the `mysql.innodb_ddl_log`
+    table resulting from those operations are not persisted to disk. Such a situation
+    could cause errors during rollback or recovery.
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于对`mysql.innodb_ddl_log`表的更改的重做日志会立即刷新到磁盘，不受[`innodb_flush_log_at_trx_commit`](innodb-parameters.html#sysvar_innodb_flush_log_at_trx_commit)设置的影响。立即刷新重做日志可以避免数据文件被DDL操作修改，但由于这些操作导致的对`mysql.innodb_ddl_log`表的重做日志未持久化到磁盘。这种情况可能导致回滚或恢复时出现错误。
+- en: The `InnoDB` storage engine executes DDL operations in phases. DDL operations
+    such as [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") may perform
+    the *Prepare* and *Perform* phases multiple times prior to the *Commit* phase.
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`存储引擎在阶段中执行DDL操作。DDL操作，如[`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")可能在*提交*阶段之前多次执行*准备*和*执行*阶段。'
+- en: '*Prepare*: Create the required objects and write the DDL logs to the `mysql.innodb_ddl_log`
+    table. The DDL logs define how to roll forward and roll back the DDL operation.'
+  id: totrans-67
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*准备*: 创建所需对象并将DDL日志写入`mysql.innodb_ddl_log`表。DDL日志定义了如何前滚和回滚DDL操作。'
+- en: '*Perform*: Perform the DDL operation. For example, perform a create routine
+    for a `CREATE TABLE` operation.'
+  id: totrans-68
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*执行*: 执行DDL操作。例如，执行`CREATE TABLE`操作的创建例程。'
+- en: '*Commit*: Update the data dictionary and commit the data dictionary transaction.'
+  id: totrans-69
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*提交*: 更新数据字典并提交数据字典事务。'
+- en: '*Post-DDL*: Replay and remove DDL logs from the `mysql.innodb_ddl_log` table.
+    To ensure that rollback can be performed safely without introducing inconsistencies,
+    file operations such as renaming or removing data files are performed in this
+    final phase. This phase also removes dynamic metadata from the `mysql.innodb_dynamic_metadata`
+    data dictionary table for [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement"),
+    [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement"), and
+    other DDL operations that rebuild the table.'
+  id: totrans-70
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*后DDL*：从`mysql.innodb_ddl_log`表中重放和删除DDL日志。为了确保可以安全地执行回滚而不引入不一致性，文件操作（如重命名或删除数据文件）在这个最终阶段执行。此阶段还会从`mysql.innodb_dynamic_metadata`数据字典表中删除[`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE语句")、[`TRUNCATE TABLE`](truncate-table.html
+    "15.1.37 TRUNCATE TABLE语句")和其他重建表的DDL操作的动态元数据。'
+- en: DDL logs are replayed and removed from the `mysql.innodb_ddl_log` table during
+    the *Post-DDL* phase, regardless of whether the DDL operation is committed or
+    rolled back. DDL logs should only remain in the `mysql.innodb_ddl_log` table if
+    the server is halted during a DDL operation. In this case, the DDL logs are replayed
+    and removed after recovery.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论DDL操作是提交还是回滚，在*后DDL*阶段都会重放和删除`mysql.innodb_ddl_log`表中的DDL日志。只有在服务器在DDL操作期间停止时，DDL日志才应该保留在`mysql.innodb_ddl_log`表中。在这种情况下，恢复后会重放和删除DDL日志。
+- en: In a recovery situation, a DDL operation may be committed or rolled back when
+    the server is restarted. If the data dictionary transaction that was performed
+    during the *Commit* phase of a DDL operation is present in the redo log and binary
+    log, the operation is considered successful and is rolled forward. Otherwise,
+    the incomplete data dictionary transaction is rolled back when `InnoDB` replays
+    data dictionary redo logs, and the DDL operation is rolled back.
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在恢复情况下，当服务器重新启动时，DDL操作可能会提交或回滚。如果在DDL操作的*提交*阶段执行的数据字典事务存在于重做日志和二进制日志中，则认为操作成功，并向前滚动。否则，当`InnoDB`重放数据字典重做日志时，不完整的数据字典事务将被回滚，DDL操作将被回滚。
+- en: Viewing DDL Logs
+  id: totrans-73
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 查看DDL日志
+- en: To view DDL logs that are written to the `mysql.innodb_ddl_log` data dictionary
+    table during atomic DDL operations that involve the `InnoDB` storage engine, enable
+    [`innodb_print_ddl_logs`](innodb-parameters.html#sysvar_innodb_print_ddl_logs)
+    to have MySQL write the DDL logs to `stderr`. Depending on the host operating
+    system and MySQL configuration, `stderr` may be the error log, terminal, or console
+    window. See [Section 7.4.2.2, “Default Error Log Destination Configuration”](error-log-destination-configuration.html
+    "7.4.2.2 Default Error Log Destination Configuration").
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看写入`mysql.innodb_ddl_log`数据字典表的与涉及`InnoDB`存储引擎的原子DDL操作相关的DDL日志，请启用[`innodb_print_ddl_logs`](innodb-parameters.html#sysvar_innodb_print_ddl_logs)以使MySQL将DDL日志写入`stderr`。根据主机操作系统和MySQL配置，`stderr`可能是错误日志、终端或控制台窗口。请参见[第7.4.2.2节，“默认错误日志目标配置”](error-log-destination-configuration.html
+    "7.4.2.2 默认错误日志目标配置")。
+- en: '`InnoDB` writes DDL logs to the `mysql.innodb_ddl_log` table to support redo
+    and rollback of DDL operations. The `mysql.innodb_ddl_log` table is a hidden data
+    dictionary table that resides in the `mysql.ibd` data dictionary tablespace. Like
+    other hidden data dictionary tables, the `mysql.innodb_ddl_log` table cannot be
+    accessed directly in non-debug versions of MySQL. (See [Section 16.1, “Data Dictionary
+    Schema”](data-dictionary-schema.html "16.1 Data Dictionary Schema").) The structure
+    of the `mysql.innodb_ddl_log` table corresponds to this definition:'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`将DDL日志写入`mysql.innodb_ddl_log`表，以支持DDL操作的重做和回滚。`mysql.innodb_ddl_log`表是一个隐藏的数据字典表，驻留在`mysql.ibd`数据字典表空间中。与其他隐藏的数据字典表一样，在非调试版本的MySQL中无法直接访问`mysql.innodb_ddl_log`表。（参见[第16.1节，“数据字典模式”](data-dictionary-schema.html
+    "16.1 数据字典模式")。）`mysql.innodb_ddl_log`表的结构对应于以下定义：'
+- en: '[PRE6]'
+  id: totrans-76
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '`id`: A unique identifier for a DDL log record.'
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`id`: 用于标识DDL日志记录的唯一标识符。'
+- en: '`thread_id`: Each DDL log record is assigned a `thread_id`, which is used to
+    replay and remove DDL logs that belong to a particular DDL operation. DDL operations
+    that involve multiple data file operations generate multiple DDL log records.'
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`thread_id`：每个DDL日志记录都被分配一个`thread_id`，用于重放和删除属于特定DDL操作的DDL日志。涉及多个数据文件操作的DDL操作会生成多个DDL日志记录。'
+- en: '`type`: The DDL operation type. Types include `FREE` (drop an index tree),
+    `DELETE` (delete a file), `RENAME` (rename a file), or `DROP` (drop metadata from
+    the `mysql.innodb_dynamic_metadata` data dictionary table).'
+  id: totrans-79
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`type`：DDL操作类型。类型包括`FREE`（删除索引树）、`DELETE`（删除文件）、`RENAME`（重命名文件）或`DROP`（从`mysql.innodb_dynamic_metadata`数据字典表中删除元数据）。'
+- en: '`space_id`: The tablespace ID.'
+  id: totrans-80
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`space_id`：表空间ID。'
+- en: '`page_no`: A page that contains allocation information; an index tree root
+    page, for example.'
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`page_no`：包含分配信息的页面；例如，索引树根页面。'
+- en: '`index_id`: The index ID.'
+  id: totrans-82
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`index_id`：索引ID。'
+- en: '`table_id`: The table ID.'
+  id: totrans-83
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`table_id`：表ID。'
+- en: '`old_file_path`: The old tablespace file path. Used by DDL operations that
+    create or drop tablespace files; also used by DDL operations that rename a tablespace.'
+  id: totrans-84
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`old_file_path`：旧表空间文件路径。用于创建或删除表空间文件的DDL操作；也用于重命名表空间的DDL操作。'
+- en: '`new_file_path`: The new tablespace file path. Used by DDL operations that
+    rename tablespace files.'
+  id: totrans-85
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`new_file_path`：新表空间文件路径。用于重命名表空间文件的DDL操作。'
+- en: This example demonstrates enabling [`innodb_print_ddl_logs`](innodb-parameters.html#sysvar_innodb_print_ddl_logs)
+    to view DDL logs written to `strderr` for a `CREATE TABLE` operation.
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个示例演示了启用[`innodb_print_ddl_logs`](innodb-parameters.html#sysvar_innodb_print_ddl_logs)以查看写入`strderr`的DDL日志，用于`CREATE
+    TABLE`操作。
+- en: '[PRE7]'
+  id: totrans-87
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '[PRE8]'
+  id: totrans-88
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'

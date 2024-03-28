@@ -1,0 +1,109 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-parallel-data-node-backup.html](https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-parallel-data-node-backup.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-parallel-data-node-backup.html](https://dev.mysql.com/doc/refman/8.0/en/ndb-restore-parallel-data-node-backup.html)
+- en: 25.5.23.3 Restoring from a backup taken in parallel
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.5.23.3 从并行进行的备份中恢复
+- en: NDB Cluster 8.0 supports parallel backups on each data node using [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") with multiple
+    LDMs (see [Section 25.6.8.5, “Taking an NDB Backup with Parallel Data Nodes”](mysql-cluster-backup-parallel-data-nodes.html
+    "25.6.8.5 Taking an NDB Backup with Parallel Data Nodes")). The next two sections
+    describe how to restore backups that were taken in this fashion.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster 8.0支持在每个数据节点上使用[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — NDB集群数据节点守护程序（多线程）")进行并行备份，具有多个LDMs（参见[第25.6.8.5节，“使用并行数据节点进行NDB备份”](mysql-cluster-backup-parallel-data-nodes.html
+    "25.6.8.5 使用并行数据节点进行NDB备份")）。接下来的两节描述了如何恢复以这种方式进行的备份。
+- en: 25.5.23.3.1 Restoring a parallel backup in parallel
+  id: totrans-3
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 25.5.23.3.1 并行恢复并行备份
+- en: 'Restoring a parallel backup in parallel requires an [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") binary from an NDB 8.0
+    distribution. The process is not substantially different from that outlined in
+    the general usage section under the description of the [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") program, and consists of
+    executing [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") twice, similarly to what is shown here:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 并行恢复并行备份需要来自NDB 8.0发行版的[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复NDB集群备份")二进制文件。该过程与在[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复NDB集群备份")程序描述下的一般用法部分中概述的过程没有实质性区别，并且包括执行两次[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复NDB集群备份")，类似于以下所示：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: '*`backup_id`* is the ID of the backup to be restored. In the general case,
+    no additional special arguments are required; [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") always checks for the existence
+    of parallel subdirectories under the directory indicated by the [`--backup-path`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-path)
+    option and restores the metadata (serially) and then the table data (in parallel).'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*`backup_id`*是要恢复的备份的ID。在一般情况下，不需要额外的特殊参数；[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复NDB集群备份")始终检查由[`--backup-path`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-path)选项指示的目录下是否存在并行子目录，并恢复元数据（串行）然后表数据（并行）。'
+- en: 25.5.23.3.2 Restoring a parallel backup serially
+  id: totrans-7
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 25.5.23.3.2 串行恢复并行备份
+- en: 'It is possible to restore a backup that was made using parallelism on the data
+    nodes in serial fashion. To do this, invoke [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") with [`--backup-path`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-path)
+    pointing to the subdirectories created by each LDM under the main backup directory,
+    once to any one of the subdirectories to restore the metadata (it does not matter
+    which one, since each subdirectory contains a complete copy of the metadata),
+    then to each of the subdirectories in turn to restore the data. Suppose that we
+    want to restore the backup having backup ID 100 that was taken with four LDMs,
+    and that the [`BackupDataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-backupdatadir)
+    is `/opt`. To restore the metadata in this case, we can invoke [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") like this:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以以串行方式恢复在数据节点上使用并行方式创建的备份。为此，请调用[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复NDB集群备份")，并使用[`--backup-path`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-path)指向每个LDM在主备份目录下创建的子目录，首先恢复任何一个子目录以恢复元数据（由于每个子目录包含元数据的完整副本，因此无论选择哪一个都可以），然后依次恢复每个子目录中的数据。假设我们想要恢复备份ID为100的备份，该备份使用四个LDMs，并且[`BackupDataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-backupdatadir)为`/opt`。在这种情况下，我们可以像这样调用[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复NDB集群备份")来恢复元数据：
+- en: '[PRE1]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'To restore the table data, execute [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup") four times, each time using
+    one of the subdirectories in turn, as shown here:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要恢复表数据，请依次执行[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — 恢复 NDB 集群备份") 四次，每次使用一个子目录，如下所示：
+- en: '[PRE2]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: You can employ the same technique to restore a parallel backup to an older version
+    of NDB Cluster (7.6 or earlier) that does not support parallel backups, using
+    the [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") binary supplied with the older version of the
+    NDB Cluster software.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用相同的技术将并行备份恢复到不支持并行备份的较旧版本的 NDB 集群（7.6 或更早版本），使用较旧版本 NDB 集群软件提供的[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复 NDB 集群备份")二进制文件。

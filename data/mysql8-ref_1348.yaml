@@ -1,0 +1,380 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-failover.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-failover.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-failover.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-failover.html)
+- en: 19.1.3.5 Using GTIDs for Failover and Scaleout
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.3.5 使用GTIDs进行故障切换和扩展
+- en: 'There are a number of techniques when using MySQL Replication with Global Transaction
+    Identifiers (GTIDs) for provisioning a new replica which can then be used for
+    scaleout, being promoted to source as necessary for failover. This section describes
+    the following techniques:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用带有全局事务标识符（GTIDs）的MySQL复制时，有许多技术可用于为新副本提供数据，然后用于扩展，必要时提升为源以进行故障切换。本节描述以下技术：
+- en: '[Simple replication](replication-gtids-failover.html#replication-gtids-failover-replicate
+    "Simple replication")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[简单复制](replication-gtids-failover.html#replication-gtids-failover-replicate
+    "简单复制")'
+- en: '[Copying data and transactions to the replica](replication-gtids-failover.html#replication-gtids-failover-copy
+    "Copying data and transactions to the replica")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[将数据和事务复制到副本](replication-gtids-failover.html#replication-gtids-failover-copy
+    "将数据和事务复制到副本")'
+- en: '[Injecting empty transactions](replication-gtids-failover.html#replication-gtids-failover-empty
+    "Injecting empty transactions")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[注入空事务](replication-gtids-failover.html#replication-gtids-failover-empty "注入空事务")'
+- en: '[Excluding transactions with gtid_purged](replication-gtids-failover.html#replication-gtids-failover-gtid-purged
+    "Excluding transactions with gtid_purged")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[排除具有gtid_purged的事务](replication-gtids-failover.html#replication-gtids-failover-gtid-purged
+    "排除具有gtid_purged的事务")'
+- en: '[Restoring GTID mode replicas](replication-gtids-failover.html#replication-gtids-restoring-mysqlbinlog
+    "Restoring GTID mode replicas")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[恢复GTID模式副本](replication-gtids-failover.html#replication-gtids-restoring-mysqlbinlog
+    "恢复GTID模式副本")'
+- en: 'Global transaction identifiers were added to MySQL Replication for the purpose
+    of simplifying in general management of the replication data flow and of failover
+    activities in particular. Each identifier uniquely identifies a set of binary
+    log events that together make up a transaction. GTIDs play a key role in applying
+    changes to the database: the server automatically skips any transaction having
+    an identifier which the server recognizes as one that it has processed before.
+    This behavior is critical for automatic replication positioning and correct failover.'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全局事务标识符被添加到MySQL复制中，目的是简化复制数据流的管理以及特定情况下的故障切换活动。每个标识符唯一标识一组二进制日志事件，这些事件一起构成一个事务。GTIDs在应用对数据库的更改中起着关键作用：服务器会自动跳过任何具有服务器识别为其之前已处理过的标识符的事务。这种行为对于自动复制定位和正确的故障切换至关重要。
+- en: The mapping between identifiers and sets of events comprising a given transaction
+    is captured in the binary log. This poses some challenges when provisioning a
+    new server with data from another existing server. To reproduce the identifier
+    set on the new server, it is necessary to copy the identifiers from the old server
+    to the new one, and to preserve the relationship between the identifiers and the
+    actual events. This is necessary for restoring a replica that is immediately available
+    as a candidate to become a new source on failover or switchover.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 标识符与构成给定事务的事件集之间的映射被记录在二进制日志中。当为新服务器提供来自另一个现有服务器的数据时，这会带来一些挑战。为了在新服务器上复制标识符集，需要将标识符从旧服务器复制到新服务器，并保留标识符与实际事件之间的关系。这对于恢复一个立即可用作故障切换或切换源的副本是必要的。
+- en: '**Simple replication. ** The easiest way to reproduce all identifiers and transactions
+    on a new server is to make the new server into the replica of a source that has
+    the entire execution history, and enable global transaction identifiers on both
+    servers. See [Section 19.1.3.4, “Setting Up Replication Using GTIDs”](replication-gtids-howto.html
+    "19.1.3.4 Setting Up Replication Using GTIDs"), for more information.'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**简单复制。** 在新服务器上复制所有标识符和事务的最简单方法是将新服务器制作为具有完整执行历史记录的源的副本，并在两个服务器上启用全局事务标识符。有关更多信息，请参见[Section 19.1.3.4,
+    “使用GTIDs设置复制”](replication-gtids-howto.html "19.1.3.4 使用GTIDs设置复制")。'
+- en: Once replication is started, the new server copies the entire binary log from
+    the source and thus obtains all information about all GTIDs.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦复制开始，新服务器会从源服务器复制整个二进制日志，从而获取所有关于所有GTIDs的信息。
+- en: This method is simple and effective, but requires the replica to read the binary
+    log from the source; it can sometimes take a comparatively long time for the new
+    replica to catch up with the source, so this method is not suitable for fast failover
+    or restoring from backup. This section explains how to avoid fetching all of the
+    execution history from the source by copying binary log files to the new server.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种方法简单而有效，但需要副本从源读取二进制日志；新副本有时可能需要相对较长的时间才能赶上源，因此此方法不适用于快速故障转移或从备份中恢复。本节解释了如何通过将二进制日志文件复制到新服务器来避免从源获取所有执行历史记录。
+- en: '**Copying data and transactions to the replica. ** Executing the entire transaction
+    history can be time-consuming when the source server has processed a large number
+    of transactions previously, and this can represent a major bottleneck when setting
+    up a new replica. To eliminate this requirement, a snapshot of the data set, the
+    binary logs and the global transaction information the source server contains
+    can be imported to the new replica. The server where the snapshot is taken can
+    be either the source or one of its replicas, but you must ensure that the server
+    has processed all required transactions before copying the data.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**将数据和事务复制到副本。** 当源服务器之前处理了大量事务时，执行整个事务历史记录可能会耗时，这在设置新副本时可能会成为一个主要瓶颈。为了消除这一要求，可以将源服务器包含的数据集、二进制日志和全局事务信息的快照导入到新副本中。快照被拍摄的服务器可以是源服务器或其副本之一，但必须确保服务器在复制数据之前已处理了所有必需的事务。'
+- en: 'There are several variants of this method, the difference being in the manner
+    in which data dumps and transactions from binary logs are transferred to the replica,
+    as outlined here:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有几种这种方法的变体，其区别在于从二进制日志中转移数据转储和事务到副本的方式，如下所述：
+- en: Data Set
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数据集
+- en: Create a dump file using [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A
+    Database Backup Program") on the source server. Set the [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") option [`--master-data`](mysqldump.html#option_mysqldump_master-data)
+    (with the default value of 1) to include a [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement with binary logging information.
+    Set the [`--set-gtid-purged`](mysqldump.html#option_mysqldump_set-gtid-purged)
+    option to `AUTO` (the default) or `ON`, to include information about executed
+    transactions in the dump. Then use the [**mysql**](mysql.html "6.5.1 mysql — The
+    MySQL Command-Line Client") client to import the dump file on the target server.
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源服务器上使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — 数据库备份程序")创建一个转储文件。设置[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — 数据库备份程序")选项[`--master-data`](mysqldump.html#option_mysqldump_master-data)（默认值为1）以包含带有二进制日志信息的[`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO语句") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO语句")语句。将[`--set-gtid-purged`](mysqldump.html#option_mysqldump_set-gtid-purged)选项设置为`AUTO`（默认）或`ON`，以在转储中包含有关已执行事务的信息。然后使用[**mysql**](mysql.html
+    "6.5.1 mysql — MySQL命令行客户端")客户端在目标服务器上导入转储文件。
+- en: Alternatively, create a data snapshot of the source server using raw data files,
+    then copy these files to the target server, following the instructions in [Section 19.1.2.5,
+    “Choosing a Method for Data Snapshots”](replication-snapshot-method.html "19.1.2.5 Choosing
+    a Method for Data Snapshots"). If you use [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") tables, you can use the **mysqlbackup**
+    command from the MySQL Enterprise Backup component to produce a consistent snapshot.
+    This command records the log name and offset corresponding to the snapshot to
+    be used on the replica. MySQL Enterprise Backup is a commercial product that is
+    included as part of a MySQL Enterprise subscription. See [Section 32.1, “MySQL
+    Enterprise Backup Overview”](mysql-enterprise-backup.html "32.1 MySQL Enterprise
+    Backup Overview") for detailed information.
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 或者，使用原始数据文件在源服务器上创建数据快照，然后将这些文件复制到目标服务器，按照[第19.1.2.5节，“选择数据快照方法”](replication-snapshot-method.html
+    "19.1.2.5 选择数据快照方法")中的说明进行操作。如果使用[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")表，可以使用MySQL
+    Enterprise Backup组件中的**mysqlbackup**命令生成一致的快照。该命令记录了与快照对应的日志名称和偏移量，以便在副本上使用。MySQL
+    Enterprise Backup是MySQL Enterprise订阅的一部分，是一款商业产品。详细信息请参见[第32.1节，“MySQL Enterprise
+    Backup概述”](mysql-enterprise-backup.html "32.1 MySQL Enterprise Backup概述")。
+- en: Alternatively, stop both the source and target servers, copy the contents of
+    the source's data directory to the new replica's data directory, then restart
+    the replica. If you use this method, the replica must be configured for GTID-based
+    replication, in other words with [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode).
+    For instructions and important information for this method, see [Section 19.1.2.8,
+    “Adding Replicas to a Replication Environment”](replication-howto-additionalslaves.html
+    "19.1.2.8 Adding Replicas to a Replication Environment").
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 或者，停止源服务器和目标服务器，将源数据目录的内容复制到新副本的数据目录，然后重新启动副本。如果使用此方法，副本必须配置为基于 GTID 的复制，换句话说，使用
+    [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)。有关此方法的说明和重要信息，请参见
+    [第 19.1.2.8 节“将副本添加到复制环境”](replication-howto-additionalslaves.html "19.1.2.8 Adding
+    Replicas to a Replication Environment")。
+- en: Transaction History
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事务历史
+- en: If the source server has a complete transaction history in its binary logs (that
+    is, the GTID set `@@GLOBAL.gtid_purged` is empty), you can use these methods.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果源服务器在其二进制日志中具有完整的事务历史记录（即，GTID 集 `@@GLOBAL.gtid_purged` 为空），则可以使用这些方法。
+- en: Import the binary logs from the source server to the new replica using [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files"), with the [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server),
+    [`--read-from-remote-source`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-source),
+    and [`--read-from-remote-master`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-master)
+    options.
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用 [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") 将源服务器的二进制日志导入新副本，使用 [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)、[`--read-from-remote-source`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-source)
+    和 [`--read-from-remote-master`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-master)
+    选项。
+- en: 'Alternatively, copy the source server''s binary log files to the replica. You
+    can make copies from the replica using [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") with the [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    and [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw) options. These can be read
+    into the replica by using [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") `>` `*`file`*` (without the [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw)
+    option) to export the binary log files to SQL files, then passing these files
+    to the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client
+    for processing. Ensure that all of the binary log files are processed using a
+    single [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") process,
+    rather than multiple connections. For example:'
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 或者，将源服务器的二进制日志文件复制到副本。您可以使用 [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") 从副本中复制，使用 [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    和 [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw) 选项。这些可以通过使用 [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") `>` `*`file`*`（不使用
+    [`--raw`](mysqlbinlog.html#option_mysqlbinlog_raw) 选项）将二进制日志文件导出到 SQL 文件，然后将这些文件传递给
+    [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") 客户端进行处理。确保所有二进制日志文件都使用单个
+    [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") 进程处理，而不是多个连接。例如：
+- en: '[PRE0]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: For more information, see [Section 6.6.9.3, “Using mysqlbinlog to Back Up Binary
+    Log Files”](mysqlbinlog-backup.html "6.6.9.3 Using mysqlbinlog to Back Up Binary
+    Log Files").
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关更多信息，请参见 [第 6.6.9.3 节“使用 mysqlbinlog 备份二进制日志文件”](mysqlbinlog-backup.html "6.6.9.3 Using
+    mysqlbinlog to Back Up Binary Log Files")。
+- en: This method has the advantage that a new server is available almost immediately;
+    only those transactions that were committed while the snapshot or dump file was
+    being replayed still need to be obtained from the existing source. This means
+    that the replica's availability is not instantaneous, but only a relatively short
+    amount of time should be required for the replica to catch up with these few remaining
+    transactions.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种方法的优势在于几乎立即可以获得新服务器；只有在重放快照或转储文件时提交的交易才需要从现有源获取。这意味着副本的可用性并非即时，但只需要相对较短的时间即可使副本赶上这些少量剩余交易。
+- en: Copying over binary logs to the target server in advance is usually faster than
+    reading the entire transaction execution history from the source in real time.
+    However, it may not always be feasible to move these files to the target when
+    required, due to size or other considerations. The two remaining methods for provisioning
+    a new replica discussed in this section use other means to transfer information
+    about transactions to the new replica.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 预先复制二进制日志到目标服务器通常比实时从源读取整个事务执行历史要快。然而，当需要时，将这些文件移动到目标可能并不总是可行，由于大小或其他考虑。本节讨论的用于为新副本配置的另外两种方法使用其他方式将有关事务的信息传输到新副本。
+- en: '**Injecting empty transactions. ** The source''s global [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    variable contains the set of all transactions executed on the source. Rather than
+    copy the binary logs when taking a snapshot to provision a new server, you can
+    instead note the content of `gtid_executed` on the server from which the snapshot
+    was taken. Before adding the new server to the replication chain, simply commit
+    an empty transaction on the new server for each transaction identifier contained
+    in the source''s `gtid_executed`, like this:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**注入空事务。** 源的全局[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)变量包含在源上执行的所有事务的集合。在拍摄快照以为新服务器配置时，您可以在拍摄快照的服务器上记录`gtid_executed`的内容，而不是复制二进制日志。在将新服务器添加到复制链之前，只需为源的`gtid_executed`中包含的每个事务标识符在新服务器上提交一个空事务，就像这样：'
+- en: '[PRE1]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Once all transaction identifiers have been reinstated in this way using empty
+    transactions, you must flush and purge the replica''s binary logs, as shown here,
+    where *`N`* is the nonzero suffix of the current binary log file name:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦所有事务标识符都通过使用空事务重新建立，您必须刷新并清除副本的二进制日志，如下所示，其中*`N`*是当前二进制日志文件名的非零后缀：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: You should do this to prevent this server from flooding the replication stream
+    with false transactions in the event that it is later promoted to the source.
+    (The [`FLUSH LOGS`](flush.html#flush-logs) statement forces the creation of a
+    new binary log file; [`PURGE BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE
+    BINARY LOGS Statement") purges the empty transactions, but retains their identifiers.)
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您应该这样做，以防止该服务器在以后被提升为源时通过虚假事务淹没复制流。（[`FLUSH LOGS`](flush.html#flush-logs)语句强制创建一个新的二进制日志文件；[`PURGE
+    BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS Statement")清除空事务，但保留它们的标识符。）
+- en: This method creates a server that is essentially a snapshot, but in time is
+    able to become a source as its binary log history converges with that of the replication
+    stream (that is, as it catches up with the source or sources). This outcome is
+    similar in effect to that obtained using the remaining provisioning method, which
+    we discuss in the next few paragraphs.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种方法创建了一个本质上是快照的服务器，但随着其二进制日志历史与复制流的收敛（即，与源或源的收敛），它能够成为一个源。这种结果在效果上类似于使用剩余的配置方法获得的效果，我们将在接下来的几段中讨论。
+- en: '**Excluding transactions with gtid_purged. ** The source''s global [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    variable contains the set of all transactions that have been purged from the source''s
+    binary log. As with the method discussed previously (see [Injecting empty transactions](replication-gtids-failover.html#replication-gtids-failover-empty
+    "Injecting empty transactions")), you can record the value of [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    on the server from which the snapshot was taken (in place of copying the binary
+    logs to the new server). Unlike the previous method, there is no need to commit
+    empty transactions (or to issue [`PURGE BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE
+    BINARY LOGS Statement")); instead, you can set [`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    on the replica directly, based on the value of [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    on the server from which the backup or snapshot was taken.'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**排除具有 gtid_purged 的事务。** 源的全局[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)
+    变量包含已从源的二进制日志中清除的所有事务的集合。与之前讨论的方法一样（参见[注入空事务](replication-gtids-failover.html#replication-gtids-failover-empty
+    "注入空事务")），您可以记录从快照被取得的服务器上的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    的值（而不是将二进制日志复制到新服务器）。与以前的方法不同，无需提交空事务（或发出[`PURGE BINARY LOGS`](purge-binary-logs.html
+    "15.4.1.1 PURGE BINARY LOGS 语句")）；相反，您可以根据从备份或快照被取得的服务器上的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    的值，在复制品上直接设置[`gtid_purged`](replication-options-gtids.html#sysvar_gtid_purged)。'
+- en: As with the method using empty transactions, this method creates a server that
+    is functionally a snapshot, but in time is able to become a source as its binary
+    log history converges with that of the source and other replicas.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与使用空事务的方法一样，此方法创建了一个在功能上是快照的服务器，但随着其二进制日志历史与源和其他复制品的收敛，它可以成为一个源。
+- en: '**Restoring GTID mode replicas. ** When restoring a replica in a GTID based
+    replication setup that has encountered an error, injecting an empty transaction
+    may not solve the problem because an event does not have a GTID.'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**恢复 GTID 模式的复制品。** 在遇到错误的基于 GTID 的复制设置中恢复复制品时，注入空事务可能无法解决问题，因为事件没有 GTID。'
+- en: Use [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") to find the next transaction, which is probably the first transaction
+    in the next log file after the event. Copy everything up to the `COMMIT` for that
+    transaction, being sure to include the `SET @@SESSION.gtid_next`. Even if you
+    are not using row-based replication, you can still run binary log row events in
+    the command line client.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")
+    查找下一个事务，这可能是事件后下一个日志文件中的第一个事务。复制直到该事务的`COMMIT`，确保包括`SET @@SESSION.gtid_next`。即使您不使用基于行的复制，也可以在命令行客户端中运行二进制日志行事件。
+- en: 'Stop the replica and run the transaction you copied. The [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") output sets the
+    delimiter to `/*!*/;`, so set it back:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 停止复制品并运行您复制的事务。[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")
+    输出将分隔符设置为`/*!*/;`，因此将其设置回去：
+- en: '[PRE3]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Restart replication from the correct position automatically:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 自动从正确位置重新启动复制：
+- en: '[PRE4]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'

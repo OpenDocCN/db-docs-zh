@@ -1,0 +1,98 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto-slavebaseconfig.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto-slavebaseconfig.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto-slavebaseconfig.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto-slavebaseconfig.html)
+- en: 19.1.2.2 Setting the Replica Configuration
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.2.2 设置复制品配置
+- en: Each replica must have a unique server ID, as specified by the [`server_id`](replication-options.html#sysvar_server_id)
+    system variable. If you are setting up multiple replicas, each one must have a
+    unique [`server_id`](replication-options.html#sysvar_server_id) value that differs
+    from that of the source and from any of the other replicas. If the replica's server
+    ID is not already set, or the current value conflicts with the value that you
+    have chosen for the source or another replica, you must change it.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个复制品必须具有唯一的服务器ID，由[`server_id`](replication-options.html#sysvar_server_id)系统变量指定。如果您正在设置多个复制品，则每个复制品必须具有与源和任何其他复制品不同的唯一[`server_id`](replication-options.html#sysvar_server_id)值。如果复制品的服务器ID尚未设置，或当前值与您为源或其他复制品选择的值冲突，则必须更改它。
+- en: 'The default [`server_id`](replication-options.html#sysvar_server_id) value
+    is 1\. You can change the [`server_id`](replication-options.html#sysvar_server_id)
+    value dynamically by issuing a statement like this:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认[`server_id`](replication-options.html#sysvar_server_id)值为1。您可以通过发出类似以下语句来动态更改[`server_id`](replication-options.html#sysvar_server_id)值：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note that a value of 0 for the server ID prevents a replica from connecting
+    to a source. If that server ID value (which was the default in earlier releases)
+    was set previously, you must restart the server to initialize the replica with
+    your new nonzero server ID. Otherwise, a server restart is not needed when you
+    change the server ID, unless you make other configuration changes that require
+    it. For example, if binary logging was disabled on the server and you want it
+    enabled for your replica, a server restart is required to enable this.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，服务器ID的值为0会阻止复制品连接到源。如果该服务器ID值（这是早期版本中的默认值）以前已设置，则必须重新启动服务器以使用新的非零服务器ID初始化复制品。否则，当您更改服务器ID时，不需要重新启动服务器，除非进行其他需要重新启动的配置更改。例如，如果服务器上已禁用二进制日志记录，并且您希望在复制品上启用它，则需要重新启动服务器才能启用此功能。
+- en: 'If you are shutting down the replica server, you can edit the `[mysqld]` section
+    of the configuration file to specify a unique server ID. For example:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果要关闭复制品服务器，可以编辑配置文件的`[mysqld]`部分以指定唯一的服务器ID。例如：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Binary logging is enabled by default on all servers. A replica is not required
+    to have binary logging enabled for replication to take place. However, binary
+    logging on a replica means that the replica''s binary log can be used for data
+    backups and crash recovery. Replicas that have binary logging enabled can also
+    be used as part of a more complex replication topology. For example, you might
+    want to set up replication servers using this chained arrangement:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有服务器默认启用二进制日志记录。复制品不需要启用二进制日志记录才能进行复制。但是，复制品上启用二进制日志记录意味着复制品的二进制日志可用于数据备份和崩溃恢复。已启用二进制日志记录的复制品也可以用作更复杂复制拓扑的一部分。例如，您可能希望使用此链接安排设置复制服务器：
+- en: '[PRE2]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Here, `A` serves as the source for the replica `B`, and `B` serves as the source
+    for the replica `C`. For this to work, `B` must be both a source *and* a replica.
+    Updates received from `A` must be logged by `B` to its binary log, in order to
+    be passed on to `C`. In addition to binary logging, this replication topology
+    requires the system variable [`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    (from MySQL 8.0.26) or [`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    (before MySQL 8.0.26) to be enabled. With replica updates enabled, the replica
+    writes updates that are received from a source and performed by the replica's
+    SQL thread to the replica's own binary log. The [`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    or [`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    system variable is enabled by default.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里，`A`充当复制品`B`的源，而`B`充当复制品`C`的源。为了使其正常工作，`B`必须既是源*又是*复制品。从`A`接收到的更新必须由`B`记录到其二进制日志中，以便传递给`C`。除了二进制日志记录外，此复制拓扑结构需要启用系统变量[`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)（从MySQL
+    8.0.26开始）或[`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)（在MySQL
+    8.0.26之前）才能正常工作。启用复制更新后，复制品会将从源接收并由复制品的SQL线程执行的更新写入复制品自己的二进制日志中。系统变量[`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)或[`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)默认启用。
+- en: If you need to disable binary logging or replica update logging on a replica,
+    you can do this by specifying the [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    and [`--log-replica-updates=OFF`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    or [`--log-slave-updates=OFF`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    options for the replica. If you decide to re-enable these features on the replica,
+    remove the relevant options and restart the server.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果需要在复制品上禁用二进制日志记录或复制更新记录，可以通过为复制品指定[`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)和[`--log-replica-updates=OFF`](replication-options-binary-log.html#sysvar_log_replica_updates)或[`--log-slave-updates=OFF`](replication-options-binary-log.html#sysvar_log_slave_updates)选项来实现。如果决定在复制品上重新启用这些功能，请删除相关选项并重新启动服务器。

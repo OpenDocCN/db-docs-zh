@@ -1,0 +1,336 @@
+- en: 7.1.18 Server Tracking of Client Session State
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.1.18 服务器跟踪客户端会话状态
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/session-state-tracking.html](https://dev.mysql.com/doc/refman/8.0/en/session-state-tracking.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/session-state-tracking.html](https://dev.mysql.com/doc/refman/8.0/en/session-state-tracking.html)
+- en: The MySQL server implements several session state trackers. A client can enable
+    these trackers to receive notification of changes to its session state.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器实现了几个会话状态跟踪器。客户端可以启用这些跟踪器以接收有关其会话状态更改的通知。
+- en: '[Uses for Session State Trackers](session-state-tracking.html#session-state-tracking-uses
+    "Uses for Session State Trackers")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[会话状态跟踪器的用途](session-state-tracking.html#session-state-tracking-uses "会话状态跟踪器的用途")'
+- en: '[Available Session State Trackers](session-state-tracking.html#session-state-tracking-notifications
+    "Available Session State Trackers")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[可用的会话状态跟踪器](session-state-tracking.html#session-state-tracking-notifications
+    "可用的会话状态跟踪器")'
+- en: '[C API Session State Tracker Support](session-state-tracking.html#session-state-tracking-capi-support
+    "C API Session State Tracker Support")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[C API会话状态跟踪器支持](session-state-tracking.html#session-state-tracking-capi-support
+    "C API会话状态跟踪器支持")'
+- en: '[Test Suite Session State Tracker Support](session-state-tracking.html#session-state-tracking-test-suite-support
+    "Test Suite Session State Tracker Support")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[测试套件会话状态跟踪支持](session-state-tracking.html#session-state-tracking-test-suite-support
+    "测试套件会话状态跟踪支持")'
+- en: Uses for Session State Trackers
+  id: totrans-7
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 会话状态跟踪器的用途
+- en: 'Session state trackers have uses such as these:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话状态跟踪器有以下用途：
+- en: To facilitate session migration.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了促进会话迁移。
+- en: To facilitate transaction switching.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了促进事务切换。
+- en: The tracker mechanism provides a means for MySQL connectors and client applications
+    to determine whether any session context is available to permit session migration
+    from one server to another. (To change sessions in a load-balanced environment,
+    it is necessary to detect whether there is session state to take into consideration
+    when deciding whether a switch can be made.)
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 跟踪机制提供了一个方法，使得MySQL连接器和客户端应用程序能够确定是否有任何会话上下文可用，以允许会话从一个服务器迁移到另一个服务器。（在负载平衡环境中更改会话时，需要检测是否有会话状态需要考虑，以便在决定是否可以进行切换时考虑。）
+- en: The tracker mechanism permits applications to know when transactions can be
+    moved from one session to another. Transaction state tracking enables this, which
+    is useful for applications that may wish to move transactions from a busy server
+    to one that is less loaded. For example, a load-balancing connector managing a
+    client connection pool could move transactions between available sessions in the
+    pool.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 跟踪机制允许应用程序知道何时可以将事务从一个会话移动到另一个会话。事务状态跟踪使这成为可能，对于可能希望将事务从繁忙服务器移动到负载较轻的服务器的应用程序很有用。例如，管理客户端连接池的负载平衡连接器可以在池中的可用会话之间移动事务。
+- en: However, session switching cannot be done at arbitrary times. If a session is
+    in the middle of a transaction for which reads or writes have been done, switching
+    to a different session implies a transaction rollback on the original session.
+    A session switch must be done only when a transaction does not yet have any reads
+    or writes performed within it.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，会话切换不能在任意时间进行。如果一个会话正在进行读取或写入的事务，切换到另一个会话意味着在原始会话上进行事务回滚。只有在事务尚未在其中执行任何读取或写入时才能进行会话切换。
+- en: 'Examples of when transactions might reasonably be switched:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 何时可以合理地切换事务的示例：
+- en: Immediately after [`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements")
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 立即在[`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION, COMMIT, and
+    ROLLBACK Statements")之后
+- en: After [`COMMIT AND CHAIN`](commit.html "15.3.1 START TRANSACTION, COMMIT, and
+    ROLLBACK Statements")
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`COMMIT AND CHAIN`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements")之后
+- en: 'In addition to knowing transaction state, it is useful to know transaction
+    characteristics, so as to use the same characteristics if the transaction is moved
+    to a different session. The following characteristics are relevant for this purpose:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了了解事务状态外，了解事务特性也很有用，以便在将事务移动到不同会话时使用相同的特性。以下特性对此很重要：
+- en: '[PRE0]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Available Session State Trackers
+  id: totrans-19
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 可用的会话状态跟踪器
+- en: 'To support the session-tracking activities, notification is available for these
+    types of client session state information:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了支持会话跟踪活动，可用于这些类型的客户端会话状态信息的通知：
+- en: 'Changes to these attributes of client session state:'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端会话状态的这些属性的更改：
+- en: The default schema (database).
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认模式（数据库）。
+- en: Session-specific values for system variables.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 系统变量的会话特定值。
+- en: User-defined variables.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户定义变量。
+- en: Temporary tables.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 临时表。
+- en: Prepared statements.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 预处理语句。
+- en: The [`session_track_state_change`](server-system-variables.html#sysvar_session_track_state_change)
+    system variable controls this tracker.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`session_track_state_change`](server-system-variables.html#sysvar_session_track_state_change)
+    系统变量控制此跟踪。'
+- en: Changes to the default schema name. The [`session_track_schema`](server-system-variables.html#sysvar_session_track_schema)
+    system variable controls this tracker.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认模式名称更改。[`session_track_schema`](server-system-variables.html#sysvar_session_track_schema)
+    系统变量控制此跟踪。
+- en: Changes to the session values of system variables. The [`session_track_system_variables`](server-system-variables.html#sysvar_session_track_system_variables)
+    system variable controls this tracker. The [`SENSITIVE_VARIABLES_OBSERVER`](privileges-provided.html#priv_sensitive-variables-observer)
+    privilege is required to track changes to the values of sensitive system variables.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 系统变量的会话值更改。[`session_track_system_variables`](server-system-variables.html#sysvar_session_track_system_variables)
+    系统变量控制此跟踪。需要 [`SENSITIVE_VARIABLES_OBSERVER`](privileges-provided.html#priv_sensitive-variables-observer)
+    权限来跟踪对敏感系统变量值的更改。
+- en: Available GTIDs. The [`session_track_gtids`](server-system-variables.html#sysvar_session_track_gtids)
+    system variable controls this tracker.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可用的 GTID。[`session_track_gtids`](server-system-variables.html#sysvar_session_track_gtids)
+    系统变量控制此跟踪。
+- en: Information about transaction state and characteristics. The [`session_track_transaction_info`](server-system-variables.html#sysvar_session_track_transaction_info)
+    system variable controls this tracker.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 有关事务状态和特性的信息。[`session_track_transaction_info`](server-system-variables.html#sysvar_session_track_transaction_info)
+    系统变量控制此跟踪。
+- en: For descriptions of the tracker-related system variables, see [Section 7.1.8,
+    “Server System Variables”](server-system-variables.html "7.1.8 Server System Variables").
+    Those system variables permit control over which change notifications occur, but
+    do not provide a way to access notification information. Notification occurs in
+    the MySQL client/server protocol, which includes tracker information in OK packets
+    so that session state changes can be detected.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关与跟踪相关的系统变量的描述，请参阅 [第 7.1.8 节，“服务器系统变量”](server-system-variables.html "7.1.8
+    服务器系统变量")。这些系统变量允许控制哪些更改通知发生，但不提供访问通知信息的方法。通知发生在 MySQL 客户端/服务器协议中，该协议在 OK 数据包中包含跟踪信息，以便检测会话状态更改。
+- en: C API Session State Tracker Support
+  id: totrans-33
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: C API 会话状态跟踪支持
+- en: 'To enable client applications to extract state-change information from OK packets
+    returned by the server, the MySQL C API provides a pair of functions:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了使客户端应用程序能够从服务器返回的 OK 数据包中提取状态更改信息，MySQL C API 提供了一对函数：
+- en: '[`mysql_session_track_get_first()`](/doc/c-api/8.0/en/mysql-session-track-get-first.html)
+    fetches the first part of the state-change information received from the server.
+    See [mysql_session_track_get_first()](/doc/c-api/8.0/en/mysql-session-track-get-first.html).'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`mysql_session_track_get_first()`](/doc/c-api/8.0/en/mysql-session-track-get-first.html)
+    获取从服务器接收的状态更改信息的第一部分。请参阅 [mysql_session_track_get_first()](/doc/c-api/8.0/en/mysql-session-track-get-first.html)。'
+- en: '[`mysql_session_track_get_next()`](/doc/c-api/8.0/en/mysql-session-track-get-next.html)
+    fetches any remaining state-change information received from the server. Following
+    a successful call to [`mysql_session_track_get_first()`](/doc/c-api/8.0/en/mysql-session-track-get-first.html),
+    call this function repeatedly as long as it returns success. See [mysql_session_track_get_next()](/doc/c-api/8.0/en/mysql-session-track-get-next.html).'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`mysql_session_track_get_next()`](/doc/c-api/8.0/en/mysql-session-track-get-next.html)
+    从服务器接收的任何剩余状态更改信息。在成功调用 [`mysql_session_track_get_first()`](/doc/c-api/8.0/en/mysql-session-track-get-first.html)
+    后，只要它返回成功，就重复调用此函数。请参阅 [mysql_session_track_get_next()](/doc/c-api/8.0/en/mysql-session-track-get-next.html)。'
+- en: Test Suite Session State Tracker Support
+  id: totrans-37
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 测试套件会话状态跟踪支持
+- en: 'The **mysqltest** program has `disable_session_track_info` and `enable_session_track_info`
+    commands that control whether session tracker notifications occur. You can use
+    these commands to see from the command line what notifications SQL statements
+    produce. Suppose that a file `testscript` contains the following **mysqltest**
+    script:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**mysqltest** 程序具有 `disable_session_track_info` 和 `enable_session_track_info`
+    命令，用于控制会话跟踪通知的发生。您可以使用这些命令从命令行查看 SQL 语句产生的通知。假设一个文件 `testscript` 包含以下 **mysqltest**
+    脚本：'
+- en: '[PRE1]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Run the script as follows to see the information provided by the enabled trackers.
+    For a description of the `Tracker:` information displayed by **mysqltest** for
+    the various trackers, see [mysql_session_track_get_first()](/doc/c-api/8.0/en/mysql-session-track-get-first.html).
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 运行以下脚本以查看已启用跟踪器提供的信息。有关**mysqltest**为各种跟踪器显示的`Tracker:`信息的描述，请参阅[mysql_session_track_get_first()](/doc/c-api/8.0/en/mysql-session-track-get-first.html)。
+- en: '[PRE2]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Preceding the [`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements") statement, two [`SET TRANSACTION`](set-transaction.html
+    "15.3.7 SET TRANSACTION Statement") statements execute that set the isolation
+    level and access mode characteristics for the next transaction. The `SESSION_TRACK_TRANSACTION_CHARACTERISTICS`
+    value indicates those next-transaction values that have been set.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[`START TRANSACTION`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements")语句之前，执行两个[`SET TRANSACTION`](set-transaction.html "15.3.7 SET TRANSACTION
+    Statement")语句，设置下一个事务的隔离级别和访问模式特性。`SESSION_TRACK_TRANSACTION_CHARACTERISTICS`值指示已设置的下一个事务值。
+- en: Following the [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and
+    ROLLBACK Statements") statement that ends the transaction, the `SESSION_TRACK_TRANSACTION_CHARACTERISTICS`
+    value is reported as empty. This indicates that the next-transaction characteristics
+    that were set preceding the start of the transaction have been reset, and that
+    the session defaults apply. To track changes to those session defaults, track
+    the session values of the [`transaction_isolation`](server-system-variables.html#sysvar_transaction_isolation)
+    and [`transaction_read_only`](server-system-variables.html#sysvar_transaction_read_only)
+    system variables.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在结束事务的[`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements")语句之后，`SESSION_TRACK_TRANSACTION_CHARACTERISTICS`值报告为空。这表明在事务开始之前设置的下一个事务特性已被重置，并且会应用会话默认值。要跟踪这些会话默认值的更改，请跟踪[`transaction_isolation`](server-system-variables.html#sysvar_transaction_isolation)和[`transaction_read_only`](server-system-variables.html#sysvar_transaction_read_only)系统变量的会话值。
+- en: To see information about GTIDs, enable the `SESSION_TRACK_GTIDS` tracker using
+    the [`session_track_gtids`](server-system-variables.html#sysvar_session_track_gtids)
+    system system variable.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要查看有关GTID的信息，请使用[`session_track_gtids`](server-system-variables.html#sysvar_session_track_gtids)系统变量启用`SESSION_TRACK_GTIDS`跟踪器。

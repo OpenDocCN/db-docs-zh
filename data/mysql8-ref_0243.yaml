@@ -1,0 +1,301 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/administrative-connection-interface.html](https://dev.mysql.com/doc/refman/8.0/en/administrative-connection-interface.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/administrative-connection-interface.html](https://dev.mysql.com/doc/refman/8.0/en/administrative-connection-interface.html)
+- en: 7.1.12.2 Administrative Connection Management
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.1.12.2 管理连接管理
+- en: As mentioned in [Connection Volume Management](connection-interfaces.html#connection-interfaces-volume-management
+    "Connection Volume Management"), to allow for the need to perform administrative
+    operations even when [`max_connections`](server-system-variables.html#sysvar_max_connections)
+    connections are already established on the interfaces used for ordinary connections,
+    the MySQL server permits a single administrative connection to users who have
+    the [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin) privilege
+    (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege).
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如在[连接量管理](connection-interfaces.html#connection-interfaces-volume-management
+    "连接量管理")中提到的，即使在用于普通连接的接口上已经建立了[`max_connections`](server-system-variables.html#sysvar_max_connections)连接，MySQL服务器也允许具有[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限）的用户进行单个管理连接，以满足执行管理操作的需要。
+- en: Additionally, as of MySQL 8.0.14, the server permits dedicating a TCP/IP port
+    for administrative connections, as described in the following sections.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，从MySQL 8.0.14开始，服务器允许为管理连接专用一个TCP/IP端口，如下节所述。
+- en: '[Administrative Interface Characteristics](administrative-connection-interface.html#administrative-interface-characteristics
+    "Administrative Interface Characteristics")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[管理界面特性](administrative-connection-interface.html#administrative-interface-characteristics
+    "管理界面特性")'
+- en: '[Administrative Interface Support for Encrypted Connections](administrative-connection-interface.html#administrative-interface-encrypted-connections
+    "Administrative Interface Support for Encrypted Connections")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[管理界面支持加密连接](administrative-connection-interface.html#administrative-interface-encrypted-connections
+    "管理界面支持加密连接")'
+- en: Administrative Interface Characteristics
+  id: totrans-6
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 管理界面特性
+- en: 'The administrative connection interface has these characteristics:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 管理连接界面具有以下特性：
+- en: The server enables the interface only if the [`admin_address`](server-system-variables.html#sysvar_admin_address)
+    system variable is set at startup to indicate the IP address for it. If [`admin_address`](server-system-variables.html#sysvar_admin_address)
+    is not set, the server maintains no administrative interface.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器仅在启动时将[`admin_address`](server-system-variables.html#sysvar_admin_address)系统变量设置为指示其IP地址时才启用接口。如果未设置[`admin_address`](server-system-variables.html#sysvar_admin_address)，服务器将不维护任何管理界面。
+- en: The [`admin_port`](server-system-variables.html#sysvar_admin_port) system variable
+    specifies the interface TCP/IP port number (default 33062).
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`admin_port`](server-system-variables.html#sysvar_admin_port)系统变量指定接口TCP/IP端口号（默认为33062）。'
+- en: There is no limit on the number of administrative connections, but connections
+    are permitted only for users who have the [`SERVICE_CONNECTION_ADMIN`](privileges-provided.html#priv_service-connection-admin)
+    privilege.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 管理连接数量没有限制，但只允许具有[`SERVICE_CONNECTION_ADMIN`](privileges-provided.html#priv_service-connection-admin)权限的用户连接。
+- en: The [`create_admin_listener_thread`](server-system-variables.html#sysvar_create_admin_listener_thread)
+    system variable enables DBAs to choose at startup whether the administrative interface
+    has its own separate thread. The default is `OFF`; that is, the manager thread
+    for ordinary connections on the main interface also handles connections for the
+    administrative interface.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`create_admin_listener_thread`](server-system-variables.html#sysvar_create_admin_listener_thread)系统变量允许DBA在启动时选择管理界面是否有自己独立的线程。默认为`OFF`；即，用于主接口上普通连接的管理线程也处理管理界面的连接。'
+- en: 'These lines in the server `my.cnf` file enable the administrative interface
+    on the loopback interface and configure it to use port number 33064 (that is,
+    a port different from the default):'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器的`my.cnf`文件中，这些行启用了回环接口上的管理界面，并配置其使用端口号33064（即与默认端口不同）：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'MySQL client programs connect to either the main or administrative interface
+    by specifying appropriate connection parameters. If the server running on the
+    local host is using the default TCP/IP port numbers of 3306 and 33062 for the
+    main and administrative interfaces, these commands connect to those interfaces:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 客户端程序通过指定适当的连接参数连接到主界面或管理界面。如果运行在本地主机上的服务器使用默认的 TCP/IP 端口号 3306 和 33062
+    用于主界面和管理界面，这些命令将连接到这些界面：
+- en: '[PRE1]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Administrative Interface Support for Encrypted Connections
+  id: totrans-16
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 管理界面支持加密连接
+- en: 'Prior to MySQL 8.0.21, the administrative interface supports encrypted connections
+    using the connection-encryption configuration that applies to the main interface.
+    As of MySQL 8.0.21, the administrative interface has its own configuration parameters
+    for encrypted connections. These correspond to the main interface parameters but
+    enable independent configuration of encrypted connections for the administrative
+    interface:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.21 之前，管理界面支持使用适用于主界面的连接加密配置进行加密连接。从 MySQL 8.0.21 开始，管理界面有自己的加密连接配置参数。这些参数对应于主界面参数，但允许独立配置管理界面的加密连接：
+- en: The `admin_tls_*`xxx`*` and `admin_ssl_*`xxx`*` system variables are like the
+    `tls_*`xxx`*` and `ssl_*`xxx`*` system variables, but they configure the TLS context
+    for the administrative interface rather than the main interface.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`admin_tls_*`xxx`*` 和 `admin_ssl_*`xxx`*` 系统变量类似于 `tls_*`xxx`*` 和 `ssl_*`xxx`*`
+    系统变量，但它们配置管理界面而不是主界面的 TLS 上下文。'
+- en: The [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl) option is like
+    the [`--ssl`](server-options.html#option_mysqld_ssl) option, but it enables or
+    disables support for encrypted connections on the administrative interface rather
+    than the main interface.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--admin-ssl`](server-options.html#option_mysqld_admin-ssl) 选项类似于 [`--ssl`](server-options.html#option_mysqld_ssl)
+    选项，但它启用或禁用管理界面而不是主界面上的加密连接支持。'
+- en: Because support for encrypted connections is enabled by default, it is normally
+    unnecessary to specify [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl).
+    As of MySQL 8.0.26, [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl)
+    is deprecated and subject to removal in a future MySQL version.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为默认情况下启用了对加密连接的支持，通常不需要指定 [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl)。从
+    MySQL 8.0.26 开始，[`--admin-ssl`](server-options.html#option_mysqld_admin-ssl) 已被弃用，并可能在未来的
+    MySQL 版本中移除。
+- en: For general information about configuring connection-encryption support, see
+    [Section 8.3.1, “Configuring MySQL to Use Encrypted Connections”](using-encrypted-connections.html
+    "8.3.1 Configuring MySQL to Use Encrypted Connections"), and [Section 8.3.2, “Encrypted
+    Connection TLS Protocols and Ciphers”](encrypted-connection-protocols-ciphers.html
+    "8.3.2 Encrypted Connection TLS Protocols and Ciphers"). That discussion is written
+    for the main connection interface, but the parameter names are similar for the
+    administrative connection interface. Use that discussion together with the following
+    remarks, which provide information specific to the administrative interface.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关配置连接加密支持的一般信息，请参阅 [第 8.3.1 节，“配置 MySQL 使用加密连接”](using-encrypted-connections.html
+    "8.3.1 配置 MySQL 使用加密连接") 和 [第 8.3.2 节，“加密连接 TLS 协议和密码”](encrypted-connection-protocols-ciphers.html
+    "8.3.2 加密连接 TLS 协议和密码")。该讨论是针对主连接界面编写的，但管理连接界面的参数名称类似。结合该讨论和以下提供的信息，这些信息提供了管理界面特定的信息。
+- en: 'TLS configuration for the administrative interface follows these rules:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 管理界面的 TLS 配置遵循以下规则：
+- en: 'If [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl) is enabled
+    (the default), the administrative interface supports encrypted connections. For
+    connections on the interface, the applicable TLS context depends on whether any
+    nondefault administrative TLS parameter is configured:'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了 [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl)（默认情况下），管理界面支持加密连接。对于界面上的连接，适用的
+    TLS 上下文取决于是否配置了任何非默认的管理 TLS 参数：
+- en: If all administrative TLS parameters have their default values, the administrative
+    interface uses the same TLS context as the main interface.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果所有管理 TLS 参数都采用默认值，则管理界面将使用与主界面相同的 TLS 上下文。
+- en: If any administrative TLS parameter has a nondefault value, the administrative
+    interface uses the TLS context defined by its own parameters. (This is the case
+    if any `admin_tls_*`xxx`*` or `admin_ssl_*`xxx`*` system variable is set to a
+    value different from its default.) If a valid TLS context cannot be created from
+    those parameters, the administrative interface falls back to the main interface
+    TLS context.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果任何管理TLS参数具有非默认值，则管理界面使用由其自身参数定义的TLS上下文。（如果任何`admin_tls_*`xxx`*`或`admin_ssl_*`xxx`*`系统变量设置为与其默认值不同的值，则是这种情况。）如果无法从这些参数创建有效的TLS上下文，则管理界面将退回到主界面TLS上下文。
+- en: If [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl) is disabled
+    (for example, by specifying [`--admin-ssl=OFF`](server-options.html#option_mysqld_admin-ssl),
+    encrypted connections to the administrative interface are disabled. This is true
+    even if administrative TLS parameters have nondefault values because disabling
+    [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl) takes precedence.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果[`--admin-ssl`](server-options.html#option_mysqld_admin-ssl)被禁用（例如，通过指定[`--admin-ssl=OFF`](server-options.html#option_mysqld_admin-ssl)，则对管理界面的加密连接被禁用。即使管理TLS参数具有非默认值，因为禁用[`--admin-ssl`](server-options.html#option_mysqld_admin-ssl)优先。
+- en: 'It is also possible to disable encrypted connections on the administrative
+    interface without specifying [`--admin-ssl`](server-options.html#option_mysqld_admin-ssl)
+    in negated form. Set the [`admin_tls_version`](server-system-variables.html#sysvar_admin_tls_version)
+    system variable to the empty value to indicate that no TLS versions are supported.
+    For example, these lines in the server `my.cnf` file disable encrypted connections
+    on the administrative interface:'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 也可以在不指定[`--admin-ssl`](server-options.html#option_mysqld_admin-ssl)的否定形式的情况下禁用管理界面上的加密连接。将[`admin_tls_version`](server-system-variables.html#sysvar_admin_tls_version)系统变量设置为空值表示不支持任何TLS版本。例如，服务器`my.cnf`文件中的这些行禁用了管理界面上的加密连接：
+- en: '[PRE2]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Examples:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: 'This configuration in the server `my.cnf` file enables the administrative interface,
+    but does not set any of the TLS parameters specific to that interface:'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这个在服务器`my.cnf`文件中的配置启用了管理界面，但没有设置任何特定于该界面的TLS参数：
+- en: '[PRE3]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'As a result, the administrative interface supports encrypted connections (because
+    encryption is supported by default when the administrative interface is enabled),
+    and uses the main interface TLS context. When clients connect to the administrative
+    interface, they should use the same certificate and key files as for ordinary
+    connections on the main interface. For example (enter the command on a single
+    line):'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 结果，管理界面支持加密连接（因为当管理界面启用时，默认支持加密），并使用主界面TLS上下文。当客户端连接到管理界面时，他们应该使用与主界面上普通连接相同的证书和密钥文件。例如（在一行上输入命令）：
+- en: '[PRE4]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'This server configuration enables the administrative interface and sets the
+    TLS certificate and key file parameters specific to that interface:'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这个服务器配置启用了管理界面，并设置了特定于该界面的TLS证书和密钥文件参数：
+- en: '[PRE5]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'As a result, the administrative interface supports encrypted connections using
+    its own TLS context. When clients connect to the administrative interface, they
+    should use certificate and key files specific to that interface. For example (enter
+    the command on a single line):'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 结果，管理界面支持使用其自己的TLS上下文进行加密连接。当客户端连接到管理界面时，他们应该使用特定于该界面的证书和密钥文件。例如（在一行上输入命令）：
+- en: '[PRE6]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'

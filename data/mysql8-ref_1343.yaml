@@ -1,0 +1,159 @@
+- en: 19.1.3 Replication with Global Transaction Identifiers
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.1.3 具有全局事务标识符的复制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids.html)
+- en: '[19.1.3.1 GTID Format and Storage](replication-gtids-concepts.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.1 GTID格式和存储](replication-gtids-concepts.html)'
+- en: '[19.1.3.2 GTID Life Cycle](replication-gtids-lifecycle.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.2 GTID生命周期](replication-gtids-lifecycle.html)'
+- en: '[19.1.3.3 GTID Auto-Positioning](replication-gtids-auto-positioning.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.3 GTID自动定位](replication-gtids-auto-positioning.html)'
+- en: '[19.1.3.4 Setting Up Replication Using GTIDs](replication-gtids-howto.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.4 使用GTID设置复制](replication-gtids-howto.html)'
+- en: '[19.1.3.5 Using GTIDs for Failover and Scaleout](replication-gtids-failover.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.5 使用GTID进行故障切换和扩展](replication-gtids-failover.html)'
+- en: '[19.1.3.6 Replication From a Source Without GTIDs to a Replica With GTIDs](replication-gtids-assign-anon.html)'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.6 从没有GTID的源复制到具有GTID的副本](replication-gtids-assign-anon.html)'
+- en: '[19.1.3.7 Restrictions on Replication with GTIDs](replication-gtids-restrictions.html)'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.7 GTID复制限制](replication-gtids-restrictions.html)'
+- en: '[19.1.3.8 Stored Function Examples to Manipulate GTIDs](replication-gtids-functions.html)'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.3.8 用于操作GTID的存储函数示例](replication-gtids-functions.html)'
+- en: This section explains transaction-based replication using global transaction
+    identifiers (GTIDs). When using GTIDs, each transaction can be identified and
+    tracked as it is committed on the originating server and applied by any replicas;
+    this means that it is not necessary when using GTIDs to refer to log files or
+    positions within those files when starting a new replica or failing over to a
+    new source, which greatly simplifies these tasks. Because GTID-based replication
+    is completely transaction-based, it is simple to determine whether sources and
+    replicas are consistent; as long as all transactions committed on a source are
+    also committed on a replica, consistency between the two is guaranteed. You can
+    use either statement-based or row-based replication with GTIDs (see [Section 19.2.1,
+    “Replication Formats”](replication-formats.html "19.2.1 Replication Formats"));
+    however, for best results, we recommend that you use the row-based format.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节解释了使用全局事务标识符（GTID）进行基于事务的复制。使用GTID时，每个事务都可以在原始服务器上提交时进行标识和跟踪，并由任何副本应用；这意味着在使用GTID时，不需要在启动新副本或故障切换到新源时引用日志文件或文件内的位置，这极大地简化了这些任务。由于基于GTID的复制完全基于事务，因此很容易确定源和副本是否一致；只要在源上提交的所有事务也在副本上提交，就可以保证两者之间的一致性。您可以使用基于语句或基于行的复制与GTID（参见[第19.2.1节，“复制格式”](replication-formats.html
+    "19.2.1 复制格式")）；但是，为了获得最佳结果，我们建议您使用基于行的格式。
+- en: GTIDs are always preserved between source and replica. This means that you can
+    always determine the source for any transaction applied on any replica by examining
+    its binary log. In addition, once a transaction with a given GTID is committed
+    on a given server, any subsequent transaction having the same GTID is ignored
+    by that server. Thus, a transaction committed on the source can be applied no
+    more than once on the replica, which helps to guarantee consistency.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: GTID在源和副本之间始终保留。这意味着您始终可以通过检查其二进制日志来确定任何副本上应用的任何事务的源。此外，一旦在给定服务器上提交具有特定GTID的事务，该服务器将忽略具有相同GTID的任何后续事务。因此，在源上提交的事务在副本上最多只能应用一次，这有助于保证一致性。
+- en: 'This section discusses the following topics:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论以下主题：
+- en: How GTIDs are defined and created, and how they are represented in a MySQL server
+    (see [Section 19.1.3.1, “GTID Format and Storage”](replication-gtids-concepts.html
+    "19.1.3.1 GTID Format and Storage")).
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: GTID的定义和创建方式，以及它们在MySQL服务器中的表示方式（参见[第19.1.3.1节，“GTID格式和存储”](replication-gtids-concepts.html
+    "19.1.3.1 GTID格式和存储")）。
+- en: The life cycle of a GTID (see [Section 19.1.3.2, “GTID Life Cycle”](replication-gtids-lifecycle.html
+    "19.1.3.2 GTID Life Cycle")).
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: GTID的生命周期（参见[第19.1.3.2节，“GTID生命周期”](replication-gtids-lifecycle.html "19.1.3.2
+    GTID生命周期")）。
+- en: The auto-positioning function for synchronizing a replica and source that use
+    GTIDs (see [Section 19.1.3.3, “GTID Auto-Positioning”](replication-gtids-auto-positioning.html
+    "19.1.3.3 GTID Auto-Positioning")).
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于同步使用GTID的副本和源的自动定位功能（参见[第19.1.3.3节，“GTID自动定位”](replication-gtids-auto-positioning.html
+    "19.1.3.3 GTID自动定位")）。
+- en: A general procedure for setting up and starting GTID-based replication (see
+    [Section 19.1.3.4, “Setting Up Replication Using GTIDs”](replication-gtids-howto.html
+    "19.1.3.4 Setting Up Replication Using GTIDs")).
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 设置和启动基于GTID的复制的一般流程（参见[第19.1.3.4节，“使用GTIDs设置复制”](replication-gtids-howto.html
+    "19.1.3.4 Setting Up Replication Using GTIDs")）。
+- en: Suggested methods for provisioning new replication servers when using GTIDs
+    (see [Section 19.1.3.5, “Using GTIDs for Failover and Scaleout”](replication-gtids-failover.html
+    "19.1.3.5 Using GTIDs for Failover and Scaleout")).
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用GTIDs时为新复制服务器提供建议的方法（参见[第19.1.3.5节，“在故障转移和扩展中使用GTIDs”](replication-gtids-failover.html
+    "19.1.3.5 Using GTIDs for Failover and Scaleout")）。
+- en: Restrictions and limitations that you should be aware of when using GTID-based
+    replication (see [Section 19.1.3.7, “Restrictions on Replication with GTIDs”](replication-gtids-restrictions.html
+    "19.1.3.7 Restrictions on Replication with GTIDs")).
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用GTID-based复制时应注意的限制和限制（参见[第19.1.3.7节，“使用GTIDs进行复制的限制”](replication-gtids-restrictions.html
+    "19.1.3.7 Restrictions on Replication with GTIDs")）。
+- en: Stored functions that you can use to work with GTIDs (see [Section 19.1.3.8,
+    “Stored Function Examples to Manipulate GTIDs”](replication-gtids-functions.html
+    "19.1.3.8 Stored Function Examples to Manipulate GTIDs")).
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储函数可用于处理GTIDs（参见[第19.1.3.8节，“用于操作GTIDs的存储函数示例”](replication-gtids-functions.html
+    "19.1.3.8 Stored Function Examples to Manipulate GTIDs")）。
+- en: For information about MySQL Server options and variables relating to GTID-based
+    replication, see [Section 19.1.6.5, “Global Transaction ID System Variables”](replication-options-gtids.html
+    "19.1.6.5 Global Transaction ID System Variables"). See also [Section 14.18.2,
+    “Functions Used with Global Transaction Identifiers (GTIDs)”](gtid-functions.html
+    "14.18.2 Functions Used with Global Transaction Identifiers (GTIDs)"), which describes
+    SQL functions supported by MySQL 8.0 for use with GTIDs.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关与GTID-based复制相关的MySQL服务器选项和变量的信息，请参见[第19.1.6.5节，“全局事务ID系统变量”](replication-options-gtids.html
+    "19.1.6.5 Global Transaction ID System Variables")。另请参阅[第14.18.2节，“与全局事务标识符（GTIDs）一起使用的函数”](gtid-functions.html
+    "14.18.2 Functions Used with Global Transaction Identifiers (GTIDs)")，其中描述了MySQL
+    8.0支持用于GTIDs的SQL函数。

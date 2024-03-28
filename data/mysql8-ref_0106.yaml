@@ -1,0 +1,639 @@
+- en: 3.4 What the MySQL Upgrade Process Upgrades
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 3.4 MySQL 升级过程升级的内容
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/upgrading-what-is-upgraded.html](https://dev.mysql.com/doc/refman/8.0/en/upgrading-what-is-upgraded.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/upgrading-what-is-upgraded.html](https://dev.mysql.com/doc/refman/8.0/en/upgrading-what-is-upgraded.html)
+- en: 'Installing a new version of MySQL may require upgrading these parts of the
+    existing installation:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 安装新版本的 MySQL 可能需要升级现有安装的这些部分：
+- en: 'The `mysql` system schema, which contains tables that store information required
+    by the MySQL server as it runs (see [Section 7.3, “The mysql System Schema”](system-schema.html
+    "7.3 The mysql System Schema")). `mysql` schema tables fall into two broad categories:'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 包含 MySQL 服务器运行所需信息的表的 `mysql` 系统模式（请参阅 [第 7.3 节，“mysql 系统模式”](system-schema.html
+    "7.3 mysql 系统模式")）。 `mysql` 模式表分为两大类：
+- en: Data dictionary tables, which store database object metadata.
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储数据库对象元数据的数据字典表。
+- en: System tables (that is, the remaining non-data dictionary tables), which are
+    used for other operational purposes.
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 系统表（即剩余的非数据字典表），用于其他操作目的。
+- en: 'Other schemas, some of which are built in and may be considered “owned” by
+    the server, and others which are not:'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 其他模式，其中一些是内置的，可能被服务器“拥有”，而另一些则不是：
+- en: 'The [`performance_schema`](performance-schema.html "Chapter 29 MySQL Performance
+    Schema"), [`INFORMATION_SCHEMA`](information-schema.html "Chapter 28 INFORMATION_SCHEMA
+    Tables"), [`ndbinfo`](mysql-cluster-ndbinfo.html "25.6.16 ndbinfo: The NDB Cluster
+    Information Database"), and [`sys`](sys-schema.html "Chapter 30 MySQL sys Schema")
+    schemas.'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`performance_schema`](performance-schema.html "第 29 章 MySQL 性能模式"), [`INFORMATION_SCHEMA`](information-schema.html
+    "第 28 章 INFORMATION_SCHEMA 表"), [`ndbinfo`](mysql-cluster-ndbinfo.html "25.6.16
+    ndbinfo: NDB 集群信息数据库"), 和 [`sys`](sys-schema.html "第 30 章 MySQL sys 模式") 模式。'
+- en: User schemas.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户模式。
+- en: 'Two distinct version numbers are associated with parts of the installation
+    that may require upgrading:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与可能需要升级的安装部分相关联的两个不同版本号：
+- en: The data dictionary version. This applies to the data dictionary tables.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数据字典版本。 这适用于数据字典表。
+- en: The server version, also known as the MySQL version. This applies to the system
+    tables and objects in other schemas.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器版本，也称为 MySQL 版本。 这适用于系统表和其他模式中的对象。
+- en: In both cases, the actual version applicable to the existing MySQL installation
+    is stored in the data dictionary, and the current expected version is compiled
+    into the new version of MySQL. When an actual version is lower than the current
+    expected version, those parts of the installation associated with that version
+    must be upgraded to the current version. If both versions indicate an upgrade
+    is needed, the data dictionary upgrade must occur first.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这两种情况下，现有 MySQL 安装适用的实际版本存储在数据字典中，当前期望的版本编译到新版本的 MySQL 中。 当实际版本低于当前期望版本时，必须将与该版本相关联的安装部分升级到当前版本。
+    如果两个版本都指示需要升级，则必须首先进行数据字典升级。
+- en: 'As a reflection of the two distinct versions just mentioned, the upgrade occurs
+    in two steps:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 作为刚提到的两个不同版本的反映，升级分为两个步骤：
+- en: 'Step 1: Data dictionary upgrade.'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 步骤 1：数据字典升级。
+- en: 'This step upgrades:'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此步骤升级：
+- en: The data dictionary tables in the `mysql` schema. If the actual data dictionary
+    version is lower than the current expected version, the server creates data dictionary
+    tables with updated definitions, copies persisted metadata to the new tables,
+    atomically replaces the old tables with the new ones, and reinitializes the data
+    dictionary.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysql` 模式中的数据字典表。 如果实际数据字典版本低于当前期望版本，则服务器会创建具有更新定义的数据字典表，将持久化的元数据复制到新表中，原子性地用新表替换旧表，并重新初始化数据字典。'
+- en: The Performance Schema, `INFORMATION_SCHEMA`, and `ndbinfo`.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 性能模式，`INFORMATION_SCHEMA` 和 `ndbinfo`。
+- en: 'Step 2: Server upgrade.'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 步骤 2：服务器升级。
+- en: 'This step comprises all other upgrade tasks. If the server version of the existing
+    MySQL installation is lower than that of the new installed MySQL version, everything
+    else must be upgraded:'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此步骤包括所有其他升级任务。 如果现有 MySQL 安装的服务器版本低于新安装的 MySQL 版本，则必须升级其他所有内容：
+- en: The system tables in the `mysql` schema (the remaining non-data dictionary tables).
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysql` 模式中的系统表（剩余的非数据字典表）。'
+- en: The `sys` schema.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`sys` 模式。'
+- en: User schemas.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户模式。
+- en: The data dictionary upgrade (step 1) is the responsibility of the server, which
+    performs this task as necessary at startup unless invoked with an option that
+    prevents it from doing so. The option is [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade)
+    as of MySQL 8.0.16, [`--no-dd-upgrade`](server-options.html#option_mysqld_no-dd-upgrade)
+    prior to MySQL 8.0.16.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数据字典升级（步骤 1）是服务器的责任，服务器会在启动时根据需要执行此任务，除非使用阻止其执行的选项。MySQL 8.0.16 中的选项是 [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade)，MySQL
+    8.0.16 之前是 [`--no-dd-upgrade`](server-options.html#option_mysqld_no-dd-upgrade)。
+- en: 'If the data dictionary is out of date but the server is prevented from upgrading
+    it, the server does not run, and exits with an error instead. For example:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果数据字典过时但服务器被阻止升级它，服务器将不运行，并���错退出。例如：
+- en: '[PRE0]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Some changes to the responsibility for step 2 occurred in MySQL 8.0.16:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.16 对步骤 2 的责任发生了一些变化：
+- en: Prior to MySQL 8.0.16, [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") upgrades the Performance Schema, the `INFORMATION_SCHEMA`,
+    and the objects described in step 2\. The DBA is expected to invoke [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables") manually after starting
+    the server.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.16 之前，[**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") 升级性能模式、`INFORMATION_SCHEMA` 和步骤 2 中描述的对象。预期
+    DBA 在启动服务器后手动调用 [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade —
+    Check and Upgrade MySQL Tables")。
+- en: As of MySQL 8.0.16, the server performs all tasks previously handled by [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables"). Although upgrading remains
+    a two-step operation, the server performs them both, resulting in a simpler process.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.16 开始，服务器执行以前由 [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") 处理的所有任务。尽管升级仍然是一个两步操作，但服务器会执行这两步，从而简化了流程。
+- en: Depending on the version of MySQL to which you are upgrading, the instructions
+    in [In-Place Upgrade](upgrade-binary-package.html#upgrade-procedure-inplace "In-Place
+    Upgrade") and [Logical Upgrade](upgrade-binary-package.html#upgrade-procedure-logical
+    "Logical Upgrade") indicate whether the server performs all upgrade tasks or whether
+    you must also invoke [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") after server startup.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据您要升级到的 MySQL 版本，在 [原地升级](upgrade-binary-package.html#upgrade-procedure-inplace
+    "原地升级") 和 [逻辑升级](upgrade-binary-package.html#upgrade-procedure-logical "逻辑升级")
+    中的说明指示服务器是否执行所有升级任务，或者您必须在服务器启动后手动调用 [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables")。
+- en: Note
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Because the server upgrades the Performance Schema, `INFORMATION_SCHEMA`, and
+    the objects described in step 2 as of MySQL 8.0.16, [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables") is unneeded and is deprecated
+    as of that version; expect it to be removed in a future version of MySQL.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为服务器在 MySQL 8.0.16 中升级了性能模式、`INFORMATION_SCHEMA` 和步骤 2 中描述的对象，所以 [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables") 不再需要，并且在该版本中已被弃用；预计在未来的
+    MySQL 版本中将其移除。
+- en: Most aspects of what occurs during step 2 are the same prior to and as of MySQL
+    8.0.16, although different command options may be needed to achieve a particular
+    effect.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.16 之前和之后，步骤 2 中发生的大部分情况是相同的，尽管可能需要不同的命令选项来实现特定效果。
+- en: 'As of MySQL 8.0.16, the [`--upgrade`](server-options.html#option_mysqld_upgrade)
+    server option controls whether and how the server performs an automatic upgrade
+    at startup:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.16 开始，[`--upgrade`](server-options.html#option_mysqld_upgrade) 服务器选项控制服务器在启动时是否以及如何执行自动升级：
+- en: With no option or with [`--upgrade=AUTO`](server-options.html#option_mysqld_upgrade),
+    the server upgrades anything it determines to be out of date (steps 1 and 2).
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有选项或使用 [`--upgrade=AUTO`](server-options.html#option_mysqld_upgrade)，服务器会升级任何被确定为过时的内容（步骤
+    1 和 2）。
+- en: With [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade), the server
+    upgrades nothing (skips steps 1 and 2), but also exits with an error if the data
+    dictionary must be upgraded. It is not possible to run the server with an out-of-date
+    data dictionary; the server insists on either upgrading it or exiting.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade)，服务器不执行任何升级（跳过步骤
+    1 和 2），但如果数据字典必须升级，服务器也会报错退出。服务器不允许使用过时的数据字典运行；服务器要么升级它，要么退出。
+- en: With [`--upgrade=MINIMAL`](server-options.html#option_mysqld_upgrade), the server
+    upgrades the data dictionary, the Performance Schema, and the `INFORMATION_SCHEMA`,
+    if necessary (step 1). Note that following an upgrade with this option, Group
+    Replication cannot be started, because system tables on which the replication
+    internals depend are not updated, and reduced functionality might also be apparent
+    in other areas.
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 [`--upgrade=MINIMAL`](server-options.html#option_mysqld_upgrade)，如果需要（步骤1），服务器将升级数据字典、性能模式和
+    `INFORMATION_SCHEMA`。请注意，使用此选项进行升级后，无法启动组复制，因为复制内部依赖的系统表未更新，并且在其他领域也可能出现功能减少的情况。
+- en: With [`--upgrade=FORCE`](server-options.html#option_mysqld_upgrade), the server
+    upgrades the data dictionary, the Performance Schema, and the `INFORMATION_SCHEMA`,
+    if necessary (step 1), and forces an upgrade of everything else (step 2). Expect
+    server startup to take longer with this option because the server checks all objects
+    in all schemas.
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 [`--upgrade=FORCE`](server-options.html#option_mysqld_upgrade)，如果需要（步骤1），服务器将升级数据字典、性能模式和
+    `INFORMATION_SCHEMA`，并强制升级其他所有内容（步骤2）。请注意，使用此选项可能会导致服务器启动时间较长，因为服务器会检查所有模式中的所有对象。
+- en: '`FORCE` is useful to force step 2 actions to be performed if the server thinks
+    they are not necessary. One way that `FORCE` differs from `AUTO` is that with
+    `FORCE`, the server re-creates system tables such as help tables or time zone
+    tables if they are missing.'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`FORCE` 用于强制执行第2步操作，如果服务器认为这些操作是必要的。 `FORCE` 与 `AUTO` 的一个区别是，使用 `FORCE` 时，如果系统表（如帮助表或时区表）丢失，服务器会重新创建这些表。'
+- en: 'The following list shows upgrade commands prior to MySQL 8.0.16 and the equivalent
+    commands for MySQL 8.0.16 and higher:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下列表显示了 MySQL 8.0.16 之前的升级命令以及 MySQL 8.0.16 及更高版本的等效命令：
+- en: 'Perform a normal upgrade (steps 1 and 2 as necessary):'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行正常升级（根据需要执行步骤1和2）：
+- en: 'Prior to MySQL 8.0.16: [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    followed by [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade — Check
+    and Upgrade MySQL Tables")'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.16 之前：[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    后跟 [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade — Check and Upgrade
+    MySQL Tables")
+- en: 'As of MySQL 8.0.16: [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至 MySQL 8.0.16：[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+- en: 'Perform only step 1 as necessary:'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 根据需要仅执行步骤1：
+- en: 'Prior to MySQL 8.0.16: It is not possible to perform all upgrade tasks described
+    in step 1 while excluding those described in step 2\. However, you can avoid upgrading
+    user schemas and the `sys` schema using [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") followed by [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") with the [`--upgrade-system-tables`](mysql-upgrade.html#option_mysql_upgrade_upgrade-system-tables)
+    and [`--skip-sys-schema`](mysql-upgrade.html#option_mysql_upgrade_skip-sys-schema)
+    options.'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.16 之前：不可能执行步骤1中描述的所有升级任务，同时排除步骤2中描述的任务。但是，您可以使用 [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") 后跟 [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") 以 [`--upgrade-system-tables`](mysql-upgrade.html#option_mysql_upgrade_upgrade-system-tables)
+    和 [`--skip-sys-schema`](mysql-upgrade.html#option_mysql_upgrade_skip-sys-schema)
+    选项来避免升级用户模式和 `sys` 模式。
+- en: 'As of MySQL 8.0.16: [**mysqld --upgrade=MINIMAL**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至 MySQL 8.0.16：[**mysqld --upgrade=MINIMAL**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server")
+- en: 'Perform step 1 as necessary, and force step 2:'
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 根据需要执行第1步，并强制执行第2步：
+- en: 'Prior to MySQL 8.0.16: [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    followed by [**mysql_upgrade --force**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables")'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.16 之前：[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    后跟 [**mysql_upgrade --force**](mysql-upgrade.html "6.4.5 mysql_upgrade — Check
+    and Upgrade MySQL Tables")
+- en: 'As of MySQL 8.0.16: [**mysqld --upgrade=FORCE**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至 MySQL 8.0.16：[**mysqld --upgrade=FORCE**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server")
+- en: Prior to MySQL 8.0.16, certain [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") options affect the actions it performs. The
+    following table shows which server `--upgrade` option values to use as of MySQL
+    8.0.16 to achieve similar effects. (These are not necessarily exact equivalents
+    because a given `--upgrade` option value may have additional effects.)
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.16 之前，某些 [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") 选项会影响其执行的操作。以下表格显示了截至 MySQL 8.0.16，要实现类似效果应使用哪些服务器
+    `--upgrade` 选项值。（这些不一定是确切的等效值，因为给定的 `--upgrade` 选项值可能具有额外效果。）
+- en: '| mysql_upgrade Option | Server Option |'
+  id: totrans-50
+  prefs: []
+  type: TYPE_TB
+  zh: '| mysql_upgrade 选项 | 服务器选项 |'
+- en: '| [`--skip-sys-schema`](mysql-upgrade.html#option_mysql_upgrade_skip-sys-schema)
+    | [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade) or [`--upgrade=MINIMAL`](server-options.html#option_mysqld_upgrade)
+    |'
+  id: totrans-51
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`--skip-sys-schema`](mysql-upgrade.html#option_mysql_upgrade_skip-sys-schema)
+    | [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade) 或 [`--upgrade=MINIMAL`](server-options.html#option_mysqld_upgrade)
+    |'
+- en: '| [`--upgrade-system-tables`](mysql-upgrade.html#option_mysql_upgrade_upgrade-system-tables)
+    | [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade) or [`--upgrade=MINIMAL`](server-options.html#option_mysqld_upgrade)
+    |'
+  id: totrans-52
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`--upgrade-system-tables`](mysql-upgrade.html#option_mysql_upgrade_upgrade-system-tables)
+    | [`--upgrade=NONE`](server-options.html#option_mysqld_upgrade) 或 [`--upgrade=MINIMAL`](server-options.html#option_mysqld_upgrade)
+    |'
+- en: '| [`--force`](mysql-upgrade.html#option_mysql_upgrade_force) | [`--upgrade=FORCE`](server-options.html#option_mysqld_upgrade)
+    |'
+  id: totrans-53
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`--force`](mysql-upgrade.html#option_mysql_upgrade_force) | [`--upgrade=FORCE`](server-options.html#option_mysqld_upgrade)
+    |'
+- en: 'Additional notes about what occurs during upgrade step 2:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 升级步骤2的附加说明：
+- en: 'Step 2 installs the `sys` schema if it is not installed, and upgrades it to
+    the current version otherwise. An error occurs if a `sys` schema exists but has
+    no `version` view, on the assumption that its absence indicates a user-created
+    schema:'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 步骤2会安装`sys`模式（如果尚未安装），否则将其升级到当前版本。如果存在`sys`模式但没有`version`视图，则会出现错误，因为缺少`version`视图表明这是用户创建的模式：
+- en: '[PRE1]'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: To upgrade in this case, remove or rename the existing `sys` schema first. Then
+    perform the upgrade procedure again. (It may be necessary to force step 2.)
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下进行升级，首先删除或重命名现有的`sys`模式。然后再次执行升级过程。（可能需要强制执行步骤2。）
+- en: 'To prevent the `sys` schema check:'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了防止`sys`模式检查：
+- en: 'As of MySQL 8.0.16: Start the server with the `--upgrade=NONE` or `--upgrade=MINIMAL`
+    option.'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.16：使用`--upgrade=NONE`或`--upgrade=MINIMAL`选项启动服务器。
+- en: 'Prior to MySQL 8.0.16: Invoke [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") with the [`--skip-sys-schema`](mysql-upgrade.html#option_mysql_upgrade_skip-sys-schema)
+    option.'
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.16之前：使用[`--skip-sys-schema`](mysql-upgrade.html#option_mysql_upgrade_skip-sys-schema)选项调用[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables")。
+- en: Step 2 upgrades the system tables to ensure that they have the current structure.
+    This is true whether the server or [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") performs the step. With respect to the content
+    of the help tables and time zone tables, [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables") does not load either type
+    of table, whereas the server loads the help tables, but not the time zone tables.
+    (That is, prior to MySQL 8.0.16, the server loads the help tables only at data
+    directory initialization time. As of MySQL 8.0.16, it loads the help tables at
+    initialization and upgrade time.) The procedure for loading time zone tables is
+    platform dependent and requires decision making by the DBA, so it cannot be done
+    automatically.
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 步骤2会升级系统表以确保其具有当前结构。无论是服务器还是[**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables")执行该步骤都是如此。关于帮助表和时区表的内容，[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables")不会加载任何类型的表，而服务器会加载帮助表，但不会加载时区表。（即，在MySQL
+    8.0.16之前，服务器仅在数据目录初始化时加载帮助表。从MySQL 8.0.16开始，它在初始化和升级时加载帮助表。）加载时区表的过程取决于平台，并且需要由DBA做出决策，因此无法自动完成。
+- en: From MySQL 8.0.30, when Step 2 is upgrading the system tables in the `mysql`
+    schema, the column order in the primary key of the `mysql.db`, `mysql.tables_priv`,
+    `mysql.columns_priv` and `mysql.procs_priv` tables is changed to place the host
+    name and user name columns together. Placing the host name and user name together
+    means that index lookup can be used, which improves performance for [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement"), [`DROP USER`](drop-user.html "15.7.1.5 DROP
+    USER Statement"), and [`RENAME USER`](rename-user.html "15.7.1.7 RENAME USER Statement")
+    statements, and for ACL checks for multiple users with multiple privileges. Dropping
+    and re-creating the index is necessary and might take some time if the system
+    has a large number of users and privileges.
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.30开始，当第2步升级`mysql`模式中的系统表时，`mysql.db`、`mysql.tables_priv`、`mysql.columns_priv`和`mysql.procs_priv`表的主键中的列顺序被更改为将主机名和用户名列放在一起。将主机名和用户名放在一起意味着可以使用索引查找，这提高了[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")、[`DROP USER`](drop-user.html
+    "15.7.1.5 DROP USER Statement")和[`RENAME USER`](rename-user.html "15.7.1.7 RENAME
+    USER Statement")语句的性能，以及对具有多个权限的多个用户进行ACL检查。如果系统具有大量用户和权限，则需要删除并重新创建索引，这可能需要一些时间。
+- en: Step 2 processes all tables in all user schemas as necessary. Table checking
+    might take a long time to complete. Each table is locked and therefore unavailable
+    to other sessions while it is being processed. Check and repair operations can
+    be time-consuming, particularly for large tables. Table checking uses the `FOR
+    UPGRADE` option of the [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE
+    Statement") statement. For details about what this option entails, see [Section 15.7.3.2,
+    “CHECK TABLE Statement”](check-table.html "15.7.3.2 CHECK TABLE Statement").
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第2步根据需要处理所有用户模式中的所有表。表检查可能需要很长时间才能完成。在处理表时，每个表都会被锁定，因此在处理过程中对其他会话不可用。检查和修复操作可能需要很长时间，特别是对于大表。表检查使用[`CHECK
+    TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement")语句的`FOR UPGRADE`选项。有关此选项的详细信息，请参见[第15.7.3.2节，“CHECK
+    TABLE Statement”](check-table.html "15.7.3.2 CHECK TABLE Statement")。
+- en: 'To prevent table checking:'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要防止表检查：
+- en: 'As of MySQL 8.0.16: Start the server with the `--upgrade=NONE` or `--upgrade=MINIMAL`
+    option.'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.16版本：使用`--upgrade=NONE`或`--upgrade=MINIMAL`选项启动服务器。
+- en: 'Prior to MySQL 8.0.16: Invoke [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") with the [`--upgrade-system-tables`](mysql-upgrade.html#option_mysql_upgrade_upgrade-system-tables)
+    option.'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.16版本之前：使用[`--upgrade-system-tables`](mysql-upgrade.html#option_mysql_upgrade_upgrade-system-tables)选项调用[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables")。
+- en: 'To force table checking:'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要强制进行表检查：
+- en: 'As of MySQL 8.0.16: Start the server with the `--upgrade=FORCE` option.'
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.16版本：使用`--upgrade=FORCE`选项启动服务器。
+- en: 'Prior to MySQL 8.0.16: Invoke [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") with the [`--force`](mysql-upgrade.html#option_mysql_upgrade_force)
+    option.'
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.16版本之前：使用[`--force`](mysql-upgrade.html#option_mysql_upgrade_force)选项调用[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables")。
+- en: Step 2 saves the MySQL version number in a file named `mysql_upgrade_info` in
+    the data directory.
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第2步将MySQL版本号保存在名为`mysql_upgrade_info`的文件中，该文件位于数据目录中。
+- en: 'To ignore the `mysql_upgrade_info` file and perform the check regardless:'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要忽略`mysql_upgrade_info`文件并执行检查，请执行以下操作：
+- en: 'As of MySQL 8.0.16: Start the server with the `--upgrade=FORCE` option.'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.16版本：使用`--upgrade=FORCE`选项启动服务器。
+- en: 'Prior to MySQL 8.0.16: Invoke [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") with the [`--force`](mysql-upgrade.html#option_mysql_upgrade_force)
+    option.'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.16版本之前：使用[`--force`](mysql-upgrade.html#option_mysql_upgrade_force)选项调用[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables")。
+- en: Note
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `mysql_upgrade_info` file is deprecated; expect it to be removed in a future
+    version of MySQL.
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`mysql_upgrade_info`文件已被弃用；预计将在MySQL的未来版本中删除。'
+- en: Step 2 marks all checked and repaired tables with the current MySQL version
+    number. This ensures that the next time upgrade checking occurs with the same
+    version of the server, it can be determined whether there is any need to check
+    or repair a given table again.
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第2步使用当前MySQL版本号标记所有已检查和修复的表。这确保了下次使用相同版本的服务器进行升级检查时，可以确定是否需要再次检查或修复给定的表。

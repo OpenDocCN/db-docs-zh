@@ -1,0 +1,224 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-temporary-tablespace.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-temporary-tablespace.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-temporary-tablespace.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-temporary-tablespace.html)
+- en: 17.6.3.5 Temporary Tablespaces
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.6.3.5 临时表空间
+- en: '`InnoDB` uses session temporary tablespaces and a global temporary tablespace.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 使用会话临时表空间和全局临时表空间。'
+- en: Session Temporary Tablespaces
+  id: totrans-3
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 会话临时表空间
+- en: Session temporary tablespaces store user-created temporary tables and internal
+    temporary tables created by the optimizer when `InnoDB` is configured as the storage
+    engine for on-disk internal temporary tables. Beginning with MySQL 8.0.16, the
+    storage engine used for on-disk internal temporary tables is `InnoDB`. (Previously,
+    the storage engine was determined by the value of [`internal_tmp_disk_storage_engine`](server-system-variables.html#sysvar_internal_tmp_disk_storage_engine).)
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话临时表空间存储用户创建的临时表和优化器创建的内部临时表，当 `InnoDB` 配置为磁盘上内部临时表的存储引擎时。从 MySQL 8.0.16 开始，用于磁盘上内部临时表的存储引擎是
+    `InnoDB`。（以前，存储引擎由 [`internal_tmp_disk_storage_engine`](server-system-variables.html#sysvar_internal_tmp_disk_storage_engine)
+    的值确定。）
+- en: Session temporary tablespaces are allocated to a session from a pool of temporary
+    tablespaces on the first request to create an on-disk temporary table. A maximum
+    of two tablespaces is allocated to a session, one for user-created temporary tables
+    and the other for internal temporary tables created by the optimizer. The temporary
+    tablespaces allocated to a session are used for all on-disk temporary tables created
+    by the session. When a session disconnects, its temporary tablespaces are truncated
+    and released back to the pool. A pool of 10 temporary tablespaces is created when
+    the server is started. The size of the pool never shrinks and tablespaces are
+    added to the pool automatically as necessary. The pool of temporary tablespaces
+    is removed on normal shutdown or on an aborted initialization. Session temporary
+    tablespace files are five pages in size when created and have an `.ibt` file name
+    extension.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话临时表空间从临时表空间池中分配给会话，当首次请求创建磁盘上的临时表时。每个会话最多分配两个表空间，一个用于用户创建的临时表，另一个用于优化器创建的内部临时表。分配给会话的临时表空间用于会话创建的所有磁盘上的临时表。会话断开连接时，其临时表空间被截断并释放回池中。服务器启动时创建一个包含
+    10 个临时表空间的池。池的大小永远不会缩小，表空间会根据需要自动添加到池中。会话临时表空间在正常关闭或初始化中止时被移除。会话临时表空间文件在创建时为五个页面大小，并具有
+    `.ibt` 文件扩展名。
+- en: A range of 400 thousand space IDs is reserved for session temporary tablespaces.
+    Because the pool of session temporary tablespaces is recreated each time the server
+    is started, space IDs for session temporary tablespaces are not persisted when
+    the server is shut down, and may be reused.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为会话临时表空间保留了 40 万个空间 ID 范围。因为会话临时表空间池每次服务器启动时都会重新创建，所以会话临时表空间的空间 ID 在服务器关闭时不会持久化，并且可能被重用。
+- en: The [`innodb_temp_tablespaces_dir`](innodb-parameters.html#sysvar_innodb_temp_tablespaces_dir)
+    variable defines the location where session temporary tablespaces are created.
+    The default location is the `#innodb_temp` directory in the data directory. Startup
+    is refused if the pool of temporary tablespaces cannot be created.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_temp_tablespaces_dir`](innodb-parameters.html#sysvar_innodb_temp_tablespaces_dir)
+    变量定义了会话临时表空间创建的位置。默认位置是数据目录中的 `#innodb_temp` 目录。如果无法创建临时表空间池，则拒绝启动。'
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: In statement based replication (SBR) mode, temporary tables created on a replica
+    reside in a single session temporary tablespace that is truncated only when the
+    MySQL server is shut down.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在基于语句的复制（SBR）模式下，在副本上创建的临时表位于一个会话临时表空间中，该表空间仅在 MySQL 服务器关闭时截断。
+- en: The [`INNODB_SESSION_TEMP_TABLESPACES`](information-schema-innodb-session-temp-tablespaces-table.html
+    "28.4.22 The INFORMATION_SCHEMA INNODB_SESSION_TEMP_TABLESPACES Table") table
+    provides metadata about session temporary tablespaces.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`INNODB_SESSION_TEMP_TABLESPACES`](information-schema-innodb-session-temp-tablespaces-table.html
+    "28.4.22 The INFORMATION_SCHEMA INNODB_SESSION_TEMP_TABLESPACES Table") 表提供有关会话临时表空间的元数据。'
+- en: The Information Schema [`INNODB_TEMP_TABLE_INFO`](information-schema-innodb-temp-table-info-table.html
+    "28.4.27 The INFORMATION_SCHEMA INNODB_TEMP_TABLE_INFO Table") table provides
+    metadata about user-created temporary tables that are active in an `InnoDB` instance.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 信息模式 [`INNODB_TEMP_TABLE_INFO`](information-schema-innodb-temp-table-info-table.html
+    "28.4.27 The INFORMATION_SCHEMA INNODB_TEMP_TABLE_INFO Table") 表提供有关在 `InnoDB`
+    实例中活动的用户创建的临时表的元数据。
+- en: Global Temporary Tablespace
+  id: totrans-12
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 全局临时表空间
+- en: The global temporary tablespace (`ibtmp1`) stores rollback segments for changes
+    made to user-created temporary tables.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全局临时表空间（`ibtmp1`）存储对用户创建的临时表所做更改的回滚段。
+- en: The [`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)
+    variable defines the relative path, name, size, and attributes for global temporary
+    tablespace data files. If no value is specified for [`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path),
+    the default behavior is to create a single auto-extending data file named `ibtmp1`
+    in the [`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)
+    directory. The initial file size is slightly larger than 12MB.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)变量定义了全局临时表空间数据文件的相对路径、名称、大小和属性。如果未为[`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)指定任何值，则默认行为是在[`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)目录中创建一个名为`ibtmp1`的单个自动扩展数据文件。初始文件大小略大于
+    12MB。'
+- en: The global temporary tablespace is removed on normal shutdown or on an aborted
+    initialization, and recreated each time the server is started. The global temporary
+    tablespace receives a dynamically generated space ID when it is created. Startup
+    is refused if the global temporary tablespace cannot be created. The global temporary
+    tablespace is not removed if the server halts unexpectedly. In this case, a database
+    administrator can remove the global temporary tablespace manually or restart the
+    MySQL server. Restarting the MySQL server removes and recreates the global temporary
+    tablespace automatically.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全局临时表空间在正常关闭或中止初始化时被移除，并在每次服务器启动时重新创建。全局临时表空间在创建时接收一个动态生成的空间 ID。如果无法创建全局临时表空间，则拒绝启动。如果服务器意外停止，则不会移除全局临时表空间。在这种情况下，数据库管理员可以手动移除全局临时表空间或重新启动
+    MySQL 服务器。重新启动 MySQL 服务器会自动移除并重新创建全局临时表空间。
+- en: The global temporary tablespace cannot reside on a raw device.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全局临时表空间不能位于原始设备上。
+- en: 'The Information Schema [`FILES`](information-schema-files-table.html "28.3.15 The
+    INFORMATION_SCHEMA FILES Table") table provides metadata about the global temporary
+    tablespace. Issue a query similar to this one to view global temporary tablespace
+    metadata:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 信息模式[`FILES`](information-schema-files-table.html "28.3.15 信息模式 FILES 表")表提供有关全局临时表空间的元数据。发出类似以下查询以查看全局临时表空间元数据：
+- en: '[PRE1]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: By default, the global temporary tablespace data file is autoextending and increases
+    in size as necessary.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，全局临时表空间数据文件是自动扩展的，并根据需要增加大小。
+- en: 'To determine if a global temporary tablespace data file is autoextending, check
+    the [`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)
+    setting:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要确定全局临时表空间数据文件是否自动扩展，请检查[`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)设置：
+- en: '[PRE2]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To check the size of global temporary tablespace data files, examine the Information
+    Schema [`FILES`](information-schema-files-table.html "28.3.15 The INFORMATION_SCHEMA
+    FILES Table") table using a query similar to this one:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要检查全局临时表空间数据文件的大小，请使用类似以下查询检查信息模式[`FILES`](information-schema-files-table.html
+    "28.3.15 信息模式 FILES 表")表：
+- en: '[PRE3]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '`TotalSizeBytes` shows the current size of the global temporary tablespace
+    data file. For information about other field values, see [Section 28.3.15, “The
+    INFORMATION_SCHEMA FILES Table”](information-schema-files-table.html "28.3.15 The
+    INFORMATION_SCHEMA FILES Table").'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`TotalSizeBytes`显示全局临时表空间数据文件的当前大小。有关其他字段值的信息，请参阅[第 28.3.15 节，“信息模式 FILES 表”](information-schema-files-table.html
+    "28.3.15 信息模式 FILES 表")。'
+- en: Alternatively, check the global temporary tablespace data file size on your
+    operating system. The global temporary tablespace data file is located in the
+    directory defined by the [`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)
+    variable.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，在操作系统上检查全局临时表空间数据文件大小。全局临时表空间数据文件位于由[`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)变量定义的目录中。
+- en: To reclaim disk space occupied by a global temporary tablespace data file, restart
+    the MySQL server. Restarting the server removes and recreates the global temporary
+    tablespace data file according to the attributes defined by [`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path).
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要回收全局临时表空间数据文件占用的磁盘空间，重新启动MySQL服务器。重新启动服务器会根据[`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)定义的属性删除并重新创建全局临时表空间数据文件。
+- en: 'To limit the size of the global temporary tablespace data file, configure [`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)
+    to specify a maximum file size. For example:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了限制全局临时表空间数据文件的大小，配置[`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)以指定最大文件大小。例如：
+- en: '[PRE4]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Configuring [`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)
+    requires restarting the server.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 配置[`innodb_temp_data_file_path`](innodb-parameters.html#sysvar_innodb_temp_data_file_path)需要重新启动服务器。

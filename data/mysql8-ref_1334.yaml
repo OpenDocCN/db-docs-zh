@@ -1,0 +1,236 @@
+- en: 19.1.2 Setting Up Binary Log File Position Based Replication
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.1.2 设置基于二进制日志文件位置的复制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-howto.html](https://dev.mysql.com/doc/refman/8.0/en/replication-howto.html)
+- en: '[19.1.2.1 Setting the Replication Source Configuration](replication-howto-masterbaseconfig.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.1 设置复制源配置](replication-howto-masterbaseconfig.html)'
+- en: '[19.1.2.2 Setting the Replica Configuration](replication-howto-slavebaseconfig.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.2 设置副本配置](replication-howto-slavebaseconfig.html)'
+- en: '[19.1.2.3 Creating a User for Replication](replication-howto-repuser.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.3 为复制创建用户](replication-howto-repuser.html)'
+- en: '[19.1.2.4 Obtaining the Replication Source Binary Log Coordinates](replication-howto-masterstatus.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.4 获取复制源的二进制日志坐标](replication-howto-masterstatus.html)'
+- en: '[19.1.2.5 Choosing a Method for Data Snapshots](replication-snapshot-method.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.5 选择数据快照方法](replication-snapshot-method.html)'
+- en: '[19.1.2.6 Setting Up Replicas](replication-setup-replicas.html)'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.6 设置副本](replication-setup-replicas.html)'
+- en: '[19.1.2.7 Setting the Source Configuration on the Replica](replication-howto-slaveinit.html)'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.7 在副本上设置源配置](replication-howto-slaveinit.html)'
+- en: '[19.1.2.8 Adding Replicas to a Replication Environment](replication-howto-additionalslaves.html)'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.1.2.8 将副本添加到复制环境](replication-howto-additionalslaves.html)'
+- en: This section describes how to set up a MySQL server to use binary log file position
+    based replication. There are a number of different methods for setting up replication,
+    and the exact method to use depends on how you are setting up replication, and
+    whether you already have data in the database on the source that you want to replicate.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何设置 MySQL 服务器以使用基于二进制日志文件位置的复制。有许多不同的设置复制的方法，要使用的确切方法取决于您如何设置复制，以及源数据库中是否已经有要复制的数据。
+- en: Tip
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 提示
+- en: To deploy multiple instances of MySQL, you can use [InnoDB Cluster](/doc/mysql-shell/8.0/en/mysql-innodb-cluster.html)
+    which enables you to easily administer a group of MySQL server instances in [MySQL
+    Shell](/doc/mysql-shell/8.0/en/). InnoDB Cluster wraps MySQL Group Replication
+    in a programmatic environment that enables you easily deploy a cluster of MySQL
+    instances to achieve high availability. In addition, InnoDB Cluster interfaces
+    seamlessly with [MySQL Router](/doc/mysql-router/8.0/en/), which enables your
+    applications to connect to the cluster without writing your own failover process.
+    For similar use cases that do not require high availability, however, you can
+    use [InnoDB ReplicaSet](/doc/mysql-shell/8.0/en/mysql-innodb-replicaset.html).
+    Installation instructions for MySQL Shell can be found [here](/doc/mysql-shell/8.0/en/mysql-shell-install.html).
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要部署多个 MySQL 实例，您可以使用[InnoDB Cluster](/doc/mysql-shell/8.0/en/mysql-innodb-cluster.html)，它使您能够轻松管理一组
+    MySQL 服务器实例在[MySQL Shell](/doc/mysql-shell/8.0/en/)中。InnoDB Cluster 将 MySQL Group
+    Replication 包装在一个编程环境中，使您可以轻松部署一组 MySQL 实例以实现高可用性。此外，InnoDB Cluster 与[MySQL Router](/doc/mysql-router/8.0/en/)无缝接口，使您的应用程序可以连接到集群而无需编写自己的故障转移过程。然而，对于不需要高可用性的类似用例，您可以使用[InnoDB
+    ReplicaSet](/doc/mysql-shell/8.0/en/mysql-innodb-replicaset.html)。有关 MySQL Shell
+    的安装说明，请参见[这里](/doc/mysql-shell/8.0/en/mysql-shell-install.html)。
+- en: 'There are some generic tasks that are common to all setups:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有一些通用任务适用于所有设置：
+- en: On the source, you must ensure that binary logging is enabled, and configure
+    a unique server ID. This might require a server restart. See [Section 19.1.2.1,
+    “Setting the Replication Source Configuration”](replication-howto-masterbaseconfig.html
+    "19.1.2.1 Setting the Replication Source Configuration").
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在源端，您必须确保启用了二进制日志记录，并配置一个唯一的服务器ID。这可能需要重新启动服务器。参见[Section 19.1.2.1, “设置复制源配置”](replication-howto-masterbaseconfig.html
+    "19.1.2.1 设置复制源配置")。
+- en: On each replica that you want to connect to the source, you must configure a
+    unique server ID. This might require a server restart. See [Section 19.1.2.2,
+    “Setting the Replica Configuration”](replication-howto-slavebaseconfig.html "19.1.2.2 Setting
+    the Replica Configuration").
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在每个要连接到源的副本上，您必须配置一个唯一的服务器ID。这可能需要重新启动服务器。参见[Section 19.1.2.2, “设置副本配置”](replication-howto-slavebaseconfig.html
+    "19.1.2.2 设置副本配置")。
+- en: Optionally, create a separate user for your replicas to use during authentication
+    with the source when reading the binary log for replication. See [Section 19.1.2.3,
+    “Creating a User for Replication”](replication-howto-repuser.html "19.1.2.3 Creating
+    a User for Replication").
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可选地，为您的副本创建一个单独的用户，用于在复制时与源进行身份验证以读取二进制日志。参见[第19.1.2.3节，“为复制创建用户”](replication-howto-repuser.html
+    "19.1.2.3 为复制创建用户")。
+- en: Before creating a data snapshot or starting the replication process, on the
+    source you should record the current position in the binary log. You need this
+    information when configuring the replica so that the replica knows where within
+    the binary log to start executing events. See [Section 19.1.2.4, “Obtaining the
+    Replication Source Binary Log Coordinates”](replication-howto-masterstatus.html
+    "19.1.2.4 Obtaining the Replication Source Binary Log Coordinates").
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在创建数据快照或启动复制过程之前，在源上记录二进制日志中的当前位置。在配置副本时，您需要这些信息，以便副本知道在二进制日志中从哪里开始执行事件。参见[第19.1.2.4节，“获取复制源二进制日志坐标”](replication-howto-masterstatus.html
+    "19.1.2.4 获取复制源二进制日志坐标")。
+- en: If you already have data on the source and want to use it to synchronize the
+    replica, you need to create a data snapshot to copy the data to the replica. The
+    storage engine you are using has an impact on how you create the snapshot. When
+    you are using [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine"),
+    you must stop processing statements on the source to obtain a read-lock, then
+    obtain its current binary log coordinates and dump its data, before permitting
+    the source to continue executing statements. If you do not stop the execution
+    of statements, the data dump and the source status information become mismatched,
+    resulting in inconsistent or corrupted databases on the replicas. For more information
+    on replicating a [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine") source, see [Section 19.1.2.4, “Obtaining the Replication Source Binary
+    Log Coordinates”](replication-howto-masterstatus.html "19.1.2.4 Obtaining the
+    Replication Source Binary Log Coordinates"). If you are using [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine"), you do not need a read-lock and a transaction
+    that is long enough to transfer the data snapshot is sufficient. For more information,
+    see [Section 17.19, “InnoDB and MySQL Replication”](innodb-and-mysql-replication.html
+    "17.19 InnoDB and MySQL Replication").
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您已经在源上有数据并希望使用它来同步副本，您需要创建一个数据快照将数据复制到副本。您正在使用的存储引擎会影响您如何创建快照。当您使用[`MyISAM`](myisam-storage-engine.html
+    "18.2 MyISAM存储引擎")时，您必须停止在源上处理语句以获取读锁，然后获取其当前的二进制日志坐标并转储其数据，然后允许源继续执行语句。如果您不停止执行语句，则数据转储和源状态信息将不匹配，导致副本上的数据库不一致或损坏。有关复制[`MyISAM`](myisam-storage-engine.html
+    "18.2 MyISAM存储引擎")源的更多信息，请参见[第19.1.2.4节，“获取复制源二进制日志坐标”](replication-howto-masterstatus.html
+    "19.1.2.4 获取复制源二进制日志坐标")。如果您使用[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")，则不需要读锁，只需一个足够长的事务来传输数据快照即可。有关更多信息，请参见[第17.19节，“InnoDB和MySQL复制”](innodb-and-mysql-replication.html
+    "17.19 InnoDB和MySQL复制")。
+- en: Configure the replica with settings for connecting to the source, such as the
+    host name, login credentials, and binary log file name and position. See [Section 19.1.2.7,
+    “Setting the Source Configuration on the Replica”](replication-howto-slaveinit.html
+    "19.1.2.7 Setting the Source Configuration on the Replica").
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 配置副本以设置连接到源的设置，如主机名、登录凭据和二进制日志文件名和位置。参见[第19.1.2.7节，“在副本上设置源配置”](replication-howto-slaveinit.html
+    "19.1.2.7 在副本上设置源配置")。
+- en: Implement replication-specific security measures on the sources and replicas
+    as appropriate for your system. See [Section 19.3, “Replication Security”](replication-security.html
+    "19.3 Replication Security").
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 根据您的系统，在源和副本上实施特定于复制的安全措施。参见[第19.3节，“复制安全”](replication-security.html "19.3 复制安全")。
+- en: Note
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Certain steps within the setup process require the [`SUPER`](privileges-provided.html#priv_super)
+    privilege. If you do not have this privilege, it might not be possible to enable
+    replication.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 设置过程中的某些步骤需要[`SUPER`](privileges-provided.html#priv_super)权限。如果您没有此权限，则可能无法启用复制。
+- en: 'After configuring the basic options, select your scenario:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 配置基本选项后，选择您的场景：
+- en: To set up replication for a fresh installation of a source and replicas that
+    contain no data, see [Section 19.1.2.6.1, “Setting Up Replication with New Source
+    and Replicas”](replication-setup-replicas.html#replication-howto-newservers "19.1.2.6.1 Setting
+    Up Replication with New Source and Replicas").
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要为不包含任何数据的新源和副本的新安装设置复制，请参阅[第 19.1.2.6.1 节，“使用新源和副本设置复制”](replication-setup-replicas.html#replication-howto-newservers
+    "19.1.2.6.1 Setting Up Replication with New Source and Replicas")。
+- en: To set up replication of a new source using the data from an existing MySQL
+    server, see [Section 19.1.2.6.2, “Setting Up Replication with Existing Data”](replication-setup-replicas.html#replication-howto-existingdata
+    "19.1.2.6.2 Setting Up Replication with Existing Data").
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要设置使用现有 MySQL 服务器数据进行新源的复制，请参阅[第 19.1.2.6.2 节，“使用现有数据设置复制”](replication-setup-replicas.html#replication-howto-existingdata
+    "19.1.2.6.2 Setting Up Replication with Existing Data")。
+- en: To add replicas to an existing replication environment, see [Section 19.1.2.8,
+    “Adding Replicas to a Replication Environment”](replication-howto-additionalslaves.html
+    "19.1.2.8 Adding Replicas to a Replication Environment").
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要向现有复制环境添加副本，请参阅[第 19.1.2.8 节，“向复制环境添加副本”](replication-howto-additionalslaves.html
+    "19.1.2.8 Adding Replicas to a Replication Environment")。
+- en: Before administering MySQL replication servers, read this entire chapter and
+    try all statements mentioned in [Section 15.4.1, “SQL Statements for Controlling
+    Source Servers”](replication-statements-master.html "15.4.1 SQL Statements for
+    Controlling Source Servers"), and [Section 15.4.2, “SQL Statements for Controlling
+    Replica Servers”](replication-statements-replica.html "15.4.2 SQL Statements for
+    Controlling Replica Servers"). Also familiarize yourself with the replication
+    startup options described in [Section 19.1.6, “Replication and Binary Logging
+    Options and Variables”](replication-options.html "19.1.6 Replication and Binary
+    Logging Options and Variables").
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在管理 MySQL 复制服务器之前，请阅读本章的全部内容，并尝试执行[第 15.4.1 节，“用于控制源服务器的 SQL 语句”](replication-statements-master.html
+    "15.4.1 SQL Statements for Controlling Source Servers")和[第 15.4.2 节，“用于控制副本服务器的
+    SQL 语句”](replication-statements-replica.html "15.4.2 SQL Statements for Controlling
+    Replica Servers")中提到的所有语句，并熟悉[第 19.1.6 节，“复制和二进制日志选项和变量”](replication-options.html
+    "19.1.6 Replication and Binary Logging Options and Variables")中描述的复制启动选项。

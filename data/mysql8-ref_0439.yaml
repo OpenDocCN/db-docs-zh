@@ -1,0 +1,2790 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-formats.html](https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-formats.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-formats.html](https://dev.mysql.com/doc/refman/8.0/en/audit-log-file-formats.html)
+- en: 8.4.5.4 Audit Log File Formats
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.5.4 审计日志文件格式
+- en: The MySQL server calls the audit log plugin to write an audit record to its
+    log file whenever an auditable event occurs. Typically the first audit record
+    written after plugin startup contains the server description and startup options.
+    Elements following that one represent events such as client connect and disconnect
+    events, executed SQL statements, and so forth. Only top-level statements are logged,
+    not statements within stored programs such as triggers or stored procedures. Contents
+    of files referenced by statements such as [`LOAD DATA`](load-data.html "15.2.9 LOAD
+    DATA Statement") are not logged.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当发生可审计事件时，MySQL 服务器调用审计日志插件将审计记录写入其日志文件。通常，在插件启动后写入的第一条审计记录包含服务器描述和启动选项。随后的元素代表诸如客户端连接和断开事件、执行的
+    SQL 语句等事件。只记录顶层语句，不记录触发器或存储过程等存储程序中的语句。例如，[`LOAD DATA`](load-data.html "15.2.9 LOAD
+    DATA 语句") 中引用的文件内容不会被记录。
+- en: 'To select the log format that the audit log plugin uses to write its log file,
+    set the [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format)
+    system variable at server startup. These formats are available:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要选择审计日志插件用于编写其日志文件的日志格式，请在服务器启动时设置 [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format)
+    系统变量。这些格式可用：
+- en: 'New-style XML format ([`audit_log_format=NEW`](audit-log-reference.html#sysvar_audit_log_format)):
+    An XML format that has better compatibility with Oracle Audit Vault than old-style
+    XML format. MySQL 8.0 uses new-style XML format by default.'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 新式 XML 格式（[`audit_log_format=NEW`](audit-log-reference.html#sysvar_audit_log_format)）：一种与
+    Oracle Audit Vault 更兼容的 XML 格式，MySQL 8.0 默认使用新式 XML 格式。
+- en: 'Old-style XML format ([`audit_log_format=OLD`](audit-log-reference.html#sysvar_audit_log_format)):
+    The original audit log format used by default in older MySQL series.'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 旧式 XML 格式（[`audit_log_format=OLD`](audit-log-reference.html#sysvar_audit_log_format)）：默认在旧版
+    MySQL 系列中使用的原始审计日志格式。
+- en: 'JSON format ([`audit_log_format=JSON`](audit-log-reference.html#sysvar_audit_log_format)):
+    Writes the audit log as a JSON array. Only this format supports the optional query
+    time and size statistics, which are available from MySQL 8.0.30.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: JSON 格式（[`audit_log_format=JSON`](audit-log-reference.html#sysvar_audit_log_format)）：将审计日志写入
+    JSON 数组。只有此格式支持从 MySQL 8.0.30 开始提供的可选查询时间和大小统计信息。
+- en: By default, audit log file contents are written in new-style XML format, without
+    compression or encryption.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，审计日志文件内容以新式 XML 格式编写，不进行压缩或加密。
+- en: If you change [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format),
+    it is recommended that you also change [`audit_log_file`](audit-log-reference.html#sysvar_audit_log_file).
+    For example, if you set [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format)
+    to `JSON`, set [`audit_log_file`](audit-log-reference.html#sysvar_audit_log_file)
+    to `audit.json`. Otherwise, newer log files will have a different format than
+    older files, but they will all have the same base name with nothing to indicate
+    when the format changed.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果更改 [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format)，建议同时更改
+    [`audit_log_file`](audit-log-reference.html#sysvar_audit_log_file)。例如，如果将 [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format)
+    设置为 `JSON`，则将 [`audit_log_file`](audit-log-reference.html#sysvar_audit_log_file)
+    设置为 `audit.json`。否则，新的日志文件将具有不同的格式，但它们都将具有相同的基本名称，没有任何指示格式何时更改的内容。
+- en: '[New-Style XML Audit Log File Format](audit-log-file-formats.html#audit-log-file-new-style-xml-format
+    "New-Style XML Audit Log File Format")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[新式 XML 审计日志文件格式](audit-log-file-formats.html#audit-log-file-new-style-xml-format
+    "新式 XML 审计日志文件格式")'
+- en: '[Old-Style XML Audit Log File Format](audit-log-file-formats.html#audit-log-file-old-style-xml-format
+    "Old-Style XML Audit Log File Format")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[旧式 XML 审计日志文件格式](audit-log-file-formats.html#audit-log-file-old-style-xml-format
+    "旧式 XML 审计日志文件格式")'
+- en: '[JSON Audit Log File Format](audit-log-file-formats.html#audit-log-file-json-format
+    "JSON Audit Log File Format")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[JSON 审计日志文件格式](audit-log-file-formats.html#audit-log-file-json-format "JSON
+    审计日志文件格式")'
+- en: New-Style XML Audit Log File Format
+  id: totrans-12
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 新式 XML 审计日志文件格式
+- en: 'Here is a sample log file in new-style XML format ([`audit_log_format=NEW`](audit-log-reference.html#sysvar_audit_log_format)),
+    reformatted slightly for readability:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是一个以新式 XML 格式（[`audit_log_format=NEW`](audit-log-reference.html#sysvar_audit_log_format)）编写的示例日志文件，为了可读性稍作重新格式化：
+- en: '[PRE0]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The audit log file is written as XML, using UTF-8 (up to 4 bytes per character).
+    The root element is `<AUDIT>`. The root element contains `<AUDIT_RECORD>` elements,
+    each of which provides information about an audited event. When the audit log
+    plugin begins writing a new log file, it writes the XML declaration and opening
+    `<AUDIT>` root element tag. When the plugin closes a log file, it writes the closing
+    `</AUDIT>` root element tag. The closing tag is not present while the file is
+    open.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 审计日志文件以XML格式编写，使用UTF-8（每个字符最多4个字节）。根元素是`<AUDIT>`。根元素包含`<AUDIT_RECORD>`元素，每个元素提供有关审计事件的信息。当审计日志插件开始写入新的日志文件时，它会写入XML声明和打开的`<AUDIT>`根元素标记。当插件关闭日志文件时，它会写入关闭的`</AUDIT>`根元素标记。在文件打开时不存在关闭标记。
+- en: 'Elements within `<AUDIT_RECORD>` elements have these characteristics:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`<AUDIT_RECORD>`元素内的元素具有以下特征：'
+- en: Some elements appear in every `<AUDIT_RECORD>` element. Others are optional
+    and may appear depending on the audit record type.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一些元素出现在每个`<AUDIT_RECORD>`元素中。其他是可选的，可能会根据审计记录类型出现。
+- en: Order of elements within an `<AUDIT_RECORD>` element is not guaranteed.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<AUDIT_RECORD>`元素内元素的顺序不保证。'
+- en: Element values are not fixed length. Long values may be truncated as indicated
+    in the element descriptions given later.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 元素值不是固定长度。长值可能会被截断，如后面给出的元素描述中所示。
+- en: The `<`, `>`, `"`, and `&` characters are encoded as `&lt;`, `&gt;`, `&quot;`,
+    and `&amp;`, respectively. NUL bytes (U+00) are encoded as the `?` character.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<`、`>`、`"`和`&`字符分别编码为`&lt;`、`&gt;`、`&quot;`和`&amp;`。NUL字节（U+00）编码为`?`字符。'
+- en: 'Characters not valid as XML characters are encoded using numeric character
+    references. Valid XML characters are:'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不是XML字符的字符使用数字字符引用进行编码。有效的XML字符包括：
+- en: '[PRE1]'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The following elements are mandatory in every `<AUDIT_RECORD>` element:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个`<AUDIT_RECORD>`元素中以下元素是必需的：
+- en: '`<NAME>`'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<NAME>`'
+- en: A string representing the type of instruction that generated the audit event,
+    such as a command that the server received from a client.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表生成审计事件的指令类型的字符串，例如服务器从客户端接收的命令。
+- en: 'Example:'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE2]'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Some common `<NAME>` values:'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些常见的`<NAME>`值：
+- en: '[PRE3]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The possible values are `Audit`, `Binlog Dump`, `Change user`, `Close stmt`,
+    `Connect Out`, `Connect`, `Create DB`, `Daemon`, `Debug`, `Delayed insert`, `Drop
+    DB`, `Execute`, `Fetch`, `Field List`, `Init DB`, `Kill`, `Long Data`, `NoAudit`,
+    `Ping`, `Prepare`, `Processlist`, `Query`, `Quit`, `Refresh`, `Register Slave`,
+    `Reset stmt`, `Set option`, `Shutdown`, `Sleep`, `Statistics`, `Table Dump`, `TableDelete`,
+    `TableInsert`, `TableRead`, `TableUpdate`, `Time`.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可能的取值为`Audit`、`Binlog Dump`、`Change user`、`Close stmt`、`Connect Out`、`Connect`、`Create
+    DB`、`Daemon`、`Debug`、`Delayed insert`、`Drop DB`、`Execute`、`Fetch`、`Field List`、`Init
+    DB`、`Kill`、`Long Data`、`NoAudit`、`Ping`、`Prepare`、`Processlist`、`Query`、`Quit`、`Refresh`、`Register
+    Slave`、`Reset stmt`、`Set option`、`Shutdown`、`Sleep`、`Statistics`、`Table Dump`、`TableDelete`、`TableInsert`、`TableRead`、`TableUpdate`、`Time`。
+- en: Many of these values correspond to the `COM_*`xxx`*` command values listed in
+    the `my_command.h` header file. For example, `Create DB` and `Change user` correspond
+    to `COM_CREATE_DB` and `COM_CHANGE_USER`, respectively.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些值中的许多对应于`my_command.h`头文件中列出的`COM_*`xxx`*`命令值。例如，`Create DB`和`Change user`分别对应于`COM_CREATE_DB`和`COM_CHANGE_USER`。
+- en: 'Events having `<NAME>` values of `Table*`XXX`*` accompany `Query` events. For
+    example, the following statement generates one `Query` event, two `TableRead`
+    events, and a `TableInsert` events:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 具有`Table*`XXX`*`的`<NAME>`值的事件伴随着`Query`事件。例如，以下语句生成一个`Query`事件，两个`TableRead`事件和一个`TableInsert`事件：
+- en: '[PRE4]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Each `Table*`XXX`*` event contains `<TABLE>` and `<DB>` elements to identify
+    the table to which the event refers and the database that contains the table.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个`Table*`XXX`*`事件包含`<TABLE>`和`<DB>`元素，用于标识事件所涉及的表和包含表的数据库。
+- en: '`<RECORD_ID>`'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<RECORD_ID>`'
+- en: A unique identifier for the audit record. The value is composed from a sequence
+    number and timestamp, in the format `*`SEQ_TIMESTAMP`*`. When the audit log plugin
+    opens the audit log file, it initializes the sequence number to the size of the
+    audit log file, then increments the sequence by 1 for each record logged. The
+    timestamp is a UTC value in `*`YYYY-MM-DD`*T*`hh:mm:ss`*` format indicating the
+    date and time when the audit log plugin opened the file.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 审计记录的唯一标识符。该值由序列号和时间戳组成，格式为`*`SEQ_TIMESTAMP`*`。当审计日志插件打开审计日志文件时，它将序列号初始化为审计日志文件的大小，然后为记录的每个记录递增序列号。时间戳是`*`YYYY-MM-DD`*T*`hh:mm:ss`*`格式的UTC值，指示审计日志插件打开文件的日期和时间。
+- en: 'Example:'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE5]'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: '`<TIMESTAMP>`'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<TIMESTAMP>`'
+- en: A string representing a UTC value in `*`YYYY-MM-DD`*T*`hh:mm:ss`* UTC` format
+    indicating the date and time when the audit event was generated. For example,
+    the event corresponding to execution of an SQL statement received from a client
+    has a `<TIMESTAMP>` value occurring after the statement finishes, not when it
+    was received.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表以`*`YYYY-MM-DD`*T*`hh:mm:ss`* UTC`格式表示的UTC值的字符串，指示生成审计事件的日期和时间。例如，对于从客户端接收的SQL语句执行对应的事件，其`<时间戳>`值发生在语句完成后，而不是接收时。
+- en: 'Example:'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE6]'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The following elements are optional in `<AUDIT_RECORD>` elements. Many of them
+    occur only with specific `<NAME>` element values.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下列元素在`<审计记录>`元素中是可选的。其中许多元素仅在特定`<名称>`元素值出现时才会出现。
+- en: '`<COMMAND_CLASS>`'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<COMMAND_CLASS>`'
+- en: A string that indicates the type of action performed.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指示执行的操作类型的字符串。
+- en: 'Example:'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE7]'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The values correspond to the `statement/sql/*`xxx`*` command counters. For
+    example, *`xxx`* is `drop_table` and `select` for [`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement") and [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statements, respectively. The following statement displays the possible names:'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些值对应于`statement/sql/*`xxx`*`命令计数器。例如，*`xxx`*分别是`drop_table`和`select`，用于[`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")和[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句。以下语句显示可能的名称：
+- en: '[PRE8]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: '`<CONNECTION_ATTRIBUTES>`'
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<连接属性>`'
+- en: As of MySQL 8.0.19, events with a `<COMMAND_CLASS>` value of `connect` may include
+    a `<CONNECTION_ATTRIBUTES>` element to display the connection attributes passed
+    by the client at connect time. (For information about these attributes, which
+    are also exposed in Performance Schema tables, see [Section 29.12.9, “Performance
+    Schema Connection Attribute Tables”](performance-schema-connection-attribute-tables.html
+    "29.12.9 Performance Schema Connection Attribute Tables").)
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.19开始，具有`connect`值的`<COMMAND_CLASS>`事件可能包含一个`<连接属性>`元素，以显示客户端在连接时传递的连接属性。
+    （有关这些属性的信息，这些属性也在性能模式表中公开，请参见[第29.12.9节，“性能模式连接属性表”](performance-schema-connection-attribute-tables.html
+    "29.12.9 Performance Schema Connection Attribute Tables").）
+- en: The `<CONNECTION_ATTRIBUTES>` element contains one `<ATTRIBUTE>` element per
+    attribute, each of which contains `<NAME>` and `<VALUE>` elements to indicate
+    the attribute name and value, respectively.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`<连接属性>`元素包含一个`<属性>`元素，每个元素包含`<名称>`和`<值>`元素，分别指示属性名称和值。'
+- en: 'Example:'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE9]'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: If no connection attributes are present in the event, none are logged and no
+    `<CONNECTION_ATTRIBUTES>` element appears. This can occur if the connection attempt
+    is unsuccessful, the client passes no attributes, or the connection occurs internally
+    such as during server startup or when initiated by a plugin.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果事件中没有连接属性，则不记录任何属性，也不会出现`<连接属性>`元素。这可能发生在连接尝试失败，客户端未传递任何属性，或者连接在内部发生，例如在服务器启动期间或由插件发起时。
+- en: '`<CONNECTION_ID>`'
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<连接标识符>`'
+- en: An unsigned integer representing the client connection identifier. This is the
+    same as the value returned by the [`CONNECTION_ID()`](information-functions.html#function_connection-id)
+    function within the session.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端连接标识符的无符号整数。这与会话中由[`CONNECTION_ID()`](information-functions.html#function_connection-id)函数返回的值相同。
+- en: 'Example:'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE10]'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: '`<CONNECTION_TYPE>`'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<连接类型>`'
+- en: The security state of the connection to the server. Permitted values are `TCP/IP`
+    (TCP/IP connection established without encryption), `SSL/TLS` (TCP/IP connection
+    established with encryption), `Socket` (Unix socket file connection), `Named Pipe`
+    (Windows named pipe connection), and `Shared Memory` (Windows shared memory connection).
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与服务器的连接的安全状态。允许的值为`TCP/IP`（未加密建立的TCP/IP连接），`SSL/TLS`（加密建立的TCP/IP连接），`Socket`（Unix套接字文件连接），`Named
+    Pipe`（Windows命名管道连接）和`Shared Memory`（Windows共享内存连接）。
+- en: 'Example:'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE11]'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: '`<DB>`'
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<数据库>`'
+- en: A string representing a database name.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表数据库名称的字符串。
+- en: 'Example:'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE12]'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: For connect events, this element indicates the default database; the element
+    is empty if there is no default database. For table-access events, the element
+    indicates the database to which the accessed table belongs.
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于连接事件，此元素指示默认数据库；如果没有默认数据库，则该元素为空。对于表访问事件，该元素指示所访问表所属的数据库。
+- en: '`<HOST>`'
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<主机>`'
+- en: A string representing the client host name.
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端主机名的字符串。
+- en: 'Example:'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE13]'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: '`<IP>`'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<IP>`'
+- en: A string representing the client IP address.
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端IP地址的字符串。
+- en: 'Example:'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE14]'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: '`<MYSQL_VERSION>`'
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<MYSQL版本>`'
+- en: A string representing the MySQL server version. This is the same as the value
+    of the [`VERSION()`](information-functions.html#function_version) function or
+    [`version`](server-system-variables.html#sysvar_version) system variable.
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示 MySQL 服务器版本的字符串。这与[`VERSION()`](information-functions.html#function_version)函数或[`version`](server-system-variables.html#sysvar_version)系统变量的值相同。
+- en: 'Example:'
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE15]'
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: '`<OS_LOGIN>`'
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<操作系统登录>`'
+- en: A string representing the external user name used during the authentication
+    process, as set by the plugin used to authenticate the client. With native (built-in)
+    MySQL authentication, or if the plugin does not set the value, this element is
+    empty. The value is the same as that of the [`external_user`](server-system-variables.html#sysvar_external_user)
+    system variable (see [Section 8.2.19, “Proxy Users”](proxy-users.html "8.2.19 Proxy
+    Users")).
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示在认证过程中使用的外部用户名称的字符串，由用于认证客户端的插件设置。对于本机（内置）MySQL 认证，或者如果插件未设置该值，则此元素为空。该值与[`external_user`](server-system-variables.html#sysvar_external_user)系统变量的值相同（参见[第
+    8.2.19 节，“代理用户”](proxy-users.html "8.2.19 代理用户")）。
+- en: 'Example:'
+  id: totrans-83
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE16]'
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: '`<OS_VERSION>`'
+  id: totrans-85
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<操作系统版本>`'
+- en: A string representing the operating system on which the server was built or
+    is running.
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示构建或运行服务器的操作系统的字符串。
+- en: 'Example:'
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE17]'
+  id: totrans-88
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: '`<PRIV_USER>`'
+  id: totrans-89
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<特权用户>`'
+- en: A string representing the user that the server authenticated the client as.
+    This is the user name that the server uses for privilege checking, and may differ
+    from the `<USER>` value.
+  id: totrans-90
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示服务器对客户端进行身份验证的用户的字符串。这是服务器用于权限检查的用户名，可能与 `<用户>` 值不同。
+- en: 'Example:'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE18]'
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: '`<PROXY_USER>`'
+  id: totrans-93
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<代理用户>`'
+- en: A string representing the proxy user (see [Section 8.2.19, “Proxy Users”](proxy-users.html
+    "8.2.19 Proxy Users")). The value is empty if user proxying is not in effect.
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示代理用户的字符串（参见[第 8.2.19 节，“代理用户”](proxy-users.html "8.2.19 代理用户")）。如果未启用用户代理，则值为空。
+- en: 'Example:'
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE19]'
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: '`<SERVER_ID>`'
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<服务器ID>`'
+- en: An unsigned integer representing the server ID. This is the same as the value
+    of the [`server_id`](replication-options.html#sysvar_server_id) system variable.
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示服务器 ID 的无符号整数。这与[`server_id`](replication-options.html#sysvar_server_id)系统变量的值相同。
+- en: 'Example:'
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE20]'
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: '`<SQLTEXT>`'
+  id: totrans-101
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<SQL文本>`'
+- en: A string representing the text of an SQL statement. The value can be empty.
+    Long values may be truncated. The string, like the audit log file itself, is written
+    using UTF-8 (up to 4 bytes per character), so the value may be the result of conversion.
+    For example, the original statement might have been received from the client as
+    an SJIS string.
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示 SQL 语句文本的字符串。该值可以为空。长值可能会被截断。该字符串与审计日志文件本身一样，使用 UTF-8 编写（每个字符最多 4 个字节），因此该值可能是转换的结果。例如，原始语句可能已从客户端作为
+    SJIS 字符串接收。
+- en: 'Example:'
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE21]'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: '`<STARTUP_OPTIONS>`'
+  id: totrans-105
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<启动选项>`'
+- en: A string representing the options that were given on the command line or in
+    option files when the MySQL server was started. The first option is the path to
+    the server executable.
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示在启动 MySQL 服务器时在命令行或选项文件中给定的选项的字符串。第一个选项是服务器可执行文件的路径。
+- en: 'Example:'
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE22]'
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: '`<STATUS>`'
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<状态>`'
+- en: 'An unsigned integer representing the command status: 0 for success, nonzero
+    if an error occurred. This is the same as the value of the [`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API function. See the description for `<STATUS_CODE>` for information about
+    how it differs from `<STATUS>`.'
+  id: totrans-110
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示命令状态的无符号整数：成功为 0，发生错误为非零值。这与[`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API 函数的值相同。有关 `<状态码>`与 `<状态>` 之间的区别的信息，请参阅描述。
+- en: The audit log does not contain the SQLSTATE value or error message. To see the
+    associations between error codes, SQLSTATE values, and messages, see [Server Error
+    Message Reference](/doc/mysql-errors/8.0/en/server-error-reference.html).
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 审计日志不包含 SQLSTATE 值或错误消息。要查看错误代码、SQLSTATE 值和消息之间的关联，请参阅[服务器错误消息参考](/doc/mysql-errors/8.0/en/server-error-reference.html)。
+- en: Warnings are not logged.
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 警告未记录。
+- en: 'Example:'
+  id: totrans-113
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE23]'
+  id: totrans-114
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: '`<STATUS_CODE>`'
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<状态码>`'
+- en: 'An unsigned integer representing the command status: 0 for success, 1 if an
+    error occurred.'
+  id: totrans-116
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示命令状态的无符号整数：成功为 0，发生错误为 1。
+- en: 'The `STATUS_CODE` value differs from the `STATUS` value: `STATUS_CODE` is 0
+    for success and 1 for error, which is compatible with the EZ_collector consumer
+    for Audit Vault. `STATUS` is the value of the [`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API function. This is 0 for success and nonzero for error, and thus is not necessarily
+    1 for error.'
+  id: totrans-117
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`STATUS_CODE` 值与 `STATUS` 值不同：`STATUS_CODE` 成功时为 0，错误时为 1，这与 Audit Vault 的
+    EZ_collector 消费者兼容。`STATUS` 是 [`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API 函数的值。成功时为 0，错误时为非零，因此错误不一定为 1。'
+- en: 'Example:'
+  id: totrans-118
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE24]'
+  id: totrans-119
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: '`<TABLE>`'
+  id: totrans-120
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<TABLE>`'
+- en: A string representing a table name.
+  id: totrans-121
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表表名的字符串。
+- en: 'Example:'
+  id: totrans-122
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE25]'
+  id: totrans-123
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: '`<USER>`'
+  id: totrans-124
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<USER>`'
+- en: A string representing the user name sent by the client. This may differ from
+    the `<PRIV_USER>` value.
+  id: totrans-125
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端发送的用户名的字符串。这可能与 `<PRIV_USER>` 值不同。
+- en: 'Example:'
+  id: totrans-126
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE26]'
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: '`<VERSION>`'
+  id: totrans-128
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<VERSION>`'
+- en: An unsigned integer representing the version of the audit log file format.
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表审计日志文件格式版本的无符号整数。
+- en: 'Example:'
+  id: totrans-130
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：
+- en: '[PRE27]'
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: Old-Style XML Audit Log File Format
+  id: totrans-132
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 旧式 XML 审计日志文件格式
+- en: 'Here is a sample log file in old-style XML format ([`audit_log_format=OLD`](audit-log-reference.html#sysvar_audit_log_format)),
+    reformatted slightly for readability:'
+  id: totrans-133
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是一个以旧式 XML 格式（[`audit_log_format=OLD`](audit-log-reference.html#sysvar_audit_log_format)）稍作调整以提高可读性的示例日志文件：
+- en: '[PRE28]'
+  id: totrans-134
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE28]'
+- en: The audit log file is written as XML, using UTF-8 (up to 4 bytes per character).
+    The root element is `<AUDIT>`. The root element contains `<AUDIT_RECORD>` elements,
+    each of which provides information about an audited event. When the audit log
+    plugin begins writing a new log file, it writes the XML declaration and opening
+    `<AUDIT>` root element tag. When the plugin closes a log file, it writes the closing
+    `</AUDIT>` root element tag. The closing tag is not present while the file is
+    open.
+  id: totrans-135
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 审计日志文件以 XML 格式编写，使用 UTF-8（每个字符最多 4 个字节）。根元素是 `<AUDIT>`。根元素包含 `<AUDIT_RECORD>`
+    元素，每个元素提供有关审计事件的信息。当审计日志插件开始写入新日志文件时，它会写入 XML 声明和打开 `<AUDIT>` 根元素标记。当插件关闭日志文件时，它会写入关闭
+    `</AUDIT>` 根元素标记。在文件打开时不存在关闭标记。
+- en: 'Attributes of `<AUDIT_RECORD>` elements have these characteristics:'
+  id: totrans-136
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`<AUDIT_RECORD>` 元素的属性具有以下特征：'
+- en: Some attributes appear in every `<AUDIT_RECORD>` element. Others are optional
+    and may appear depending on the audit record type.
+  id: totrans-137
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一些属性��现在每个 `<AUDIT_RECORD>` 元素中。其他属性是可选的，可能会根据审计记录类型而出现。
+- en: Order of attributes within an `<AUDIT_RECORD>` element is not guaranteed.
+  id: totrans-138
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<AUDIT_RECORD>` 元素内属性的顺序不保证。'
+- en: Attribute values are not fixed length. Long values may be truncated as indicated
+    in the attribute descriptions given later.
+  id: totrans-139
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 属性值不是固定长度。长值可能会根据稍后给出的属性描述而被截断。
+- en: The `<`, `>`, `"`, and `&` characters are encoded as `&lt;`, `&gt;`, `&quot;`,
+    and `&amp;`, respectively. NUL bytes (U+00) are encoded as the `?` character.
+  id: totrans-140
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`<`、`>`、`"` 和 `&` 字符分别编码为 `&lt;`、`&gt;`、`&quot;` 和 `&amp;`。NUL 字节（U+00）编码为
+    `?` 字符。'
+- en: 'Characters not valid as XML characters are encoded using numeric character
+    references. Valid XML characters are:'
+  id: totrans-141
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不是有效 XML 字符的字符使用数字字符引用进行编码。有效的 XML 字符包括：
+- en: '[PRE29]'
+  id: totrans-142
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE29]'
+- en: 'The following attributes are mandatory in every `<AUDIT_RECORD>` element:'
+  id: totrans-143
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个 `<AUDIT_RECORD>` 元素中以下属性是必需的：
+- en: '`NAME`'
+  id: totrans-144
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NAME`'
+- en: A string representing the type of instruction that generated the audit event,
+    such as a command that the server received from a client.
+  id: totrans-145
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表生成审计事件的指令类型的字符串，例如服务器从客户端接收的命令。
+- en: 'Example: `NAME="Query"`'
+  id: totrans-146
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例子：`NAME="Query"`
+- en: 'Some common `NAME` values:'
+  id: totrans-147
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些常见的 `NAME` 值：
+- en: '[PRE30]'
+  id: totrans-148
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE30]'
+- en: The possible values are `Audit`, `Binlog Dump`, `Change user`, `Close stmt`,
+    `Connect Out`, `Connect`, `Create DB`, `Daemon`, `Debug`, `Delayed insert`, `Drop
+    DB`, `Execute`, `Fetch`, `Field List`, `Init DB`, `Kill`, `Long Data`, `NoAudit`,
+    `Ping`, `Prepare`, `Processlist`, `Query`, `Quit`, `Refresh`, `Register Slave`,
+    `Reset stmt`, `Set option`, `Shutdown`, `Sleep`, `Statistics`, `Table Dump`, `TableDelete`,
+    `TableInsert`, `TableRead`, `TableUpdate`, `Time`.
+  id: totrans-149
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可能的值为 `Audit`、`Binlog Dump`、`Change user`、`Close stmt`、`Connect Out`、`Connect`、`Create
+    DB`、`Daemon`、`Debug`、`Delayed insert`、`Drop DB`、`Execute`、`Fetch`、`Field List`、`Init
+    DB`、`Kill`、`Long Data`、`NoAudit`、`Ping`、`Prepare`、`Processlist`、`Query`、`Quit`、`Refresh`、`Register
+    Slave`、`Reset stmt`、`Set option`、`Shutdown`、`Sleep`、`Statistics`、`Table Dump`、`TableDelete`、`TableInsert`、`TableRead`、`TableUpdate`、`Time`。
+- en: Many of these values correspond to the `COM_*`xxx`*` command values listed in
+    the `my_command.h` header file. For example, `"Create DB"` and `"Change user"`
+    correspond to `COM_CREATE_DB` and `COM_CHANGE_USER`, respectively.
+  id: totrans-150
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 许多这些值对应于 `my_command.h` 头文件中列出的 `COM_*`xxx`*` 命令值。例如，`"Create DB"` 和 `"Change
+    user"` 分别对应于 `COM_CREATE_DB` 和 `COM_CHANGE_USER`。
+- en: 'Events having `NAME` values of `Table*`XXX`*` accompany `Query` events. For
+    example, the following statement generates one `Query` event, two `TableRead`
+    events, and a `TableInsert` events:'
+  id: totrans-151
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 具有`NAME`值为`Table*`XXX`*`的事件伴随着`Query`事件。例如，以下语句生成一个`Query`事件，两个`TableRead`事件和一个`TableInsert`事件：
+- en: '[PRE31]'
+  id: totrans-152
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE31]'
+- en: Each `Table*`XXX`*` event has `TABLE` and `DB` attributes to identify the table
+    to which the event refers and the database that contains the table.
+  id: totrans-153
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个`Table*`XXX`*`事件都有`TABLE`和`DB`属性，用于标识事件所涉及的表和包含该表的数据库。
+- en: '`Connect` events for old-style XML audit log format do not include connection
+    attributes.'
+  id: totrans-154
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 旧式XML审计日志格式的`Connect`事件不包括连接属性。
+- en: '`RECORD_ID`'
+  id: totrans-155
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`RECORD_ID`'
+- en: A unique identifier for the audit record. The value is composed from a sequence
+    number and timestamp, in the format `*`SEQ_TIMESTAMP`*`. When the audit log plugin
+    opens the audit log file, it initializes the sequence number to the size of the
+    audit log file, then increments the sequence by 1 for each record logged. The
+    timestamp is a UTC value in `*`YYYY-MM-DD`*T*`hh:mm:ss`*` format indicating the
+    date and time when the audit log plugin opened the file.
+  id: totrans-156
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 审计记录的唯一标识符。该值由序列号和时间戳组成，格式为`*`SEQ_TIMESTAMP`*`。当审计日志插件打开审计日志文件时，它将序列号初始化为审计日志文件的大小，然后为每个记录递增1。时间戳是以`*`YYYY-MM-DD`*T*`hh:mm:ss`*`格式的UTC值，指示审计日志插件打开文件的日期和时间��
+- en: 'Example: `RECORD_ID="12_2019-10-03T14:25:00"`'
+  id: totrans-157
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `RECORD_ID="12_2019-10-03T14:25:00"`'
+- en: '`TIMESTAMP`'
+  id: totrans-158
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`TIMESTAMP`'
+- en: A string representing a UTC value in `*`YYYY-MM-DD`*T*`hh:mm:ss`* UTC` format
+    indicating the date and time when the audit event was generated. For example,
+    the event corresponding to execution of an SQL statement received from a client
+    has a `TIMESTAMP` value occurring after the statement finishes, not when it was
+    received.
+  id: totrans-159
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表以`*`YYYY-MM-DD`*T*`hh:mm:ss`* UTC`格式的UTC值的字符串，指示生成审计事件的日期和时间。例如，对于从客户端接收的SQL语句执行对应的事件，`TIMESTAMP`值发生在语句完成之后，而不是接收时。
+- en: 'Example: `TIMESTAMP="2019-10-03T14:25:32 UTC"`'
+  id: totrans-160
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `TIMESTAMP="2019-10-03T14:25:32 UTC"`'
+- en: The following attributes are optional in `<AUDIT_RECORD>` elements. Many of
+    them occur only for elements with specific values of the `NAME` attribute.
+  id: totrans-161
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`<AUDIT_RECORD>`元素中以下属性是可选的。其中许多属性仅在具有特定`NAME`属性值的元素中出现。'
+- en: '`COMMAND_CLASS`'
+  id: totrans-162
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COMMAND_CLASS`'
+- en: A string that indicates the type of action performed.
+  id: totrans-163
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示执行的操作类型的字符串。
+- en: 'Example: `COMMAND_CLASS="drop_table"`'
+  id: totrans-164
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `COMMAND_CLASS="drop_table"`'
+- en: 'The values correspond to the `statement/sql/*`xxx`*` command counters. For
+    example, *`xxx`* is `drop_table` and `select` for [`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement") and [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statements, respectively. The following statement displays the possible names:'
+  id: totrans-165
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些值对应于`statement/sql/*`xxx`*`命令计数器。例如，*`xxx`*分别为`drop_table`和`select`，用于[`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")和[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句。以下语句显示可能的名称：
+- en: '[PRE32]'
+  id: totrans-166
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE32]'
+- en: '`CONNECTION_ID`'
+  id: totrans-167
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CONNECTION_ID`'
+- en: An unsigned integer representing the client connection identifier. This is the
+    same as the value returned by the [`CONNECTION_ID()`](information-functions.html#function_connection-id)
+    function within the session.
+  id: totrans-168
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端连接标识符的无符号整数。这与会话中[`CONNECTION_ID()`](information-functions.html#function_connection-id)函数返回的值相同。
+- en: 'Example: `CONNECTION_ID="127"`'
+  id: totrans-169
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `CONNECTION_ID="127"`'
+- en: '`CONNECTION_TYPE`'
+  id: totrans-170
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CONNECTION_TYPE`'
+- en: The security state of the connection to the server. Permitted values are `TCP/IP`
+    (TCP/IP connection established without encryption), `SSL/TLS` (TCP/IP connection
+    established with encryption), `Socket` (Unix socket file connection), `Named Pipe`
+    (Windows named pipe connection), and `Shared Memory` (Windows shared memory connection).
+  id: totrans-171
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与服务器的连接的安全状态。允许的值为`TCP/IP`（未加密的TCP/IP连接建立），`SSL/TLS`（已加密的TCP/IP连接建立），`Socket`（Unix套接字文件连接），`Named
+    Pipe`（Windows命名管道连接）和`Shared Memory`（Windows共享内存连接）。
+- en: 'Example: `CONNECTION_TYPE="SSL/TLS"`'
+  id: totrans-172
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `CONNECTION_TYPE="SSL/TLS"`'
+- en: '`DB`'
+  id: totrans-173
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DB`'
+- en: A string representing a database name.
+  id: totrans-174
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表数据库名称的字符串。
+- en: 'Example: `DB="test"`'
+  id: totrans-175
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `DB="test"`'
+- en: For connect events, this attribute indicates the default database; the attribute
+    is empty if there is no default database. For table-access events, the attribute
+    indicates the database to which the accessed table belongs.
+  id: totrans-176
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于连接事件，此属性指示默认数据库；如果没有默认数据库，则该属性为空。对于表访问事件，该属性指示访问表所属的数据库。
+- en: '`HOST`'
+  id: totrans-177
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`HOST`'
+- en: A string representing the client host name.
+  id: totrans-178
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端主机名的字符串。
+- en: 'Example: `HOST="localhost"`'
+  id: totrans-179
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `HOST="localhost"`'
+- en: '`IP`'
+  id: totrans-180
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IP`'
+- en: A string representing the client IP address.
+  id: totrans-181
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端IP地址的字符串。
+- en: 'Example: `IP="127.0.0.1"`'
+  id: totrans-182
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例: `IP="127.0.0.1"`'
+- en: '`MYSQL_VERSION`'
+  id: totrans-183
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MYSQL_VERSION`'
+- en: A string representing the MySQL server version. This is the same as the value
+    of the [`VERSION()`](information-functions.html#function_version) function or
+    [`version`](server-system-variables.html#sysvar_version) system variable.
+  id: totrans-184
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表MySQL服务器版本的字符串。这与[`VERSION()`](information-functions.html#function_version)函数或[`version`](server-system-variables.html#sysvar_version)系统变量的值相同。
+- en: 'Example: `MYSQL_VERSION="5.7.21-log"`'
+  id: totrans-185
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`MYSQL_VERSION="5.7.21-log"`
+- en: '`OS_LOGIN`'
+  id: totrans-186
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OS_LOGIN`'
+- en: A string representing the external user name used during the authentication
+    process, as set by the plugin used to authenticate the client. With native (built-in)
+    MySQL authentication, or if the plugin does not set the value, this attribute
+    is empty. The value is the same as that of the [`external_user`](server-system-variables.html#sysvar_external_user)
+    system variable (see [Section 8.2.19, “Proxy Users”](proxy-users.html "8.2.19 Proxy
+    Users")).
+  id: totrans-187
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表在认证过程中使用的外部用户名称的字符串，由用于认证客户端的插件设置。对于本地（内置）MySQL认证，或者如果插件未设置该值，则此属性为空。该值与[`external_user`](server-system-variables.html#sysvar_external_user)系统变量的值相同（参见[第8.2.19节，“代理用户”](proxy-users.html
+    "8.2.19 代理用户")）。
+- en: 'Example: `OS_LOGIN="jeffrey"`'
+  id: totrans-188
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`OS_LOGIN="jeffrey"`
+- en: '`OS_VERSION`'
+  id: totrans-189
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`OS_VERSION`'
+- en: A string representing the operating system on which the server was built or
+    is running.
+  id: totrans-190
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表构建或运行服务器的操作系统的字符串。
+- en: 'Example: `OS_VERSION="x86_64-Linux"`'
+  id: totrans-191
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`OS_VERSION="x86_64-Linux"`
+- en: '`PRIV_USER`'
+  id: totrans-192
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PRIV_USER`'
+- en: A string representing the user that the server authenticated the client as.
+    This is the user name that the server uses for privilege checking, and it may
+    differ from the `USER` value.
+  id: totrans-193
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表服务器对客户端进行身份验证的用户的字符串。这是服务器用于特权检查的用户名，可能与`USER`值不同。
+- en: 'Example: `PRIV_USER="jeffrey"`'
+  id: totrans-194
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`PRIV_USER="jeffrey"`
+- en: '`PROXY_USER`'
+  id: totrans-195
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PROXY_USER`'
+- en: A string representing the proxy user (see [Section 8.2.19, “Proxy Users”](proxy-users.html
+    "8.2.19 Proxy Users")). The value is empty if user proxying is not in effect.
+  id: totrans-196
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表代理用户的字符串（参见[第8.2.19节，“代理用户”](proxy-users.html "8.2.19 代理用户")）。如果未启用用户代理，则值为空。
+- en: 'Example: `PROXY_USER="developer"`'
+  id: totrans-197
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`PROXY_USER="developer"`
+- en: '`SERVER_ID`'
+  id: totrans-198
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SERVER_ID`'
+- en: An unsigned integer representing the server ID. This is the same as the value
+    of the [`server_id`](replication-options.html#sysvar_server_id) system variable.
+  id: totrans-199
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表服务器ID的无符号整数。这与[`server_id`](replication-options.html#sysvar_server_id)系统变量的值相同。
+- en: 'Example: `SERVER_ID="1"`'
+  id: totrans-200
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`SERVER_ID="1"`
+- en: '`SQLTEXT`'
+  id: totrans-201
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SQLTEXT`'
+- en: A string representing the text of an SQL statement. The value can be empty.
+    Long values may be truncated. The string, like the audit log file itself, is written
+    using UTF-8 (up to 4 bytes per character), so the value may be the result of conversion.
+    For example, the original statement might have been received from the client as
+    an SJIS string.
+  id: totrans-202
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表SQL语句的文本的字符串。该值可以为空。长值可能会被截断。该字符串与审计日志文件本身一样，使用UTF-8编写（每个字符最多4个字节），因此该值可能是转换的结果。例如，原始语句可能已从客户端接收为SJIS字符串。
+- en: 'Example: `SQLTEXT="DELETE FROM t1"`'
+  id: totrans-203
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`SQLTEXT="DELETE FROM t1"`
+- en: '`STARTUP_OPTIONS`'
+  id: totrans-204
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STARTUP_OPTIONS`'
+- en: A string representing the options that were given on the command line or in
+    option files when the MySQL server was started.
+  id: totrans-205
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表MySQL服务器启动时在命令行或选项文件中给定的选项的字符串。
+- en: 'Example: `STARTUP_OPTIONS="--port=3306 --log_output=FILE"`'
+  id: totrans-206
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`STARTUP_OPTIONS="--port=3306 --log_output=FILE"`
+- en: '`STATUS`'
+  id: totrans-207
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STATUS`'
+- en: 'An unsigned integer representing the command status: 0 for success, nonzero
+    if an error occurred. This is the same as the value of the [`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API function. See the description for `STATUS_CODE` for information about how
+    it differs from `STATUS`.'
+  id: totrans-208
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表命令状态的无符号整数：成功为0，发生错误为非零。这与[`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API函数的值相同。有关其与`STATUS`的区别的信息，请参阅`STATUS_CODE`的描述。
+- en: The audit log does not contain the SQLSTATE value or error message. To see the
+    associations between error codes, SQLSTATE values, and messages, see [Server Error
+    Message Reference](/doc/mysql-errors/8.0/en/server-error-reference.html).
+  id: totrans-209
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 审计日志不包含SQLSTATE值或错误消息。要查看错误代码、SQLSTATE值和消息之间的关联，请参阅[服务器错误消息参考](/doc/mysql-errors/8.0/en/server-error-reference.html)。
+- en: Warnings are not logged.
+  id: totrans-210
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 警告不会被记录。
+- en: 'Example: `STATUS="1051"`'
+  id: totrans-211
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：`STATUS="1051"`
+- en: '`STATUS_CODE`'
+  id: totrans-212
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STATUS_CODE`'
+- en: 'An unsigned integer representing the command status: 0 for success, 1 if an
+    error occurred.'
+  id: totrans-213
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表命令状态的无符号整数：成功为0，发生错误为1。
+- en: 'The `STATUS_CODE` value differs from the `STATUS` value: `STATUS_CODE` is 0
+    for success and 1 for error, which is compatible with the EZ_collector consumer
+    for Audit Vault. `STATUS` is the value of the [`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API function. This is 0 for success and nonzero for error, and thus is not necessarily
+    1 for error.'
+  id: totrans-214
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`STATUS_CODE` 值与 `STATUS` 值不同：`STATUS_CODE` 对于成功为0，对于错误为1，这与 Audit Vault 的
+    EZ_collector 消费者兼容。`STATUS` 是 [`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API 函数的值。这对于成功为0，对于错误为非零，因此并不一定为1表示错误。'
+- en: 'Example: `STATUS_CODE="0"`'
+  id: totrans-215
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如：`STATUS_CODE="0"`
+- en: '`TABLE`'
+  id: totrans-216
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`TABLE`'
+- en: A string representing a table name.
+  id: totrans-217
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表表名的字符串。
+- en: 'Example: `TABLE="t3"`'
+  id: totrans-218
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如：`TABLE="t3"`
+- en: '`USER`'
+  id: totrans-219
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`USER`'
+- en: A string representing the user name sent by the client. This may differ from
+    the `PRIV_USER` value.
+  id: totrans-220
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端发送的用户名的字符串。这可能与 `PRIV_USER` 值不同。
+- en: '`VERSION`'
+  id: totrans-221
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`VERSION`'
+- en: An unsigned integer representing the version of the audit log file format.
+  id: totrans-222
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表审计日志文件格式版本的无符号整数。
+- en: 'Example: `VERSION="1"`'
+  id: totrans-223
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如：`VERSION="1"`
+- en: JSON Audit Log File Format
+  id: totrans-224
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: JSON 审计日志文件格式
+- en: 'For JSON-format audit logging ([`audit_log_format=JSON`](audit-log-reference.html#sysvar_audit_log_format)),
+    the log file contents form a [`JSON`](json.html "13.5 The JSON Data Type") array
+    with each array element representing an audited event as a [`JSON`](json.html
+    "13.5 The JSON Data Type") hash of key-value pairs. Examples of complete event
+    records appear later in this section. The following is an excerpt of partial events:'
+  id: totrans-225
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 JSON 格式的审计日志记录（[`audit_log_format=JSON`](audit-log-reference.html#sysvar_audit_log_format)），日志文件内容形成一个
+    [`JSON`](json.html "13.5 The JSON Data Type") 数组，每个数组元素表示一个审计事件，作为一个 [`JSON`](json.html
+    "13.5 The JSON Data Type") 键值对的哈希。完整事件记录的示例稍后在本节中出现。以下是部分事件的摘录：
+- en: '[PRE33]'
+  id: totrans-226
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE33]'
+- en: The audit log file is written using UTF-8 (up to 4 bytes per character). When
+    the audit log plugin begins writing a new log file, it writes the opening `[`
+    array marker. When the plugin closes a log file, it writes the closing `]` array
+    marker. The closing marker is not present while the file is open.
+  id: totrans-227
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 审计日志文件使用 UTF-8 编写（每个字符最多4个字节）。当审计日志插件开始写入新的日志文件时，它会写入开头的 `[` 数组标记。当插件关闭日志文件时，它会写入结尾的
+    `]` 数组标记。在文件打开时，结尾标记不存在。
+- en: 'Items within audit records have these characteristics:'
+  id: totrans-228
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 审计记录中的项目具有以下特征：
+- en: Some items appear in every audit record. Others are optional and may appear
+    depending on the audit record type.
+  id: totrans-229
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一些项目出现在每个审计记录中。其他项目是可选的，可能会根据审计记录类型而出现。
+- en: Order of items within an audit record is not guaranteed.
+  id: totrans-230
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 审计记录中项目的顺序不保证。
+- en: Item values are not fixed length. Long values may be truncated as indicated
+    in the item descriptions given later.
+  id: totrans-231
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 项目值不是固定长度。长值可能会根据稍后给出的项目描述而被截断。
+- en: The `"` and `\` characters are encoded as `\"` and `\\`, respectively.
+  id: totrans-232
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`"` 和 `\` 字符分别编码为 `\"` 和 `\\`。'
+- en: JSON format is the only audit log file format that supports the optional query
+    time and size statistics, which are available from MySQL 8.0.30\. This data is
+    available in the slow query log for qualifying queries, and in the context of
+    the audit log it similarly helps to detect outliers for activity analysis.
+  id: totrans-233
+  prefs: []
+  type: TYPE_NORMAL
+  zh: JSON 格式是唯一支持可选查询时间和大小统计信息的审计日志文件格式，这些信息从 MySQL 8.0.30 开始可用。对于符合条件的查询，此数据在慢查询日志中可用，并且在审计日志的上下文中，类似地有助于检测活动分析的异常值。
+- en: To add the query statistics to the log file, you must set them up as a filter
+    using the [`audit_log_filter_set_filter()`](audit-log-reference.html#function_audit-log-filter-set-filter)
+    audit log function as the service element of the JSON filtering syntax. For instructions
+    to do this, see [Adding Query Statistics for Outlier Detection](audit-log-logging-configuration.html#audit-log-query-statistics
+    "Adding Query Statistics for Outlier Detection"). For the `bytes_sent` and `bytes_received`
+    fields to be populated, the system variable [`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)
+    must be set to ON.
+  id: totrans-234
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将查询统计信息添加到日志文件中，必须将其设置为使用 [`audit_log_filter_set_filter()`](audit-log-reference.html#function_audit-log-filter-set-filter)
+    审计日志函数作为 JSON 过滤语法的服务元素的过滤器。有关如何执行此操作的说明，请参见[为异常检测添加查询统计信息](audit-log-logging-configuration.html#audit-log-query-statistics
+    "为异常检测添加查询统计信息")。要填充 `bytes_sent` 和 `bytes_received` 字段，必须将系统变量 [`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)
+    设置为 ON。
+- en: 'The following examples show the JSON object formats for different event types
+    (as indicated by the `class` and `event` items), reformatted slightly for readability:'
+  id: totrans-235
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例展示了不同事件类型的 JSON 对象格式（由 `class` 和 `event` 项目指示），稍作调整以提高可读性：
+- en: 'Auditing startup event:'
+  id: totrans-236
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 审计启动事件：
+- en: '[PRE34]'
+  id: totrans-237
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE34]'
+- en: When the audit log plugin starts as a result of server startup (as opposed to
+    being enabled at runtime), `connection_id` is set to 0, and `account` and `login`
+    are not present.
+  id: totrans-238
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当由于服务器启动而启动审计日志插件（而不是在运行时启用）时，`connection_id`设置为0，`account`和`login`不存在。
+- en: 'Auditing shutdown event:'
+  id: totrans-239
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '审计关闭事件:'
+- en: '[PRE35]'
+  id: totrans-240
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE35]'
+- en: When the audit log plugin is uninstalled as a result of server shutdown (as
+    opposed to being disabled at runtime), `connection_id` is set to 0, and `account`
+    and `login` are not present.
+  id: totrans-241
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当由于服务器关闭而卸载审计日志插件（而不是在运行时禁用）时，`connection_id`设置为0，`account`和`login`不存在。
+- en: 'Connect or change-user event:'
+  id: totrans-242
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '连接或更改用户事件:'
+- en: '[PRE36]'
+  id: totrans-243
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE36]'
+- en: 'Disconnect event:'
+  id: totrans-244
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '断开连接事件:'
+- en: '[PRE37]'
+  id: totrans-245
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE37]'
+- en: 'Query event:'
+  id: totrans-246
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '查询事件:'
+- en: '[PRE38]'
+  id: totrans-247
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE38]'
+- en: 'Query event with optional query statistics for outlier detection:'
+  id: totrans-248
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '具有用于异常检测的可选查询统计信息的查询事件:'
+- en: '[PRE39]'
+  id: totrans-249
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE39]'
+- en: 'Table access event (read, delete, insert, update):'
+  id: totrans-250
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '表访问事件（读取、删除、插入、更新）:'
+- en: '[PRE40]'
+  id: totrans-251
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE40]'
+- en: 'The items in the following list appear at the top level of JSON-format audit
+    records: Each item value is either a scalar or a [`JSON`](json.html "13.5 The
+    JSON Data Type") hash. For items that have a hash value, the description lists
+    only the item names within that hash. For more complete descriptions of second-level
+    hash items, see later in this section.'
+  id: totrans-252
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下列表中的项目出现在JSON格式审计记录的顶层：每个项目的值可以是标量或[`JSON`](json.html "13.5 JSON数据类型")哈希。对于具有哈希值的项目，描述仅列出该哈希内的项目名称。有关第二级哈希项目的更完整描述，请参见本节后面的内容。
+- en: '`account`'
+  id: totrans-253
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`account`'
+- en: 'The MySQL account associated with the event. The value is a hash containing
+    these items equivalent to the value of the [`CURRENT_USER()`](information-functions.html#function_current-user)
+    function within the section: `user`, `host`.'
+  id: totrans-254
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与事件关联的MySQL账户。该值是一个包含这些项目的哈希，等同于[`CURRENT_USER()`](information-functions.html#function_current-user)函数中的值：`user`,
+    `host`.
+- en: 'Example:'
+  id: totrans-255
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE41]'
+  id: totrans-256
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE41]'
+- en: '`class`'
+  id: totrans-257
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`class`'
+- en: A string representing the event class. The class defines the type of event,
+    when taken together with the `event` item that specifies the event subclass.
+  id: totrans-258
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示事件类的字符串。类定义了事件的类型，与指定事件子类的`event`项目一起。
+- en: 'Example:'
+  id: totrans-259
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE42]'
+  id: totrans-260
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE42]'
+- en: The following table shows the permitted combinations of `class` and `event`
+    values.
+  id: totrans-261
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以下表格显示了`class`和`event`值的允许组合。
+- en: '**Table 8.34 Audit Log Class and Event Combinations**'
+  id: totrans-262
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '**表 8.34 审计日志类和事件组合**'
+- en: '| Class Value | Permitted Event Values |'
+  id: totrans-263
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类值 | 允许的事件值 |'
+- en: '| `audit` | `startup`, `shutdown` |'
+  id: totrans-264
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `audit` | `startup`, `shutdown` |'
+- en: '| `connection` | `connect`, `change_user`, `disconnect` |'
+  id: totrans-265
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `connection` | `connect`, `change_user`, `disconnect` |'
+- en: '| `general` | `status` |'
+  id: totrans-266
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `general` | `status` |'
+- en: '| `table_access_data` | `read`, `delete`, `insert`, `update` |'
+  id: totrans-267
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| `table_access_data` | `read`, `delete`, `insert`, `update` |'
+- en: '`connection_data`'
+  id: totrans-268
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`connection_data`'
+- en: 'Information about a client connection. The value is a hash containing these
+    items: `connection_type`, `status`, `db`, and possibly `connection_attributes`.
+    This item occurs only for audit records with a `class` value of `connection`.'
+  id: totrans-269
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关客户端连接的信息。该值是一个包含这些项目的哈希：`connection_type`, `status`, `db`，可能还有`connection_attributes`。此项目仅出现在`class`值为`connection`的审计记录中。
+- en: 'Example:'
+  id: totrans-270
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE43]'
+  id: totrans-271
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE43]'
+- en: As of MySQL 8.0.19, events with a `class` value of `connection` and `event`
+    value of `connect` may include a `connection_attributes` item to display the connection
+    attributes passed by the client at connect time. (For information about these
+    attributes, which are also exposed in Performance Schema tables, see [Section 29.12.9,
+    “Performance Schema Connection Attribute Tables”](performance-schema-connection-attribute-tables.html
+    "29.12.9 Performance Schema Connection Attribute Tables").)
+  id: totrans-272
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.19，具有`class`值为`connection`和`event`值为`connect`的事件可能包括一个`connection_attributes`项目，以显示客户端在连接时传递的连接属性。（有关这些属性的信息，也在性能模式表中公开，参见[第29.12.9节，“性能模式连接属性表”](performance-schema-connection-attribute-tables.html
+    "29.12.9 性能模式连接属性表").）
+- en: The `connection_attributes` value is a hash that represents each attribute by
+    its name and value.
+  id: totrans-273
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`connection_attributes`值是一个哈希，通过其名称和值表示每个属性。'
+- en: 'Example:'
+  id: totrans-274
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE44]'
+  id: totrans-275
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE44]'
+- en: If no connection attributes are present in the event, none are logged and no
+    `connection_attributes` item appears. This can occur if the connection attempt
+    is unsuccessful, the client passes no attributes, or the connection occurs internally
+    such as during server startup or when initiated by a plugin.
+  id: totrans-276
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果事件中没有连接属性，则不记录任何属性，也不会出现`connection_attributes`项目。这可能发生在连接尝试失败、客户端未传递任何属性或连接在服务器启动期间内部发生时。
+- en: '`connection_id`'
+  id: totrans-277
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`connection_id`'
+- en: An unsigned integer representing the client connection identifier. This is the
+    same as the value returned by the [`CONNECTION_ID()`](information-functions.html#function_connection-id)
+    function within the session.
+  id: totrans-278
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端连接标识符的无符号整数。这与会话中[`CONNECTION_ID()`](information-functions.html#function_connection-id)函数返回的值相同。
+- en: 'Example:'
+  id: totrans-279
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE45]'
+  id: totrans-280
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE45]'
+- en: '`event`'
+  id: totrans-281
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`event`'
+- en: A string representing the subclass of the event class. The subclass defines
+    the type of event, when taken together with the `class` item that specifies the
+    event class. For more information, see the `class` item description.
+  id: totrans-282
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表事件类别的子类的字符串。子类定义了事件的类型，当与指定事件类别的`class`项目一起考虑时。有关更多信息，请参阅`class`项目描述。
+- en: 'Example:'
+  id: totrans-283
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE46]'
+  id: totrans-284
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE46]'
+- en: '`general_data`'
+  id: totrans-285
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`general_data`'
+- en: 'Information about an executed statement or command. The value is a hash containing
+    these items: `command`, `sql_command`, `query`, `status`. This item occurs only
+    for audit records with a `class` value of `general`.'
+  id: totrans-286
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 执行语句或命令的信息。该值是一个包含以下项目的哈希：`command`、`sql_command`、`query`、`status`。此项目仅出现在`class`值为`general`的审计记录中。
+- en: 'Example:'
+  id: totrans-287
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE47]'
+  id: totrans-288
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE47]'
+- en: '`id`'
+  id: totrans-289
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`id`'
+- en: An unsigned integer representing an event ID.
+  id: totrans-290
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表事件ID的无符号整数。
+- en: 'Example:'
+  id: totrans-291
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE48]'
+  id: totrans-292
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE48]'
+- en: For audit records that have the same `timestamp` value, their `id` values distinguish
+    them and form a sequence. Within the audit log, `timestamp`/`id` pairs are unique.
+    These pairs are bookmarks that identify event locations within the log.
+  id: totrans-293
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于具有相同`timestamp`值的审计记录，它们的`id`值可以区分它们并形成一个序列。在审计日志中，`timestamp`/`id`对是唯一的。这些对是标识日志中事件位置的书签。
+- en: '`login`'
+  id: totrans-294
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`login`'
+- en: 'Information indicating how a client connected to the server. The value is a
+    hash containing these items: `user`, `os`, `ip`, `proxy`.'
+  id: totrans-295
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指示客户端如何连接到服务器的信息。该值是一个包含以下项目的哈希：`user`、`os`、`ip`、`proxy`。
+- en: 'Example:'
+  id: totrans-296
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE49]'
+  id: totrans-297
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE49]'
+- en: '`query_statistics`'
+  id: totrans-298
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`query_statistics`'
+- en: 'Optional query statistics for outlier detection. The value is a hash containing
+    these items: `query_time`, `rows_sent`, `rows_examined`, `bytes_received`, `bytes_sent`.
+    For instructions to set up the query statistics, see [Adding Query Statistics
+    for Outlier Detection](audit-log-logging-configuration.html#audit-log-query-statistics
+    "Adding Query Statistics for Outlier Detection").'
+  id: totrans-299
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用于异常检测的可选查询统计信息。该值是一个包含以下项目的哈希：`query_time`、`rows_sent`、`rows_examined`、`bytes_received`、`bytes_sent`。有关设置查询统计信息的说明，请参见[为异常检测添加查询统计信息](audit-log-logging-configuration.html#audit-log-query-statistics
+    "为异常检测添加查询统计信息")。
+- en: 'Example:'
+  id: totrans-300
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE50]'
+  id: totrans-301
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE50]'
+- en: '`shutdown_data`'
+  id: totrans-302
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`shutdown_data`'
+- en: 'Information pertaining to audit log plugin termination. The value is a hash
+    containing these items: `server_id` This item occurs only for audit records with
+    `class` and `event` values of `audit` and `shutdown`, respectively.'
+  id: totrans-303
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与审计日志插件终止相关的信息。该值是一个包含以下项目的哈希：`server_id`。此项目仅出现在`class`和`event`值分别为`audit`和`shutdown`的审计记录中。
+- en: 'Example:'
+  id: totrans-304
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE51]'
+  id: totrans-305
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE51]'
+- en: '`startup_data`'
+  id: totrans-306
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`startup_data`'
+- en: 'Information pertaining to audit log plugin initialization. The value is a hash
+    containing these items: `server_id`, `os_version`, `mysql_version`, `args`. This
+    item occurs only for audit records with `class` and `event` values of `audit`
+    and `startup`, respectively.'
+  id: totrans-307
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与审计日志插件初始化相关的信息。该值是一个包含以下项目的哈希：`server_id`、`os_version`、`mysql_version`、`args`。此项目仅出现在`class`和`event`值分别为`audit`和`startup`的审计记录中。
+- en: 'Example:'
+  id: totrans-308
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE52]'
+  id: totrans-309
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE52]'
+- en: '`table_access_data`'
+  id: totrans-310
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`table_access_data`'
+- en: 'Information about an access to a table. The value is a hash containing these
+    items: `db`, `table`, `query`, `sql_command`, This item occurs only for audit
+    records with a `class` value of `table_access`.'
+  id: totrans-311
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 访问表格的信息。该值是一个包含以下项目的哈希：`db`、`table`、`query`、`sql_command`。此项目仅出现在`class`值为`table_access`的审计记录中。
+- en: 'Example:'
+  id: totrans-312
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE53]'
+  id: totrans-313
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE53]'
+- en: '`time`'
+  id: totrans-314
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`time`'
+- en: This field is similar to that in the `timestamp` field, but the value is an
+    integer and represents the UNIX timestamp value indicating the date and time when
+    the audit event was generated.
+  id: totrans-315
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此字段类似于`timestamp`字段中的字段，但其值是一个整数，表示生成审计事件的日期和时间的UNIX时间戳值。
+- en: 'Example:'
+  id: totrans-316
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE54]'
+  id: totrans-317
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE54]'
+- en: The `time` field occurs in JSON-format log files only if the [`audit_log_format_unix_timestamp`](audit-log-reference.html#sysvar_audit_log_format_unix_timestamp)
+    system variable is enabled.
+  id: totrans-318
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 只有在启用[`audit_log_format_unix_timestamp`](audit-log-reference.html#sysvar_audit_log_format_unix_timestamp)系统变量时，`time`字段才会出现在JSON格式的日志文件中。
+- en: '`timestamp`'
+  id: totrans-319
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`timestamp`'
+- en: A string representing a UTC value in *`YYYY-MM-DD hh:mm:ss`* format indicating
+    the date and time when the audit event was generated. For example, the event corresponding
+    to execution of an SQL statement received from a client has a `timestamp` value
+    occurring after the statement finishes, not when it was received.
+  id: totrans-320
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表以*`YYYY-MM-DD hh:mm:ss`*格式表示的 UTC 值，指示生成审计事件的日期和时间。例如，对应于从客户端接收的 SQL 语句执行的事件具有`timestamp`值，该值在语句完成后发生，而不是在接收时发生。
+- en: 'Example:'
+  id: totrans-321
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE55]'
+  id: totrans-322
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE55]'
+- en: For audit records that have the same `timestamp` value, their `id` values distinguish
+    them and form a sequence. Within the audit log, `timestamp`/`id` pairs are unique.
+    These pairs are bookmarks that identify event locations within the log.
+  id: totrans-323
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于具有相同`timestamp`值的审计记录，它们的`id`值可以区分它们并形成一个序列。在审计日志中，`timestamp`/`id`对是唯一的。这些对是标识日志中事件位置的书签。
+- en: 'These items appear within hash values associated with top-level items of JSON-format
+    audit records:'
+  id: totrans-324
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些项目出现在与 JSON 格式审计记录顶级项目关联的哈希值中：
+- en: '`args`'
+  id: totrans-325
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`args`'
+- en: An array of options that were given on the command line or in option files when
+    the MySQL server was started. The first option is the path to the server executable.
+  id: totrans-326
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个数组，其中包含 MySQL 服务器启动时在命令行或选项文件中给定的选项。第一个选项是服务器可执行文件的路径。
+- en: 'Example:'
+  id: totrans-327
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE56]'
+  id: totrans-328
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE56]'
+- en: '`bytes_received`'
+  id: totrans-329
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`bytes_received`'
+- en: The number of bytes received from the client. This item is part of the optional
+    query statistics. For this field to be populated, the system variable [`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)
+    must be set to `ON`.
+  id: totrans-330
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从客户端接收的字节数。此项目是可选查询统计信息的一部分。要填充此字段，必须将系统变量[`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)设置为`ON`。
+- en: 'Example:'
+  id: totrans-331
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE57]'
+  id: totrans-332
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE57]'
+- en: '`bytes_sent`'
+  id: totrans-333
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`bytes_sent`'
+- en: The number of bytes sent to the client. This item is part of the optional query
+    statistics. For this field to be populated, the system variable [`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)
+    must be set to `ON`.
+  id: totrans-334
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 发送到客户端的字节数。此项目是可选查询统计信息的一部分。要填充此字段，必须将系统变量[`log_slow_extra`](server-system-variables.html#sysvar_log_slow_extra)设置为`ON`。
+- en: 'Example:'
+  id: totrans-335
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE58]'
+  id: totrans-336
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE58]'
+- en: '`command`'
+  id: totrans-337
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`command`'
+- en: A string representing the type of instruction that generated the audit event,
+    such as a command that the server received from a client.
+  id: totrans-338
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表生成审计事件的指令类型，例如服务器从客户端接收的命令。
+- en: 'Example:'
+  id: totrans-339
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE59]'
+  id: totrans-340
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE59]'
+- en: '`connection_type`'
+  id: totrans-341
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`connection_type`'
+- en: The security state of the connection to the server. Permitted values are `tcp/ip`
+    (TCP/IP connection established without encryption), `ssl` (TCP/IP connection established
+    with encryption), `socket` (Unix socket file connection), `named_pipe` (Windows
+    named pipe connection), and `shared_memory` (Windows shared memory connection).
+  id: totrans-342
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与服务器的连接安全状态相关。允许的值为`tcp/ip`（未加密的 TCP/IP 连接）、`ssl`（已加密的 TCP/IP 连接）、`socket`（Unix
+    套接字文件连接）、`named_pipe`（Windows 命名管道连接）和`shared_memory`（Windows 共享内存连接）。
+- en: 'Example:'
+  id: totrans-343
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE60]'
+  id: totrans-344
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE60]'
+- en: '`db`'
+  id: totrans-345
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`db`'
+- en: A string representing a database name. For `connection_data`, it is the default
+    database. For `table_access_data`, it is the table database.
+  id: totrans-346
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表数据库名称的字符串。对于`connection_data`，它是默认数据库。对于`table_access_data`，它是表数据库。
+- en: 'Example:'
+  id: totrans-347
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE61]'
+  id: totrans-348
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE61]'
+- en: '`host`'
+  id: totrans-349
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`host`'
+- en: A string representing the client host name.
+  id: totrans-350
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端主机名的字符串。
+- en: 'Example:'
+  id: totrans-351
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE62]'
+  id: totrans-352
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE62]'
+- en: '`ip`'
+  id: totrans-353
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ip`'
+- en: A string representing the client IP address.
+  id: totrans-354
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表客户端 IP 地址的字符串。
+- en: 'Example:'
+  id: totrans-355
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE63]'
+  id: totrans-356
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE63]'
+- en: '`mysql_version`'
+  id: totrans-357
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysql_version`'
+- en: A string representing the MySQL server version. This is the same as the value
+    of the [`VERSION()`](information-functions.html#function_version) function or
+    [`version`](server-system-variables.html#sysvar_version) system variable.
+  id: totrans-358
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表 MySQL 服务器版本的字符串。这与[`VERSION()`](information-functions.html#function_version)函数或[`version`](server-system-variables.html#sysvar_version)系统变量的值相同。
+- en: 'Example:'
+  id: totrans-359
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE64]'
+  id: totrans-360
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE64]'
+- en: '`os`'
+  id: totrans-361
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`os`'
+- en: A string representing the external user name used during the authentication
+    process, as set by the plugin used to authenticate the client. With native (built-in)
+    MySQL authentication, or if the plugin does not set the value, this attribute
+    is empty. The value is the same as that of the [`external_user`](server-system-variables.html#sysvar_external_user)
+    system variable. See [Section 8.2.19, “Proxy Users”](proxy-users.html "8.2.19 Proxy
+    Users").
+  id: totrans-362
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表在认证过程中使用的外部用户名，由用于认证客户端的插件设置。对于本地（内置）MySQL认证，或者如果插件未设置该值，则此属性为空。该值与[`external_user`](server-system-variables.html#sysvar_external_user)系统变量的值相同。参见[Section 8.2.19,
+    “Proxy Users”](proxy-users.html "8.2.19 Proxy Users")。
+- en: 'Example:'
+  id: totrans-363
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE65]'
+  id: totrans-364
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE65]'
+- en: '`os_version`'
+  id: totrans-365
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`os_version`'
+- en: A string representing the operating system on which the server was built or
+    is running.
+  id: totrans-366
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代表构建或运行服务器的操作系统的字符串。
+- en: 'Example:'
+  id: totrans-367
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '示例:'
+- en: '[PRE66]'
+  id: totrans-368
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE66]'
+- en: '`proxy`'
+  id: totrans-369
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`proxy`'
+- en: A string representing the proxy user (see [Section 8.2.19, “Proxy Users”](proxy-users.html
+    "8.2.19 Proxy Users")). The value is empty if user proxying is not in effect.
+  id: totrans-370
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代理用户的字符串表示（参见[第8.2.19节，“代理用户”](proxy-users.html "8.2.19 Proxy Users")）。如果未启用用户代理，则该值为空。
+- en: 'Example:'
+  id: totrans-371
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE67]'
+  id: totrans-372
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE67]'
+- en: '`query`'
+  id: totrans-373
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`查询`'
+- en: A string representing the text of an SQL statement. The value can be empty.
+    Long values may be truncated. The string, like the audit log file itself, is written
+    using UTF-8 (up to 4 bytes per character), so the value may be the result of conversion.
+    For example, the original statement might have been received from the client as
+    an SJIS string.
+  id: totrans-374
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个表示SQL语句文本的字符串。该值可以为空。长值可能会被截断。该字符串，就像审计日志文件本身一样，是使用UTF-8（每个字符最多4个字节）编写的，因此该值可能是转换的结果。例如，原始语句可能已从客户端作为SJIS字符串接收。
+- en: 'Example:'
+  id: totrans-375
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE68]'
+  id: totrans-376
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE68]'
+- en: '`query_time`'
+  id: totrans-377
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`query_time`'
+- en: The query execution time in microseconds (if the `longlong` data type is selected)
+    or seconds (if the `double` data type is selected). This item is part of the optional
+    query statistics.
+  id: totrans-378
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查询执行时间（如果选择了`longlong`数据类型，则为微秒，如果选择了`double`数据类型，则为秒）。此项是可选查询统计的一部分。
+- en: 'Example:'
+  id: totrans-379
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE69]'
+  id: totrans-380
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE69]'
+- en: '`rows_examined`'
+  id: totrans-381
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`rows_examined`'
+- en: The number of rows accessed during the query. This item is part of the optional
+    query statistics.
+  id: totrans-382
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查询期间访问的行数。此项是可选查询统计的一部分。
+- en: 'Example:'
+  id: totrans-383
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE70]'
+  id: totrans-384
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE70]'
+- en: '`rows_sent`'
+  id: totrans-385
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`rows_sent`'
+- en: The number of rows sent to the client as a result. This item is part of the
+    optional query statistics.
+  id: totrans-386
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 作为结果发送给客户端的行数。此项是可选查询统计的一部分。
+- en: 'Example:'
+  id: totrans-387
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE71]'
+  id: totrans-388
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE71]'
+- en: '`server_id`'
+  id: totrans-389
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`服务器ID`'
+- en: An unsigned integer representing the server ID. This is the same as the value
+    of the [`server_id`](replication-options.html#sysvar_server_id) system variable.
+  id: totrans-390
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示服务器ID的无符号整数。这与[`server_id`](replication-options.html#sysvar_server_id)系统变量的值相同。
+- en: 'Example:'
+  id: totrans-391
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE72]'
+  id: totrans-392
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE72]'
+- en: '`sql_command`'
+  id: totrans-393
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`sql_command`'
+- en: A string that indicates the SQL statement type.
+  id: totrans-394
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示SQL语句类型的字符串。
+- en: 'Example:'
+  id: totrans-395
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE73]'
+  id: totrans-396
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE73]'
+- en: 'The values correspond to the `statement/sql/*`xxx`*` command counters. For
+    example, *`xxx`* is `drop_table` and `select` for [`DROP TABLE`](drop-table.html
+    "15.1.32 DROP TABLE Statement") and [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statements, respectively. The following statement displays the possible names:'
+  id: totrans-397
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些值对应于`statement/sql/*`xxx`*`命令计数器。例如，*`xxx`*是`drop_table`和`select`分别用于[`DROP
+    TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")和[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句。以下语句显示可能的名称：
+- en: '[PRE74]'
+  id: totrans-398
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE74]'
+- en: '`status`'
+  id: totrans-399
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`状态`'
+- en: 'An unsigned integer representing the command status: 0 for success, nonzero
+    if an error occurred. This is the same as the value of the [`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API function.'
+  id: totrans-400
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示命令状态的无符号整数：成功为0，发生错误为非零。这与[`mysql_errno()`](/doc/c-api/8.0/en/mysql-errno.html)
+    C API函数的值相同。
+- en: The audit log does not contain the SQLSTATE value or error message. To see the
+    associations between error codes, SQLSTATE values, and messages, see [Server Error
+    Message Reference](/doc/mysql-errors/8.0/en/server-error-reference.html).
+  id: totrans-401
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 审计日志不包含SQLSTATE值或错误消息。要查看错误代码、SQLSTATE值和消息之间的关联，请参阅[服务器错误消息参考](/doc/mysql-errors/8.0/en/server-error-reference.html)。
+- en: Warnings are not logged.
+  id: totrans-402
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 警告未记录。
+- en: 'Example:'
+  id: totrans-403
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE75]'
+  id: totrans-404
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE75]'
+- en: '`table`'
+  id: totrans-405
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`表`'
+- en: A string representing a table name.
+  id: totrans-406
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示表名的字符串。
+- en: 'Example:'
+  id: totrans-407
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE76]'
+  id: totrans-408
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE76]'
+- en: '`user`'
+  id: totrans-409
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`用户`'
+- en: 'A string representing a user name. The meaning differs depending on the item
+    within which `user` occurs:'
+  id: totrans-410
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示用户名的字符串。根据`user`出现的项的不同，含义也不同：
+- en: Within `account` items, `user` is a string representing the user that the server
+    authenticated the client as. This is the user name that the server uses for privilege
+    checking.
+  id: totrans-411
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`account`项中，`user`是一个表示服务器对客户端进行身份验证的用户的字符串。这是服务器用于权限检查的用户名。
+- en: Within `login` items, `user` is a string representing the user name sent by
+    the client.
+  id: totrans-412
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`login`项中，`user`是表示客户端发送的用户名的字符串。
+- en: 'Example:'
+  id: totrans-413
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE77]'
+  id: totrans-414
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE77]'

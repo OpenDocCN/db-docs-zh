@@ -1,0 +1,563 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-fulltext-index.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-fulltext-index.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-fulltext-index.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-fulltext-index.html)
+- en: 17.6.2.4 InnoDB Full-Text Indexes
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.6.2.4 InnoDB全文索引
+- en: Full-text indexes are created on text-based columns ([`CHAR`](char.html "13.3.2 The
+    CHAR and VARCHAR Types"), [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"),
+    or [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") columns) to speed up queries
+    and DML operations on data contained within those columns.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全文索引是在基于文本的列（[`CHAR`](char.html "13.3.2 CHAR和VARCHAR类型")、[`VARCHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")或[`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")列）上创建的，以加快对这些列中包含的数据的查询和DML操作。
+- en: A full-text index is defined as part of a [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statement or added to an existing table using
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") or [`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全文索引被定义为[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")语句的一部分，或者通过[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")或[`CREATE INDEX`](create-index.html
+    "15.1.15 CREATE INDEX Statement")添加到现有表中。
+- en: Full-text search is performed using [`MATCH() ... AGAINST`](fulltext-search.html#function_match)
+    syntax. For usage information, see [Section 14.9, “Full-Text Search Functions”](fulltext-search.html
+    "14.9 Full-Text Search Functions").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`MATCH() ... AGAINST`](fulltext-search.html#function_match)语法执行全文搜索。有关使用信息，请参见[第14.9节，“全文搜索函数”](fulltext-search.html
+    "14.9 Full-Text Search Functions")。
+- en: '`InnoDB` full-text indexes are described under the following topics in this
+    section:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`全文索引在本节中以下主题下进行描述：'
+- en: '[InnoDB Full-Text Index Design](innodb-fulltext-index.html#innodb-fulltext-index-design
+    "InnoDB Full-Text Index Design")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB全文索引设计](innodb-fulltext-index.html#innodb-fulltext-index-design "InnoDB
+    Full-Text Index Design")'
+- en: '[InnoDB Full-Text Index Tables](innodb-fulltext-index.html#innodb-fulltext-index-tables
+    "InnoDB Full-Text Index Tables")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB全文索引表](innodb-fulltext-index.html#innodb-fulltext-index-tables "InnoDB
+    Full-Text Index Tables")'
+- en: '[InnoDB Full-Text Index Cache](innodb-fulltext-index.html#innodb-fulltext-index-cache
+    "InnoDB Full-Text Index Cache")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB全文索引缓存](innodb-fulltext-index.html#innodb-fulltext-index-cache "InnoDB
+    Full-Text Index Cache")'
+- en: '[InnoDB Full-Text Index DOC_ID and FTS_DOC_ID Column](innodb-fulltext-index.html#innodb-fulltext-index-docid
+    "InnoDB Full-Text Index DOC_ID and FTS_DOC_ID Column")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB全文索引DOC_ID和FTS_DOC_ID列](innodb-fulltext-index.html#innodb-fulltext-index-docid
+    "InnoDB Full-Text Index DOC_ID and FTS_DOC_ID Column")'
+- en: '[InnoDB Full-Text Index Deletion Handling](innodb-fulltext-index.html#innodb-fulltext-index-deletion
+    "InnoDB Full-Text Index Deletion Handling")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB全文索引删除处理](innodb-fulltext-index.html#innodb-fulltext-index-deletion
+    "InnoDB Full-Text Index Deletion Handling")'
+- en: '[InnoDB Full-Text Index Transaction Handling](innodb-fulltext-index.html#innodb-fulltext-index-transaction
+    "InnoDB Full-Text Index Transaction Handling")'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[InnoDB全文索引事务处理](innodb-fulltext-index.html#innodb-fulltext-index-transaction
+    "InnoDB Full-Text Index Transaction Handling")'
+- en: '[Monitoring InnoDB Full-Text Indexes](innodb-fulltext-index.html#innodb-fulltext-index-monitoring
+    "Monitoring InnoDB Full-Text Indexes")'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[监控InnoDB全文索引](innodb-fulltext-index.html#innodb-fulltext-index-monitoring
+    "Monitoring InnoDB Full-Text Indexes")'
+- en: InnoDB Full-Text Index Design
+  id: totrans-13
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB全文索引设计
+- en: '`InnoDB` full-text indexes have an inverted index design. Inverted indexes
+    store a list of words, and for each word, a list of documents that the word appears
+    in. To support proximity search, position information for each word is also stored,
+    as a byte offset.'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`全文索引采用倒排索引设计。倒排索引存储单词列表，对于每个单词，还存储该单词出现在的文档列表。为了支持位置搜索，还存储了每个单词的位置信息，作为字节偏移量。'
+- en: InnoDB Full-Text Index Tables
+  id: totrans-15
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB全文索引表
+- en: 'When an `InnoDB` full-text index is created, a set of index tables is created,
+    as shown in the following example:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建`InnoDB`全文索引时，将创建一组索引表，如下例所示：
+- en: '[PRE0]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The first six index tables comprise the inverted index and are referred to as
+    auxiliary index tables. When incoming documents are tokenized, the individual
+    words (also referred to as “tokens”) are inserted into the index tables along
+    with position information and an associated `DOC_ID`. The words are fully sorted
+    and partitioned among the six index tables based on the character set sort weight
+    of the word's first character.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前六个索引表包括倒排索引，并被称为辅助索引表。当传入文档被标记化时，单词（也称为“标记”）与位置信息和相关的`DOC_ID`一起插入到索引表中。这些单词根据单词的第一个字符的字符集排序权重完全排序并分区在六个索引表中。
+- en: The inverted index is partitioned into six auxiliary index tables to support
+    parallel index creation. By default, two threads tokenize, sort, and insert words
+    and associated data into the index tables. The number of threads that perform
+    this work is configurable using the [`innodb_ft_sort_pll_degree`](innodb-parameters.html#sysvar_innodb_ft_sort_pll_degree)
+    variable. Consider increasing the number of threads when creating full-text indexes
+    on large tables.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 倒排索引被分成六个辅助索引表，以支持并行索引创建。默认情况下，两个线程对单词和相关数据进行标记化、排序和插入到索引表中。执行此工作的线程数量可通过 [`innodb_ft_sort_pll_degree`](innodb-parameters.html#sysvar_innodb_ft_sort_pll_degree)
+    变量进行配置。在创建大表的全文索引时，考虑增加线程数量。
+- en: Auxiliary index table names are prefixed with `fts_` and postfixed with `index_*`#`*`.
+    Each auxiliary index table is associated with the indexed table by a hex value
+    in the auxiliary index table name that matches the `table_id` of the indexed table.
+    For example, the `table_id` of the `test/opening_lines` table is `327`, for which
+    the hex value is 0x147\. As shown in the preceding example, the “147” hex value
+    appears in the names of auxiliary index tables that are associated with the `test/opening_lines`
+    table.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 辅助索引表名以 `fts_` 为前缀，并以 `index_*`#`*` 为后缀。每个辅助索引表通过辅助索引表名中的十六进制值与索引表相关联，该值与索引表的
+    `table_id` 匹配。例如，`test/opening_lines` 表的 `table_id` 是 `327`，其十六进制值为 0x147。如前面的示例所示，与
+    `test/opening_lines` 表相关联的辅助索引表的名称中出现了“147”十六进制值。
+- en: A hex value representing the `index_id` of the full-text index also appears
+    in auxiliary index table names. For example, in the auxiliary table name `test/fts_0000000000000147_00000000000001c9_index_1`,
+    the hex value `1c9` has a decimal value of 457. The index defined on the `opening_lines`
+    table (`idx`) can be identified by querying the Information Schema [`INNODB_INDEXES`](information-schema-innodb-indexes-table.html
+    "28.4.20 The INFORMATION_SCHEMA INNODB_INDEXES Table") table for this value (457).
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 代表全文索引的 `index_id` 的十六进制值也出现在辅助索引表名中。例如，在辅助表名 `test/fts_0000000000000147_00000000000001c9_index_1`
+    中，十六进制值 `1c9` 的十进制值为 457。可以通过查询信息模式 [`INNODB_INDEXES`](information-schema-innodb-indexes-table.html
+    "28.4.20 The INFORMATION_SCHEMA INNODB_INDEXES Table") 表来识别在 `opening_lines` 表上定义的索引（idx）的此值（457）。
+- en: '[PRE1]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Index tables are stored in their own tablespace if the primary table is created
+    in a [file-per-table](glossary.html#glos_file_per_table "file-per-table") tablespace.
+    Otherwise, index tables are stored in the tablespace where the indexed table resides.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果主表是在 [每表一个文件](glossary.html#glos_file_per_table "file-per-table") 表空间中创建的，则索引表存储在自己的表空间中。否则，索引表存储在索引表所在的表空间中。
+- en: The other index tables shown in the preceding example are referred to as common
+    index tables and are used for deletion handling and storing the internal state
+    of full-text indexes. Unlike the inverted index tables, which are created for
+    each full-text index, this set of tables is common to all full-text indexes created
+    on a particular table.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前面示例中显示的其他索引表称为常见索引表，用于处理删除和存储全文索引的内部状态。与为每个全文索引创建的倒排索引表不同，这组表对于在特定表上创建的所有全文索引都是通用的。
+- en: Common index tables are retained even if full-text indexes are dropped. When
+    a full-text index is dropped, the `FTS_DOC_ID` column that was created for the
+    index is retained, as removing the `FTS_DOC_ID` column would require rebuilding
+    the previously indexed table. Common index tables are required to manage the `FTS_DOC_ID`
+    column.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使删除全文索引，常见索引表也会保留。删除全文索引时，为索引创建的 `FTS_DOC_ID` 列将被保留，因为删除 `FTS_DOC_ID` 列将需要重建先前索引的表。常见索引表用于管理
+    `FTS_DOC_ID` 列。
+- en: '`fts_*_deleted` and `fts_*_deleted_cache`'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`fts_*_deleted` 和 `fts_*_deleted_cache`'
+- en: Contain the document IDs (DOC_ID) for documents that are deleted but whose data
+    is not yet removed from the full-text index. The `fts_*_deleted_cache` is the
+    in-memory version of the `fts_*_deleted` table.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 包含已删除但数据尚未从全文索引中删除的文档的文档 ID（DOC_ID）。`fts_*_deleted_cache` 是 `fts_*_deleted`
+    表的内存版本。
+- en: '`fts_*_being_deleted` and `fts_*_being_deleted_cache`'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`fts_*_being_deleted` 和 `fts_*_being_deleted_cache`'
+- en: Contain the document IDs (DOC_ID) for documents that are deleted and whose data
+    is currently in the process of being removed from the full-text index. The `fts_*_being_deleted_cache`
+    table is the in-memory version of the `fts_*_being_deleted` table.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 包含已删除并且数据目前正在从全文索引中删除的文档的文档 ID（DOC_ID）。`fts_*_being_deleted_cache` 表是 `fts_*_being_deleted`
+    表的内存版本。
+- en: '`fts_*_config`'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`fts_*_config`'
+- en: Stores information about the internal state of the full-text index. Most importantly,
+    it stores the `FTS_SYNCED_DOC_ID`, which identifies documents that have been parsed
+    and flushed to disk. In case of crash recovery, `FTS_SYNCED_DOC_ID` values are
+    used to identify documents that have not been flushed to disk so that the documents
+    can be re-parsed and added back to the full-text index cache. To view the data
+    in this table, query the Information Schema [`INNODB_FT_CONFIG`](information-schema-innodb-ft-config-table.html
+    "28.4.15 The INFORMATION_SCHEMA INNODB_FT_CONFIG Table") table.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 存储有关全文索引内部状态的信息。最重要的是，它存储了`FTS_SYNCED_DOC_ID`，用于标识已解析并刷新到磁盘的文档。在崩溃恢复的情况下，`FTS_SYNCED_DOC_ID`
+    值用于标识尚未刷新到磁盘的文档，以便重新解析这些文档并添加回全文索引缓存。要查看此表中的数据，请查询信息模式 [`INNODB_FT_CONFIG`](information-schema-innodb-ft-config-table.html
+    "28.4.15 The INFORMATION_SCHEMA INNODB_FT_CONFIG Table") 表。
+- en: InnoDB Full-Text Index Cache
+  id: totrans-32
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB全文索引缓存
+- en: When a document is inserted, it is tokenized, and the individual words and associated
+    data are inserted into the full-text index. This process, even for small documents,
+    can result in numerous small insertions into the auxiliary index tables, making
+    concurrent access to these tables a point of contention. To avoid this problem,
+    `InnoDB` uses a full-text index cache to temporarily cache index table insertions
+    for recently inserted rows. This in-memory cache structure holds insertions until
+    the cache is full and then batch flushes them to disk (to the auxiliary index
+    tables). You can query the Information Schema [`INNODB_FT_INDEX_CACHE`](information-schema-innodb-ft-index-cache-table.html
+    "28.4.18 The INFORMATION_SCHEMA INNODB_FT_INDEX_CACHE Table") table to view tokenized
+    data for recently inserted rows.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当插入文档时，文档会被标记化，单词和相关数据会被插入到全文索引中。即使是对于小型文档，这个过程也可能导致大量小的插入到辅助索引表中，使得对这些表的并发访问成为一个争议点。为了避免这个问题，`InnoDB`
+    使用全文索引缓存来临时缓存最近插入行的索引表插入。这个内存中的缓存结构会保存插入，直到缓存满了，然后批量将它们刷新到磁盘（到辅助索引表）。您可以查询信息模式
+    [`INNODB_FT_INDEX_CACHE`](information-schema-innodb-ft-index-cache-table.html
+    "28.4.18 The INFORMATION_SCHEMA INNODB_FT_INDEX_CACHE Table") 表来查看最近插入行的标记化数据。
+- en: The caching and batch flushing behavior avoids frequent updates to auxiliary
+    index tables, which could result in concurrent access issues during busy insert
+    and update times. The batching technique also avoids multiple insertions for the
+    same word, and minimizes duplicate entries. Instead of flushing each word individually,
+    insertions for the same word are merged and flushed to disk as a single entry,
+    improving insertion efficiency while keeping auxiliary index tables as small as
+    possible.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 缓存和批量刷新行为避免了对辅助索引表的频繁更新，这可能导致在繁忙的插入和更新时间发生并发访问问题。批处理技术还避免了对同一个单词的多次插入，并最小化了重复条目。与单独刷新每个单词不同，相同单词的插入会合并并作为单个条目刷新到磁盘，提高了插入效率，同时保持辅助索引表尽可能小。
+- en: The [`innodb_ft_cache_size`](innodb-parameters.html#sysvar_innodb_ft_cache_size)
+    variable is used to configure the full-text index cache size (on a per-table basis),
+    which affects how often the full-text index cache is flushed. You can also define
+    a global full-text index cache size limit for all tables in a given instance using
+    the [`innodb_ft_total_cache_size`](innodb-parameters.html#sysvar_innodb_ft_total_cache_size)
+    variable.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_ft_cache_size`](innodb-parameters.html#sysvar_innodb_ft_cache_size)
+    变量用于配置全文索引缓存大小（每个表的基础），这会影响全文索引缓存刷新的频率。您还可以使用 [`innodb_ft_total_cache_size`](innodb-parameters.html#sysvar_innodb_ft_total_cache_size)
+    变量为给定实例中的所有表定义一个全局全文索引缓存大小限制。'
+- en: The full-text index cache stores the same information as auxiliary index tables.
+    However, the full-text index cache only caches tokenized data for recently inserted
+    rows. The data that is already flushed to disk (to the auxiliary index tables)
+    is not brought back into the full-text index cache when queried. The data in auxiliary
+    index tables is queried directly, and results from the auxiliary index tables
+    are merged with results from the full-text index cache before being returned.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 全文索引缓存存储与辅助索引表相同的信息。然而，全文索引缓存仅缓存最近插入行的标记化数据。当查询时，已经刷新到磁盘（到辅助索引表）的数据不会被带回到全文索引缓存中。辅助索引表中的数据直接查询，然后与全文索引缓存中的结果合并后返回。
+- en: InnoDB Full-Text Index DOC_ID and FTS_DOC_ID Column
+  id: totrans-37
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB全文索引DOC_ID和FTS_DOC_ID列
+- en: '`InnoDB` uses a unique document identifier referred to as the `DOC_ID` to map
+    words in the full-text index to document records where the word appears. The mapping
+    requires an `FTS_DOC_ID` column on the indexed table. If an `FTS_DOC_ID` column
+    is not defined, `InnoDB` automatically adds a hidden `FTS_DOC_ID` column when
+    the full-text index is created. The following example demonstrates this behavior.'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` 使用一个称为`DOC_ID`的唯一文档标识符，将全文索引中的单词映射到单词出现的文档记录上。这种映射需要在索引表上有一个`FTS_DOC_ID`列。如果没有定义`FTS_DOC_ID`列，`InnoDB`在创建全文索引时会自动添加一个隐藏的`FTS_DOC_ID`列。下面的示例演示了这种行为。'
+- en: 'The following table definition does not include an `FTS_DOC_ID` column:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表定义不包括`FTS_DOC_ID`列：
+- en: '[PRE2]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: When you create a full-text index on the table using `CREATE FULLTEXT INDEX`
+    syntax, a warning is returned which reports that `InnoDB` is rebuilding the table
+    to add the `FTS_DOC_ID` column.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用`CREATE FULLTEXT INDEX`语法在表上创建全文索引时，会返回一个警告，报告`InnoDB`正在重建表以添加`FTS_DOC_ID`列。
+- en: '[PRE3]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The same warning is returned when using [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") to add a full-text index to a table that does not have an `FTS_DOC_ID`
+    column. If you create a full-text index at [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") time and do not specify an `FTS_DOC_ID` column,
+    `InnoDB` adds a hidden `FTS_DOC_ID` column, without warning.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")向没有`FTS_DOC_ID`列的表添加全文索引时，会返回相同的警告。如果在[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")时创建全文索引并且没有指定`FTS_DOC_ID`列，则`InnoDB`会自动添加一个隐藏的`FTS_DOC_ID`列，而不会有警告。
+- en: 'Defining an `FTS_DOC_ID` column at [`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement") time is less expensive than creating a full-text index on a
+    table that is already loaded with data. If an `FTS_DOC_ID` column is defined on
+    a table prior to loading data, the table and its indexes do not have to be rebuilt
+    to add the new column. If you are not concerned with `CREATE FULLTEXT INDEX` performance,
+    leave out the `FTS_DOC_ID` column to have `InnoDB` create it for you. `InnoDB`
+    creates a hidden `FTS_DOC_ID` column along with a unique index (`FTS_DOC_ID_INDEX`)
+    on the `FTS_DOC_ID` column. If you want to create your own `FTS_DOC_ID` column,
+    the column must be defined as `BIGINT UNSIGNED NOT NULL` and named `FTS_DOC_ID`
+    (all uppercase), as in the following example:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")时定义`FTS_DOC_ID`列比在已加载数据的表上创建全文索引要便宜。如果在加载数据之前在表上定义了`FTS_DOC_ID`列，则不需要重建表及其索引即可添加新列。如果不关心`CREATE
+    FULLTEXT INDEX`的性能，请省略`FTS_DOC_ID`列，让`InnoDB`为您创建。`InnoDB`会在`FTS_DOC_ID`列上创建一个隐藏的`FTS_DOC_ID`列以及一个唯一索引（`FTS_DOC_ID_INDEX`）。如果要创建自己的`FTS_DOC_ID`列，则该列必须定义为`BIGINT
+    UNSIGNED NOT NULL`，并命名为`FTS_DOC_ID`（全大写），如下面的示例所示：
+- en: Note
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `FTS_DOC_ID` column does not need to be defined as an `AUTO_INCREMENT` column,
+    but doing so could make loading data easier.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`FTS_DOC_ID`列不需要定义为`AUTO_INCREMENT`列，但这样做可以使数据加载更容易。'
+- en: '[PRE4]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: If you choose to define the `FTS_DOC_ID` column yourself, you are responsible
+    for managing the column to avoid empty or duplicate values. `FTS_DOC_ID` values
+    cannot be reused, which means `FTS_DOC_ID` values must be ever increasing.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果选择自己定义`FTS_DOC_ID`列，则需要负责管理该列，以避免空值或重复值。`FTS_DOC_ID`值不能被重复使用，这意味着`FTS_DOC_ID`值必须是递增的。
+- en: Optionally, you can create the required unique `FTS_DOC_ID_INDEX` (all uppercase)
+    on the `FTS_DOC_ID` column.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可选地，您可以在`FTS_DOC_ID`列上创建所需的唯一`FTS_DOC_ID_INDEX`（全大写）。
+- en: '[PRE5]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: If you do not create the `FTS_DOC_ID_INDEX`, `InnoDB` creates it automatically.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果不创建`FTS_DOC_ID_INDEX`，`InnoDB`会自动创建它。
+- en: Note
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`FTS_DOC_ID_INDEX` cannot be defined as a descending index because the `InnoDB`
+    SQL parser does not use descending indexes.'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于`InnoDB` SQL解析器不使用降序索引，因此无法将`FTS_DOC_ID_INDEX`定义为降序索引。
+- en: The permitted gap between the largest used `FTS_DOC_ID` value and new `FTS_DOC_ID`
+    value is 65535.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最大使用的`FTS_DOC_ID`值和新的`FTS_DOC_ID`值之间允许的间隔为65535。
+- en: To avoid rebuilding the table, the `FTS_DOC_ID` column is retained when dropping
+    a full-text index.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为避免重建表，删除全文索引时会保留`FTS_DOC_ID`列。
+- en: InnoDB Full-Text Index Deletion Handling
+  id: totrans-56
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB全文索引删除处理
+- en: Deleting a record that has a full-text index column could result in numerous
+    small deletions in the auxiliary index tables, making concurrent access to these
+    tables a point of contention. To avoid this problem, the `DOC_ID` of a deleted
+    document is logged in a special `FTS_*_DELETED` table whenever a record is deleted
+    from an indexed table, and the indexed record remains in the full-text index.
+    Before returning query results, information in the `FTS_*_DELETED` table is used
+    to filter out deleted `DOC_ID`s. The benefit of this design is that deletions
+    are fast and inexpensive. The drawback is that the size of the index is not immediately
+    reduced after deleting records. To remove full-text index entries for deleted
+    records, run `OPTIMIZE TABLE` on the indexed table with [`innodb_optimize_fulltext_only=ON`](innodb-parameters.html#sysvar_innodb_optimize_fulltext_only)
+    to rebuild the full-text index. For more information, see [Optimizing InnoDB Full-Text
+    Indexes](fulltext-fine-tuning.html#fulltext-optimize "Optimizing InnoDB Full-Text
+    Indexes").
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 删除具有全文索引列的记录可能导致辅助索引表中的大量小删除，使得对这些表的并发访问成为争议点。为了避免这个问题，每当从索引表中删除记录时，删除文档的`DOC_ID`会被记录在特殊的`FTS_*_DELETED`表中，并且索引记录仍然保留在全文索引中。在返回查询结果之前，`FTS_*_DELETED`表中的信息用于过滤已删除的`DOC_ID`。这种设计的好处是删除快速且廉价。缺点是删除记录后索引的大小不会立即减小。要删除已删除记录的全文索引条目，请在具有[`innodb_optimize_fulltext_only=ON`](innodb-parameters.html#sysvar_innodb_optimize_fulltext_only)的索引表上运行`OPTIMIZE
+    TABLE`以重建全文索引。有关更多信息，请参阅[优化InnoDB全文索引](fulltext-fine-tuning.html#fulltext-optimize
+    "优化InnoDB全文索引")。
+- en: InnoDB Full-Text Index Transaction Handling
+  id: totrans-58
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: InnoDB全文索引事务处理
+- en: '`InnoDB` full-text indexes have special transaction handling characteristics
+    due its caching and batch processing behavior. Specifically, updates and insertions
+    on a full-text index are processed at transaction commit time, which means that
+    a full-text search can only see committed data. The following example demonstrates
+    this behavior. The full-text search only returns a result after the inserted lines
+    are committed.'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`全文索引由于其缓存和批处理行为具有特殊的事务处理特性。具体来说，在事务提交时处理全文索引的更新和插入操作，这意味着全文搜索只能看到已提交的数据。以下示例演示了这种行为。只有在插入的行被提交后，全文搜索才会返回结果。'
+- en: '[PRE6]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Monitoring InnoDB Full-Text Indexes
+  id: totrans-61
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 监控InnoDB全文索引
+- en: 'You can monitor and examine the special text-processing aspects of `InnoDB`
+    full-text indexes by querying the following `INFORMATION_SCHEMA` tables:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以通过查询以下`INFORMATION_SCHEMA`表来监视和检查`InnoDB`全文索引的特殊文本处理方面：
+- en: '[`INNODB_FT_CONFIG`](information-schema-innodb-ft-config-table.html "28.4.15 The
+    INFORMATION_SCHEMA INNODB_FT_CONFIG Table")'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_FT_CONFIG`](information-schema-innodb-ft-config-table.html "28.4.15 INFORMATION_SCHEMA
+    INNODB_FT_CONFIG表")'
+- en: '[`INNODB_FT_INDEX_TABLE`](information-schema-innodb-ft-index-table-table.html
+    "28.4.19 The INFORMATION_SCHEMA INNODB_FT_INDEX_TABLE Table")'
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_FT_INDEX_TABLE`](information-schema-innodb-ft-index-table-table.html
+    "28.4.19 INFORMATION_SCHEMA INNODB_FT_INDEX_TABLE表")'
+- en: '[`INNODB_FT_INDEX_CACHE`](information-schema-innodb-ft-index-cache-table.html
+    "28.4.18 The INFORMATION_SCHEMA INNODB_FT_INDEX_CACHE Table")'
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_FT_INDEX_CACHE`](information-schema-innodb-ft-index-cache-table.html
+    "28.4.18 INFORMATION_SCHEMA INNODB_FT_INDEX_CACHE表")'
+- en: '[`INNODB_FT_DEFAULT_STOPWORD`](information-schema-innodb-ft-default-stopword-table.html
+    "28.4.16 The INFORMATION_SCHEMA INNODB_FT_DEFAULT_STOPWORD Table")'
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_FT_DEFAULT_STOPWORD`](information-schema-innodb-ft-default-stopword-table.html
+    "28.4.16 INFORMATION_SCHEMA INNODB_FT_DEFAULT_STOPWORD表")'
+- en: '[`INNODB_FT_DELETED`](information-schema-innodb-ft-deleted-table.html "28.4.17 The
+    INFORMATION_SCHEMA INNODB_FT_DELETED Table")'
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_FT_DELETED`](information-schema-innodb-ft-deleted-table.html "28.4.17 INFORMATION_SCHEMA
+    INNODB_FT_DELETED表")'
+- en: '[`INNODB_FT_BEING_DELETED`](information-schema-innodb-ft-being-deleted-table.html
+    "28.4.14 The INFORMATION_SCHEMA INNODB_FT_BEING_DELETED Table")'
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_FT_BEING_DELETED`](information-schema-innodb-ft-being-deleted-table.html
+    "28.4.14 INFORMATION_SCHEMA INNODB_FT_BEING_DELETED表")'
+- en: You can also view basic information for full-text indexes and tables by querying
+    [`INNODB_INDEXES`](information-schema-innodb-indexes-table.html "28.4.20 The INFORMATION_SCHEMA
+    INNODB_INDEXES Table") and [`INNODB_TABLES`](information-schema-innodb-tables-table.html
+    "28.4.23 The INFORMATION_SCHEMA INNODB_TABLES Table").
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过查询[`INNODB_INDEXES`](information-schema-innodb-indexes-table.html "28.4.20 INFORMATION_SCHEMA
+    INNODB_INDEXES表")和[`INNODB_TABLES`](information-schema-innodb-tables-table.html
+    "28.4.23 INFORMATION_SCHEMA INNODB_TABLES表")，您还可以查看全文索引和表的基本信息。
+- en: For more information, see [Section 17.15.4, “InnoDB INFORMATION_SCHEMA FULLTEXT
+    Index Tables”](innodb-information-schema-fulltext_index-tables.html "17.15.4 InnoDB
+    INFORMATION_SCHEMA FULLTEXT Index Tables").
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 欲了解更多信息，请参阅[第17.15.4节，“InnoDB INFORMATION_SCHEMA FULLTEXT Index Tables”](innodb-information-schema-fulltext_index-tables.html
+    "17.15.4 InnoDB INFORMATION_SCHEMA FULLTEXT Index Tables")。

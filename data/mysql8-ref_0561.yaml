@@ -1,0 +1,201 @@
+- en: 10.3.10 Use of Index Extensions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.3.10 索引扩展的使用
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-extensions.html](https://dev.mysql.com/doc/refman/8.0/en/index-extensions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-extensions.html](https://dev.mysql.com/doc/refman/8.0/en/index-extensions.html)
+- en: '[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    automatically extends each secondary index by appending the primary key columns
+    to it. Consider this table definition:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")会自动通过附加主键列来扩展每个辅助索引。考虑这个表定义：'
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: This table defines the primary key on columns `(i1, i2)`. It also defines a
+    secondary index `k_d` on column `(d)`, but internally `InnoDB` extends this index
+    and treats it as columns `(d, i1, i2)`.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个表在列`(i1, i2)`上定义了主键。它还在列`(d)`上定义了一个辅助索引`k_d`，但在内部`InnoDB`扩展了这个索引，并将其视为列`(d,
+    i1, i2)`。
+- en: The optimizer takes into account the primary key columns of the extended secondary
+    index when determining how and whether to use that index. This can result in more
+    efficient query execution plans and better performance.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器在确定如何以及是否使用该索引时，会考虑扩展辅助索引的主键列。这可以导致更高效的查询执行计划和更好的性能。
+- en: The optimizer can use extended secondary indexes for `ref`, `range`, and [`index_merge`](switchable-optimizations.html#optflag_index-merge)
+    index access, for Loose Index Scan access, for join and sorting optimization,
+    and for [`MIN()`](aggregate-functions.html#function_min)/[`MAX()`](aggregate-functions.html#function_max)
+    optimization.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器可以使用扩展的辅助索引进行`ref`、`range`和[`index_merge`](switchable-optimizations.html#optflag_index-merge)索引访问，进行松散索引扫描访问，进行连接和排序优化，以及进行[`MIN()`](aggregate-functions.html#function_min)/[`MAX()`](aggregate-functions.html#function_max)优化。
+- en: 'The following example shows how execution plans are affected by whether the
+    optimizer uses extended secondary indexes. Suppose that `t1` is populated with
+    these rows:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例展示了优化器是否使用扩展辅助索引会如何影响执行计划。假设`t1`被这些行填充：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Now consider this query:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在考虑这个查询：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The execution plan depends on whether the extended index is used.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行计划取决于是否使用了扩展索引。
+- en: 'When the optimizer does not consider index extensions, it treats the index
+    `k_d` as only `(d)`. [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") for
+    the query produces this result:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当优化器不考虑索引扩展时，它将索引`k_d`视为仅`(d)`。查询的[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")结果如下：
+- en: '[PRE3]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'When the optimizer takes index extensions into account, it treats `k_d` as
+    `(d, i1, i2)`. In this case, it can use the leftmost index prefix `(d, i1)` to
+    produce a better execution plan:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当优化器考虑索引扩展时，它将`k_d`视为`(d, i1, i2)`。在这种情况下，它可以使用最左边的索引前缀`(d, i1)`来生成更好的执行计划：
+- en: '[PRE4]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'In both cases, `key` indicates that the optimizer uses secondary index `k_d`
+    but the [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output shows these
+    improvements from using the extended index:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在两种情况下，`key`指示优化器使用了辅助索引`k_d`，但[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出显示了使用扩展索引带来的这些改进：
+- en: '`key_len` goes from 4 bytes to 8 bytes, indicating that key lookups use columns
+    `d` and `i1`, not just `d`.'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_len`从4字节增加到8字节，表示键查找使用了列`d`和`i1`，而不仅仅是`d`。'
+- en: The `ref` value changes from `const` to `const,const` because the key lookup
+    uses two key parts, not one.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ref`值从`const`变为`const,const`，因为键查找使用了两个键部分，而不是一个。'
+- en: The `rows` count decreases from 5 to 1, indicating that `InnoDB` should need
+    to examine fewer rows to produce the result.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`rows`计数从5减少到1，表示`InnoDB`应该需要检查更少的行来生成结果。'
+- en: The `Extra` value changes from `Using where; Using index` to `Using index`.
+    This means that rows can be read using only the index, without consulting columns
+    in the data row.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Extra`值从`Using where; Using index`变为`Using index`。这意味着可以仅使用索引读取行，而不需要查询数据行中的列。'
+- en: 'Differences in optimizer behavior for use of extended indexes can also be seen
+    with [`SHOW STATUS`](show-status.html "15.7.7.37 SHOW STATUS Statement"):'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用扩展索引的优化器行为差异也可以通过[`SHOW STATUS`](show-status.html "15.7.7.37 SHOW STATUS Statement")看到：
+- en: '[PRE5]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: The preceding statements include [`FLUSH TABLES`](flush.html#flush-tables) and
+    [`FLUSH STATUS`](flush.html#flush-status) to flush the table cache and clear the
+    status counters.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 上述语句包括[`FLUSH TABLES`](flush.html#flush-tables)和[`FLUSH STATUS`](flush.html#flush-status)来刷新表缓存和清除状态计数器。
+- en: 'Without index extensions, [`SHOW STATUS`](show-status.html "15.7.7.37 SHOW
+    STATUS Statement") produces this result:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 没有索引扩展，[`SHOW STATUS`](show-status.html "15.7.7.37 SHOW STATUS Statement")产生以下结果：
+- en: '[PRE6]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'With index extensions, [`SHOW STATUS`](show-status.html "15.7.7.37 SHOW STATUS
+    Statement") produces this result. The [`Handler_read_next`](server-status-variables.html#statvar_Handler_read_next)
+    value decreases from 5 to 1, indicating more efficient use of the index:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用索引扩展，[`SHOW STATUS`](show-status.html "15.7.7.37 SHOW STATUS Statement") 会产生这样的结果。[`Handler_read_next`](server-status-variables.html#statvar_Handler_read_next)
+    的值从 5 减少到 1，表明索引的使用更加高效：
+- en: '[PRE7]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The [`use_index_extensions`](switchable-optimizations.html#optflag_use-index-extensions)
+    flag of the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable permits control over whether the optimizer takes the primary key
+    columns into account when determining how to use an `InnoDB` table''s secondary
+    indexes. By default, [`use_index_extensions`](switchable-optimizations.html#optflag_use-index-extensions)
+    is enabled. To check whether disabling use of index extensions can improve performance,
+    use this statement:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    系统变量的 [`use_index_extensions`](switchable-optimizations.html#optflag_use-index-extensions)
+    标志允许控制优化器在确定如何使用 `InnoDB` 表的次要索引时是否考虑主键列。默认情况下，[`use_index_extensions`](switchable-optimizations.html#optflag_use-index-extensions)
+    是启用的。要检查禁用索引扩展是否可以提高性能，请使用以下语句：'
+- en: '[PRE8]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Use of index extensions by the optimizer is subject to the usual limits on the
+    number of key parts in an index (16) and the maximum key length (3072 bytes).
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器对索引扩展的使用受到索引中关键部分数量（16）和最大键长度（3072 字节）的通常限制。

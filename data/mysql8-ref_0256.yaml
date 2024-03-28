@@ -1,0 +1,213 @@
+- en: 7.1.19 The Server Shutdown Process
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.1.19 服务器关闭过程
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/server-shutdown.html](https://dev.mysql.com/doc/refman/8.0/en/server-shutdown.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/server-shutdown.html](https://dev.mysql.com/doc/refman/8.0/en/server-shutdown.html)
+- en: 'The server shutdown process takes place as follows:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器关闭过程如下进行：
+- en: The shutdown process is initiated.
+  id: totrans-3
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 关闭过程被启动。
+- en: 'This can occur initiated several ways. For example, a user with the [`SHUTDOWN`](privileges-provided.html#priv_shutdown)
+    privilege can execute a [**mysqladmin shutdown**](mysqladmin.html "6.5.2 mysqladmin
+    — A MySQL Server Administration Program") command. [**mysqladmin**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") can be used on any
+    platform supported by MySQL. Other operating system-specific shutdown initiation
+    methods are possible as well: The server shuts down on Unix when it receives a
+    `SIGTERM` signal. A server running as a service on Windows shuts down when the
+    services manager tells it to.'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这可以通过多种方式来启动。例如，具有[`SHUTDOWN`](privileges-provided.html#priv_shutdown)权限的用户可以执行[**mysqladmin
+    shutdown**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program")命令。[**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server
+    Administration Program")可以在MySQL支持的任何平台上使用。还有其他特定于操作系统的关闭启动方法：Unix上的服务器在接收到`SIGTERM`信号时关闭。在Windows上作为服务运行的服务器在服务管理器告知时关闭。
+- en: The server creates a shutdown thread if necessary.
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果需要，服务器会创建一个关闭线程。
+- en: 'Depending on how shutdown was initiated, the server might create a thread to
+    handle the shutdown process. If shutdown was requested by a client, a shutdown
+    thread is created. If shutdown is the result of receiving a `SIGTERM` signal,
+    the signal thread might handle shutdown itself, or it might create a separate
+    thread to do so. If the server tries to create a shutdown thread and cannot (for
+    example, if memory is exhausted), it issues a diagnostic message that appears
+    in the error log:'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 根据关闭是如何启动的，服务器可能会创建一个线程来处理关闭过程。如果关闭是由客户端请求的，将创建一个关闭线程。如果关闭是由接收到`SIGTERM`信号导致的，信号线程可能会自行处理关闭，或者可能会创建一个单独的线程来处理。如果服务器尝试创建关闭线程但无法（例如，内存耗尽），它会发出出现在错误日志中的诊断消息：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The server stops accepting new connections.
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器停止接受新连接。
+- en: 'To prevent new activity from being initiated during shutdown, the server stops
+    accepting new client connections by closing the handlers for the network interfaces
+    to which it normally listens for connections: the TCP/IP port, the Unix socket
+    file, the Windows named pipe, and shared memory on Windows.'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了在关闭过程中防止启动新活动，服务器通过关闭通常用于接受连接的网络接口的处理程序来停止接受新的客户端连接：TCP/IP端口，Unix套接字文件，Windows命名管道以及Windows上的共享内存。
+- en: The server terminates current activity.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器终止当前活动。
+- en: For each thread associated with a client connection, the server breaks the connection
+    to the client and marks the thread as killed. Threads die when they notice that
+    they are so marked. Threads for idle connections die quickly. Threads that currently
+    are processing statements check their state periodically and take longer to die.
+    For additional information about thread termination, see [Section 15.7.8.4, “KILL
+    Statement”](kill.html "15.7.8.4 KILL Statement"), in particular for the instructions
+    about killed [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")
+    or [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")
+    operations on `MyISAM` tables.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于与客户端连接相关的每个线程，服务器会断开与客户端的连接并将线程标记为已终止。线程在注意到自己被标记后会终止。空闲连接的线程会迅速终止。当前正在处理语句的线程会定期检查其状态并需要更长时间才能终止。有关线程终止的更多信息，请参见[Section 15.7.8.4,
+    “KILL Statement”](kill.html "15.7.8.4 KILL Statement")，特别是关于在`MyISAM`表上执行被终止的[`REPAIR
+    TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")或[`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement")操作的说明。
+- en: For threads that have an open transaction, the transaction is rolled back. If
+    a thread is updating a nontransactional table, an operation such as a multiple-row
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") may leave the table partially updated because the operation can terminate
+    before completion.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于具有未完成事务的线程，事务将被回滚。如果一个线程正在更新一个非事务表，例如多行[`UPDATE`](update.html "15.2.17 UPDATE
+    Statement")或[`INSERT`](insert.html "15.2.7 INSERT Statement")操作可能会导致表部分更新，因为操作可能在完成之前终止。
+- en: If the server is a replication source server, it treats threads associated with
+    currently connected replicas like other client threads. That is, each one is marked
+    as killed and exits when it next checks its state.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果服务器是一个复制源服务器，它会像对待其他客户端线程一样对待与当前连接的复制品相关的线程。也就是说，每个线程都被标记为已杀死，并在下次检查其状态时退出。
+- en: If the server is a replica server, it stops the replication I/O and SQL threads,
+    if they are active, before marking client threads as killed. The SQL thread is
+    permitted to finish its current statement (to avoid causing replication problems),
+    and then stops. If the SQL thread is in the middle of a transaction at this point,
+    the server waits until the current replication event group (if any) has finished
+    executing, or until the user issues a [`KILL QUERY`](kill.html "15.7.8.4 KILL
+    Statement") or [`KILL CONNECTION`](kill.html "15.7.8.4 KILL Statement") statement.
+    See also [Section 15.4.2.9, “STOP SLAVE Statement”](stop-slave.html "15.4.2.9 STOP
+    SLAVE Statement"). Since nontransactional statements cannot be rolled back, in
+    order to guarantee crash-safe replication, only transactional tables should be
+    used.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果服务器是一个复制服务器，在标记客户端线程为已杀死之前，它会停止复制I/O和SQL线程（如果它们是活动的）。SQL线程被允许完成当前的语句（以避免引起复制问题），然后停止。如果此时SQL线程正在事务中，服务器会等到当前的复制事件组（如果有的话）执行完毕，或者直到用户发出[`KILL
+    QUERY`](kill.html "15.7.8.4 KILL Statement")或[`KILL CONNECTION`](kill.html "15.7.8.4 KILL
+    Statement")语句。另请参阅[第15.4.2.9节，“STOP SLAVE Statement”](stop-slave.html "15.4.2.9 STOP
+    SLAVE Statement")。由于非事务性语句无法回滚，为了保证崩溃安全的复制，只能使用事务性表。
+- en: Note
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: To guarantee crash safety on the replica, you must run the replica with [`--relay-log-recovery`](replication-options-replica.html#sysvar_relay_log_recovery)
+    enabled.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了保证复制品的崩溃安全性，必须使用[`--relay-log-recovery`](replication-options-replica.html#sysvar_relay_log_recovery)参数运行复制品。
+- en: See also [Section 19.2.4, “Relay Log and Replication Metadata Repositories”](replica-logs.html
+    "19.2.4 Relay Log and Replication Metadata Repositories")).
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另请参阅[第19.2.4节，“中继日志和复制元数据存储库”](replica-logs.html "19.2.4 Relay Log and Replication
+    Metadata Repositories")。
+- en: The server shuts down or closes storage engines.
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器关闭或关闭存储引擎。
+- en: At this stage, the server flushes the table cache and closes all open tables.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在此阶段，服务器刷新表缓存并关闭所有打开的表。
+- en: Each storage engine performs any actions necessary for tables that it manages.
+    `InnoDB` flushes its buffer pool to disk (unless [`innodb_fast_shutdown`](innodb-parameters.html#sysvar_innodb_fast_shutdown)
+    is 2), writes the current LSN to the tablespace, and terminates its own internal
+    threads. `MyISAM` flushes any pending index writes for a table.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个存储引擎执行其管理的表所需的任何操作。`InnoDB`将其缓冲池刷新到磁盘（除非[`innodb_fast_shutdown`](innodb-parameters.html#sysvar_innodb_fast_shutdown)为2），将当前LSN写入表空间，并终止其自己的内部线程。`MyISAM`刷新任何待处理的表的索引写入。
+- en: The server exits.
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器退出。
+- en: To provide information to management processes, the server returns one of the
+    exit codes described in the following list. The phrase in parentheses indicates
+    the action taken by systemd in response to the code, for platforms on which systemd
+    is used to manage the server.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '为了向管理进程提供信息，服务器返回以下列表中描述的退出代码之一。括号中的短语指示systemd对代码的响应动作，对于使用systemd管理服务器的平台。 '
+- en: 0 = successful termination (no restart done)
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 0 = 成功的终止（未重启）
+- en: 1 = unsuccessful termination (no restart done)
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 1 = 不成功的终止（未重启）
+- en: 2 = unsuccessful termination (restart done)
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 2 = 不成功的终止（已重启）

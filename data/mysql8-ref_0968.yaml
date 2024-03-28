@@ -1,0 +1,183 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/subquery-restrictions.html](https://dev.mysql.com/doc/refman/8.0/en/subquery-restrictions.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 译文：[https://dev.mysql.com/doc/refman/8.0/en/subquery-restrictions.html](https://dev.mysql.com/doc/refman/8.0/en/subquery-restrictions.html)
+- en: 15.2.15.12 Restrictions on Subqueries
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.2.15.12 子查询的限制
+- en: 'In general, you cannot modify a table and select from the same table in a subquery.
+    For example, this limitation applies to statements of the following forms:'
+  id: totrans-2
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一般来说，你不能修改一个表并在子查询中从同一个表中选择。例如，这个限制适用于以下形式的语句：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Exception: The preceding prohibition does not apply if for the modified table
+    you are using a derived table and that derived table is materialized rather than
+    merged into the outer query. (See [Section 10.2.2.4, “Optimizing Derived Tables,
+    View References, and Common Table Expressions with Merging or Materialization”](derived-table-optimization.html
+    "10.2.2.4 Optimizing Derived Tables, View References, and Common Table Expressions
+    with Merging or Materialization").) Example:'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例外：前述禁令不适用于如果对修改的表使用了派生表，并且该派生表是实现而不是合并到外部查询中。 (参见[Section 10.2.2.4, “使用合并或实现优化派生表、视图引用和公共表达式”](derived-table-optimization.html
+    "10.2.2.4 使用合并或实现优化派生表、视图引用和公共表达式").) 例如：
+- en: '[PRE1]'
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Here the result from the derived table is materialized as a temporary table,
+    so the relevant rows in `t` have already been selected by the time the update
+    to `t` takes place.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这里派生表的结果被实现为一个临时表，因此在对`t`进行更新时，相关行已经被选择。
+- en: In general, you may be able to influence the optimizer to materialize a derived
+    table by adding a [`NO_MERGE`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") optimizer hint. See [Section 10.9.3, “Optimizer
+    Hints”](optimizer-hints.html "10.9.3 Optimizer Hints").
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一般来说，你可以通过添加[`NO_MERGE`](optimizer-hints.html#optimizer-hints-table-level "表级优化器提示")优化器提示来影响优化器实现一个派生表。参见[Section 10.9.3,
+    “优化器提示”](optimizer-hints.html "10.9.3 优化器提示")。
+- en: 'Row comparison operations are only partially supported:'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 行比较操作只部分支持：
+- en: For `*`expr`* [NOT] IN *`subquery`*`, *`expr`* can be an *`n`*-tuple (specified
+    using row constructor syntax) and the subquery can return rows of *`n`*-tuples.
+    The permitted syntax is therefore more specifically expressed as `*`row_constructor`*
+    [NOT] IN *`table_subquery`*`
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`*`expr`* [NOT] IN *`subquery`*`, *`expr`*可以是一个*`n`*元组（使用行构造器语法指定），子查询可以返回*`n`*元组行。因此，允许的语法更具体地表达为`*`row_constructor`*
+    [NOT] IN *`table_subquery`*`
+- en: For `*`expr`* *`op`* {ALL|ANY|SOME} *`subquery`*`, *`expr`* must be a scalar
+    value and the subquery must be a column subquery; it cannot return multiple-column
+    rows.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`*`expr`* *`op`* {ALL|ANY|SOME} *`subquery`*`, *`expr`*必须是一个标量值，子查询必须是一个列子查询；它不能返回多列行。
+- en: 'In other words, for a subquery that returns rows of *`n`*-tuples, this is supported:'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 换句话说，对于返回*`n`*元组行的子查询，这是支持的：
+- en: '[PRE2]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'But this is not supported:'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 但是这是不支持的：
+- en: '[PRE3]'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The reason for supporting row comparisons for `IN` but not for the others is
+    that `IN` is implemented by rewriting it as a sequence of [`=`](comparison-operators.html#operator_equal)
+    comparisons and [`AND`](logical-operators.html#operator_and) operations. This
+    approach cannot be used for `ALL`, `ANY`, or `SOME`.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 之所以支持`IN`的行比较而不支持其他操作的原因是，`IN`是通过将其重写为一系列[`=`](comparison-operators.html#operator_equal)比较和[`AND`](logical-operators.html#operator_and)操作来实现的。这种方法不能用于`ALL`、`ANY`或`SOME`。
+- en: Prior to MySQL 8.0.14, subqueries in the `FROM` clause cannot be correlated
+    subqueries. They are materialized in whole (evaluated to produce a result set)
+    during query execution, so they cannot be evaluated per row of the outer query.
+    The optimizer delays materialization until the result is needed, which may permit
+    materialization to be avoided. See [Section 10.2.2.4, “Optimizing Derived Tables,
+    View References, and Common Table Expressions with Merging or Materialization”](derived-table-optimization.html
+    "10.2.2.4 Optimizing Derived Tables, View References, and Common Table Expressions
+    with Merging or Materialization").
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.14之前，`FROM`子句中的子查询不能是相关子查询。它们在查询执行期间被整体实现（评估以产生结果集），因此不能针对外部查询的每一行进行评估。优化器延迟实现直到结果需要，这可能允许避免实现。参见[Section 10.2.2.4,
+    “使用合并或实现优化派生表、视图引用和公共表达式”](derived-table-optimization.html "10.2.2.4 使用合并或实现优化派生表、视图引用和公共表达式")。
+- en: 'MySQL does not support `LIMIT` in subqueries for certain subquery operators:'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL不支持在某些子查询操作符中的子查询中使用`LIMIT`：
+- en: '[PRE4]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: See [Section 15.2.15.10, “Subquery Errors”](subquery-errors.html "15.2.15.10 Subquery
+    Errors").
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参见[第 15.2.15.10 节，“子查询错误”](subquery-errors.html "15.2.15.10 子查询错误")。
+- en: 'MySQL permits a subquery to refer to a stored function that has data-modifying
+    side effects such as inserting rows into a table. For example, if `f()` inserts
+    rows, the following query can modify data:'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL允许子查询引用具有插入行等数据修改副作用的存储函数。例如，如果`f()`插入行，则以下查询可以修改数据：
+- en: '[PRE5]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: This behavior is an extension to the SQL standard. In MySQL, it can produce
+    nondeterministic results because `f()` might be executed a different number of
+    times for different executions of a given query depending on how the optimizer
+    chooses to handle it.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这种行为是对SQL标准的扩展。在MySQL中，它可能产生不确定的结果，因为`f()`可能在给定查询的不同执行中由优化器选择处理的方式而执行不同次数。
+- en: For statement-based or mixed-format replication, one implication of this indeterminism
+    is that such a query can produce different results on the source and its replicas.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于基于语句或混合格式的复制，这种不确定性的一个影响是这样的查询可能在源数据库和其副本上产生不同的结果。

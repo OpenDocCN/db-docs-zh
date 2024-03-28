@@ -1,0 +1,260 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-functions.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-functions.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-functions.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-functions.html)
+- en: 19.5.1.14 Replication and System Functions
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.14 复制和系统函数
+- en: 'Certain functions do not replicate well under some conditions:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些情况下，某些函数无法很好地进行复制：
+- en: The [`USER()`](information-functions.html#function_user), [`CURRENT_USER()`](information-functions.html#function_current-user)
+    (or [`CURRENT_USER`](information-functions.html#function_current-user)), [`UUID()`](miscellaneous-functions.html#function_uuid),
+    [`VERSION()`](information-functions.html#function_version), and [`LOAD_FILE()`](string-functions.html#function_load-file)
+    functions are replicated without change and thus do not work reliably on the replica
+    unless row-based replication is enabled. (See [Section 19.2.1, “Replication Formats”](replication-formats.html
+    "19.2.1 Replication Formats").)
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`USER()`](information-functions.html#function_user)、[`CURRENT_USER()`](information-functions.html#function_current-user)（或[`CURRENT_USER`](information-functions.html#function_current-user)）、[`UUID()`](miscellaneous-functions.html#function_uuid)、[`VERSION()`](information-functions.html#function_version)和[`LOAD_FILE()`](string-functions.html#function_load-file)函数在复制时不会更改，因此在副本上无法可靠工作，除非启用了基于行的复制。（参见[Section 19.2.1,
+    “复制格式”](replication-formats.html "19.2.1 复制格式")。）'
+- en: '[`USER()`](information-functions.html#function_user) and [`CURRENT_USER()`](information-functions.html#function_current-user)
+    are automatically replicated using row-based replication when using `MIXED` mode,
+    and generate a warning in `STATEMENT` mode. (See also [Section 19.5.1.8, “Replication
+    of CURRENT_USER()”](replication-features-current-user.html "19.5.1.8 Replication
+    of CURRENT_USER()").) This is also true for [`VERSION()`](information-functions.html#function_version)
+    and [`RAND()`](mathematical-functions.html#function_rand).'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在`MIXED`模式下使用基于行的复制时，[`USER()`](information-functions.html#function_user)和[`CURRENT_USER()`](information-functions.html#function_current-user)会自动复制，并在`STATEMENT`模式下生成警告。（另请参阅[Section 19.5.1.8,
+    “CURRENT_USER()的复制”](replication-features-current-user.html "19.5.1.8 CURRENT_USER()的复制")。）对于[`VERSION()`](information-functions.html#function_version)和[`RAND()`](mathematical-functions.html#function_rand)也是如此。
+- en: For [`NOW()`](date-and-time-functions.html#function_now), the binary log includes
+    the timestamp. This means that the value *as returned by the call to this function
+    on the source* is replicated to the replica. To avoid unexpected results when
+    replicating between MySQL servers in different time zones, set the time zone on
+    both source and replica. For more information, see [Section 19.5.1.33, “Replication
+    and Time Zones”](replication-features-timezone.html "19.5.1.33 Replication and
+    Time Zones").
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于[`NOW()`](date-and-time-functions.html#function_now)，二进制日志包括时间戳。这意味着*源上调用此函数返回的值*会被复制到副本中。为了避免在不同时区的MySQL服务器之间复制时出现意外结果，请在源和副本上都设置时区。更多信息，请参见[Section 19.5.1.33,
+    “复制和时区”](replication-features-timezone.html "19.5.1.33 复制和时区")。
+- en: 'To explain the potential problems when replicating between servers which are
+    in different time zones, suppose that the source is located in New York, the replica
+    is located in Stockholm, and both servers are using local time. Suppose further
+    that, on the source, you create a table `mytable`, perform an [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statement on this table, and then select from the table,
+    as shown here:'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了解释在不同时区的服务器之间复制时可能出现的问题，假设源位于纽约，副本位于斯德哥尔摩，两台服务器都使用当地时间。进一步假设，在源上，你创建了一个表`mytable`，对该表执行了一个[`INSERT`](insert.html
+    "15.2.7 INSERT 语句")语句，然后从表中选择，如下所示：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Local time in Stockholm is 6 hours later than in New York; so, if you issue
+    `SELECT NOW()` on the replica at that exact same instant, the value `2009-09-01
+    18:00:00` is returned. For this reason, if you select from the replica''s copy
+    of `mytable` after the [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE
+    Statement") and [`INSERT`](insert.html "15.2.7 INSERT Statement") statements just
+    shown have been replicated, you might expect `mycol` to contain the value `2009-09-01
+    18:00:00`. However, this is not the case; when you select from the replica''s
+    copy of `mytable`, you obtain exactly the same result as on the source:'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 斯德哥尔摩的当地时间比纽约晚6小时；因此，如果你在副本上的确切时刻发出`SELECT NOW()`，将返回值`2009-09-01 18:00:00`。因此，如果在复制了刚刚显示的[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE 语句")和[`INSERT`](insert.html "15.2.7 INSERT
+    语句")语句之后，从副本的`mytable`复制，你可能期望`mycol`包含值`2009-09-01 18:00:00`。然而，事实并非如此；当你从副本的`mytable`复制时，你得到的结果与源上完全相同：
+- en: '[PRE1]'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Unlike [`NOW()`](date-and-time-functions.html#function_now), the [`SYSDATE()`](date-and-time-functions.html#function_sysdate)
+    function is not replication-safe because it is not affected by `SET TIMESTAMP`
+    statements in the binary log and is nondeterministic if statement-based logging
+    is used. This is not a problem if row-based logging is used.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与[`NOW()`](date-and-time-functions.html#function_now)不同，[`SYSDATE()`](date-and-time-functions.html#function_sysdate)函数不是复制安全的，因为它不受二进制日志中`SET
+    TIMESTAMP`语句的影响，并且在使用基于语句的日志记录时是不确定的。如果使用基于行的日志记录，则不会出现问题。
+- en: An alternative is to use the [`--sysdate-is-now`](server-options.html#option_mysqld_sysdate-is-now)
+    option to cause [`SYSDATE()`](date-and-time-functions.html#function_sysdate) to
+    be an alias for [`NOW()`](date-and-time-functions.html#function_now). This must
+    be done on the source and the replica to work correctly. In such cases, a warning
+    is still issued by this function, but can safely be ignored as long as [`--sysdate-is-now`](server-options.html#option_mysqld_sysdate-is-now)
+    is used on both the source and the replica.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另一种选择是使用[`--sysdate-is-now`](server-options.html#option_mysqld_sysdate-is-now)选项，使[`SYSDATE()`](date-and-time-functions.html#function_sysdate)成为[`NOW()`](date-and-time-functions.html#function_now)的别名。这必须在源和副本上都执行才能正常工作。在这种情况下，此函数仍会发出警告，但只要在源和副本上都使用[`--sysdate-is-now`](server-options.html#option_mysqld_sysdate-is-now)，就可以安全地忽略。
+- en: '[`SYSDATE()`](date-and-time-functions.html#function_sysdate) is automatically
+    replicated using row-based replication when using `MIXED` mode, and generates
+    a warning in `STATEMENT` mode.'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当使用`MIXED`模式时，[`SYSDATE()`](date-and-time-functions.html#function_sysdate)会自动使用基于行的复制进行复制，并在`STATEMENT`模式下生成警告。
+- en: See also [Section 19.5.1.33, “Replication and Time Zones”](replication-features-timezone.html
+    "19.5.1.33 Replication and Time Zones").
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另请参阅[Section 19.5.1.33, “Replication and Time Zones”](replication-features-timezone.html
+    "19.5.1.33 Replication and Time Zones")。
+- en: '*The following restriction applies to statement-based replication only, not
+    to row-based replication.* The [`GET_LOCK()`](locking-functions.html#function_get-lock),
+    [`RELEASE_LOCK()`](locking-functions.html#function_release-lock), [`IS_FREE_LOCK()`](locking-functions.html#function_is-free-lock),
+    and [`IS_USED_LOCK()`](locking-functions.html#function_is-used-lock) functions
+    that handle user-level locks are replicated without the replica knowing the concurrency
+    context on the source. Therefore, these functions should not be used to insert
+    into a source table because the content on the replica would differ. For example,
+    do not issue a statement such as `INSERT INTO mytable VALUES(GET_LOCK(...))`.'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*以下限制仅适用于基于语句的复制，不适用于基于行的复制。* 处理用户级锁的[`GET_LOCK()`](locking-functions.html#function_get-lock)、[`RELEASE_LOCK()`](locking-functions.html#function_release-lock)、[`IS_FREE_LOCK()`](locking-functions.html#function_is-free-lock)和[`IS_USED_LOCK()`](locking-functions.html#function_is-used-lock)函数在源上处理并在副本上不知道并发上下文。因此，这些函数不应用于插入源表，因为副本上的内容会有所不同。例如，不要发出类似`INSERT
+    INTO mytable VALUES(GET_LOCK(...))`的语句。'
+- en: These functions are automatically replicated using row-based replication when
+    using `MIXED` mode, and generate a warning in `STATEMENT` mode.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当使用`MIXED`模式时，这些函数会自动使用基于行的复制进行复制，并在`STATEMENT`模式下生成警告。
+- en: 'As a workaround for the preceding limitations when statement-based replication
+    is in effect, you can use the strategy of saving the problematic function result
+    in a user variable and referring to the variable in a later statement. For example,
+    the following single-row [`INSERT`](insert.html "15.2.7 INSERT Statement") is
+    problematic due to the reference to the [`UUID()`](miscellaneous-functions.html#function_uuid)
+    function:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 作为解决方案，当基于语句的复制生效时，您可以使用将有问题的函数结果保存在用户变量中，并在后续语句中引用该变量的策略。例如，以下单行[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")由于引用[`UUID()`](miscellaneous-functions.html#function_uuid)函数而存在问题：
+- en: '[PRE2]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To work around the problem, do this instead:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要解决这个问题，可以这样做��
+- en: '[PRE3]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: That sequence of statements replicates because the value of `@my_uuid` is stored
+    in the binary log as a user-variable event prior to the [`INSERT`](insert.html
+    "15.2.7 INSERT Statement") statement and is available for use in the [`INSERT`](insert.html
+    "15.2.7 INSERT Statement").
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该序列的语句之所以能够复制，是因为`@my_uuid`的值作为用户变量事件存储在二进制日志中，先于[`INSERT`](insert.html "15.2.7 INSERT
+    Statement")语句，并且可以在[`INSERT`](insert.html "15.2.7 INSERT Statement")中使用。
+- en: 'The same idea applies to multiple-row inserts, but is more cumbersome to use.
+    For a two-row insert, you can do this:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 相同的思路也适用于多行插入，但使用起来更加繁琐。对于两行插入，您可以这样做：
+- en: '[PRE4]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'However, if the number of rows is large or unknown, the workaround is difficult
+    or impracticable. For example, you cannot convert the following statement to one
+    in which a given individual user variable is associated with each row:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 但是，如果行数很大或者未知，解决方法就会变得困难或者不可行。例如，你无法将以下语句转换为一个语句，其中一个给定的个人用户变量与每一行相关联：
+- en: '[PRE5]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Within a stored function, [`RAND()`](mathematical-functions.html#function_rand)
+    replicates correctly as long as it is invoked only once during the execution of
+    the function. (You can consider the function execution timestamp and random number
+    seed as implicit inputs that are identical on the source and replica.)
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在存储函数中，[`RAND()`](mathematical-functions.html#function_rand) 只要在函数执行过程中仅调用一次，就能正确复制。（你可以将函数执行时间戳和随机数种子视为在源和副本上相同的隐式输入。）
+- en: 'The [`FOUND_ROWS()`](information-functions.html#function_found-rows) and [`ROW_COUNT()`](information-functions.html#function_row-count)
+    functions are not replicated reliably using statement-based replication. A workaround
+    is to store the result of the function call in a user variable, and then use that
+    in the [`INSERT`](insert.html "15.2.7 INSERT Statement") statement. For example,
+    if you wish to store the result in a table named `mytable`, you might normally
+    do so like this:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`FOUND_ROWS()`](information-functions.html#function_found-rows) 和 [`ROW_COUNT()`](information-functions.html#function_row-count)
+    函数在基于语句的复制中无法可靠复制。一个解决方法是将函数调用的结果存储在用户变量中，然后在 [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") 语句中使用。例如，如果你希望将结果存储在名为 `mytable` 的表中，你可能会像这样做：'
+- en: '[PRE6]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'However, if you are replicating `mytable`, you should use [`SELECT ... INTO`](select-into.html
+    "15.2.13.1 SELECT ... INTO Statement"), and then store the variable in the table,
+    like this:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 但是，如果你正在复制 `mytable`，你应该使用 [`SELECT ... INTO`](select-into.html "15.2.13.1 SELECT
+    ... INTO Statement")，然后将变量存储在表中，就像这样：
+- en: '[PRE7]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: In this way, the user variable is replicated as part of the context, and applied
+    on the replica correctly.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这样，用户变量将作为上下文的一部分进行复制，并在副本上正确应用。
+- en: 'These functions are automatically replicated using row-based replication when
+    using `MIXED` mode, and generate a warning in `STATEMENT` mode. (Bug #12092, Bug
+    #30244)'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '当使用 `MIXED` 模式时，这些函数会在基于行的复制中自动复制，并在 `STATEMENT` 模式下生成警告。（Bug #12092, Bug #30244）'

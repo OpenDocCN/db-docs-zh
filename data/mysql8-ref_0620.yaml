@@ -1,0 +1,213 @@
+- en: 10.11.2 Table Locking Issues
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.11.2 表锁定问题
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/table-locking.html](https://dev.mysql.com/doc/refman/8.0/en/table-locking.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/table-locking.html](https://dev.mysql.com/doc/refman/8.0/en/table-locking.html)
+- en: '`InnoDB` tables use row-level locking so that multiple sessions and applications
+    can read from and write to the same table simultaneously, without making each
+    other wait or producing inconsistent results. For this storage engine, avoid using
+    the [`LOCK TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")
+    statement, because it does not offer any extra protection, but instead reduces
+    concurrency. The automatic row-level locking makes these tables suitable for your
+    busiest databases with your most important data, while also simplifying application
+    logic since you do not need to lock and unlock tables. Consequently, the `InnoDB`
+    storage engine is the default in MySQL.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`表使用行级锁定，以便多个会话和应用程序可以同时从同一表中读取和写入，而不必等待或产生不一致的结果。对于这种存储引擎，避免使用[`LOCK
+    TABLES`](lock-tables.html "15.3.6 LOCK TABLES and UNLOCK TABLES Statements")语句，因为它不提供任何额外的保护，而是降低并发性。自动的行级锁定使这些表适用于您最繁忙的数据库和最重要的数据，同时简化应用程序逻辑，因为您不需要锁定和解锁表。因此，`InnoDB`存储引擎是MySQL的默认存储引擎。'
+- en: MySQL uses table locking (instead of page, row, or column locking) for all storage
+    engines except `InnoDB`. The locking operations themselves do not have much overhead.
+    But because only one session can write to a table at any one time, for best performance
+    with these other storage engines, use them primarily for tables that are queried
+    often and rarely inserted into or updated.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL对所有存储引擎使用表锁定（而不是页面、行或列锁定），除了`InnoDB`。锁定操作本身没有太多开销。但由于一次只能有一个会话写入表，对于这些其他存储引擎的最佳性能，主要用于经常查询但很少插入或更新的表。
+- en: '[Performance Considerations Favoring InnoDB](table-locking.html#table-locking-innodb
+    "Performance Considerations Favoring InnoDB")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[支持InnoDB的性能考虑](table-locking.html#table-locking-innodb "支持InnoDB的性能考虑")'
+- en: '[Workarounds for Locking Performance Issues](table-locking.html#table-locking-workarounds
+    "Workarounds for Locking Performance Issues")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[锁定性能问题的解决方法](table-locking.html#table-locking-workarounds "锁定性能问题的解决方法")'
+- en: Performance Considerations Favoring InnoDB
+  id: totrans-6
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 支持InnoDB的性能考虑
+- en: 'When choosing whether to create a table using `InnoDB` or a different storage
+    engine, keep in mind the following disadvantages of table locking:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在选择是使用`InnoDB`还是其他存储引擎创建表时，请记住表锁定的以下缺点：
+- en: Table locking enables many sessions to read from a table at the same time, but
+    if a session wants to write to a table, it must first get exclusive access, meaning
+    it might have to wait for other sessions to finish with the table first. During
+    the update, all other sessions that want to access this particular table must
+    wait until the update is done.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表锁定使许多会话可以同时从表中读取，但如果会话想要写入表，则必须首先获得独占访问，这意味着它可能必须等待其他会话先完成对表的操作。在更新期间，所有其他想要访问此特定表的会话必须等待更新完成。
+- en: Table locking causes problems when a session is waiting because the disk is
+    full and free space needs to become available before the session can proceed.
+    In this case, all sessions that want to access the problem table are also put
+    in a waiting state until more disk space is made available.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当会话因磁盘已满而等待时，表锁定会导致问题，需要在会话继续之前释放空间。在这种情况下，所有想要访问问题表的会话也会进入等待状态，直到更多的磁盘空间可用。
+- en: A [`SELECT`](select.html "15.2.13 SELECT Statement") statement that takes a
+    long time to run prevents other sessions from updating the table in the meantime,
+    making the other sessions appear slow or unresponsive. While a session is waiting
+    to get exclusive access to the table for updates, other sessions that issue [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statements queue up behind it, reducing concurrency
+    even for read-only sessions.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 运行时间较长的[`SELECT`](select.html "15.2.13 SELECT Statement")语句会阻止其他会话在此期间更新表，使其他会话看起来缓慢或无响应。当会话等待独占访问表以进行更新时，发出[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句的其他会话排队等待，即使对于只读会话也会降低并发性。
+- en: Workarounds for Locking Performance Issues
+  id: totrans-11
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 锁定性能问题的解决方法
+- en: 'The following items describe some ways to avoid or reduce contention caused
+    by table locking:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下项目描述了一些避免或减少由表锁定引起的争用的方法：
+- en: Consider switching the table to the `InnoDB` storage engine, either using `CREATE
+    TABLE ... ENGINE=INNODB` during setup, or using `ALTER TABLE ... ENGINE=INNODB`
+    for an existing table. See [Chapter 17, *The InnoDB Storage Engine*](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") for more details about this storage engine.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 考虑将表切换到`InnoDB`存储引擎，可以在设置期间使用`CREATE TABLE ... ENGINE=INNODB`，或者对现有表使用`ALTER
+    TABLE ... ENGINE=INNODB`。有关此存储引擎的更多详细信息，请参见[第17章，*InnoDB存储引擎*](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")。
+- en: Optimize [`SELECT`](select.html "15.2.13 SELECT Statement") statements to run
+    faster so that they lock tables for a shorter time. You might have to create some
+    summary tables to do this.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化[`SELECT`](select.html "15.2.13 SELECT语句")语句以使其运行更快，从而使其锁定表的时间更短。您可能需要创建一些汇总表来实现这一点。
+- en: Start [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") with [`--low-priority-updates`](server-system-variables.html#sysvar_low_priority_updates).
+    For storage engines that use only table-level locking (such as `MyISAM`, `MEMORY`,
+    and `MERGE`), this gives all statements that update (modify) a table lower priority
+    than [`SELECT`](select.html "15.2.13 SELECT Statement") statements. In this case,
+    the second [`SELECT`](select.html "15.2.13 SELECT Statement") statement in the
+    preceding scenario would execute before the [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement") statement, and would not wait for the first [`SELECT`](select.html
+    "15.2.13 SELECT Statement") to finish.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用带有[`--low-priority-updates`](server-system-variables.html#sysvar_low_priority_updates)启动[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器")。对于仅使用表级锁定的存储引擎（如`MyISAM`、`MEMORY`和`MERGE`），这会使所有更新（修改）表的语句比[`SELECT`](select.html
+    "15.2.13 SELECT语句")语句具有较低的优先级。在这种情况下，前述情景中的第二个[`SELECT`](select.html "15.2.13 SELECT语句")语句将在[`UPDATE`](update.html
+    "15.2.17 UPDATE语句")语句之���执行，并且不会等待第一个[`SELECT`](select.html "15.2.13 SELECT语句")语句完成。
+- en: To specify that all updates issued in a specific connection should be done with
+    low priority, set the [`low_priority_updates`](server-system-variables.html#sysvar_low_priority_updates)
+    server system variable equal to 1.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要指定在特定连接中发出的所有更新都应以低优先级执行，请将[`low_priority_updates`](server-system-variables.html#sysvar_low_priority_updates)服务器系统变量设置为1。
+- en: To give a specific [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement"), or [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    statement lower priority, use the `LOW_PRIORITY` attribute.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要给特定的[`INSERT`](insert.html "15.2.7 INSERT语句")、[`UPDATE`](update.html "15.2.17 UPDATE语句")或[`DELETE`](delete.html
+    "15.2.2 DELETE语句")语句降低优先级，请使用`LOW_PRIORITY`属性。
+- en: To give a specific [`SELECT`](select.html "15.2.13 SELECT Statement") statement
+    higher priority, use the `HIGH_PRIORITY` attribute. See [Section 15.2.13, “SELECT
+    Statement”](select.html "15.2.13 SELECT Statement").
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要给特定的[`SELECT`](select.html "15.2.13 SELECT语句")语句提高优先级，请使用`HIGH_PRIORITY`属性。请参见[第15.2.13节，“SELECT语句”](select.html
+    "15.2.13 SELECT语句")。
+- en: Start [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") with a low
+    value for the [`max_write_lock_count`](server-system-variables.html#sysvar_max_write_lock_count)
+    system variable to force MySQL to temporarily elevate the priority of all [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statements that are waiting for a table after a specific
+    number of write locks to the table occur (for example, for insert operations).
+    This permits read locks after a certain number of write locks.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用较低值的[`max_write_lock_count`](server-system-variables.html#sysvar_max_write_lock_count)系统变量启动[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器")，以强制MySQL在特定数量的写锁定表之后（例如，对于插入操作）暂时提升所有等待表的[`SELECT`](select.html
+    "15.2.13 SELECT语句")语句的优先级。这允许在一定数量的写锁之后进行读锁定。
+- en: If you have problems with mixed [`SELECT`](select.html "15.2.13 SELECT Statement")
+    and [`DELETE`](delete.html "15.2.2 DELETE Statement") statements, the `LIMIT`
+    option to [`DELETE`](delete.html "15.2.2 DELETE Statement") may help. See [Section 15.2.2,
+    “DELETE Statement”](delete.html "15.2.2 DELETE Statement").
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您在混合使用[`SELECT`](select.html "15.2.13 SELECT语句")和[`DELETE`](delete.html "15.2.2 DELETE语句")语句时遇到问题，[`DELETE`](delete.html
+    "15.2.2 DELETE语句")的`LIMIT`选项可能会有所帮助。请参见[第15.2.2节，“DELETE语句”](delete.html "15.2.2 DELETE语句")。
+- en: Using `SQL_BUFFER_RESULT` with [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statements can help to make the duration of table locks shorter. See [Section 15.2.13,
+    “SELECT Statement”](select.html "15.2.13 SELECT Statement").
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`SELECT`](select.html "15.2.13 SELECT语句")语句中使用`SQL_BUFFER_RESULT`可以帮助缩短表锁定的持续时间。请参见[第15.2.13节，“SELECT语句”](select.html
+    "15.2.13 SELECT语句")。
+- en: Splitting table contents into separate tables may help, by allowing queries
+    to run against columns in one table, while updates are confined to columns in
+    a different table.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将表内容拆分为单独的表可能会有所帮助，允许查询针对一个表中的列运行，而更新则限制在另一个表中的列。
+- en: You could change the locking code in `mysys/thr_lock.c` to use a single queue.
+    In this case, write locks and read locks would have the same priority, which might
+    help some applications.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以更改`mysys/thr_lock.c`中的锁定代码以使用单个队列。在这种情况下，写锁和读锁将具有相同的优先级，这可能有助于某些应用程序。

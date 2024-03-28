@@ -1,0 +1,180 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-assign-anon.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-assign-anon.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-assign-anon.html](https://dev.mysql.com/doc/refman/8.0/en/replication-gtids-assign-anon.html)
+- en: 19.1.3.6 Replication From a Source Without GTIDs to a Replica With GTIDs
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.1.3.6 从没有GTIDs的源到具有GTIDs的复制品的复制
+- en: From MySQL 8.0.23, you can set up replication channels to assign a GTID to replicated
+    transactions that do not already have one. This feature enables replication from
+    a source server that does not have GTIDs enabled and does not use GTID-based replication,
+    to a replica that has GTIDs enabled. If it is possible to enable GTIDs on the
+    replication source server, as described in [Section 19.1.4, “Changing GTID Mode
+    on Online Servers”](replication-mode-change-online.html "19.1.4 Changing GTID
+    Mode on Online Servers"), use that approach instead. This feature is designed
+    for replication source servers where you cannot enable GTIDs. Note that as is
+    standard for MySQL replication, this feature does not support replication from
+    MySQL source servers earlier than the previous release series, so MySQL 5.7 is
+    the earliest supported source for a MySQL 8.0 replica.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.23开始，您可以设置复制通道以为尚未具有GTID的复制事务分配GTID。此功能使得可以从未启用GTIDs并且不使用基于GTID的复制的源服务器复制到启用了GTIDs的复制品。如果可以在复制源服务器上启用GTIDs，如[第19.1.4节“在线更改GTID模式”](replication-mode-change-online.html
+    "19.1.4 Changing GTID Mode on Online Servers")中所述，请使用该方法。此功能适用于无法启用GTIDs的复制源服务器。请注意，与MySQL复制的标准相同，此功能不支持从MySQL源服务器复制到先前发布系列之前的MySQL源服务器，因此MySQL
+    5.7是MySQL 8.0复制品的最早支持源。
+- en: You can enable GTID assignment on a replication channel using the `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`
+    option of the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement. `LOCAL` assigns
+    a GTID including the replica's own UUID (the [`server_uuid`](replication-options.html#sysvar_server_uuid)
+    setting). `*`uuid`*` assigns a GTID including the specified UUID, such as the
+    [`server_uuid`](replication-options.html#sysvar_server_uuid) setting for the replication
+    source server. Using a nonlocal UUID lets you differentiate between transactions
+    that originated on the replica and transactions that originated on the source,
+    and for a multi-source replica, between transactions that originated on different
+    sources. If any of the transactions sent by the source do have a GTID already,
+    that GTID is retained.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement")语句的`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`选项在复制通道上启用GTID分配。`LOCAL`分配一个包括复制品自身UUID（[`server_uuid`](replication-options.html#sysvar_server_uuid)设置）的GTID。`*`uuid`*`分配一个包括指定UUID的GTID，例如复制源服务器的[`server_uuid`](replication-options.html#sysvar_server_uuid)设置。使用非本地UUID可以区分在复制品上发起的事务和在源上发起的事务，以及在多源复制品上，区分在不同源上发起的事务。如果源发送的任何事务已经有GTID，则保留该GTID。
+- en: Important
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: A replica set up with `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` on any channel
+    cannot be promoted to replace the replication source server in the event that
+    a failover is required, and a backup taken from the replica cannot be used to
+    restore the replication source server. The same restriction applies to replacing
+    or restoring other replicas that use `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`
+    on any channel.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在任何通道上设置了`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`的复制品无法在需要故障转移时晋升为替换复制源服务器，并且无法使用从复制品备份的备份来恢复复制源服务器。替换或恢复其他使用任何通道上的`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`的复制品也适用相同的限制。
+- en: The replica must have [`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)
+    set, and this cannot be changed afterwards, unless you remove the `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS=ON`
+    setting. If the replica server is started without GTIDs enabled and with `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`
+    set for any replication channels, the settings are not changed, but a warning
+    message is written to the error log explaining how to change the situation.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 复制品必须设置[`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)，且此后不能更改，除非删除`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS=ON`设置。如果复制品服务器在未启用GTIDs的情况下启动，并为任何复制通道设置了`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`，则设置不会更改，但会向错误日志写入警告消息，解释如何更改情况。
+- en: For a multi-source replica, you can have a mix of channels that use `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`,
+    and channels that do not. Channels specific to Group Replication cannot use `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`,
+    but an asynchronous replication channel for another source on a server instance
+    that is a Group Replication group member can do so. For a channel on a Group Replication
+    group member, do not specify the Group Replication group name as the UUID for
+    creating the GTIDs.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于多源复制品，您可以混合使用使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`和不使用的通道。专用于组复制的通道不能使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`，但是在作为组复制组成员的服务器实例上的另一个源的异步复制通道可以这样做。对于组复制组成员上的通道，请不要将组复制组名称指定为创建GTID的UUID。
+- en: Using `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` on a replication channel is not
+    the same as introducing GTID-based replication for the channel. The GTID set ([`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed))
+    from a replica set up with `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` should not
+    be transferred to another server or compared with another server's [`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)
+    set. The GTIDs that are assigned to the anonymous transactions, and the UUID you
+    choose for them, only have significance for that replica's own use. The exception
+    to this is any downstream replicas of the replica where you enabled `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`,
+    and any servers that were created from a backup of that replica.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在复制通道上使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`并不等同于为通道引入基于GTID的复制。使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`设置的复制品的GTID集合（[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)）不应传输到另一台服务器或与另一台服务器的[`gtid_executed`](replication-options-gtids.html#sysvar_gtid_executed)集合进行比较。分配给匿名事务的GTID以及您为其选择的UUID仅对该复制品自身的使用具有意义。唯一的例外是启用了`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`的复制品的任何下游复制品，以及从该复制品的备份创建的任何服务器。
+- en: If you set up any downstream replicas, these servers do not have `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`
+    enabled. Only the replica that is receiving transactions directly from the non-GTID
+    source server needs to have `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` set on the
+    relevant replication channel. Among that replica and its downstream replicas,
+    you can compare GTID sets, fail over from one replica to another, and use backups
+    to create additional replicas, as you would in any GTID-based replication topology.
+    `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` is used where transactions are received
+    from a non-GTID server outside this group.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您设置了任何下游复制品，这些服务器不会启用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`。只有直接从非GTID源服务器接收事务的复制品需要在相关复制通道上设置`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`。在该复制品及其下游复制品之间，您可以比较GTID集合，从一个复制品故障转移至另一个复制品，并使用备份创建额外的复制品，就像在任何基于GTID的复制拓扑中一样。`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`用于从此组外部的非GTID服务器接收事务的情况。
+- en: 'A replication channel using `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` has the
+    following behavior differences to GTID-based replication:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`的复制通道与基于GTID的复制有以下行为差异：
+- en: GTIDs are assigned to the replicated transactions when they are applied (unless
+    they already had a GTID). A GTID would normally be assigned on the replication
+    source server when the transaction is committed, and sent to the replica along
+    with the transaction. On a multi-threaded replica, this means the order of the
+    GTIDs does not necessarily match the order of the transactions, even if [`slave-preserve-commit-order=1`](replication-options-replica.html#sysvar_slave_preserve_commit_order)
+    is set.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当应用复制的事务时，将为其分配GTID（除非它们已经有GTID）。通常，当事务提交时，GTID会在复制源服务器上分配，并与事务一起发送到复制品。在多线程复制品上，这意味着GTID的顺序不一定与事务的顺序匹配，即使设置了[`slave-preserve-commit-order=1`](replication-options-replica.html#sysvar_slave_preserve_commit_order)。
+- en: The `SOURCE_LOG_FILE` and `SOURCE_LOG_POS` options of the [`CHANGE REPLICATION
+    SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE
+    TO Statement") statement are used to position the replication I/O (receiver) thread,
+    rather than the `SOURCE_AUTO_POSITION` option.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement")语句的`SOURCE_LOG_FILE`和`SOURCE_LOG_POS`选项用于定位复制I/O（接收器）线程，而不是`SOURCE_AUTO_POSITION`选项。'
+- en: The `SET GLOBAL sql_replica_skip_counter` or `SET GLOBAL sql_slave_skip_counter`
+    statement is used to skip transactions on a replication channel set up with `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`,
+    rather than the method of committing empty transactions. For instructions, see
+    [Section 19.1.7.3, “Skipping Transactions”](replication-administration-skip.html
+    "19.1.7.3 Skipping Transactions").
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用`SET GLOBAL sql_replica_skip_counter`或`SET GLOBAL sql_slave_skip_counter`语句跳过使用`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`设置的复制通道上的事务，而不是提交空事务的方法。有关说明，请参见[Section 19.1.7.3,
+    “Skipping Transactions”](replication-administration-skip.html "19.1.7.3 Skipping
+    Transactions")。
+- en: The `UNTIL SQL_BEFORE_GTIDS` and `UNTIL_SQL_AFTER_GTIDS` options of the [`START
+    REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement") statement cannot
+    be used for the channel.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement")语句的`UNTIL
+    SQL_BEFORE_GTIDS`和`UNTIL_SQL_AFTER_GTIDS`选项不能用于通道。'
+- en: The function `WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS()`, which is deprecated from
+    MySQL 8.0.18, cannot be used with the channel. Its replacement `WAIT_FOR_EXECUTED_GTID_SET()`,
+    which works across the server, can be used to wait for any downstream replicas
+    of the server that has `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` enabled. To wait
+    for the channel with `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` enabled to catch
+    up with the source, which does not use GTIDs, use the `SOURCE_POS_WAIT()` function
+    (from MySQL 8.0.26) or the `MASTER_POS_WAIT()` function.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 函数`WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS()`在MySQL 8.0.18中已被弃用，不能与通道一起使用。它的替代品`WAIT_FOR_EXECUTED_GTID_SET()`可以在整个服务器上工作，可用于等待启用了`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`的服务器的任何下游复制品。要等待启用了`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`的通道赶上不使用GTIDs的源，请使用`SOURCE_POS_WAIT()`函数（从MySQL
+    8.0.26开始）或`MASTER_POS_WAIT()`函数。
+- en: The Performance Schema [`replication_applier_configuration`](performance-schema-replication-applier-configuration-table.html
+    "29.12.11.5 The replication_applier_configuration Table") table shows whether
+    GTIDs are assigned to anonymous transactions on a replication channel, what the
+    UUID is, and whether it is the UUID of the replica server (`LOCAL`) or a user-specified
+    UUID (`UUID`). The information is also recorded in the applier metadata repository.
+    A [`RESET REPLICA ALL`](reset-replica.html "15.4.2.4 RESET REPLICA Statement")
+    statement resets the `ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS` setting, but a [`RESET
+    REPLICA`](reset-replica.html "15.4.2.4 RESET REPLICA Statement") statement does
+    not.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema [`replication_applier_configuration`](performance-schema-replication-applier-configuration-table.html
+    "29.12.11.5 The replication_applier_configuration Table") 表显示复制通道上是否为匿名事务分配了GTIDs，UUID是什么，以及它是副本服务器的UUID（`LOCAL`）还是用户指定的UUID（`UUID`）。这些信息也记录在applier元数据存储库中。[`RESET
+    REPLICA ALL`](reset-replica.html "15.4.2.4 RESET REPLICA Statement")语句会重置`ASSIGN_GTIDS_TO_ANONYMOUS_TRANSACTIONS`设置，但[`RESET
+    REPLICA`](reset-replica.html "15.4.2.4 RESET REPLICA Statement")语句不会。

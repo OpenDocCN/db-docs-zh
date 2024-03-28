@@ -1,0 +1,1439 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/pam-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/pam-pluggable-authentication.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/pam-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/pam-pluggable-authentication.html)
+- en: 8.4.1.5 PAM Pluggable Authentication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.1.5 PAM可插入认证
+- en: Note
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: PAM pluggable authentication is an extension included in MySQL Enterprise Edition,
+    a commercial product. To learn more about commercial products, see [https://www.mysql.com/products/](https://www.mysql.com/products/).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: PAM可插入认证是MySQL企业版中包含的扩展，是一款商业产品。要了解更多关于商业产品的信息，请参阅[https://www.mysql.com/products/](https://www.mysql.com/products/)。
+- en: MySQL Enterprise Edition supports an authentication method that enables MySQL
+    Server to use PAM (Pluggable Authentication Modules) to authenticate MySQL users.
+    PAM enables a system to use a standard interface to access various kinds of authentication
+    methods, such as traditional Unix passwords or an LDAP directory.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL企业版支持一种认证方法，使得MySQL服务器能够使用PAM（可插入认证模块）来认证MySQL用户。PAM使得系统能够使用标准接口访问各种认证方法，例如传统的Unix密码或LDAP目录。
+- en: 'PAM pluggable authentication provides these capabilities:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: PAM可插入认证提供了以下功能：
+- en: 'External authentication: PAM authentication enables MySQL Server to accept
+    connections from users defined outside the MySQL grant tables and that authenticate
+    using methods supported by PAM.'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部认证：PAM认证使得MySQL服务器能够接受来自MySQL授权表之外定义的用户的连接，并使用PAM支持的方法进行认证。
+- en: 'Proxy user support: PAM authentication can return to MySQL a user name different
+    from the external user name passed by the client program, based on the PAM groups
+    the external user is a member of and the authentication string provided. This
+    means that the plugin can return the MySQL user that defines the privileges the
+    external PAM-authenticated user should have. For example, an operating system
+    user named `joe` can connect and have the privileges of a MySQL user named `developer`.'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 代理用户支持：PAM认证可以根据外部用户所属的PAM组和提供的认证字符串，返回一个与客户端程序传递的外部用户名不同的MySQL用户名，这意味着插件可以返回定义外部PAM认证用户应具有的特权的MySQL用户。例如，名为`joe`的操作系统用户可以连接并具有名为`developer`的MySQL用户的权限。
+- en: PAM pluggable authentication has been tested on Linux and macOS; note that Windows
+    does not support PAM.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: PAM可插入认证已在Linux和macOS上进行了测试；请注意Windows不支持PAM。
+- en: The following table shows the plugin and library file names. The file name suffix
+    might differ on your system. The file must be located in the directory named by
+    the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir) system variable.
+    For installation information, see [Installing PAM Pluggable Authentication](pam-pluggable-authentication.html#pam-pluggable-authentication-installation
+    "Installing PAM Pluggable Authentication").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格显示了插件和库文件名称。文件名后缀可能在您的系统上有所不同。该文件必须位于由[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量命名的目录中。有关安装信息，请参阅[安装PAM可插入认证](pam-pluggable-authentication.html#pam-pluggable-authentication-installation
+    "安装PAM可插入认证")。
+- en: '**Table 8.20 Plugin and Library Names for PAM Authentication**'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.20 PAM认证的插件和库名称**'
+- en: '| Plugin or File | Plugin or File Name |'
+  id: totrans-11
+  prefs: []
+  type: TYPE_TB
+  zh: '| 插件或文件 | 插件或文件名 |'
+- en: '| Server-side plugin | `authentication_pam` |'
+  id: totrans-12
+  prefs: []
+  type: TYPE_TB
+  zh: '| 服务器端插件 | `authentication_pam` |'
+- en: '| Client-side plugin | `mysql_clear_password` |'
+  id: totrans-13
+  prefs: []
+  type: TYPE_TB
+  zh: '| 客户端插件 | `mysql_clear_password` |'
+- en: '| Library file | `authentication_pam.so` |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| 库文件 | `authentication_pam.so` |'
+- en: The client-side `mysql_clear_password` cleartext plugin that communicates with
+    the server-side PAM plugin is built into the `libmysqlclient` client library and
+    is included in all distributions, including community distributions. Inclusion
+    of the client-side cleartext plugin in all MySQL distributions enables clients
+    from any distribution to connect to a server that has the server-side PAM plugin
+    loaded.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与服务器端PAM插件通信的客户端`mysql_clear_password`明文插件内置于`libmysqlclient`客户端库中，并包含在所有发行版中，包括社区发行版。在所有MySQL发行版中包含客户端明文插件使得来自任何发行版的客户端都能连接到加载了服务器端PAM插件的服务器。
+- en: 'The following sections provide installation and usage information specific
+    to PAM pluggable authentication:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下部分提供了特定于PAM可插入认证的安装和使用信息：
+- en: '[How PAM Authentication of MySQL Users Works](pam-pluggable-authentication.html#pam-pluggable-authentication-process
+    "How PAM Authentication of MySQL Users Works")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[MySQL用户PAM认证工作原理](pam-pluggable-authentication.html#pam-pluggable-authentication-process
+    "MySQL用户PAM认证工作原理")'
+- en: '[Installing PAM Pluggable Authentication](pam-pluggable-authentication.html#pam-pluggable-authentication-installation
+    "Installing PAM Pluggable Authentication")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[安装PAM可插拔认证](pam-pluggable-authentication.html#pam-pluggable-authentication-installation
+    "安装PAM可插拔认证")'
+- en: '[Uninstalling PAM Pluggable Authentication](pam-pluggable-authentication.html#pam-pluggable-authentication-uninstallation
+    "Uninstalling PAM Pluggable Authentication")'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[卸载PAM可插拔认证](pam-pluggable-authentication.html#pam-pluggable-authentication-uninstallation
+    "卸载PAM可插拔认证")'
+- en: '[Using PAM Pluggable Authentication](pam-pluggable-authentication.html#pam-pluggable-authentication-usage
+    "Using PAM Pluggable Authentication")'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用PAM可插拔认证](pam-pluggable-authentication.html#pam-pluggable-authentication-usage
+    "使用PAM可插拔认证")'
+- en: '[PAM Unix Password Authentication without Proxy Users](pam-pluggable-authentication.html#pam-authentication-unix-without-proxy
+    "PAM Unix Password Authentication without Proxy Users")'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[无代理用户的PAM Unix密码认证](pam-pluggable-authentication.html#pam-authentication-unix-without-proxy
+    "无代理用户的PAM Unix密码认证")'
+- en: '[PAM LDAP Authentication without Proxy Users](pam-pluggable-authentication.html#pam-authentication-ldap-without-proxy
+    "PAM LDAP Authentication without Proxy Users")'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[无代理用户的PAM LDAP认证](pam-pluggable-authentication.html#pam-authentication-ldap-without-proxy
+    "无代理用户的PAM LDAP认证")'
+- en: '[PAM Unix Password Authentication with Proxy Users and Group Mapping](pam-pluggable-authentication.html#pam-authentication-unix-with-proxy
+    "PAM Unix Password Authentication with Proxy Users and Group Mapping")'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[带有代理用户和组映射的PAM Unix密码认证](pam-pluggable-authentication.html#pam-authentication-unix-with-proxy
+    "带有代理用户和组映射的PAM Unix密码认证")'
+- en: '[PAM Authentication Access to Unix Password Store](pam-pluggable-authentication.html#pam-authentication-unix-password-store
+    "PAM Authentication Access to Unix Password Store")'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[访问Unix密码存储的PAM认证](pam-pluggable-authentication.html#pam-authentication-unix-password-store
+    "访问Unix密码存储的PAM认证")'
+- en: '[PAM Authentication Debugging](pam-pluggable-authentication.html#pam-pluggable-authentication-debugging
+    "PAM Authentication Debugging")'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[PAM认证调试](pam-pluggable-authentication.html#pam-pluggable-authentication-debugging
+    "PAM认证调试")'
+- en: For general information about pluggable authentication in MySQL, see [Section 8.2.17,
+    “Pluggable Authentication”](pluggable-authentication.html "8.2.17 Pluggable Authentication").
+    For information about the `mysql_clear_password` plugin, see [Section 8.4.1.4,
+    “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication"). For proxy user information,
+    see [Section 8.2.19, “Proxy Users”](proxy-users.html "8.2.19 Proxy Users").
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于MySQL中可插拔认证的一般信息，请参见[第8.2.17节，“可插拔认证”](pluggable-authentication.html "8.2.17 可插拔认证")。关于`mysql_clear_password`插件的信息，请参见[第8.4.1.4节，“客户端明文可插拔认证”](cleartext-pluggable-authentication.html
+    "8.4.1.4 客户端明文可插拔认证")。有关代理用户信息，请参见[第8.2.19节，“代理用户”](proxy-users.html "8.2.19 代理用户")。
+- en: How PAM Authentication of MySQL Users Works
+  id: totrans-27
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: MySQL用户的PAM认证工作原理
+- en: This section provides an overview of how MySQL and PAM work together to authenticate
+    MySQL users. For examples showing how to set up MySQL accounts to use specific
+    PAM services, see [Using PAM Pluggable Authentication](pam-pluggable-authentication.html#pam-pluggable-authentication-usage
+    "Using PAM Pluggable Authentication").
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节概述了MySQL和PAM如何共同工作来认证MySQL用户。有关如何设置MySQL帐户以使用特定PAM服务的示例，请参见[使用PAM可插拔认证](pam-pluggable-authentication.html#pam-pluggable-authentication-usage
+    "使用PAM可插拔认证")。
+- en: 'The client program and the server communicate, with the client sending to the
+    server the client user name (the operating system user name by default) and password:'
+  id: totrans-29
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 客户端程序和服务器进行通信，客户端向服务器发送客户端用户名（默认为操作系统用户名）和密码：
+- en: The client user name is the external user name.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端用户名为外部用户名。
+- en: For accounts that use the PAM server-side authentication plugin, the corresponding
+    client-side plugin is `mysql_clear_password`. This client-side plugin performs
+    no password hashing, with the result that the client sends the password to the
+    server as cleartext.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用PAM服务器端认证插件的帐户，相应的客户端插件是`mysql_clear_password`。这个客户端插件不执行密码哈希处理，结果客户端将密码以明文形式发送到服务器。
+- en: 'The server finds a matching MySQL account based on the external user name and
+    the host from which the client connects. The PAM plugin uses the information passed
+    to it by MySQL Server (such as user name, host name, password, and authentication
+    string). When you define a MySQL account that authenticates using PAM, the authentication
+    string contains:'
+  id: totrans-32
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 服务器根据客户端连接的外部用户名和主机找到匹配的MySQL帐户。PAM插件使用MySQL服务器传递给它的信息（如用户名、主机名、密码和认证字符串）。当您定义一个使用PAM进行身份验证的MySQL帐户时，认证字符串包含：
+- en: A PAM service name, which is a name that the system administrator can use to
+    refer to an authentication method for a particular application. There can be multiple
+    applications associated with a single database server instance, so the choice
+    of service name is left to the SQL application developer.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: PAM服务名称，这是系统管理员可以用来引用特定应用程序的身份验证方法的名称。可以将多个应用程序关联到单个数据库服务器实例，因此服务名称的选择留给SQL应用程序开发人员。
+- en: Optionally, if proxying is to be used, a mapping from PAM groups to MySQL user
+    names.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可选地，如果要使用代理，可以从PAM组到MySQL用户名的映射。
+- en: 'The plugin uses the PAM service named in the authentication string to check
+    the user credentials and returns `''Authentication succeeded, Username is *`user_name`*''`
+    or `''Authentication failed''`. The password must be appropriate for the password
+    store used by the PAM service. Examples:'
+  id: totrans-35
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 该插件使用认证字符串中命名的PAM服务来检查用户凭据，并返回`'Authentication succeeded, Username is *`user_name`*'`或`'Authentication
+    failed'`。密码必须适用于PAM服务使用的密码存储。示例：
+- en: For traditional Unix passwords, the service looks up passwords stored in the
+    `/etc/shadow` file.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于传统的Unix密码，服务查找存储在`/etc/shadow`文件中的密码。
+- en: For LDAP, the service looks up passwords stored in an LDAP directory.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于LDAP，服务查找存储在LDAP目录中的密码。
+- en: If the credentials check fails, the server refuses the connection.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果凭据检查失败，服务器将拒绝连接。
+- en: Otherwise, the authentication string indicates whether proxying occurs. If the
+    string contains no PAM group mapping, proxying does not occur. In this case, the
+    MySQL user name is the same as the external user name.
+  id: totrans-39
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 否则，认证字符串指示是否进行代理。如果字符串不包含PAM组映射，则不会进行代理。在这种情况下，MySQL用户名与外部用户名相同。
+- en: 'Otherwise, proxying is indicated based on the PAM group mapping, with the MySQL
+    user name determined based on the first matching group in the mapping list. The
+    meaning of “PAM group” depends on the PAM service. Examples:'
+  id: totrans-40
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 否则，根据PAM组映射指示代理，MySQL用户名根据映射列表中的第一个匹配组确定。“PAM组”的含义取决于PAM服务。示例：
+- en: For traditional Unix passwords, groups are Unix groups defined in the `/etc/group`
+    file, possibly supplemented with additional PAM information in a file such as
+    `/etc/security/group.conf`.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于传统的Unix密码，组是在`/etc/group`文件中定义的Unix组，可能在诸如`/etc/security/group.conf`之类的文件中补充了其他PAM信息。
+- en: For LDAP, groups are LDAP groups defined in an LDAP directory.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于LDAP，组是在LDAP目录中定义的LDAP组。
+- en: If the proxy user (the external user) has the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for the proxied MySQL user name, proxying occurs, with the proxy user
+    assuming the privileges of the proxied user.
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果代理用户（外部用户）对被代理的MySQL用户名具有[`PROXY`](privileges-provided.html#priv_proxy)权限，则进行代理，代理用户承担被代理用户的权限。
+- en: Installing PAM Pluggable Authentication
+  id: totrans-44
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 安装PAM可插拔认证
+- en: This section describes how to install the server-side PAM authentication plugin.
+    For general information about installing plugins, see [Section 7.6.1, “Installing
+    and Uninstalling Plugins”](plugin-loading.html "7.6.1 Installing and Uninstalling
+    Plugins").
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何安装服务器端PAM认证插件。有关安装插件的一般信息，请参见[第7.6.1节，“安装和卸载插件”](plugin-loading.html
+    "7.6.1 安装和卸载插件")。
+- en: To be usable by the server, the plugin library file must be located in the MySQL
+    plugin directory (the directory named by the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    system variable). If necessary, configure the plugin directory location by setting
+    the value of [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir) at
+    server startup.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使服务器能够使用插件库文件，必须将其位于MySQL插件目录中（由[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量命名的目录）。如果需要，通过在服务器启动时设置[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)的值来配置插件目录位置。
+- en: The plugin library file base name is `authentication_pam`, and is typically
+    compiled with the `.so` suffix.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插件库文件基本名称为`authentication_pam`，通常编译为`.so`后缀。
+- en: 'To load the plugin at server startup, use the [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)
+    option to name the library file that contains it. With this plugin-loading method,
+    the option must be given each time the server starts. For example, put these lines
+    in the server `my.cnf` file:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在服务器启动时加载插件，请使用[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)选项命名包含插件的库文件。使用此插件加载方法，每次启动服务器都必须提供该选项。例如，在服务器`my.cnf`文件中放入以下行：
+- en: '[PRE0]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: After modifying `my.cnf`, restart the server to cause the new settings to take
+    effect.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修改`my.cnf`后，重新启动服务器以使新设置生效。
+- en: 'Alternatively, to load the plugin at runtime, use this statement, adjusting
+    the `.so` suffix as necessary:'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，要在运行时加载插件，请使用以下语句，根据需要调整`.so`后缀：
+- en: '[PRE1]'
+  id: totrans-52
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")
+    loads the plugin immediately, and also registers it in the `mysql.plugins` system
+    table to cause the server to load it for each subsequent normal startup without
+    the need for [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add).'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")立即加载插件，并在`mysql.plugins`系统表中注册它，以使服务器在每次后续正常启动时加载它，而无需[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)。'
+- en: 'To verify plugin installation, examine the Information Schema [`PLUGINS`](information-schema-plugins-table.html
+    "28.3.22 The INFORMATION_SCHEMA PLUGINS Table") table or use the [`SHOW PLUGINS`](show-plugins.html
+    "15.7.7.25 SHOW PLUGINS Statement") statement (see [Section 7.6.2, “Obtaining
+    Server Plugin Information”](obtaining-plugin-information.html "7.6.2 Obtaining
+    Server Plugin Information")). For example:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要验证插件安装，请检查信息模式[`PLUGINS`](information-schema-plugins-table.html "28.3.22 The
+    INFORMATION_SCHEMA PLUGINS Table")表或使用[`SHOW PLUGINS`](show-plugins.html "15.7.7.25 SHOW
+    PLUGINS Statement")语句（参见[Section 7.6.2, “Obtaining Server Plugin Information”](obtaining-plugin-information.html
+    "7.6.2 Obtaining Server Plugin Information")）。例如：
+- en: '[PRE2]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: If the plugin fails to initialize, check the server error log for diagnostic
+    messages.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果插件初始化失败，请检查服务器错误日志以获取诊断信息。
+- en: To associate MySQL accounts with the PAM plugin, see [Using PAM Pluggable Authentication](pam-pluggable-authentication.html#pam-pluggable-authentication-usage
+    "Using PAM Pluggable Authentication").
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将 MySQL 帐户与 PAM 插件关联，请参阅[使用 PAM 可插拔认证](pam-pluggable-authentication.html#pam-pluggable-authentication-usage
+    "Using PAM Pluggable Authentication")。
+- en: Uninstalling PAM Pluggable Authentication
+  id: totrans-58
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 卸载 PAM 可插拔认证
+- en: 'The method used to uninstall the PAM authentication plugin depends on how you
+    installed it:'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 卸载 PAM 认证插件的方法取决于您安装插件的方式：
+- en: If you installed the plugin at server startup using a [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)
+    option, restart the server without the option.
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您使用[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)选项在服务器启动时安装了插件，请在不带该选项的情况下重新启动服务器。
+- en: 'If you installed the plugin at runtime using an [`INSTALL PLUGIN`](install-plugin.html
+    "15.7.4.4 INSTALL PLUGIN Statement") statement, it remains installed across server
+    restarts. To uninstall it, use [`UNINSTALL PLUGIN`](uninstall-plugin.html "15.7.4.6 UNINSTALL
+    PLUGIN Statement"):'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您使用[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")语句在运行时安装了插件，则在服务器重新启动时仍保留安装。要卸载它，请使用[`UNINSTALL
+    PLUGIN`](uninstall-plugin.html "15.7.4.6 UNINSTALL PLUGIN Statement")：
+- en: '[PRE3]'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Using PAM Pluggable Authentication
+  id: totrans-63
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用 PAM 可插拔认证
+- en: This section describes in general terms how to use the PAM authentication plugin
+    to connect from MySQL client programs to the server. The following sections provide
+    instructions for using PAM authentication in specific ways. It is assumed that
+    the server is running with the server-side PAM plugin enabled, as described in
+    [Installing PAM Pluggable Authentication](pam-pluggable-authentication.html#pam-pluggable-authentication-installation
+    "Installing PAM Pluggable Authentication").
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节概述了如何使用 PAM 认证插件从 MySQL 客户端程序连接到服务器。以下各节提供了使用 PAM 认证的具体方法的说明。假定服务器正在运行并启用了服务器端
+    PAM 插件，如[安装 PAM 可插拔认证](pam-pluggable-authentication.html#pam-pluggable-authentication-installation
+    "Installing PAM Pluggable Authentication")中所述。
+- en: 'To refer to the PAM authentication plugin in the `IDENTIFIED WITH` clause of
+    a [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement,
+    use the name `authentication_pam`. For example:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句的`IDENTIFIED
+    WITH`子句中引用 PAM 认证插件，请使用名称`authentication_pam`。例如：
+- en: '[PRE4]'
+  id: totrans-66
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'The authentication string specifies the following types of information:'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证字符串指定以下类型的信息：
+- en: The PAM service name (see [How PAM Authentication of MySQL Users Works](pam-pluggable-authentication.html#pam-pluggable-authentication-process
+    "How PAM Authentication of MySQL Users Works")). Examples in the following discussion
+    use a service name of `mysql-unix` for authentication using traditional Unix passwords,
+    and `mysql-ldap` for authentication using LDAP.
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: PAM服务名称（参见[MySQL用户的PAM认证工作原理](pam-pluggable-authentication.html#pam-pluggable-authentication-process
+    "MySQL用户的PAM认证工作原理")）。以下讨论中的示例使用`mysql-unix`作为服务名称，用于使用传统Unix密码进行身份验证，以及`mysql-ldap`用于使用LDAP进行身份验证。
+- en: For proxy support, PAM provides a way for a PAM module to return to the server
+    a MySQL user name other than the external user name passed by the client program
+    when it connects to the server. Use the authentication string to control the mapping
+    from external user names to MySQL user names. If you want to take advantage of
+    proxy user capabilities, the authentication string must include this kind of mapping.
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于代理支持，PAM提供了一种方式，让PAM模块在连接到服务器时，返回一个与客户端程序传递的外部用户名不同的MySQL用户名。使用认证字符串来控制从外部用户名到MySQL用户名的映射。如果要利用代理用户功能，认证字符串必须包含这种映射。
+- en: 'For example, if an account uses the `mysql-unix` PAM service name and should
+    map operating system users in the `root` and `users` PAM groups to the `developer`
+    and `data_entry` MySQL users, respectively, use a statement like this:'
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，如果一个账户使用`mysql-unix` PAM服务名称，并且应该将`root`和`users` PAM组中的操作系统用户映射到`developer`和`data_entry`
+    MySQL用户，可以使用类似以下语句：
+- en: '[PRE5]'
+  id: totrans-71
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Authentication string syntax for the PAM authentication plugin follows these
+    rules:'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: PAM认证插件的认证字符串语法遵循以下规则：
+- en: 'The string consists of a PAM service name, optionally followed by a PAM group
+    mapping list consisting of one or more keyword/value pairs each specifying a PAM
+    group name and a MySQL user name:'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 该字符串由PAM服务名称组成，可选择地后跟一个PAM组映射列表，其中包含一个或多个关键字/值对，每个对指定一个PAM组名和一个MySQL用户名：
+- en: '[PRE6]'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The plugin parses the authentication string for each connection attempt that
+    uses the account. To minimize overhead, keep the string as short as possible.
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 插件会解析每个使用该账户的连接尝试的认证字符串。为了最小化开销，尽量保持字符串尽可能短。
+- en: Each `*`pam_group_name`*=*`mysql_user_name`*` pair must be preceded by a comma.
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个`*`pam_group_name`*=*`mysql_user_name`*`对前面必须有一个逗号。
+- en: Leading and trailing spaces not inside double quotation marks are ignored.
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不在双引号内的前导和尾随空格会被忽略。
+- en: Unquoted *`pam_service_name`*, *`pam_group_name`*, and *`mysql_user_name`* values
+    can contain anything except equal sign, comma, or space.
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 未引用的*`pam_service_name`*、*`pam_group_name`*和*`mysql_user_name`*值可以包含除等号、逗号或空格之外的任何内容。
+- en: If a *`pam_service_name`*, *`pam_group_name`*, or *`mysql_user_name`* value
+    is quoted with double quotation marks, everything between the quotation marks
+    is part of the value. This is necessary, for example, if the value contains space
+    characters. All characters are legal except double quotation mark and backslash
+    (`\`). To include either character, escape it with a backslash.
+  id: totrans-79
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果*`pam_service_name`*、*`pam_group_name`*或*`mysql_user_name`*值用双引号引起来，引号之间的所有内容都是值的一部分。例如，如果值包含空格字符，则这是必要的。所有字符都是合法的，除了双引号和反斜杠（`\`）。要包含这两个字符，用反斜杠进行转义。
+- en: 'If the plugin successfully authenticates the external user name (the name passed
+    by the client), it looks for a PAM group mapping list in the authentication string
+    and, if present, uses it to return a different MySQL user name to the MySQL server
+    based on which PAM groups the external user is a member of:'
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果插件成功验证外部用户名（客户端传递的名称），它会查找认证字符串中的PAM组映射列表，并且如果存在，则根据外部用户所属的PAM组返回不同的MySQL用户名给MySQL服务器：
+- en: If the authentication string contains no PAM group mapping list, the plugin
+    returns the external name.
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果认证字符串不包含PAM组映射列表，则插件返回外部名称。
+- en: If the authentication string does contain a PAM group mapping list, the plugin
+    examines each `*`pam_group_name`*=*`mysql_user_name`*` pair in the list from left
+    to right and tries to find a match for the *`pam_group_name`* value in a non-MySQL
+    directory of the groups assigned to the authenticated user and returns *`mysql_user_name`*
+    for the first match it finds. If the plugin finds no match for any PAM group,
+    it returns the external name. If the plugin is not capable of looking up a group
+    in a directory, it ignores the PAM group mapping list and returns the external
+    name.
+  id: totrans-82
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果认证字符串包含PAM组映射列表，则插件会从左到右检查列表中的每个`*`pam_group_name`*=*`mysql_user_name`*`对，并尝试在已认证用户分配的非MySQL目录中找到*`pam_group_name`*值的匹配项，并返回找到的第一个匹配项的*`mysql_user_name`*。如果插件找不到任何PAM组的匹配项，则返回外部名称。如果插件无法在目录中查找组，则会忽略PAM组映射列表并返回外部名称。
+- en: 'The following sections describe how to set up several authentication scenarios
+    that use the PAM authentication plugin:'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节描述了如何设置使用PAM身份验证插件的几种身份验证方案：
+- en: No proxy users. This uses PAM only to check login names and passwords. Every
+    external user permitted to connect to MySQL Server should have a matching MySQL
+    account that is defined to use PAM authentication. (For a MySQL account of `'*`user_name`*'@'*`host_name`*'`
+    to match the external user, *`user_name`* must be the external user name and *`host_name`*
+    must match the host from which the client connects.) Authentication can be performed
+    by various PAM-supported methods. Later discussion shows how to authenticate client
+    credentials using traditional Unix passwords, and passwords in LDAP.
+  id: totrans-84
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有代理用户。这仅使用PAM来检查登录名和密码。每个被允许连接到MySQL服务器的外部用户都应该有一个匹配的MySQL帐户，该帐户被定义为使用PAM身份验证。（为了使MySQL帐户`'*`user_name`*'@'*`host_name`*'`与外部用户匹配，*`user_name`*必须是外部用户名，*`host_name`*必须与客户端连接的主机匹配。）认证可以通过各种PAM支持的方法进行。后续讨论将展示如何使用传统的Unix密码和LDAP密码来验证客户端凭据。
+- en: PAM authentication, when not done through proxy users or PAM groups, requires
+    the MySQL user name to be same as the operating system user name. MySQL user names
+    are limited to 32 characters (see [Section 8.2.3, “Grant Tables”](grant-tables.html
+    "8.2.3 Grant Tables")), which limits PAM nonproxy authentication to Unix accounts
+    with names of at most 32 characters.
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: PAM身份验证，如果不通过代理用户或PAM组进行，需要MySQL用户名与操作系统用户名相同。 MySQL用户名限制为32个字符（参见[第8.2.3节，“授权表”](grant-tables.html
+    "8.2.3 授权表")），这限制了PAM非代理身份验证仅限于最多32个字符的Unix帐户。
+- en: Proxy users only, with PAM group mapping. For this scenario, create one or more
+    MySQL accounts that define different sets of privileges. (Ideally, nobody should
+    connect using those accounts directly.) Then define a default user authenticating
+    through PAM that uses some mapping scheme (usually based on the external PAM groups
+    the users are members of) to map all the external user names to the few MySQL
+    accounts holding the privilege sets. Any client who connects and specifies an
+    external user name as the client user name is mapped to one of the MySQL accounts
+    and uses its privileges. The discussion shows how to set this up using traditional
+    Unix passwords, but other PAM methods such as LDAP could be used instead.
+  id: totrans-86
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅代理用户，带有PAM组映射。对于这种情况，创建一个或多个定义不同权限集的MySQL帐户。（理想情况下，没有人应该直接使用这些帐户连接。）然后定义一个通过PAM进行身份验证的默认用户，使用某种映射方案（通常基于用户所属的外部PAM组）将所有外部用户名映射到持有权限集的少数MySQL帐户。任何连接并指定外部用户名作为客户端用户名的客户端都将映射到一个MySQL帐户并使用其权限。本讨论将展示如何使用传统的Unix密码设置此功能，但也可以使用其他PAM方法，如LDAP。
+- en: 'Variations on these scenarios are possible:'
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些方案的变体是可能的：
+- en: You can permit some users to log in directly (without proxying) but require
+    others to connect through proxy accounts.
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以允许一些用户直接登录（无需代理），但要求其他用户通过代理帐户连接。
+- en: You can use one PAM authentication method for some users, and another method
+    for other users, by using differing PAM service names among your PAM-authenticated
+    accounts. For example, you can use the `mysql-unix` PAM service for some users,
+    and `mysql-ldap` for others.
+  id: totrans-89
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以通过在PAM身份验证帐户之间使用不同的PAM服务名称，为一些用户使用一种PAM身份验证方法，为其他用户使用另一种方法。例如，您可以为一些用户使用`mysql-unix`
+    PAM服务，为其他用户使用`mysql-ldap`。
+- en: The examples make the following assumptions. You might need to make some adjustments
+    if your system is set up differently.
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例做出以下假设。如果您的系统设置不同，您可能需要进行一些调整。
+- en: The login name and password are `antonio` and *`antonio_password`*, respectively.
+    Change these to correspond to the user you want to authenticate.
+  id: totrans-91
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 登录名和密码分别为`antonio`和*`antonio_password`*。请将其更改为要进行身份验证的用户。
+- en: The PAM configuration directory is `/etc/pam.d`.
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: PAM配置目录为`/etc/pam.d`。
+- en: The PAM service name corresponds to the authentication method (`mysql-unix`
+    or `mysql-ldap` in this discussion). To use a given PAM service, you must set
+    up a PAM file with the same name in the PAM configuration directory (creating
+    the file if it does not exist). In addition, you must name the PAM service in
+    the authentication string of the [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") statement for any account that authenticates using that PAM service.
+  id: totrans-93
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: PAM服务名称对应于认证方法（在本讨论中为`mysql-unix`或`mysql-ldap`）。要使用给定的PAM服务，您必须在PAM配置目录中设置一个同名的PAM文件（如果不存在则创建该文件）。此外，您必须在使用该PAM服务进行认证的任何账户的[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句的认证字符串中命名PAM服务。
+- en: The PAM authentication plugin checks at initialization time whether the `AUTHENTICATION_PAM_LOG`
+    environment value is set in the server's startup environment. If so, the plugin
+    enables logging of diagnostic messages to the standard output. Depending on how
+    your server is started, the message might appear on the console or in the error
+    log. These messages can be helpful for debugging PAM-related issues that occur
+    when the plugin performs authentication. For more information, see [PAM Authentication
+    Debugging](pam-pluggable-authentication.html#pam-pluggable-authentication-debugging
+    "PAM Authentication Debugging").
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: PAM认证插件在初始化时检查服务器启动环境中是否设置了`AUTHENTICATION_PAM_LOG`环境值。如果是，则插件会启用将诊断消息记录到标准输出的功能。根据服务器的启动方式，消息可能会显示在控制台上或错误日志中。这些消息对于调试描相关问题很有帮助。有关更多信息，请参阅[PAM认证调试](pam-pluggable-authentication.html#pam-pluggable-authentication-debugging
+    "PAM Authentication Debugging")。
+- en: PAM Unix Password Authentication without Proxy Users
+  id: totrans-95
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 无代理用户的PAM Unix密码认证
+- en: This authentication scenario uses PAM to check external users defined in terms
+    of operating system user names and Unix passwords, without proxying. Every such
+    external user permitted to connect to MySQL Server should have a matching MySQL
+    account that is defined to use PAM authentication through traditional Unix password
+    store.
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种认证场景使用PAM来检查以操作系统用户名和Unix密码定义的外部用户，而无需代理。每个被允许连接到MySQL服务器的外部用户都应该有一个匹配的MySQL账户，该账户被定义为通过传统的Unix密码存储使用PAM认证。
+- en: Note
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Traditional Unix passwords are checked using the `/etc/shadow` file. For information
+    regarding possible issues related to this file, see [PAM Authentication Access
+    to Unix Password Store](pam-pluggable-authentication.html#pam-authentication-unix-password-store
+    "PAM Authentication Access to Unix Password Store").
+  id: totrans-98
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 传统的Unix密码是使用`/etc/shadow`文件进行检查的。有关与该文件相关的可能问题的信息，请参阅[PAM认证访问Unix密码存储](pam-pluggable-authentication.html#pam-authentication-unix-password-store
+    "PAM Authentication Access to Unix Password Store")。
+- en: Verify that Unix authentication permits logins to the operating system with
+    the user name `antonio` and password *`antonio_password`*.
+  id: totrans-99
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证Unix认证是否允许使用用户名`antonio`和密码*`antonio_password`*登录到操作系统。
+- en: 'Set up PAM to authenticate MySQL connections using traditional Unix passwords
+    by creating a `mysql-unix` PAM service file named `/etc/pam.d/mysql-unix`. The
+    file contents are system dependent, so check existing login-related files in the
+    `/etc/pam.d` directory to see what they look like. On Linux, the `mysql-unix`
+    file might look like this:'
+  id: totrans-100
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过创建名为`/etc/pam.d/mysql-unix`的`mysql-unix` PAM服务文件来设置PAM以使用传统的Unix密码对MySQL连接进行认证。文件内容取决于系统，因此请检查`/etc/pam.d`目录中现有的与登录相关的文件以查看其外观。在Linux上，`mysql-unix`文件可能如下所示：
+- en: '[PRE7]'
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: For macOS, use `login` rather than `password-auth`.
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于macOS，请使用`login`而不是`password-auth`。
+- en: 'The PAM file format might differ on some systems. For example, on Ubuntu and
+    other Debian-based systems, use these file contents instead:'
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在某些系统上，PAM文件格式可能有所不同。例如，在Ubuntu和其他基于Debian的系统上，使用以下文件内容：
+- en: '[PRE8]'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'Create a MySQL account with the same user name as the operating system user
+    name and define it to authenticate using the PAM plugin and the `mysql-unix` PAM
+    service:'
+  id: totrans-105
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个与操作系统用户名相同的MySQL账户，并定义其使用PAM插件和`mysql-unix` PAM服务进行认证：
+- en: '[PRE9]'
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Here, the authentication string contains only the PAM service name, `mysql-unix`,
+    which authenticates Unix passwords.
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这里，认证字符串仅包含PAM服务名称，`mysql-unix`，用于验证Unix密码。
+- en: 'Use the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    command-line client to connect to the MySQL server as `antonio`. For example:'
+  id: totrans-108
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")命令行客户端作为`antonio`连接到MySQL服务器。例如：
+- en: '[PRE10]'
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'The server should permit the connection and the following query returns output
+    as shown:'
+  id: totrans-110
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 服务器应允许连接，并且以下查询返回如下输出：
+- en: '[PRE11]'
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: This demonstrates that the `antonio` operating system user is authenticated
+    to have the privileges granted to the `antonio` MySQL user, and that no proxying
+    has occurred.
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这表明`antonio`操作系统用户经过认证具有授予`antonio` MySQL用户的权限，并且没有发生代理。
+- en: Note
+  id: totrans-113
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The client-side `mysql_clear_password` authentication plugin leaves the password
+    untouched, so client programs send it to the MySQL server as cleartext. This enables
+    the password to be passed as is to PAM. A cleartext password is necessary to use
+    the server-side PAM library, but may be a security problem in some configurations.
+    These measures minimize the risk:'
+  id: totrans-114
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端端的`mysql_clear_password`认证插件不会更改密码，因此客户端程序会将其以明文形式发送到MySQL服务器。这使得密码可以原样传递给PAM。在某些配置中，明文密码是使用服务器端PAM库所必需的，但可能会存在安全问题。以下措施可最小化风险：
+- en: To make inadvertent use of the `mysql_clear_password` plugin less likely, MySQL
+    clients must explicitly enable it (for example, with the `--enable-cleartext-plugin`
+    option). See [Section 8.4.1.4, “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication").
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了减少意外使用`mysql_clear_password`插件的可能性，MySQL客户端必须显式启用它（例如，使用`--enable-cleartext-plugin`选项）。参见[Section 8.4.1.4,
+    “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication")。
+- en: To avoid password exposure with the `mysql_clear_password` plugin enabled, MySQL
+    clients should connect to the MySQL server using an encrypted connection. See
+    [Section 8.3.1, “Configuring MySQL to Use Encrypted Connections”](using-encrypted-connections.html
+    "8.3.1 Configuring MySQL to Use Encrypted Connections").
+  id: totrans-116
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了避免启用`mysql_clear_password`插件时密码暴露，MySQL客户端应该使用加密连接连接到MySQL服务器。参见[Section 8.3.1,
+    “Configuring MySQL to Use Encrypted Connections”](using-encrypted-connections.html
+    "8.3.1 Configuring MySQL to Use Encrypted Connections")。
+- en: PAM LDAP Authentication without Proxy Users
+  id: totrans-117
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 无代理用户的PAM LDAP认证
+- en: This authentication scenario uses PAM to check external users defined in terms
+    of operating system user names and LDAP passwords, without proxying. Every such
+    external user permitted to connect to MySQL Server should have a matching MySQL
+    account that is defined to use PAM authentication through LDAP.
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种认证场景使用PAM来检查以操作系统用户名和LDAP密码定义的外部用户，而无需代理。每个被允许连接到MySQL服务器的外部用户都应该有一个匹配的MySQL账户，该账户被定义为通过LDAP进行PAM认证。
+- en: 'To use PAM LDAP pluggable authentication for MySQL, these prerequisites must
+    be satisfied:'
+  id: totrans-119
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用PAM LDAP可插拔认证为MySQL，必须满足以下先决条件：
+- en: An LDAP server must be available for the PAM LDAP service to communicate with.
+  id: totrans-120
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: PAM LDAP服务必须与LDAP服务器通信。
+- en: Each LDAP user to be authenticated by MySQL must be present in the directory
+    managed by the LDAP server.
+  id: totrans-121
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个要由MySQL进行认证的LDAP用户必须存在于由LDAP服务器管理的目录中。
+- en: Note
+  id: totrans-122
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Another way to use LDAP for MySQL user authentication is to use the LDAP-specific
+    authentication plugins. See [Section 8.4.1.7, “LDAP Pluggable Authentication”](ldap-pluggable-authentication.html
+    "8.4.1.7 LDAP Pluggable Authentication").
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一种使用LDAP进行MySQL用户认证的方法是使用特定于LDAP的认证插件。参见[Section 8.4.1.7, “LDAP Pluggable Authentication”](ldap-pluggable-authentication.html
+    "8.4.1.7 LDAP Pluggable Authentication")。
+- en: 'Configure MySQL for PAM LDAP authentication as follows:'
+  id: totrans-124
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 配置MySQL以进行PAM LDAP认证如下：
+- en: Verify that Unix authentication permits logins to the operating system with
+    the user name `antonio` and password *`antonio_password`*.
+  id: totrans-125
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证Unix认证是否允许使用用户名`antonio`和密码*`antonio_password`*登录到操作系统。
+- en: 'Set up PAM to authenticate MySQL connections using LDAP by creating a `mysql-ldap`
+    PAM service file named `/etc/pam.d/mysql-ldap`. The file contents are system dependent,
+    so check existing login-related files in the `/etc/pam.d` directory to see what
+    they look like. On Linux, the `mysql-ldap` file might look like this:'
+  id: totrans-126
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过创建一个名为`/etc/pam.d/mysql-ldap`的`mysql-ldap` PAM服务文件来设置PAM以使用LDAP认证MySQL连接。文件内容取决于系统，因此请检查`/etc/pam.d`目录中现有的与登录相关的文件以查看其内容。在Linux上，`mysql-ldap`文件可能如下所示：
+- en: '[PRE12]'
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: If PAM object files have a suffix different from `.so` on your system, substitute
+    the correct suffix.
+  id: totrans-128
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果在您的系统上，PAM对象文件的后缀与`.so`不同，请替换正确的后缀。
+- en: The PAM file format might differ on some systems.
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: PAM文件格式可能在某些系统上有所不同。
+- en: 'Create a MySQL account with the same user name as the operating system user
+    name and define it to authenticate using the PAM plugin and the `mysql-ldap` PAM
+    service:'
+  id: totrans-130
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个与操作系统用户名相同的MySQL账户，并定义其使用PAM插件和`mysql-ldap` PAM服务进行验证：
+- en: '[PRE13]'
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Here, the authentication string contains only the PAM service name, `mysql-ldap`,
+    which authenticates using LDAP.
+  id: totrans-132
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这里，认证字符串仅包含PAM服务名称`mysql-ldap`，用LDAP进行验证。
+- en: Connecting to the server is the same as described in [PAM Unix Password Authentication
+    without Proxy Users](pam-pluggable-authentication.html#pam-authentication-unix-without-proxy
+    "PAM Unix Password Authentication without Proxy Users").
+  id: totrans-133
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 连接到服务器的方式与[PAM Unix密码认证无代理用户](pam-pluggable-authentication.html#pam-authentication-unix-without-proxy
+    "PAM Unix Password Authentication without Proxy Users")中描述的相同。
+- en: PAM Unix Password Authentication with Proxy Users and Group Mapping
+  id: totrans-134
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用代理用户和组映射的PAM Unix密码认证
+- en: The authentication scheme described here uses proxying and PAM group mapping
+    to map connecting MySQL users who authenticate using PAM onto other MySQL accounts
+    that define different sets of privileges. Users do not connect directly through
+    the accounts that define the privileges. Instead, they connect through a default
+    proxy account authenticated using PAM, such that all the external users are mapped
+    to the MySQL accounts that hold the privileges. Any user who connects using the
+    proxy account is mapped to one of those MySQL accounts, the privileges for which
+    determine the database operations permitted to the external user.
+  id: totrans-135
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处描述的认证方案使用代理和PAM组映射，将使用PAM进行验证的连接MySQL用户映射到定义了不同权限集的其他MySQL账户上。用户不直接通过定义权限的账户连接。相反，他们通过使用PAM进行身份验证的默认代理账户连接，以便将所有外部用户映射到具有权限的MySQL账户。使用代理账户连接的任何用户都将映射到这些MySQL账户之一，其权限确定了允许外部用户执行的数据库操作。
+- en: The procedure shown here uses Unix password authentication. To use LDAP instead,
+    see the early steps of [PAM LDAP Authentication without Proxy Users](pam-pluggable-authentication.html#pam-authentication-ldap-without-proxy
+    "PAM LDAP Authentication without Proxy Users").
+  id: totrans-136
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处所示的过程使用Unix密码认证。要改用LDAP，请参阅[PAM LDAP认证无代理用户](pam-pluggable-authentication.html#pam-authentication-ldap-without-proxy
+    "PAM LDAP Authentication without Proxy Users")的早期步骤。
+- en: Note
+  id: totrans-137
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Traditional Unix passwords are checked using the `/etc/shadow` file. For information
+    regarding possible issues related to this file, see [PAM Authentication Access
+    to Unix Password Store](pam-pluggable-authentication.html#pam-authentication-unix-password-store
+    "PAM Authentication Access to Unix Password Store").
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 传统的Unix密码使用`/etc/shadow`文件进行检查。有关与该文件相关的可能问题的信息，请参阅[PAM认证访问Unix密码存储](pam-pluggable-authentication.html#pam-authentication-unix-password-store
+    "PAM Authentication Access to Unix Password Store")。
+- en: Verify that Unix authentication permits logins to the operating system with
+    the user name `antonio` and password *`antonio_password`*.
+  id: totrans-139
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证Unix认证是否允许使用用户名`antonio`和密码*`antonio_password`*登录操作系统。
+- en: Verify that `antonio` is a member of the `root` or `users` PAM group.
+  id: totrans-140
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证`antonio`是否是`root`或`users` PAM组的成员。
+- en: 'Set up PAM to authenticate the `mysql-unix` PAM service through operating system
+    users by creating a file named `/etc/pam.d/mysql-unix`. The file contents are
+    system dependent, so check existing login-related files in the `/etc/pam.d` directory
+    to see what they look like. On Linux, the `mysql-unix` file might look like this:'
+  id: totrans-141
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过创建名为`/etc/pam.d/mysql-unix`的文件，设置PAM通过操作系统用户验证`mysql-unix` PAM服务。文件内容取决于系统，因此请查看`/etc/pam.d`目录中现有的与登录相关的文件以了解其内容。在Linux上，`mysql-unix`文件可能如下所示：
+- en: '[PRE14]'
+  id: totrans-142
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: For macOS, use `login` rather than `password-auth`.
+  id: totrans-143
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于macOS，请使用`login`而不是`password-auth`。
+- en: 'The PAM file format might differ on some systems. For example, on Ubuntu and
+    other Debian-based systems, use these file contents instead:'
+  id: totrans-144
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在某些系统上，PAM文件格式可能有所不同。例如，在Ubuntu和其他基于Debian的系统上，使用以下文件内容：
+- en: '[PRE15]'
+  id: totrans-145
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'Create a default proxy user (`''''@''''`) that maps external PAM users to the
+    proxied accounts:'
+  id: totrans-146
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个默认的代理用户(`''@''`)，将外部PAM用户映射到代理账户：
+- en: '[PRE16]'
+  id: totrans-147
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: Here, the authentication string contains the PAM service name, `mysql-unix`,
+    which authenticates Unix passwords. The authentication string also maps external
+    users in the `root` and `users` PAM groups to the `developer` and `data_entry`
+    MySQL user names, respectively.
+  id: totrans-148
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这里，认证字符串包含了PAM服务名称`mysql-unix`，用于验证Unix密码。认证字符串还将`root`和`users` PAM组中的外部用户映射到`developer`和`data_entry`
+    MySQL用户名。
+- en: The PAM group mapping list following the PAM service name is required when you
+    set up proxy users. Otherwise, the plugin cannot tell how to perform mapping from
+    external user names to the proper proxied MySQL user names.
+  id: totrans-149
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在设置代理用户时，必须在PAM服务名称后面提供PAM组映射列表。否则，插件无法确定如何将外部用户名映射到正确的被代理MySQL用户名。
+- en: Note
+  id: totrans-150
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If your MySQL installation has anonymous users, they might conflict with the
+    default proxy user. For more information about this issue, and ways of dealing
+    with it, see [Default Proxy User and Anonymous User Conflicts](proxy-users.html#proxy-users-conflicts
+    "Default Proxy User and Anonymous User Conflicts").
+  id: totrans-151
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您的MySQL安装中存在匿名用户，则可能会与默认代理用户发生冲突。有关此问题的更多信息以及处理方法，请参见[Default Proxy User and
+    Anonymous User Conflicts](proxy-users.html#proxy-users-conflicts "Default Proxy
+    User and Anonymous User Conflicts")。
+- en: 'Create the proxied accounts and grant to each one the privileges it should
+    have:'
+  id: totrans-152
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建被代理账户并为每个账户授予应具有的权限：
+- en: '[PRE17]'
+  id: totrans-153
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: The proxied accounts use the `mysql_no_login` authentication plugin to prevent
+    clients from using the accounts to log in directly to the MySQL server. Instead,
+    users who authenticate using PAM are expected to use the `developer` or `data_entry`
+    account by proxy based on their PAM group. (This assumes that the plugin is installed.
+    For instructions, see [Section 8.4.1.9, “No-Login Pluggable Authentication”](no-login-pluggable-authentication.html
+    "8.4.1.9 No-Login Pluggable Authentication").) For alternative methods of protecting
+    proxied accounts against direct use, see [Preventing Direct Login to Proxied Accounts](proxy-users.html#preventing-proxied-account-direct-login
+    "Preventing Direct Login to Proxied Accounts").
+  id: totrans-154
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 代理账户使用`mysql_no_login`认证插件，以防止客户端直接使用这些账户登录到MySQL服务器。相反，使用PAM进行身份验证的用户应该通过代理使用基于他们的PAM组的`developer`或`data_entry`账户。（假设插件已安装。有关说明，请参见[Section 8.4.1.9,
+    “No-Login Pluggable Authentication”](no-login-pluggable-authentication.html "8.4.1.9 No-Login
+    Pluggable Authentication")。）有关保护代理账户免受直接使用的替代方法，请参见[Preventing Direct Login to
+    Proxied Accounts](proxy-users.html#preventing-proxied-account-direct-login "Preventing
+    Direct Login to Proxied Accounts")。
+- en: 'Grant to the proxy account the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for each proxied account:'
+  id: totrans-155
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 为每个被代理账户授予[`PROXY`](privileges-provided.html#priv_proxy)权限：
+- en: '[PRE18]'
+  id: totrans-156
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: Use the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    command-line client to connect to the MySQL server as `antonio`.
+  id: totrans-157
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")命令行客户端作为`安东尼奥`连接到MySQL服务器。
+- en: '[PRE19]'
+  id: totrans-158
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: 'The server authenticates the connection using the default `''''@''''` proxy
+    account. The resulting privileges for `antonio` depend on which PAM groups `antonio`
+    is a member of. If `antonio` is a member of the `root` PAM group, the PAM plugin
+    maps `root` to the `developer` MySQL user name and returns that name to the server.
+    The server verifies that `''''@''''` has the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege for `developer` and permits the connection. The following query returns
+    output as shown:'
+  id: totrans-159
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 服务器使用默认的`''@''`代理账户对连接进行身份验证。`安东尼奥`的权限取决于他是哪些PAM组的成员。如果`安东尼奥`是`root` PAM组的成员，PAM插件将`root`映射到`developer`
+    MySQL用户名并将该名称返回给服务器。服务器验证`''@''`是否具有`developer`的[`PROXY`](privileges-provided.html#priv_proxy)权限，并允许连接。以下查询返回如下输出：
+- en: '[PRE20]'
+  id: totrans-160
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: This demonstrates that the `antonio` operating system user is authenticated
+    to have the privileges granted to the `developer` MySQL user, and that proxying
+    occurs through the default proxy account.
+  id: totrans-161
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这表明`安东尼奥`操作系统用户被验证具有授予`developer` MySQL用户的权限，并且通过默认代理账户进行代理。
+- en: 'If `antonio` is not a member of the `root` PAM group but is a member of the
+    `users` PAM group, a similar process occurs, but the plugin maps `user` PAM group
+    membership to the `data_entry` MySQL user name and returns that name to the server:'
+  id: totrans-162
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果`安东尼奥`不是`root` PAM组的成员，但是`users` PAM组的成员，类似的过程会发生，但插件将`user` PAM组成员映射到`data_entry`
+    MySQL用户名并将该名称返回给服务器：
+- en: '[PRE21]'
+  id: totrans-163
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: This demonstrates that the `antonio` operating system user is authenticated
+    to have the privileges of the `data_entry` MySQL user, and that proxying occurs
+    through the default proxy account.
+  id: totrans-164
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这表明`安东尼奥`操作系统用户被验证具有`data_entry` MySQL用户的权限，并且通过默认代理账户进行代理。
+- en: Note
+  id: totrans-165
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The client-side `mysql_clear_password` authentication plugin leaves the password
+    untouched, so client programs send it to the MySQL server as cleartext. This enables
+    the password to be passed as is to PAM. A cleartext password is necessary to use
+    the server-side PAM library, but may be a security problem in some configurations.
+    These measures minimize the risk:'
+  id: totrans-166
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端端的`mysql_clear_password`认证插件保持密码不变，因此客户端程序将其以明文形式发送到MySQL服务器。这使得密码可以原样传递给PAM。在某些配置中，明文密码是使用服务器端PAM库所必需的，但可能在某些配置中存在安全问题。以下措施可最小化风险：
+- en: To make inadvertent use of the `mysql_clear_password` plugin less likely, MySQL
+    clients must explicitly enable it (for example, with the `--enable-cleartext-plugin`
+    option). See [Section 8.4.1.4, “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication").
+  id: totrans-167
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了减少意外使用`mysql_clear_password`插件的可能性，MySQL客户端必须显式启用它（例如，使用`--enable-cleartext-plugin`选项）。参见[Section 8.4.1.4,
+    “Client-Side Cleartext Pluggable Authentication”](cleartext-pluggable-authentication.html
+    "8.4.1.4 Client-Side Cleartext Pluggable Authentication")。
+- en: To avoid password exposure with the `mysql_clear_password` plugin enabled, MySQL
+    clients should connect to the MySQL server using an encrypted connection. See
+    [Section 8.3.1, “Configuring MySQL to Use Encrypted Connections”](using-encrypted-connections.html
+    "8.3.1 Configuring MySQL to Use Encrypted Connections").
+  id: totrans-168
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 启用`mysql_clear_password`插件以避免密码暴露，MySQL客户端应该使用加密连接连接到MySQL服务器。参见[Section 8.3.1,
+    “Configuring MySQL to Use Encrypted Connections”](using-encrypted-connections.html
+    "8.3.1 Configuring MySQL to Use Encrypted Connections")。
+- en: PAM Authentication Access to Unix Password Store
+  id: totrans-169
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: PAM身份验证访问Unix密码存储
+- en: 'On some systems, Unix authentication uses a password store such as `/etc/shadow`,
+    a file that typically has restricted access permissions. This can cause MySQL
+    PAM-based authentication to fail. Unfortunately, the PAM implementation does not
+    permit distinguishing “password could not be checked” (due, for example, to inability
+    to read `/etc/shadow`) from “password does not match.” If you are using Unix password
+    store for PAM authentication, you may be able to enable access to it from MySQL
+    using one of the following methods:'
+  id: totrans-170
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些系统上，Unix身份验证使用密码存储，例如`/etc/shadow`，这是一个通常具有受限访问权限的文件。这可能导致MySQL基于PAM的身份验证失败。不幸的是，PAM实现不允许区分“密码无法检查”（例如，由于无法读取`/etc/shadow`）和“密码不匹配”。如果您正在使用Unix密码存储进行PAM身份验证，您可以通过以下方法之一启用MySQL对其的访问：
+- en: 'Assuming that the MySQL server is run from the `mysql` operating system account,
+    put that account in the `shadow` group that has `/etc/shadow` access:'
+  id: totrans-171
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 假设MySQL服务器是从`mysql`操作系统帐户运行的，请将该帐户放入具有`/etc/shadow`访问权限的`shadow`组中：
+- en: Create a `shadow` group in `/etc/group`.
+  id: totrans-172
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在`/etc/group`中创建���个`shadow`组。
+- en: Add the `mysql` operating system user to the `shadow` group in `/etc/group`.
+  id: totrans-173
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将`mysql`操作系统用户添加到`/etc/group`中的`shadow`组。
+- en: 'Assign `/etc/group` to the `shadow` group and enable the group read permission:'
+  id: totrans-174
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将`/etc/group`分配给`shadow`组并启用组读权限：
+- en: '[PRE22]'
+  id: totrans-175
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: Restart the MySQL server.
+  id: totrans-176
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 重新启动MySQL服务器。
+- en: 'If you are using the `pam_unix` module and the **unix_chkpwd** utility, enable
+    password store access as follows:'
+  id: totrans-177
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您正在使用`pam_unix`模块和**unix_chkpwd**实用程序，请按以下方式启用密码存储访问：
+- en: '[PRE23]'
+  id: totrans-178
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: Adjust the path to **unix_chkpwd** as necessary for your platform.
+  id: totrans-179
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 根据您的平台调整**unix_chkpwd**的路径。
+- en: PAM Authentication Debugging
+  id: totrans-180
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: PAM身份验证调试
+- en: The PAM authentication plugin checks at initialization time whether the `AUTHENTICATION_PAM_LOG`
+    environment value is set. In MySQL 8.0.35 and earlier, the value does not matter.
+    If so, the plugin enables logging of diagnostic messages to the standard output.
+    These messages may be helpful for debugging PAM-related issues that occur when
+    the plugin performs authentication. You should be aware that, in these versions,
+    passwords are included in these messages.
+  id: totrans-181
+  prefs: []
+  type: TYPE_NORMAL
+  zh: PAM身份验证插件在初始化时检查`AUTHENTICATION_PAM_LOG`环境值是否已设置。在MySQL 8.0.35及更早版本中，该值无关紧要。如果是，则插件将启用将诊断消息记录到标准输出的功能。这些消息可能有助于调试插件执行身份验证时出现的与PAM相关的问题。您应该知道，在这些版本中，这些消息中包含密码。
+- en: Beginning with MySQL 8.0.36, setting `AUTHENTICATION_PAM_LOG=1` (or some other
+    arbitrary value) produces the same diagnostic messages, but does *not* include
+    any passwords. If you wish to include passwords in these messages, set `AUTHENTICATION_PAM_LOG=PAM_LOG_WITH_SECRET_INFO`.
+  id: totrans-182
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.36开始，设置`AUTHENTICATION_PAM_LOG=1`（或其他任意值）会产生相同的诊断消息，但*不*包含任何密码。如果您希望在这些消息中包含密码，请设置`AUTHENTICATION_PAM_LOG=PAM_LOG_WITH_SECRET_INFO`。
+- en: Some messages include reference to PAM plugin source files and line numbers,
+    which enables plugin actions to be tied more closely to the location in the code
+    where they occur.
+  id: totrans-183
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些消息包含对 PAM 插件源文件和行号的引用，这使得插件操作与其发生的代码位置更紧密地联系在一起。
+- en: Another technique for debugging connection failures and determining what is
+    happening during connection attempts is to configure PAM authentication to permit
+    all connections, then check the system log files. This technique should be used
+    only on a *temporary* basis, and not on a production server.
+  id: totrans-184
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于调试连接失败并确定连接尝试期间发生的情况的另一种技术是配置 PAM 认证以允许所有连接，然后检查系统日志文件。这种技术应仅在*临时*基础上使用，而不是在生产服务器上使用。
+- en: 'Configure a PAM service file named `/etc/pam.d/mysql-any-password` with these
+    contents (the format may differ on some systems):'
+  id: totrans-185
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用以下内容配置名为 `/etc/pam.d/mysql-any-password` 的 PAM 服务文件（在某些系统上格式可能有所不同）：
+- en: '[PRE24]'
+  id: totrans-186
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: 'Create an account that uses the PAM plugin and names the `mysql-any-password`
+    PAM service:'
+  id: totrans-187
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建一个使用 PAM 插件并命名为 `mysql-any-password` PAM 服务的帐户：
+- en: '[PRE25]'
+  id: totrans-188
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: The `mysql-any-password` service file causes any authentication attempt to return
+    true, even for incorrect passwords. If an authentication attempt fails, that tells
+    you the configuration problem is on the MySQL side. Otherwise, the problem is
+    on the operating system/PAM side. To see what might be happening, check system
+    log files such as `/var/log/secure`, `/var/log/audit.log`, `/var/log/syslog`,
+    or `/var/log/messages`.
+  id: totrans-189
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mysql-any-password` 服务文件会导致任何身份验证尝试返回 true，即使密码不正确。如果身份验证尝试失败，这说明配置问题在 MySQL
+    方面。否则，问题在操作系统/PAM 方面。要查看可能发生的情况，请检查系统日志文件，如 `/var/log/secure`、`/var/log/audit.log`、`/var/log/syslog`
+    或 `/var/log/messages`。'
+- en: After determining what the problem is, remove the `mysql-any-password` PAM service
+    file to disable any-password access.
+  id: totrans-190
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 确定问题后，删除 `mysql-any-password` PAM 服务文件以禁用任意密码访问。

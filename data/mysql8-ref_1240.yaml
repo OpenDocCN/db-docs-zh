@@ -1,0 +1,109 @@
+- en: 17.12.3 Online DDL Space Requirements
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.12.3 在线 DDL 空间需求
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-space-requirements.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-space-requirements.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-space-requirements.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-space-requirements.html)
+- en: Disk space requirements for online DDL operations are outlined below. The requirements
+    do not apply to operations that are performed instantly.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在线 DDL 操作的磁盘空间需求如下所述。这些需求不适用于立即执行的操作。
+- en: 'Temporary log files:'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 临时日志文件：
+- en: A temporary log file records concurrent DML when an online DDL operation creates
+    an index or alters a table. The temporary log file is extended as required by
+    the value of [`innodb_sort_buffer_size`](innodb-parameters.html#sysvar_innodb_sort_buffer_size)
+    up to a maximum specified by [`innodb_online_alter_log_max_size`](innodb-parameters.html#sysvar_innodb_online_alter_log_max_size).
+    If the operation takes a long time and concurrent DML modifies the table so much
+    that the size of the temporary log file exceeds the value of [`innodb_online_alter_log_max_size`](innodb-parameters.html#sysvar_innodb_online_alter_log_max_size),
+    the online DDL operation fails with a `DB_ONLINE_LOG_TOO_BIG` error, and uncommitted
+    concurrent DML operations are rolled back. A large [`innodb_online_alter_log_max_size`](innodb-parameters.html#sysvar_innodb_online_alter_log_max_size)
+    setting permits more DML during an online DDL operation, but it also extends the
+    period of time at the end of the DDL operation when the table is locked to apply
+    logged DML.
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 临时日志文件记录了在线 DDL 操作创建索引或修改表时的并发 DML。临时日志文件根据[`innodb_sort_buffer_size`](innodb-parameters.html#sysvar_innodb_sort_buffer_size)的值进行扩展，最大扩展到[`innodb_online_alter_log_max_size`](innodb-parameters.html#sysvar_innodb_online_alter_log_max_size)指定的最大值。如果操作花费很长时间，且并发
+    DML 修改表的量超过临时日志文件的大小超过[`innodb_online_alter_log_max_size`](innodb-parameters.html#sysvar_innodb_online_alter_log_max_size)的值，那么在线
+    DDL 操作将因为`DB_ONLINE_LOG_TOO_BIG`错误而失败，并且未提交的并发 DML 操作将被回滚。设置较大的[`innodb_online_alter_log_max_size`](innodb-parameters.html#sysvar_innodb_online_alter_log_max_size)允许在线
+    DDL 操作期间进行更多的 DML，但也会延长 DDL 操作结束时表被锁定以应用已记录 DML 的时间。
+- en: The [`innodb_sort_buffer_size`](innodb-parameters.html#sysvar_innodb_sort_buffer_size)
+    variable also defines the size of the temporary log file read buffer and write
+    buffer.
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_sort_buffer_size`](innodb-parameters.html#sysvar_innodb_sort_buffer_size)
+    变量还定义了临时日志文件读取缓冲区和写入缓冲区的大小。'
+- en: 'Temporary sort files:'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 临时排序文件：
+- en: Online DDL operations that rebuild the table write temporary sort files to the
+    MySQL temporary directory (`$TMPDIR` on Unix, `%TEMP%` on Windows, or the directory
+    specified by [`--tmpdir`](server-system-variables.html#sysvar_tmpdir)) during
+    index creation. Temporary sort files are not created in the directory that contains
+    the original table. Each temporary sort file is large enough to hold one column
+    of data, and each sort file is removed when its data is merged into the final
+    table or index. Operations involving temporary sort files may require temporary
+    space equal to the amount of data in the table plus indexes. An error is reported
+    if online DDL operation uses all of the available disk space on the file system
+    where the data directory resides.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重建表的在线 DDL 操作在索引创建过程中将临时排序文件写入 MySQL 临时目录（Unix 上的`$TMPDIR`，Windows 上的`%TEMP%`，或由[`--tmpdir`](server-system-variables.html#sysvar_tmpdir)指定的目录）。临时排序文件不会在包含原始表的目录中创建。每个临时排序文件足够大以容纳一列数据，并且在其数据合并到最终表或索引时将删除每个排序文件。涉及临时排序文件的操作可能需要临时空间，等于表中数据加索引的量。如果在线
+    DDL 操作使用了数据目录所在文件系统上所有可用的磁盘空间，则会报告错误。
+- en: If the MySQL temporary directory is not large enough to hold the sort files,
+    set [`tmpdir`](server-system-variables.html#sysvar_tmpdir) to a different directory.
+    Alternatively, define a separate temporary directory for online DDL operations
+    using [`innodb_tmpdir`](innodb-parameters.html#sysvar_innodb_tmpdir). This option
+    was introduced to help avoid temporary directory overflows that could occur as
+    a result of large temporary sort files.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果 MySQL 临时目录不足以容纳排序文件，请将[`tmpdir`](server-system-variables.html#sysvar_tmpdir)设置为另一个目录。或者，使用[`innodb_tmpdir`](innodb-parameters.html#sysvar_innodb_tmpdir)为在线
+    DDL 操作定义一个单独的临时目录。此选项旨在帮助避免由于大型临时排序文件导致的临时目录溢出。
+- en: 'Intermediate table files:'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 中间表文件：
+- en: Some online DDL operations that rebuild the table create a temporary intermediate
+    table file in the same directory as the original table. An intermediate table
+    file may require space equal to the size of the original table. Intermediate table
+    file names begin with `#sql-ib` prefix and only appear briefly during the online
+    DDL operation.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一些在线DDL操作重新构建表时会在与原始表相同的目录中创建一个临时中间表文件。中间表文件可能需要与原始表大小相等的空间。中间表文件的名称以`#sql-ib`前缀开头，在在线DDL操作期间只会短暂出现。
+- en: The [`innodb_tmpdir`](innodb-parameters.html#sysvar_innodb_tmpdir) option is
+    not applicable to intermediate table files.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_tmpdir`](innodb-parameters.html#sysvar_innodb_tmpdir)选项不适用于中间表文件。'

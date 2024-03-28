@@ -1,0 +1,759 @@
+- en: 2.5.9 Managing MySQL Server with systemd
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 2.5.9 使用 systemd 管理 MySQL 服务器
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/using-systemd.html](https://dev.mysql.com/doc/refman/8.0/en/using-systemd.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/using-systemd.html](https://dev.mysql.com/doc/refman/8.0/en/using-systemd.html)
+- en: 'If you install MySQL using an RPM or Debian package on the following Linux
+    platforms, server startup and shutdown is managed by systemd:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您在以下 Linux 平台上使用 RPM 或 Debian 软件包安装 MySQL，则服务器的启动和关闭由 systemd 管理：
+- en: 'RPM package platforms:'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: RPM 软件包平台：
+- en: Enterprise Linux variants version 7 and higher
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 企业 Linux 变体版本 7 及更高版本
+- en: SUSE Linux Enterprise Server 12 and higher
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: SUSE Linux Enterprise Server 12 及更高版本
+- en: Fedora 29 and higher
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Fedora 29 及更高版本
+- en: 'Debian family platforms:'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Debian 家族平台：
+- en: Debian platforms
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Debian 平台
+- en: Ubuntu platforms
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Ubuntu 平台
+- en: If you install MySQL from a generic binary distribution on a platform that uses
+    systemd, you can manually configure systemd support for MySQL following the instructions
+    provided in the post-installation setup section of the [MySQL 8.0 Secure Deployment
+    Guide](/doc/mysql-secure-deployment-guide/en/).
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您在使用 systemd 的平台上从通用二进制发行版安装 MySQL，则可以按照[MySQL 8.0 安全部署指南](/doc/mysql-secure-deployment-guide/en/)中提供的后安装设置部分的说明手动配置
+    MySQL 的 systemd 支持。
+- en: If you install MySQL from a source distribution on a platform that uses systemd,
+    obtain systemd support for MySQL by configuring the distribution using the [`-DWITH_SYSTEMD=1`](source-configuration-options.html#option_cmake_with_systemd)
+    **CMake** option. See [Section 2.8.7, “MySQL Source-Configuration Options”](source-configuration-options.html
+    "2.8.7 MySQL Source-Configuration Options").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您在使用 systemd 的平台上从源代码发行版安装 MySQL，则可以通过使用 [`-DWITH_SYSTEMD=1`](source-configuration-options.html#option_cmake_with_systemd)
+    **CMake** 选项配置发行版以获得 MySQL 的 systemd 支持。请参阅[第 2.8.7 节，“MySQL 源代码配置选项”](source-configuration-options.html
+    "2.8.7 MySQL 源代码配置选项")。
+- en: 'The following discussion covers these topics:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论涵盖了这些主题：
+- en: '[Overview of systemd](using-systemd.html#systemd-overview "Overview of systemd")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[systemd 概述](using-systemd.html#systemd-overview "systemd 概述")'
+- en: '[Configuring systemd for MySQL](using-systemd.html#systemd-mysql-configuration
+    "Configuring systemd for MySQL")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[为 MySQL 配置 systemd](using-systemd.html#systemd-mysql-configuration "为 MySQL
+    配置 systemd")'
+- en: '[Configuring Multiple MySQL Instances Using systemd](using-systemd.html#systemd-multiple-mysql-instances
+    "Configuring Multiple MySQL Instances Using systemd")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用 systemd 配置多个 MySQL 实例](using-systemd.html#systemd-multiple-mysql-instances
+    "使用 systemd 配置多个 MySQL 实例")'
+- en: '[Migrating from mysqld_safe to systemd](using-systemd.html#mysqld-safe-to-systemd-migration
+    "Migrating from mysqld_safe to systemd")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[从 mysqld_safe 迁移到 systemd](using-systemd.html#mysqld-safe-to-systemd-migration
+    "从 mysqld_safe 迁移到 systemd")'
+- en: Note
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On platforms for which systemd support for MySQL is installed, scripts such
+    as [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup
+    Script") and the System V initialization script are unnecessary and are not installed.
+    For example, [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server
+    Startup Script") can handle server restarts, but systemd provides the same capability,
+    and does so in a manner consistent with management of other services rather than
+    by using an application-specific program.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在为 MySQL 安装了 systemd 支持的平台上，诸如[**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe
+    — MySQL Server Startup Script")和 System V 初始化脚本等脚本是不必要的，也不会被安装。例如，[**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script")可以处理服务器重启，但 systemd 提供了相同的功能，并且以与其他服务管理一致的方式进行，而不是使用特定于应用程序的程序。
+- en: One implication of the non-use of [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe
+    — MySQL Server Startup Script") on platforms that use systemd for server management
+    is that use of `[mysqld_safe]` or `[safe_mysqld]` sections in option files is
+    not supported and might lead to unexpected behavior.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用 systemd 进行服务器管理的平台上不使用[**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe
+    — MySQL Server Startup Script")的一个影响是，不支持在选项文件中使用 `[mysqld_safe]` 或 `[safe_mysqld]`
+    部分，可能会导致意外行为。
+- en: Because systemd has the capability of managing multiple MySQL instances on platforms
+    for which systemd support for MySQL is installed, [**mysqld_multi**](mysqld-multi.html
+    "6.3.4 mysqld_multi — Manage Multiple MySQL Servers") and **mysqld_multi.server**
+    are unnecessary and are not installed.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为 systemd 在安装了 MySQL systemd 支持的平台上具有管理多个 MySQL 实例的能力，所以[**mysqld_multi**](mysqld-multi.html
+    "6.3.4 mysqld_multi — Manage Multiple MySQL Servers")和 **mysqld_multi.server**
+    是不必要的，也不会被安装。
+- en: Overview of systemd
+  id: totrans-21
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: systemd 概述
+- en: 'systemd provides automatic MySQL server startup and shutdown. It also enables
+    manual server management using the **systemctl** command. For example:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: systemd 提供自动 MySQL 服务器启动和关闭。它还通过**systemctl**命令启用手动服务器管理。例如：
+- en: '[PRE0]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Alternatively, use the **service** command (with the arguments reversed), which
+    is compatible with System V systems:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，使用**service**命令（参数颠倒），该命令与 System V 系统兼容：
+- en: '[PRE1]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Note
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: For the **systemctl** command (and the alternative **service** command), if
+    the MySQL service name is not `mysqld` then use the appropriate name. For example,
+    use `mysql` rather than `mysqld` on Debian-based and SLES systems.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于**systemctl**命令（以及替代的**service**命令），如果 MySQL 服务名称不是`mysqld`，则使用适当的名称。例如，在基于
+    Debian 和 SLES 系统上使用`mysql`而不是`mysqld`。
+- en: 'Support for systemd includes these files:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: systemd 的支持包括这些文件：
+- en: '`mysqld.service` (RPM platforms), `mysql.service` (Debian platforms): systemd
+    service unit configuration file, with details about the MySQL service.'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysqld.service`（RPM 平台），`mysql.service`（Debian 平台）：systemd 服务单元配置文件，包含有关 MySQL
+    服务的详细信息。'
+- en: '`mysqld@.service` (RPM platforms), `mysql@.service` (Debian platforms): Like
+    `mysqld.service` or `mysql.service`, but used for managing multiple MySQL instances.'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysqld@.service`（RPM 平台），`mysql@.service`（Debian 平台）：类似于`mysqld.service`或`mysql.service`，但用于管理多个
+    MySQL 实例。'
+- en: '`mysqld.tmpfiles.d`: File containing information to support the `tmpfiles`
+    feature. This file is installed under the name `mysql.conf`.'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysqld.tmpfiles.d`：包含支持`tmpfiles`功能信息的文件。此文件安装为`mysql.conf`。'
+- en: '`mysqld_pre_systemd` (RPM platforms), `mysql-system-start` (Debian platforms):
+    Support script for the unit file. This script assists in creating the error log
+    file only if the log location matches a pattern (`/var/log/mysql*.log` for RPM
+    platforms, `/var/log/mysql/*.log` for Debian platforms). In other cases, the error
+    log directory must be writable or the error log must be present and writable for
+    the user running the [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    process.'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysqld_pre_systemd`（RPM 平台），`mysql-system-start`（Debian 平台）：单元文件的支持脚本。此脚本仅在错误日志位置匹配模式（对于
+    RPM 平台为`/var/log/mysql*.log`，对于 Debian 平台为`/var/log/mysql/*.log`）时协助创建错误日志文件。在其他情况下，错误日志目录必须可写，或者错误日志必须存在并对运行[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")进程的用户可写。'
+- en: Configuring systemd for MySQL
+  id: totrans-33
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置 MySQL 的 systemd
+- en: 'To add or change systemd options for MySQL, these methods are available:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为 MySQL 添加或更改 systemd 选项，可以使用以下方法：
+- en: Use a localized systemd configuration file.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用本地化的 systemd 配置文件。
+- en: Arrange for systemd to set environment variables for the MySQL server process.
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 安排 systemd 为 MySQL 服务器进程设置环境变量。
+- en: Set the `MYSQLD_OPTS` systemd variable.
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 设置`MYSQLD_OPTS` systemd 变量。
+- en: 'To use a localized systemd configuration file, create the `/etc/systemd/system/mysqld.service.d`
+    directory if it does not exist. In that directory, create a file that contains
+    a `[Service]` section listing the desired settings. For example:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用本地化的 systemd 配置文件，请创建`/etc/systemd/system/mysqld.service.d`目录（如果不存在）。在该目录中，创建一个包含列出所需设置的`[Service]`部分的文件。例如：
+- en: '[PRE2]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The discussion here uses `override.conf` as the name of this file. Newer versions
+    of systemd support the following command, which opens an editor and permits you
+    to edit the file:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此处讨论使用`override.conf`作为此文件的名称。较新版本的 systemd 支持以下命令，该命令打开编辑器并允许您编辑文件：
+- en: '[PRE3]'
+  id: totrans-41
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Whenever you create or change `override.conf`, reload the systemd configuration,
+    then tell systemd to restart the MySQL service:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每当创建或更改`override.conf`时，重新加载 systemd 配置，然后告诉 systemd 重新启动 MySQL 服务：
+- en: '[PRE4]'
+  id: totrans-43
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'With systemd, the `override.conf` configuration method must be used for certain
+    parameters, rather than settings in a `[mysqld]`, `[mysqld_safe]`, or `[safe_mysqld]`
+    group in a MySQL option file:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于某些参数，必须使用`override.conf`配置方法，而不是在 MySQL 选项文件的`[mysqld]`、`[mysqld_safe]`或`[safe_mysqld]`组中的设置：
+- en: For some parameters, `override.conf` must be used because systemd itself must
+    know their values and it cannot read MySQL option files to get them.
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于某些参数，必须使用`override.conf`，因为 systemd 本身必须知道它们的值，而不能读取 MySQL 选项文件来获取它们。
+- en: Parameters that specify values otherwise settable only using options known to
+    [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup Script")
+    must be specified using systemd because there is no corresponding [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") parameter.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 指定值的参数，否则只能使用已知于[**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL
+    Server Startup Script")的选项设置，必须使用 systemd 指定，因为没有对应的[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")参数。
+- en: For additional information about using systemd rather than [**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script"), see [Migrating from mysqld_safe
+    to systemd](using-systemd.html#mysqld-safe-to-systemd-migration "Migrating from
+    mysqld_safe to systemd").
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关使用systemd而不是[**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL
+    Server Startup Script")的更多信息，请参阅[从mysqld_safe迁移到systemd](using-systemd.html#mysqld-safe-to-systemd-migration
+    "从mysqld_safe迁移到systemd")。
+- en: 'You can set the following parameters in `override.conf`:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在`override.conf`中设置以下参数：
+- en: To set the number of file descriptors available to the MySQL server, use `LimitNOFILE`
+    in `override.conf` rather than the [`open_files_limit`](server-system-variables.html#sysvar_open_files_limit)
+    system variable for [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    or [`--open-files-limit`](mysqld-safe.html#option_mysqld_safe_open-files-limit)
+    option for [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server
+    Startup Script").
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要设置MySQL服务器可用的文件描述符数量，请在`override.conf`中使用`LimitNOFILE`，而不是[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")的[`open_files_limit`](server-system-variables.html#sysvar_open_files_limit)系统变量或[**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script")的[`--open-files-limit`](mysqld-safe.html#option_mysqld_safe_open-files-limit)选项。
+- en: To set the maximum core file size, use `LimitCore` in `override.conf` rather
+    than the [`--core-file-size`](mysqld-safe.html#option_mysqld_safe_core-file-size)
+    option for [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server
+    Startup Script").
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要设置最大核心文件大小，请在`override.conf`中使用`LimitCore`，而不是[`--core-file-size`](mysqld-safe.html#option_mysqld_safe_core-file-size)选项用于[**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script")。
+- en: To set the scheduling priority for the MySQL server, use `Nice` in `override.conf`
+    rather than the [`--nice`](mysqld-safe.html#option_mysqld_safe_nice) option for
+    [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup Script").
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要为MySQL服务器设置调度优先级，请在`override.conf`中使用`Nice`，而不是[`--nice`](mysqld-safe.html#option_mysqld_safe_nice)选项用于[**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script")。
+- en: 'Some MySQL parameters are configured using environment variables:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些MySQL参数使用环境变量进行配置：
+- en: '`LD_PRELOAD`: Set this variable if the MySQL server should use a specific memory-allocation
+    library.'
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LD_PRELOAD`: 如果MySQL服务器应该使用特定的内存分配库，请设置此变量。'
+- en: '`NOTIFY_SOCKET`: This environment variable specifies the socket that [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") uses to communicate notification of startup
+    completion and service status change with systemd. It is set by systemd when the
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") service is started.
+    The [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") service reads
+    the variable setting and writes to the defined location.'
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NOTIFY_SOCKET`: 此环境变量指定[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server")用于与systemd通信启动完成和服务状态更改通知的套接字。当启动[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")服务时，systemd会设置它。[**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server")服务读取变量设置并写入定义的位置。'
+- en: In MySQL 8.0, [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") uses
+    the `Type=notify` process startup type. (`Type=forking` was used in MySQL 5.7.)
+    With `Type=notify`, systemd automatically configures a socket file and exports
+    the path to the `NOTIFY_SOCKET` environment variable.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0中，[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")使用`Type=notify`进程启动类型。
+    （MySQL 5.7中使用`Type=forking`。）使用`Type=notify`，systemd会自动配置套接字文件并导出路径到`NOTIFY_SOCKET`环境变量。
+- en: '`TZ`: Set this variable to specify the default time zone for the server.'
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`TZ`: 设置此变量以指定服务器的默认时区。'
+- en: 'There are multiple ways to specify environment variable values for use by the
+    MySQL server process managed by systemd:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有多种方法可以指定由systemd管理的MySQL服务器进程使用的环境变量值：
+- en: Use `Environment` lines in the `override.conf` file. For the syntax, see the
+    example in the preceding discussion that describes how to use this file.
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`override.conf`文件中使用`Environment`行。有关语法，请参见前面讨论中描述如何使用此文件的示例。
+- en: 'Specify the values in the `/etc/sysconfig/mysql` file (create the file if it
+    does not exist). Assign values using the following syntax:'
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`/etc/sysconfig/mysql`文件中指定值（如果不存在，请创建该文件）。使用以下语法分配值：
+- en: '[PRE5]'
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'After modifying `/etc/sysconfig/mysql`, restart the server to make the changes
+    effective:'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 修改`/etc/sysconfig/mysql`后，重新启动服务器以使更改生效：
+- en: '[PRE6]'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'To specify options for [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    without modifying systemd configuration files directly, set or unset the `MYSQLD_OPTS`
+    systemd variable. For example:'
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")指定选项而不直接修改systemd配置文件，请设置或取消设置`MYSQLD_OPTS`
+    systemd变量。例如：
+- en: '[PRE7]'
+  id: totrans-64
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '`MYSQLD_OPTS` can also be set in the `/etc/sysconfig/mysql` file.'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`MYSQLD_OPTS` 也可以在 `/etc/sysconfig/mysql` 文件中设置。'
+- en: 'After modifying the systemd environment, restart the server to make the changes
+    effective:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修改 systemd 环境后，重新启动服务器以使更改生效：
+- en: '[PRE8]'
+  id: totrans-67
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'For platforms that use systemd, the data directory is initialized if empty
+    at server startup. This might be a problem if the data directory is a remote mount
+    that has temporarily disappeared: The mount point would appear to be an empty
+    data directory, which then would be initialized as a new data directory. To suppress
+    this automatic initialization behavior, specify the following line in the `/etc/sysconfig/mysql`
+    file (create the file if it does not exist):'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于使用 systemd 的平台，如果数据目录在服务器启动时为空，则会初始化数据目录。如果数据目录是一个暂时消失的远程挂载点，这可能会成为一个问题：挂载点看起来像一个空的数据目录，然后会被初始化为一个新的数据目录。要抑制此自动初始化行为，请在
+    `/etc/sysconfig/mysql` 文件中指定以下行（如果文件不存在，请创建文件）：
+- en: '[PRE9]'
+  id: totrans-69
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Configuring Multiple MySQL Instances Using systemd
+  id: totrans-70
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 使用 systemd 配置多个 MySQL 实例
+- en: This section describes how to configure systemd for multiple instances of MySQL.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何为多个 MySQL 实例配置 systemd。
+- en: Note
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Because systemd has the capability of managing multiple MySQL instances on platforms
+    for which systemd support is installed, [**mysqld_multi**](mysqld-multi.html "6.3.4 mysqld_multi
+    — Manage Multiple MySQL Servers") and **mysqld_multi.server** are unnecessary
+    and are not installed.
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为 systemd 在安装了 systemd 支持的平台上具有管理多个 MySQL 实例的能力，所以 [**mysqld_multi**](mysqld-multi.html
+    "6.3.4 mysqld_multi — Manage Multiple MySQL Servers") 和 **mysqld_multi.server**
+    是不必要的，也不会安装。
+- en: 'To use multiple-instance capability, modify the `my.cnf` option file to include
+    configuration of key options for each instance. These file locations are typical:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用多实例功能，修改 `my.cnf` 选项文件以包含每个实例的关键选项配置。这些文件位置通常如下：
+- en: '`/etc/my.cnf` or `/etc/mysql/my.cnf` (RPM platforms)'
+  id: totrans-75
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`/etc/my.cnf` 或 `/etc/mysql/my.cnf`（RPM 平台）'
+- en: '`/etc/mysql/mysql.conf.d/mysqld.cnf` (Debian platforms)'
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`/etc/mysql/mysql.conf.d/mysqld.cnf`（Debian 平台）'
+- en: 'For example, to manage two instances named `replica01` and `replica02`, add
+    something like this to the option file:'
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，要管理名为 `replica01` 和 `replica02` 的两个实例，请在选项文件中添加类似以下内容：
+- en: 'RPM platforms:'
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: RPM 平台：
+- en: '[PRE10]'
+  id: totrans-79
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'Debian platforms:'
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Debian 平台：
+- en: '[PRE11]'
+  id: totrans-81
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: The replica names shown here use `@` as the delimiter because that is the only
+    delimiter supported by systemd.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里显示的副本名称使用 `@` 作为分隔符，因为这是 systemd 支持的唯一分隔符。
+- en: 'Instances then are managed by normal systemd commands, such as:'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后实例将由正常的 systemd 命令管理，例如：
+- en: '[PRE12]'
+  id: totrans-84
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'To enable instances to run at boot time, do this:'
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在启动时启用实例运行，请执行以下操作：
+- en: '[PRE13]'
+  id: totrans-86
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'Use of wildcards is also supported. For example, this command displays the
+    status of all replica instances:'
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也支持使用通配符。例如，以下命令显示所有副本实例的状态：
+- en: '[PRE14]'
+  id: totrans-88
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'For management of multiple MySQL instances on the same machine, systemd automatically
+    uses a different unit file:'
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于在同一台机器上管理多个 MySQL 实例，systemd 自动使用不同的单元文件：
+- en: '`mysqld@.service` rather than `mysqld.service` (RPM platforms)'
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysqld@.service` 而不是 `mysqld.service`（RPM 平台）'
+- en: '`mysql@.service` rather than `mysql.service` (Debian platforms)'
+  id: totrans-91
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`mysql@.service` 而不是 `mysql.service`（Debian 平台）'
+- en: 'In the unit file, `%I` and `%i` reference the parameter passed in after the
+    `@` marker and are used to manage the specific instance. For a command such as
+    this:'
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在单元文件中，`%I` 和 `%i` 引用在 `@` 标记后传递的参数，并用于管理特定实例。对于这样的命令：
+- en: '[PRE15]'
+  id: totrans-93
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'systemd starts the server using a command such as this:'
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: systemd 使用类似以下命令启动服务器：
+- en: '[PRE16]'
+  id: totrans-95
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: The result is that the `[server]`, `[mysqld]`, and `[mysqld@replica01]` option
+    groups are read and used for that instance of the service.
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 结果是 `[server]`、`[mysqld]` 和 `[mysqld@replica01]` 选项组将被读取并用于该服务的实例。
+- en: Note
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On Debian platforms, AppArmor prevents the server from reading or writing `/var/lib/mysql-replica*`,
+    or anything other than the default locations. To address this, you must customize
+    or disable the profile in `/etc/apparmor.d/usr.sbin.mysqld`.
+  id: totrans-98
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Debian 平台上，AppArmor 阻止服务器读取或写入 `/var/lib/mysql-replica*`，或者除了默认位置之外的任何其他位置。要解决这个问题，您必须自定义或禁用
+    `/etc/apparmor.d/usr.sbin.mysqld` 中的配置文件。
+- en: Note
+  id: totrans-99
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On Debian platforms, the packaging scripts for MySQL uninstallation cannot currently
+    handle `mysqld@` instances. Before removing or upgrading the package, you must
+    stop any extra instances manually first.
+  id: totrans-100
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Debian 平台上，MySQL 卸载的打包脚本目前无法处理 `mysqld@` 实例。在删除或升级软件包之前，您必须首先手动停止任何额外的实例。
+- en: Migrating from mysqld_safe to systemd
+  id: totrans-101
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 从 mysqld_safe 迁移到 systemd
+- en: 'Because [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server
+    Startup Script") is not installed on platforms that use systemd to manage MySQL,
+    options previously specified for that program (for example, in an `[mysqld_safe]`
+    or `[safe_mysqld]` option group) must be specified another way:'
+  id: totrans-102
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为在使用 systemd 管理 MySQL 的平台上没有安装 [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe
+    — MySQL Server Startup Script")，先前为该程序指定的选项（例如，在 `[mysqld_safe]` 或 `[safe_mysqld]`
+    选项组中）必须以另一种方式指定：
+- en: Some [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup
+    Script") options are also understood by [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") and can be moved from the `[mysqld_safe]` or `[safe_mysqld]`
+    option group to the `[mysqld]` group. This does *not* include [`--pid-file`](mysqld-safe.html#option_mysqld_safe_pid-file),
+    [`--open-files-limit`](mysqld-safe.html#option_mysqld_safe_open-files-limit),
+    or [`--nice`](mysqld-safe.html#option_mysqld_safe_nice). To specify those options,
+    use the `override.conf` systemd file, described previously.
+  id: totrans-103
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一些 [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup
+    Script") 选项也被 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 理解，并且可以从
+    `[mysqld_safe]` 或 `[safe_mysqld]` 选项组移动到 `[mysqld]` 组。这不包括 [`--pid-file`](mysqld-safe.html#option_mysqld_safe_pid-file)，[`--open-files-limit`](mysqld-safe.html#option_mysqld_safe_open-files-limit)，或
+    [`--nice`](mysqld-safe.html#option_mysqld_safe_nice)。要指定这些选项，请使用之前描述的 `override.conf`
+    systemd 文件。
+- en: Note
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On systemd platforms, use of `[mysqld_safe]` and `[safe_mysqld]` option groups
+    is not supported and may lead to unexpected behavior.
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 systemd 平台上，不支持使用 `[mysqld_safe]` 和 `[safe_mysqld]` 选项组，并且可能导致意外行为。
+- en: For some [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server
+    Startup Script") options, there are alternative [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") procedures. For example, the [**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script") option for enabling `syslog`
+    logging is [`--syslog`](mysqld-safe.html#option_mysqld_safe_syslog), which is
+    deprecated. To write error log output to the system log, use the instructions
+    at [Section 7.4.2.8, “Error Logging to the System Log”](error-log-syslog.html
+    "7.4.2.8 Error Logging to the System Log").
+  id: totrans-106
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于一些 [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup
+    Script") 选项，有替代的 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 过程。例如，启用
+    `syslog` 记录的 [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server
+    Startup Script") 选项是 [`--syslog`](mysqld-safe.html#option_mysqld_safe_syslog)，已被弃用。要将错误日志输出写入系统日志，请使用
+    [Section 7.4.2.8, “Error Logging to the System Log”](error-log-syslog.html "7.4.2.8 Error
+    Logging to the System Log") 中的说明。
+- en: '[**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup
+    Script") options not understood by [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server") can be specified in `override.conf` or environment variables. For
+    example, with [**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server
+    Startup Script"), if the server should use a specific memory allocation library,
+    this is specified using the [`--malloc-lib`](mysqld-safe.html#option_mysqld_safe_malloc-lib)
+    option. For installations that manage the server with systemd, arrange to set
+    the `LD_PRELOAD` environment variable instead, as described previously.'
+  id: totrans-107
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysqld_safe**](mysqld-safe.html "6.3.2 mysqld_safe — MySQL Server Startup
+    Script") 不理解的选项可以在 `override.conf` 或环境变量中指定。例如，使用 [**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script")，如果服务器应该使用特定的内存分配库，则使用 [`--malloc-lib`](mysqld-safe.html#option_mysqld_safe_malloc-lib)
+    选项指定。对于使用 systemd 管理服务器的安装，安排设置 `LD_PRELOAD` 环境变量，如之前描述的那样。'

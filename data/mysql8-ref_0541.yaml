@@ -1,0 +1,443 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/derived-table-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/derived-table-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/derived-table-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/derived-table-optimization.html)
+- en: 10.2.2.4 Optimizing Derived Tables, View References, and Common Table Expressions
+    with Merging or Materialization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.2.4 优化派生表、视图引用和公共表达式的合并或物化
+- en: 'The optimizer can handle derived table references using two strategies (which
+    also apply to view references and common table expressions):'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器可以使用两种策略处理派生表引用（也适用于视图引用和公共表达式）：
+- en: Merge the derived table into the outer query block
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将派生表合并到外部查询块中
+- en: Materialize the derived table to an internal temporary table
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将派生表物化为内部临时表
+- en: 'Example 1:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例 1：
+- en: '[PRE0]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'With merging of the derived table `derived_t1`, that query is executed similar
+    to:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过将派生表`derived_t1`合并，该查询的执行方式类似于：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Example 2:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例 2：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'With merging of the derived table `derived_t2`, that query is executed similar
+    to:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过将派生表`derived_t2`合并，该查询的执行方式类似于：
+- en: '[PRE3]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: With materialization, `derived_t1` and `derived_t2` are each treated as a separate
+    table within their respective queries.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过物化，`derived_t1`和`derived_t2`在各自的查询中被视为单独的表。
+- en: 'The optimizer handles derived tables, view references, and common table expressions
+    the same way: It avoids unnecessary materialization whenever possible, which enables
+    pushing down conditions from the outer query to derived tables and produces more
+    efficient execution plans. (For an example, see [Section 10.2.2.2, “Optimizing
+    Subqueries with Materialization”](subquery-materialization.html "10.2.2.2 Optimizing
+    Subqueries with Materialization").)'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器处理派生表、视图引用和公共表达式的方式相同：尽可能避免不必要的物化，这使得可以将外部查询的条件下推到派生表，并生成更有效的执行计划。（例如，参见[Section 10.2.2.2,
+    “Optimizing Subqueries with Materialization”](subquery-materialization.html "10.2.2.2 Optimizing
+    Subqueries with Materialization")。）
+- en: If merging would result in an outer query block that references more than 61
+    base tables, the optimizer chooses materialization instead.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果合并会导致外部查询块引用超过61个基本表，则优化器选择物化。
+- en: 'The optimizer propagates an `ORDER BY` clause in a derived table or view reference
+    to the outer query block if these conditions are all true:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果这些条件都成立，优化器将派生表或视图引用中的`ORDER BY`子句传播到外部查询块：
+- en: The outer query is not grouped or aggregated.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部查询没有分组或聚合。
+- en: The outer query does not specify `DISTINCT`, `HAVING`, or `ORDER BY`.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部查询没有指定`DISTINCT`、`HAVING`或`ORDER BY`。
+- en: The outer query has this derived table or view reference as the only source
+    in the `FROM` clause.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部查询在`FROM`子句中只有这个派生表或视图引用作为唯一数据源。
+- en: Otherwise, the optimizer ignores the `ORDER BY` clause.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 否则，优化器将忽略`ORDER BY`子句。
+- en: 'The following means are available to influence whether the optimizer attempts
+    to merge derived tables, view references, and common table expressions into the
+    outer query block:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以影响优化器是否尝试将派生表、视图引用和公共表达式合并到外部查询块的以下方法：
+- en: The [`MERGE`](optimizer-hints.html#optimizer-hints-table-level "Table-Level
+    Optimizer Hints") and [`NO_MERGE`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") optimizer hints can be used. They apply assuming
+    that no other rule prevents merging. See [Section 10.9.3, “Optimizer Hints”](optimizer-hints.html
+    "10.9.3 Optimizer Hints").
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可以使用[`MERGE`](optimizer-hints.html#optimizer-hints-table-level "Table-Level
+    Optimizer Hints")和[`NO_MERGE`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints")优化器提示。假设没有其他规则阻止合并，则应用这些提示。参见[Section 10.9.3, “Optimizer
+    Hints”](optimizer-hints.html "10.9.3 Optimizer Hints")。
+- en: Similarly, you can use the [`derived_merge`](switchable-optimizations.html#optflag_derived-merge)
+    flag of the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable. See [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations"). By default, the flag is enabled to permit
+    merging. Disabling the flag prevents merging and avoids [`ER_UPDATE_TABLE_USED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_update_table_used)
+    errors.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 同样，您可以使用[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量的[`derived_merge`](switchable-optimizations.html#optflag_derived-merge)标志。默认情况下，该标志已启用以允许合并。禁用该标志将阻止合并并避免[`ER_UPDATE_TABLE_USED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_update_table_used)错误。
+- en: The [`derived_merge`](switchable-optimizations.html#optflag_derived-merge) flag
+    also applies to views that contain no `ALGORITHM` clause. Thus, if an [`ER_UPDATE_TABLE_USED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_update_table_used)
+    error occurs for a view reference that uses an expression equivalent to the subquery,
+    adding `ALGORITHM=TEMPTABLE` to the view definition prevents merging and takes
+    precedence over the [`derived_merge`](switchable-optimizations.html#optflag_derived-merge)
+    value.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`derived_merge`](switchable-optimizations.html#optflag_derived-merge)标志也适用于不包含`ALGORITHM`子句的视图。因此，如果对使用等效于子查询的表达式的视图引用发生[`ER_UPDATE_TABLE_USED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_update_table_used)错误，则将`ALGORITHM=TEMPTABLE`添加到视图定义中可以阻止合并，并优先于[`derived_merge`](switchable-optimizations.html#optflag_derived-merge)值。'
+- en: 'It is possible to disable merging by using in the subquery any constructs that
+    prevent merging, although these are not as explicit in their effect on materialization.
+    Constructs that prevent merging are the same for derived tables, common table
+    expressions, and view references:'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过在子查询中使用任何阻止合并的构造，可以禁用合并，尽管这些构造对于材料化的影响不够明显。阻止合并的构造对于派生表、公共表达式和视图引用是相同的：
+- en: Aggregate functions or window functions ([`SUM()`](aggregate-functions.html#function_sum),
+    [`MIN()`](aggregate-functions.html#function_min), [`MAX()`](aggregate-functions.html#function_max),
+    [`COUNT()`](aggregate-functions.html#function_count), and so forth)
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 聚合函数或窗口函数（[`SUM()`](aggregate-functions.html#function_sum)、[`MIN()`](aggregate-functions.html#function_min)、[`MAX()`](aggregate-functions.html#function_max)、[`COUNT()`](aggregate-functions.html#function_count)等）
+- en: '`DISTINCT`'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DISTINCT`'
+- en: '`GROUP BY`'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GROUP BY`'
+- en: '`HAVING`'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`HAVING`'
+- en: '`LIMIT`'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LIMIT`'
+- en: '[`UNION`](union.html "15.2.18 UNION Clause") or [`UNION ALL`](union.html "15.2.18 UNION
+    Clause")'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`UNION`](union.html "15.2.18 UNION Clause")或[`UNION ALL`](union.html "15.2.18 UNION
+    Clause")'
+- en: Subqueries in the select list
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在选择列表中的子查询
+- en: Assignments to user variables
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对用户变量的赋值
+- en: References only to literal values (in this case, there is no underlying table)
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅引用文字值（在这种情况下，没有基础表）
+- en: 'If the optimizer chooses the materialization strategy rather than merging for
+    a derived table, it handles the query as follows:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果优化器选择材料化策略而不是合并派生表，则处理查询如下：
+- en: 'The optimizer postpones derived table materialization until its contents are
+    needed during query execution. This improves performance because delaying materialization
+    may result in not having to do it at all. Consider a query that joins the result
+    of a derived table to another table: If the optimizer processes that other table
+    first and finds that it returns no rows, the join need not be carried out further
+    and the optimizer can completely skip materializing the derived table.'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化器推迟派生表的材料化，直到在查询执行期间需要其内容。这样做可以提高性能，因为延迟材料化可能导致根本不需要进行材料化。考虑一个将派生表的结果与另一个表连接的查询：如果优化器首先处理另一个表并发现它不返回任何行，则无需继续执行连接，并且优化器可以完全跳过材料化派生表。
+- en: During query execution, the optimizer may add an index to a derived table to
+    speed up row retrieval from it.
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在查询执行期间，优化器可能向派生表添加索引，以加快从中检索行的速度。
+- en: 'Consider the following [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")
+    statement, for a [`SELECT`](select.html "15.2.13 SELECT Statement") query that
+    contains a derived table:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下包含派生表的[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")语句，用于一个包含派生表的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")查询：
+- en: '[PRE4]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The optimizer avoids materializing the derived table by delaying it until the
+    result is needed during [`SELECT`](select.html "15.2.13 SELECT Statement") execution.
+    In this case, the query is not executed (because it occurs in an [`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement") statement), so the result is never needed.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器通过延迟派生表的材料化直到在[`SELECT`](select.html "15.2.13 SELECT Statement")执行期间需要结果时来避免材料化派生表。在这种情况下，查询不会被执行（因为它出现在[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")语句中），因此结果永远不会被需要。
+- en: 'Even for queries that are executed, delay of derived table materialization
+    may enable the optimizer to avoid materialization entirely. When this happens,
+    query execution is quicker by the time needed to perform materialization. Consider
+    the following query, which joins the result of a derived table to another table:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使对于执行的查询，延迟派生表的材料化也可能使优化器完全避免材料化。当发生这种情况时，查询执行速度比执行材料化所需的时间更快。考虑以下查询，该查询将派生表的结果与另一个表连接：
+- en: '[PRE5]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: If the optimization processes `t1` first and the `WHERE` clause produces an
+    empty result, the join must necessarily be empty and the derived table need not
+    be materialized.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果优化过程首先处理`t1`，并且`WHERE`子句产生空结果，则连接必然为空，衍生表不需要实体化。
+- en: 'For cases when a derived table requires materialization, the optimizer may
+    add an index to the materialized table to speed up access to it. If such an index
+    enables [`ref`](explain-output.html#jointype_ref) access to the table, it can
+    greatly reduce amount of data read during query execution. Consider the following
+    query:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于需要实体化的衍生表，优化器可能会向实体化表添加索引以加快对其的访问速度。如果此类索引使得可以使用[`ref`](explain-output.html#jointype_ref)访问表，则可以大大减少查询执行期间读取的数据量。考虑以下查询：
+- en: '[PRE6]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The optimizer constructs an index over column `f1` from `derived_t2` if doing
+    so would enable use of [`ref`](explain-output.html#jointype_ref) access for the
+    lowest cost execution plan. After adding the index, the optimizer can treat the
+    materialized derived table the same as a regular table with an index, and it benefits
+    similarly from the generated index. The overhead of index creation is negligible
+    compared to the cost of query execution without the index. If [`ref`](explain-output.html#jointype_ref)
+    access would result in higher cost than some other access method, the optimizer
+    creates no index and loses nothing.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果构建索引`derived_t2`中的列`f1`可以使最低成本执行计划使用[`ref`](explain-output.html#jointype_ref)访问，优化器会自动添加索引。添加索引后，优化器可以将实体化的衍生表视为具有索引的常规表，并且从生成的索引中获得类似的好处。与没有索引的查询执行成本相比，索引创建的开销微不足道。如果[`ref`](explain-output.html#jointype_ref)访问的成本高于其他访问方法，优化器不会创建索引，也不会有任何损失。
+- en: For optimizer trace output, a merged derived table or view reference is not
+    shown as a node. Only its underlying tables appear in the top query's plan.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于优化器跟踪输出，合并的衍生表或视图引用不会显示为节点。只有其基础表会出现在顶层查询计划中。
+- en: What is true for materialization of derived tables is also true for common table
+    expressions (CTEs). In addition, the following considerations pertain specifically
+    to CTEs.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 衍生表的实体化适用于通用表达式（CTEs）。此外，以下考虑事项特别适用于CTEs。
+- en: If a CTE is materialized by a query, it is materialized once for the query,
+    even if the query references it several times.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果查询通过查询实体化了一个CTE，则即使查询多次引用它，也只会为查询实体化一次。
+- en: A recursive CTE is always materialized.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 递归CTE始终会被实体化。
+- en: If a CTE is materialized, the optimizer automatically adds relevant indexes
+    if it estimates that indexing can speed up access by the top-level statement to
+    the CTE. This is similar to automatic indexing of derived tables, except that
+    if the CTE is referenced multiple times, the optimizer may create multiple indexes,
+    to speed up access by each reference in the most appropriate way.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果CTE被实体化，优化器会自动添加相关索引，如果估计索引可以加快顶层语句对CTE的访问速度。这类似于自动为衍生表创建索引，不同之处在于，如果CTE被多次引用，优化器可能会创建多个索引，以最适当的方式加快每个引用的访问速度。
+- en: 'The [`MERGE`](optimizer-hints.html#optimizer-hints-table-level "Table-Level
+    Optimizer Hints") and [`NO_MERGE`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") optimizer hints can be applied to CTEs. Each CTE
+    reference in the top-level statement can have its own hint, permitting CTE references
+    to be selectively merged or materialized. The following statement uses hints to
+    indicate that `cte1` should be merged and `cte2` should be materialized:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`MERGE`](optimizer-hints.html#optimizer-hints-table-level "Table-Level Optimizer
+    Hints")和[`NO_MERGE`](optimizer-hints.html#optimizer-hints-table-level "Table-Level
+    Optimizer Hints")优化提示可以应用于CTEs。顶层语句中的每个CTE引用都可以有自己的提示，允许选择性地合并或实体化CTE引用。以下语句使用提示指示`cte1`应该合并，`cte2`应该实体化：'
+- en: '[PRE7]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The `ALGORITHM` clause for [`CREATE VIEW`](create-view.html "15.1.23 CREATE
+    VIEW Statement") does not affect materialization for any [`WITH`](with.html "15.2.20 WITH
+    (Common Table Expressions)") clause preceding the [`SELECT`](select.html "15.2.13 SELECT
+    Statement") statement in the view definition. Consider this statement:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE VIEW`](create-view.html "15.1.23 CREATE VIEW Statement")的`ALGORITHM`子句不会影响视图定义中的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句之前的任何[`WITH`](with.html "15.2.20 WITH (Common Table
+    Expressions)")子句的实体化。考虑以下语句：'
+- en: '[PRE8]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: The `ALGORITHM` value affects materialization only of the [`SELECT`](select.html
+    "15.2.13 SELECT Statement"), not the [`WITH`](with.html "15.2.20 WITH (Common
+    Table Expressions)") clause.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ALGORITHM`值仅影响[`SELECT`](select.html "15.2.13 SELECT Statement")的实体化，而不影响[`WITH`](with.html
+    "15.2.20 WITH (Common Table Expressions)")子句。'
+- en: Prior to MySQL 8.0.16, if [`internal_tmp_disk_storage_engine=MYISAM`](server-system-variables.html#sysvar_internal_tmp_disk_storage_engine),
+    an error occurred for any attempt to materialize a CTE using an on-disk temporary
+    table, since for CTEs, the storage engine used for on-disk internal temporary
+    tables could not be `MyISAM`. Beginning with MySQL 8.0.16, this is no longer an
+    issue, since `TempTable` now always uses `InnoDB` for on-disk internal temporary
+    tables.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.16之前，如果[`internal_tmp_disk_storage_engine=MYISAM`](server-system-variables.html#sysvar_internal_tmp_disk_storage_engine)，则尝试使用磁盘临时表实现CTE时会出现错误，因为对于CTE，用于磁盘内部临时表的存储引擎不能是`MyISAM`。从MySQL
+    8.0.16开始，这不再是一个问题，因为`TempTable`现在总是使用`InnoDB`作为磁盘内部临时表的存储引擎。
+- en: As mentioned previously, a CTE, if materialized, is materialized once, even
+    if referenced multiple times. To indicate one-time materialization, optimizer
+    trace output contains an occurrence of `creating_tmp_table` plus one or more occurrences
+    of `reusing_tmp_table`.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，如果实现了CTE，则即使多次引用，也只会实现一次。为了表示一次性实现，优化器跟踪输出包含一个`creating_tmp_table`的出现，以及一个或多个`reusing_tmp_table`的出现。
+- en: 'CTEs are similar to derived tables, for which the `materialized_from_subquery`
+    node follows the reference. This is true for a CTE that is referenced multiple
+    times, so there is no duplication of `materialized_from_subquery` nodes (which
+    would give the impression that the subquery is executed multiple times, and produce
+    unnecessarily verbose output). Only one reference to the CTE has a complete `materialized_from_subquery`
+    node with the description of its subquery plan. Other references have a reduced
+    `materialized_from_subquery` node. The same idea applies to [`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement") output in `TRADITIONAL` format: Subqueries for other
+    references are not shown.'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: CTE类似于派生表，其后跟随`materialized_from_subquery`节点的引用。对于多次引用的CTE也是如此，因此不会出现`materialized_from_subquery`节点的重复（这会给人一种子查询被多次执行的印象，并产生不必要的冗长输出）。对CTE的唯一引用具有完整的`materialized_from_subquery`节点，其中包含其子查询计划的描述。其他引用具有简化的`materialized_from_subquery`节点。相同的想法适用于`TRADITIONAL`格式的[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")输出：其他引用的子查询不会显示。

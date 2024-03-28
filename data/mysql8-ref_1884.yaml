@@ -1,0 +1,204 @@
+- en: 27.5.2 View Processing Algorithms
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 27.5.2 视图处理算法
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/view-algorithms.html](https://dev.mysql.com/doc/refman/8.0/en/view-algorithms.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/view-algorithms.html](https://dev.mysql.com/doc/refman/8.0/en/view-algorithms.html)
+- en: 'The optional `ALGORITHM` clause for [`CREATE VIEW`](create-view.html "15.1.23 CREATE
+    VIEW Statement") or [`ALTER VIEW`](alter-view.html "15.1.11 ALTER VIEW Statement")
+    is a MySQL extension to standard SQL. It affects how MySQL processes the view.
+    `ALGORITHM` takes three values: `MERGE`, `TEMPTABLE`, or `UNDEFINED`.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE VIEW`](create-view.html "15.1.23 CREATE VIEW Statement") 或 [`ALTER
+    VIEW`](alter-view.html "15.1.11 ALTER VIEW Statement") 的可选 `ALGORITHM` 子句是 MySQL
+    对标准 SQL 的扩展。它影响 MySQL 处理视图的方式。`ALGORITHM` 有三个值：`MERGE`、`TEMPTABLE` 或 `UNDEFINED`。'
+- en: For `MERGE`, the text of a statement that refers to the view and the view definition
+    are merged such that parts of the view definition replace corresponding parts
+    of the statement.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 `MERGE`，引用视图的语句文本和视图定义被合并，以便视图定义的部分替换语句的相应部分。
+- en: For `TEMPTABLE`, the results from the view are retrieved into a temporary table,
+    which then is used to execute the statement.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 `TEMPTABLE`，视图的结果被检索到一个临时表中，然后用于执行语句。
+- en: For `UNDEFINED`, MySQL chooses which algorithm to use. It prefers `MERGE` over
+    `TEMPTABLE` if possible, because `MERGE` is usually more efficient and because
+    a view cannot be updatable if a temporary table is used.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于 `UNDEFINED`，MySQL 会选择使用哪种算法。如果可能的话，它会优先选择 `MERGE` 而不是 `TEMPTABLE`，因为 `MERGE`
+    通常更有效率，而且如果使用临时表，则视图无法更新。
+- en: If no `ALGORITHM` clause is present, the default algorithm is determined by
+    the value of the [`derived_merge`](switchable-optimizations.html#optflag_derived-merge)
+    flag of the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable. For additional discussion, see [Section 10.2.2.4, “Optimizing
+    Derived Tables, View References, and Common Table Expressions with Merging or
+    Materialization”](derived-table-optimization.html "10.2.2.4 Optimizing Derived
+    Tables, View References, and Common Table Expressions with Merging or Materialization").
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果没有 `ALGORITHM` 子句，则默认算法由 [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    系统变量的 [`derived_merge`](switchable-optimizations.html#optflag_derived-merge) 标志的值确定。有关更多讨论，请参见
+    [Section 10.2.2.4, “Optimizing Derived Tables, View References, and Common Table
+    Expressions with Merging or Materialization”](derived-table-optimization.html
+    "10.2.2.4 Optimizing Derived Tables, View References, and Common Table Expressions
+    with Merging or Materialization")。
+- en: A reason to specify `TEMPTABLE` explicitly is that locks can be released on
+    underlying tables after the temporary table has been created and before it is
+    used to finish processing the statement. This might result in quicker lock release
+    than the `MERGE` algorithm so that other clients that use the view are not blocked
+    as long.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 明确指定 `TEMPTABLE` 的一个原因是，在创建临时表后并在用于完成语句处理之前，可以释放对基础表的锁。这可能导致比 `MERGE` 算法更快地释放锁，以便使用视图的其他客户端不会被阻塞太久。
+- en: 'A view algorithm can be `UNDEFINED` for three reasons:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图算法可能为 `UNDEFINED` 有三个原因：
+- en: No `ALGORITHM` clause is present in the [`CREATE VIEW`](create-view.html "15.1.23 CREATE
+    VIEW Statement") statement.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CREATE VIEW`](create-view.html "15.1.23 CREATE VIEW Statement") 语句中没有 `ALGORITHM`
+    子句。'
+- en: The [`CREATE VIEW`](create-view.html "15.1.23 CREATE VIEW Statement") statement
+    has an explicit `ALGORITHM = UNDEFINED` clause.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CREATE VIEW`](create-view.html "15.1.23 CREATE VIEW Statement") 语句具有显式的 `ALGORITHM
+    = UNDEFINED` 子句。'
+- en: '`ALGORITHM = MERGE` is specified for a view that can be processed only with
+    a temporary table. In this case, MySQL generates a warning and sets the algorithm
+    to `UNDEFINED`.'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为只能使用临时表处理的视图指定了 `ALGORITHM = MERGE`。在这种情况下，MySQL 会生成警告并将算法设置为 `UNDEFINED`。
+- en: 'As mentioned earlier, `MERGE` is handled by merging corresponding parts of
+    a view definition into the statement that refers to the view. The following examples
+    briefly illustrate how the `MERGE` algorithm works. The examples assume that there
+    is a view `v_merge` that has this definition:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，`MERGE` 是通过将视图定义的相应部分合并到引用该视图的语句中来处理的。以下示例简要说明了 `MERGE` 算法的工作原理。这些示例假设存在一个具有以下定义的视图
+    `v_merge`：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Example 1: Suppose that we issue this statement:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例 1：假设我们发出以下语句：
+- en: '[PRE1]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'MySQL handles the statement as follows:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 处理该语句如下：
+- en: '`v_merge` becomes `t`'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`v_merge` 变为 `t`'
+- en: '`*` becomes `vc1, vc2`, which corresponds to `c1, c2`'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`*` 变为 `vc1, vc2`，对应于 `c1, c2`'
+- en: The view `WHERE` clause is added
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 视图 `WHERE` 子句被添加
+- en: 'The resulting statement to be executed becomes:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要执行的结果语句变为：
+- en: '[PRE2]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Example 2: Suppose that we issue this statement:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例 2：假设我们发出以下语句：
+- en: '[PRE3]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'This statement is handled similarly to the previous one, except that `vc1 <
+    100` becomes `c1 < 100` and the view `WHERE` clause is added to the statement
+    `WHERE` clause using an [`AND`](logical-operators.html#operator_and) connective
+    (and parentheses are added to make sure the parts of the clause are executed with
+    correct precedence). The resulting statement to be executed becomes:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个语句的处理方式与前一个类似，只是`vc1 < 100`变成了`c1 < 100`，并且视图的`WHERE`子句被添加到语句的`WHERE`子句中，使用[`AND`](logical-operators.html#operator_and)连接词（并且添加括号以确保子句的部分以正确的优先级执行）。最终要执行的语句变为：
+- en: '[PRE4]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Effectively, the statement to be executed has a `WHERE` clause of this form:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 实际上，要执行的语句具有以下形式的`WHERE`子句：
+- en: '[PRE5]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: If the `MERGE` algorithm cannot be used, a temporary table must be used instead.
+    Constructs that prevent merging are the same as those that prevent merging in
+    derived tables and common table expressions. Examples are `SELECT DISTINCT` or
+    `LIMIT` in the subquery. For details, see [Section 10.2.2.4, “Optimizing Derived
+    Tables, View References, and Common Table Expressions with Merging or Materialization”](derived-table-optimization.html
+    "10.2.2.4 Optimizing Derived Tables, View References, and Common Table Expressions
+    with Merging or Materialization").
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果无法使用`MERGE`算法，则必须使用临时表。阻止合并的结构与阻止派生表和公共表达式合并的结构相同。例如，在子查询中使用`SELECT DISTINCT`或`LIMIT`。有关详细信息，请参见[Section 10.2.2.4，“使用合并或实体化优化派生表、视图引用和公共表达式”](derived-table-optimization.html
+    "10.2.2.4 使用合并或实体化优化派生表、视图引用和公共表达式")。

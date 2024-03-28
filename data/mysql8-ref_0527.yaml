@@ -1,0 +1,227 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/constant-folding-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/constant-folding-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/constant-folding-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/constant-folding-optimization.html)
+- en: 10.2.1.14 Constant-Folding Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.14 常量折叠优化
+- en: Comparisons between constants and column values in which the constant value
+    is out of range or of the wrong type with respect to the column type are now handled
+    once during query optimization rather row-by-row than during execution. The comparisons
+    that can be treated in this manner are `>`, `>=`, `<`, `<=`, `<>`/`!=`, `=`, and
+    `<=>`.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 常量与列值之间的比较，其中常量值超出范围或与列类型不匹配，现在在查询优化期间处理一次，而不是在执行期间逐行处理。可以以这种方式处理的比较包括`>`, `>=`,
+    `<`, `<=`, `<>`/`!=`, `=`, 和 `<=>`。
+- en: 'Consider the table created by the following statement:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下语句创建的表：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The `WHERE` condition in the query `SELECT * FROM t WHERE c < 256` contains
+    the integral constant 256 which is out of range for a `TINYINT UNSIGNED` column.
+    Previously, this was handled by treating both operands as the larger type, but
+    now, since any allowed value for `c` is less than the constant, the `WHERE` expression
+    can instead be folded as `WHERE 1`, so that the query is rewritten as `SELECT
+    * FROM t WHERE 1`.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询`SELECT * FROM t WHERE c < 256`中的`WHERE`条件包含整数常量256，这对于`TINYINT UNSIGNED`列来说超出范围。以前，这是通过将两个操作数都视为较大类型来处理的，但现在，由于`c`的任何允许值都小于常量，因此`WHERE`表达式可以折叠为`WHERE
+    1`，使查询重写为`SELECT * FROM t WHERE 1`。
+- en: 'This makes it possible for the optimizer to remove the `WHERE` expression altogether.
+    If the column `c` were nullable (that is, defined only as `TINYINT UNSIGNED`)
+    the query would be rewritten like this:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这使得优化器可以完全删除`WHERE`表达式。如果列`c`可为空（即仅定义为`TINYINT UNSIGNED`），则查询将被重写如下：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Folding is performed for constants compared to supported MySQL column types
+    as follows:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对比较支持的MySQL列类型的常量进行折叠如下：
+- en: '**Integer column type. ** Integer types are compared with constants of the
+    following types as described here:'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**整数列类型。** 整数类型与以下类型的常量进行比较，如下所述：'
+- en: '**Integer value. ** If the constant is out of range for the column type, the
+    comparison is folded to `1` or `IS NOT NULL`, as already shown.'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**整数值。** 如果常量超出列类型的范围，比较将折叠为`1`或`IS NOT NULL`，如已经显示的那样。'
+- en: 'If the constant is a range boundary, the comparison is folded to `=`. For example
+    (using the same table as already defined):'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果常量是一个范围边界，比较将折叠为`=`。例如（使用已经定义的相同表）：
+- en: '[PRE2]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '**Floating- or fixed-point value. ** If the constant is one of the decimal
+    types (such as `DECIMAL`, `REAL`, `DOUBLE`, or `FLOAT`) and has a nonzero decimal
+    portion, it cannot be equal; fold accordingly. For other comparisons, round up
+    or down to an integer value according to the sign, then perform a range check
+    and handle as already described for integer-integer comparisons.'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**浮点或定点值。** 如果常量是十进制类型之一（如`DECIMAL`，`REAL`，`DOUBLE`或`FLOAT`）并且具有非零小数部分，则不能相等；相应地折叠。对于其他比较，根据符号四舍五入到整数值，然后执行范围检查并按照已经描述的方式处理整数-整数比较。'
+- en: A `REAL` value that is too small to be represented as `DECIMAL` is rounded to
+    .01 or -.01 depending on the sign, then handled as a `DECIMAL`.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 无法表示为`DECIMAL`的`REAL`值将四舍五入为.01或-.01，然后作为`DECIMAL`处理。
+- en: '**String types. ** Try to interpret the string value as an integer type, then
+    handle the comparison as between integer values. If this fails, attempt to handle
+    the value as a `REAL`.'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**字符串类型。** 尝试将字符串值解释为整数类型，然后将比较处理为整数值之间的比较。如果失败，则尝试将值处理为`REAL`。'
+- en: '**DECIMAL or REAL column. ** Decimal types are compared with constants of the
+    following types as described here:'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**DECIMAL或REAL列。** 十进制类型与以下类型的常量进行比较，如下所述：'
+- en: '**Integer value. ** Perform a range check against the column value''s integer
+    part. If no folding results, convert the constant to `DECIMAL` with the same number
+    of decimal places as the column value, then check it as a `DECIMAL` (see next).'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**整数值。** 对列值的整数部分执行范围检查。如果没有折叠结果，将常量转换为与列值具有相同小数位数的`DECIMAL`，然后将其作为`DECIMAL`进行检查（见下文）。'
+- en: '**DECIMAL or REAL value. ** Check for overflow (that is, whether the constant
+    has more digits in its integer part than allowed for the column''s decimal type).
+    If so, fold.'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**DECIMAL或REAL值。** 检查溢出（即常量的整数部分是否比列的十进制类型允许的更多位数）。如果是，则折叠。'
+- en: If the constant has more significant fractional digits than column's type, truncate
+    the constant. If the comparison operator is `=` or `<>`, fold. If the operator
+    is `>=` or `<=`, adjust the operator due to truncation. For example, if column's
+    type is `DECIMAL(3,1)`, `SELECT * FROM t WHERE f >= 10.13` becomes `SELECT * FROM
+    t WHERE f > 10.1`.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果常量的有效小数位数多于列的类型，截断常量。如果比较运算符是`=`或`<>`，则折叠。如果运算符是`>=`或`<=`，由于截断而调整运算符。例如，如果列的类型是`DECIMAL(3,1)`，`SELECT
+    * FROM t WHERE f >= 10.13`变为`SELECT * FROM t WHERE f > 10.1`。
+- en: If the constant has fewer decimal digits than the column's type, convert it
+    to a constant with same number of digits. For underflow of a `REAL` value (that
+    is, too few fractional digits to represent it), convert the constant to decimal
+    0.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果常量的小数位数少于列的类型，将其转换为具有相同位数的常量。对于`REAL`值的下溢（即，小数位数太少无法表示），将常量转换为十进制0。
+- en: '**String value. ** If the value can be interpreted as an integer type, handle
+    it as such. Otherwise, try to handle it as `REAL`.'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**字符串值。** 如果值可以解释为整数类型，则将其处理为整数类型。否则，尝试将其处理为`REAL`。'
+- en: '**FLOAT or DOUBLE column. ** `FLOAT(*`m`*,*`n`*)` or `DOUBLE(*`m`*,*`n`*)`
+    values compared with constants are handled as follows:'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**FLOAT或DOUBLE列。** `FLOAT(*m*,*n*)`或`DOUBLE(*m*,*n*)`与常量的比较处理如下：'
+- en: If the value overflows the range of the column, fold.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果值超出列的范围，折叠。
+- en: If the value has more than *`n`* decimals, truncate, compensating during folding.
+    For `=` and `<>` comparisons, fold to `TRUE`, `FALSE`, or `IS [NOT] NULL` as described
+    previously; for other operators, adjust the operator.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果值有超过*n*个小数位，截断，折叠时进行补偿。对于`=`和`<>`比较，按照之前描述的折叠为`TRUE`、`FALSE`或`IS [NOT] NULL`；对于其他运算符，调整运算符。
+- en: If the value has more than `m` integer digits, fold.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果值有超过`m`个整数位，折叠。
+- en: '**Limitations. ** This optimization cannot be used in the following cases:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**限制。** 该优化不能用于以下情况：'
+- en: With comparisons using `BETWEEN` or `IN`.
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用`BETWEEN`或`IN`进行比较。
+- en: With `BIT` columns or columns using date or time types.
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 与`BIT`列或使用日期或时间类型的列。
+- en: During the preparation phase for a prepared statement, although it can be applied
+    during the optimization phase when the prepared statement is actually executed.
+    This due to the fact that, during statement preparation, the value of the constant
+    is not yet known.
+  id: totrans-29
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在准备语句的准备阶段，尽管可以在实际执行准备语句时进行优化阶段应用。这是因为在语句准备期间，常量的值尚未知晓。

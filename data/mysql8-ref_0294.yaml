@@ -1,0 +1,213 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/thread-pool-tuning.html](https://dev.mysql.com/doc/refman/8.0/en/thread-pool-tuning.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/thread-pool-tuning.html](https://dev.mysql.com/doc/refman/8.0/en/thread-pool-tuning.html)
+- en: 7.6.3.4 Thread Pool Tuning
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.6.3.4 线程池调优
+- en: This section provides guidelines on determining the best configuration for thread
+    pool performance, as measured using a metric such as transactions per second.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节提供了关于确定线程池性能最佳配置的指导，以事务每秒等指标来衡量。
+- en: 'Of chief importance is the number of thread groups in the thread pool, which
+    can be set on server startup using the [`--thread-pool-size`](server-system-variables.html#sysvar_thread_pool_size)
+    option; this cannot be changed at runtime. Recommended values for this option
+    depend on whether the primary storage engine in use is [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") or [`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine"):'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最重要的是线程池中线程组的数量，可以在服务器启动时使用[`--thread-pool-size`](server-system-variables.html#sysvar_thread_pool_size)选项进行设置；这个值在运行时无法更改。对于这个选项的推荐值取决于主要使用的存储引擎是[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")还是[`MyISAM`](myisam-storage-engine.html "第18.2章 MyISAM存储引擎")：
+- en: If the primary storage engine is `InnoDB`, the recommended value for the thread
+    pool size is the number of physical cores available on the host machine, up to
+    a maximum of 512.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果主要存储引擎是`InnoDB`，线程池大小的推荐值是主机机器上可用的物理核心数，最大不超过512。
+- en: If the primary storage engine is `MyISAM`, the thread pool size should be fairly
+    low. Optimal performance is often seen with values from 4 to 8\. Higher values
+    tend to have a slightly negative but not dramatic impact on performance.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果主要存储引擎是`MyISAM`，线程池大小应该设置得相对较低。通常情况下，最佳性能在4到8之间。较高的值可能会对性能产生轻微负面影响，但不会太明显。
+- en: The upper limit on the number of concurrent transactions that can be processed
+    by the thread pool plugin is determined by the value of [`thread_pool_max_transactions_limit`](server-system-variables.html#sysvar_thread_pool_max_transactions_limit).
+    The recommendation initial setting for this system variable is the number of physical
+    cores times 32\. You may need to adjust the value from this starting point to
+    suit a given workload; a reasonable upper bound for this value is the maximum
+    number of concurrent connections expected; the value of the [`Max_used_connections`](server-status-variables.html#statvar_Max_used_connections)
+    status variable can serve as a guide to determining this. A good way to proceed
+    is to start with `thread_pool_max_transactions_limit` set to this value, then
+    adjust it downwards while observing the effect on throughput.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 线程池插件可以处理的并发事务数量上限由[`thread_pool_max_transactions_limit`](server-system-variables.html#sysvar_thread_pool_max_transactions_limit)的值确定。这个系统变量的推荐初始设置是物理核心数乘以32。您可能需要根据特定工作负载调整这个值；这个值的合理上限是预期的最大并发连接数；[`Max_used_connections`](server-status-variables.html#statvar_Max_used_connections)状态变量的值可以作为确定这个值的指导。一个好的方法是将`thread_pool_max_transactions_limit`设置为这个值，然后在观察吞吐量的影响时逐渐调整它的值。
+- en: The maximum number of query threads permitted in a thread group is determined
+    by the value of [`thread_pool_query_threads_per_group`](server-system-variables.html#sysvar_thread_pool_query_threads_per_group),
+    which can be adjusted at runtime. The product of this value and the thread pool
+    size is approximately equal to the total number of threads available to process
+    queries. Obtaining the best performance usually means striking the proper balance
+    for your application between `thread_pool_query_threads_per_group` and the thread
+    pool size. Greater values for `thread_pool_query_threads_per_group` value make
+    it less likely that all the threads in the thread group simultaneously execute
+    long running queries while blocking shorter ones when the workload includes both
+    long and short running queries. You should bear in mind that the overhead of the
+    connection polling operation for each thread group increases when using smaller
+    values for the thread pool size with larger values for `thread_pool_query_threads_per_group`.
+    For this reason, we recommend a starting value of `2` for `thread_pool_query_threads_per_group`;
+    setting this variable to a lower value usually does not offer any performance
+    benefit.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 线程组中允许的最大查询线程数由[`thread_pool_query_threads_per_group`](server-system-variables.html#sysvar_thread_pool_query_threads_per_group)的值确定，可以在运行时进行调整。此值与线程池大小的乘积大致等于可用于处理查询的总线程数。通常获得最佳性能意味着在`thread_pool_query_threads_per_group`和线程池大小之间为您的应用程序找到适当的平衡。较大的`thread_pool_query_threads_per_group`值使得在线程组中同时执行长时间查询并阻塞较短查询的可能性较小，当工作负载包括长时间和短时间运行的查询时。您应该记住，当使用较小的线程池大小值和较大的`thread_pool_query_threads_per_group`值时，每个线程组的连接轮询操作的开销会增加。因此，我们建议将`thread_pool_query_threads_per_group`的起始值设置为`2`；将此变量设置为较低的值通常不会提供任何性能优势。
+- en: For best performance under normal conditions, we also recommend that you set
+    [`thread_pool_algorithm`](server-system-variables.html#sysvar_thread_pool_algorithm)
+    to 1 for high concurrency.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在正常情况下获得最佳性能，我们还建议将[`thread_pool_algorithm`](server-system-variables.html#sysvar_thread_pool_algorithm)设置为1以实现高并发。
+- en: In addition, the value of the [`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    system variable determines the handling of blocked and long-running statements.
+    If all calls blocking the MySQL Server were reported to the thread pool, it would
+    always know when execution threads are blocked, but this may not always be true.
+    For example, blocks could occur in code that has not been instrumented with thread
+    pool callbacks. For such cases, the thread pool must be able to identify threads
+    that appear to be blocked. This is done by means of a timeout determined by the
+    value of `thread_pool_stall_limit`, which ensures that the server does not become
+    completely blocked. The value of `thread_pool_stall_limit` represents a number
+    of 10-millisecond intervals, so that `600` (the maximum) represents 6 seconds.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)系统变量的值决定了阻塞和长时间运行语句的处理方式。如果所有阻塞MySQL服务器的调用都报告给线程池，那么它将始终知道执行线程何时被阻塞，但这并不总是正确的。例如，可能会在未使用线程池回调进行仪器化的代码中发生阻塞。对于这种情况，线程池必须能够识别似乎被阻塞的线程。这是通过由`thread_pool_stall_limit`的值确定的超时来完成的，该超时确保服务器不会完全被阻塞。`thread_pool_stall_limit`的值表示10毫秒间隔的数量，因此`600`（最大值）表示6秒。
+- en: '[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    also enables the thread pool to handle long-running statements. If a long-running
+    statement were permitted to block a thread group, all other connections assigned
+    to the group would be blocked and unable to start execution until the long-running
+    statement completed. In the worst case, this could take hours or even days.'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)还可以使线程池处理长时间运行的语句。如果允许长时间运行的语句阻塞线程组，那么分配给该组的所有其他连接都将被阻塞，无法开始执行，直到长时间运行的语句完成。在最坏的情况下，这可能需要几个小时甚至几天。'
+- en: The value of [`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    should be chosen such that statements that execute longer than its value are considered
+    stalled. Stalled statements generate a lot of extra overhead since they involve
+    extra context switches and in some cases even extra thread creations. On the other
+    hand, setting the [`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    parameter too high means that long-running statements block a number of short-running
+    statements for longer than necessary. Short wait values permit threads to start
+    more quickly. Short values are also better for avoiding deadlock situations. Long
+    wait values are useful for workloads that include long-running statements, to
+    avoid starting too many new statements while the current ones execute.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应选择[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)的值，使得执行时间超过该值的语句被视为停滞。停滞的语句会产生大量额外开销，因为它们涉及额外的上下文切换，有时甚至涉及额外的线程创建。另一方面，将[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)参数设置得太高意味着长时间运行的语句会阻塞一些短时间运行的语句，时间超过必要的时间。较短的等待值允许线程更快地启动。较短的值也更有利于避免死锁情况。较长的等待值对包含长时间运行语句的工作负载有用，以避免在当前语句执行时启动太多新语句。
+- en: Suppose a server executes a workload where 99.9% of the statements complete
+    within 100ms even when the server is loaded, and the remaining statements take
+    between 100ms and 2 hours fairly evenly spread. In this case, it would make sense
+    to set [`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    to 10 (10 × 10ms = 100ms). The default value of 6 (60ms) is suitable for servers
+    that primarily execute very simple statements.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设一个服务器执行的工作负载中，即使在服务器负载较重时，99.9%的语句在100ms内完成，而剩余的语句在100ms至2小时之间均匀分布。在这种情况下，将[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)设置为10（10
+    × 10ms = 100ms）是有意义的。默认值为6（60ms），适用于主要执行非常简单语句的服务器。
+- en: 'The [`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    parameter can be changed at runtime to enable you to strike a balance appropriate
+    for the server work load. Assuming that the [`tp_thread_group_stats`](performance-schema-tp-thread-group-stats-table.html
+    "29.12.16.2 The tp_thread_group_stats Table") table is enabled, you can use the
+    following query to determine the fraction of executed statements that stalled:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    参数可以在运行时更改，以使您能够找到适合服务器工作负载的平衡。假设启用了[`tp_thread_group_stats`](performance-schema-tp-thread-group-stats-table.html
+    "29.12.16.2 The tp_thread_group_stats Table")表，您可以使用以下查询来确定停滞执行语句的比例：'
+- en: '[PRE0]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: This number should be as low as possible. To decrease the likelihood of statements
+    stalling, increase the value of [`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit).
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个数字应尽可能低。为了减少语句停滞的可能性，增加[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)的值。
+- en: 'When a statement arrives, what is the maximum time it can be delayed before
+    it actually starts executing? Suppose that the following conditions apply:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当一个语句到达时，它实际开始执行之前可以延迟的最长时间是多少？假设满足以下条件：
+- en: There are 200 statements queued in the low-priority queue.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 低优先级队列中有200个语句在排队。
+- en: There are 10 statements queued in the high-priority queue.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 高优先级队列中有10个语句在排队。
+- en: '[`thread_pool_prio_kickup_timer`](server-system-variables.html#sysvar_thread_pool_prio_kickup_timer)
+    is set to 10000 (10 seconds).'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`thread_pool_prio_kickup_timer`](server-system-variables.html#sysvar_thread_pool_prio_kickup_timer)
+    设置为10000（10秒）。'
+- en: '[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    is set to 100 (1 second).'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`thread_pool_stall_limit`](server-system-variables.html#sysvar_thread_pool_stall_limit)
+    设置为100（1秒）。'
+- en: In the worst case, the 10 high-priority statements represent 10 transactions
+    that continue executing for a long time. Thus, in the worst case, no statements
+    can be moved to the high-priority queue because it always already contains statements
+    awaiting execution. After 10 seconds, the new statement is eligible to be moved
+    to the high-priority queue. However, before it can be moved, all the statements
+    before it must be moved as well. This could take another 2 seconds because a maximum
+    of 100 statements per second are moved to the high-priority queue. Now when the
+    statement reaches the high-priority queue, there could potentially be many long-running
+    statements ahead of it. In the worst case, every one of those becomes stalled
+    and 1 second is required for each statement before the next statement is retrieved
+    from the high-priority queue. Thus, in this scenario, it takes 222 seconds before
+    the new statement starts executing.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在最坏的情况下，这10个高优先级语句代表了10个长时间执行的事务。因此，在最坏的情况下，没有语句可以移动到高优先级队列，因为它总是包含等待执行的语句。在10秒后，新语句有资格被移动到高优先级队列。然而，在它被移动之前，它之前的所有语句也必须被移动。这可能需要另外2秒，因为每秒最多可以将100个语句移动到高优先级队列。现在当语句到达高优先级队列时，可能会有许多长时间运行的语句在它前面。在最坏的情况下，每一个都会被阻塞，每个语句之间需要1秒才能从高优先级队列中检索到下一个语句。因此，在这种情况下，新语句开始执行前需要222秒。
+- en: This example shows a worst case for an application. How to handle it depends
+    on the application. If the application has high requirements for the response
+    time, it should most likely throttle users at a higher level itself. Otherwise,
+    it can use the thread pool configuration parameters to set some kind of a maximum
+    waiting time.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个例子展示了一个应用程序的最坏情况。如何处理取决于应用程序。如果应用程序对响应时间有很高的要求，它很可能应该在更高的级别自行限制用户。否则，它可以使用线程池配置参数来设置某种最大等待时间。

@@ -1,0 +1,433 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/memory-use.html](https://dev.mysql.com/doc/refman/8.0/en/memory-use.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/memory-use.html](https://dev.mysql.com/doc/refman/8.0/en/memory-use.html)
+- en: 10.12.3.1 How MySQL Uses Memory
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.12.3.1 MySQL如何使用内存
+- en: MySQL allocates buffers and caches to improve performance of database operations.
+    The default configuration is designed to permit a MySQL server to start on a virtual
+    machine that has approximately 512MB of RAM. You can improve MySQL performance
+    by increasing the values of certain cache and buffer-related system variables.
+    You can also modify the default configuration to run MySQL on systems with limited
+    memory.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL分配缓冲区和缓存以提高数据库操作的性能。默认配置旨在允许MySQL服务器在具有大约512MB RAM的虚拟机上启动。您可以通过增加某些与缓存和缓冲区相关的系统变量的值来提高MySQL的性能。您还可以修改默认配置以在内存有限的系统上运行MySQL。
+- en: The following list describes some of the ways that MySQL uses memory. Where
+    applicable, relevant system variables are referenced. Some items are storage engine
+    or feature specific.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下列表描述了MySQL使用内存的一些方式。在适用的情况下，引用了相关的系统变量。一些项目是存储引擎或特定功能。
+- en: The `InnoDB` buffer pool is a memory area that holds cached `InnoDB` data for
+    tables, indexes, and other auxiliary buffers. For efficiency of high-volume read
+    operations, the buffer pool is divided into [pages](glossary.html#glos_page "page")
+    that can potentially hold multiple rows. For efficiency of cache management, the
+    buffer pool is implemented as a linked list of pages; data that is rarely used
+    is aged out of the cache, using a variation of the [LRU](glossary.html#glos_lru
+    "LRU") algorithm. For more information, see [Section 17.5.1, “Buffer Pool”](innodb-buffer-pool.html
+    "17.5.1 Buffer Pool").
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`InnoDB`缓冲池是一个保存用于表、索引和其他辅助缓冲区的缓存`InnoDB`数据的内存区域。为了提高高容量读操作的效率，缓冲池被划分为[页](glossary.html#glos_page
+    "page")，这些页可能可以容纳多行。为了提高缓存管理的效率，缓冲池被实现为页的链表；很少使用的数据会根据[Lru](glossary.html#glos_lru
+    "LRU")算法的变体从缓存中淘汰。更多信息，请参见[第17.5.1节，“缓冲池”](innodb-buffer-pool.html "17.5.1 Buffer
+    Pool")。'
+- en: 'The size of the buffer pool is important for system performance:'
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 缓冲池的大小对系统性能很重要：
+- en: '`InnoDB` allocates memory for the entire buffer pool at server startup, using
+    `malloc()` operations. The [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    system variable defines the buffer pool size. Typically, a recommended [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    value is 50 to 75 percent of system memory. [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    can be configured dynamically, while the server is running. For more information,
+    see [Section 17.8.3.1, “Configuring InnoDB Buffer Pool Size”](innodb-buffer-pool-resize.html
+    "17.8.3.1 Configuring InnoDB Buffer Pool Size").'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`InnoDB`在服务器启动时为整个缓冲池分配内存，使用`malloc()`操作。[`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)系统变量定义了缓冲池的大小。通常，推荐的[`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)值为系统内存的50到75%。[`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)可以在服务器运行时动态配置。更多信息，请参见[第17.8.3.1节，“配置InnoDB缓冲池大小”](innodb-buffer-pool-resize.html
+    "17.8.3.1 Configuring InnoDB Buffer Pool Size")。'
+- en: On systems with a large amount of memory, you can improve concurrency by dividing
+    the buffer pool into multiple [buffer pool instances](glossary.html#glos_buffer_pool_instance
+    "buffer pool instance"). The [`innodb_buffer_pool_instances`](innodb-parameters.html#sysvar_innodb_buffer_pool_instances)
+    system variable defines the number of buffer pool instances.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在具有大量内存的系统上，可以通过将缓冲池划分为多个[缓冲池实例](glossary.html#glos_buffer_pool_instance "buffer
+    pool instance")来提高并发性。[`innodb_buffer_pool_instances`](innodb-parameters.html#sysvar_innodb_buffer_pool_instances)系统变量定义了缓冲池实例的数量。
+- en: A buffer pool that is too small may cause excessive churning as pages are flushed
+    from the buffer pool only to be required again a short time later.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 过小的缓冲池可能会导致过多的翻转，因为页面从缓冲池刷新出来，只是在短时间后再次需要。
+- en: A buffer pool that is too large may cause swapping due to competition for memory.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 过大的缓冲池可能会导致由于内存竞争而发生交换。
+- en: The storage engine interface enables the optimizer to provide information about
+    the size of the record buffer to be used for scans that the optimizer estimates
+    are likely to read multiple rows. The buffer size can vary based on the size of
+    the estimate. `InnoDB` uses this variable-size buffering capability to take advantage
+    of row prefetching, and to reduce the overhead of latching and B-tree navigation.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储引擎接口使优化器能够提供关于要用于估计可能读取多行的扫描的记录缓冲区大小的信息。缓冲区大小可以根据估计的大小变化。`InnoDB`使用这种可变大小的缓冲能力来利用行预取，并减少锁定和B树导航的开销。
+- en: All threads share the [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM
+    Storage Engine") key buffer. The [`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)
+    system variable determines its size.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有线程共享[`MyISAM`](myisam-storage-engine.html "18.2 MyISAM存储引擎")关键缓冲区。[`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)系统变量确定其大小。
+- en: For each `MyISAM` table the server opens, the index file is opened once; the
+    data file is opened once for each concurrently running thread that accesses the
+    table. For each concurrent thread, a table structure, column structures for each
+    column, and a buffer of size `3 * *`N`*` are allocated (where *`N`* is the maximum
+    row length, not counting [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types")
+    columns). A [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") column requires
+    five to eight bytes plus the length of the [`BLOB`](blob.html "13.3.4 The BLOB
+    and TEXT Types") data. The `MyISAM` storage engine maintains one extra row buffer
+    for internal use.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于每个`MyISAM`表，服务器打开一次索引文件；对于每个同时运行访问该表的线程，数据文件会被打开一次。对于每个并发线程，都会分配一个表结构，每个列的列结构，以及大小为`3
+    * *`N`*`的缓冲区（其中*`N`*是最大行长度，不包括[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")列）。一个[`BLOB`](blob.html
+    "13.3.4 BLOB和TEXT类型")列需要五到八个字节加上[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")数据的长度。`MyISAM`存储引擎为内部使用维护了一个额外的行缓冲区。
+- en: The [`myisam_use_mmap`](server-system-variables.html#sysvar_myisam_use_mmap)
+    system variable can be set to 1 to enable memory-mapping for all `MyISAM` tables.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`myisam_use_mmap`](server-system-variables.html#sysvar_myisam_use_mmap)系统变量可以设置为1，以启用所有`MyISAM`表的内存映射。'
+- en: If an internal in-memory temporary table becomes too large (as determined using
+    the [`tmp_table_size`](server-system-variables.html#sysvar_tmp_table_size) and
+    [`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)
+    system variables), MySQL automatically converts the table from in-memory to on-disk
+    format. As of MySQL 8.0.16, on-disk temporary tables always use the `InnoDB` storage
+    engine. (Previously, the storage engine employed for this purpose was determined
+    by the [`internal_tmp_disk_storage_engine`](server-system-variables.html#sysvar_internal_tmp_disk_storage_engine)
+    system variable, which is no longer supported.) You can increase the permissible
+    temporary table size as described in [Section 10.4.4, “Internal Temporary Table
+    Use in MySQL”](internal-temporary-tables.html "10.4.4 Internal Temporary Table
+    Use in MySQL").
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个内部内存临时表变得太大（根据[`tmp_table_size`](server-system-variables.html#sysvar_tmp_table_size)和[`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)系统变量确定），MySQL会自动将表从内存转换为磁盘格式。从MySQL
+    8.0.16开始，磁盘临时表总是使用`InnoDB`存储引擎。（以前，用于此目的的存储引擎是由[`internal_tmp_disk_storage_engine`](server-system-variables.html#sysvar_internal_tmp_disk_storage_engine)系统变量确定的，该变量不再受支持。）您可以按照[第10.4.4节，“MySQL中的内部临时表使用”](internal-temporary-tables.html
+    "10.4.4 MySQL中的内部临时表使用")中描述的方式增加临时表的大小。
+- en: For [`MEMORY`](memory-storage-engine.html "18.3 The MEMORY Storage Engine")
+    tables explicitly created with [`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement"), only the [`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)
+    system variable determines how large a table can grow, and there is no conversion
+    to on-disk format.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于使用[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE语句")显式创建的[`MEMORY`](memory-storage-engine.html
+    "18.3 MEMORY存储引擎")表，只有[`max_heap_table_size`](server-system-variables.html#sysvar_max_heap_table_size)系统变量确定表可以增长多大，而且不会转换为磁盘格式。
+- en: The [MySQL Performance Schema](performance-schema.html "Chapter 29 MySQL Performance
+    Schema") is a feature for monitoring MySQL server execution at a low level. The
+    Performance Schema dynamically allocates memory incrementally, scaling its memory
+    use to actual server load, instead of allocating required memory during server
+    startup. Once memory is allocated, it is not freed until the server is restarted.
+    For more information, see [Section 29.17, “The Performance Schema Memory-Allocation
+    Model”](performance-schema-memory-model.html "29.17 The Performance Schema Memory-Allocation
+    Model").
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[MySQL性能模式](performance-schema.html "第29章 MySQL性能模式")是一个用于监视MySQL服务器在低级别执行的功能。性能模式动态地逐步分配内存，根据实际服务器负载来调整内存使用，而不是在服务器启动期间分配所需内存。一旦分配了内存，直到服务器重新启动之前都不会释放。更多信息，请参阅[第29.17节，“性能模式内存分配模型”](performance-schema-memory-model.html
+    "29.17 性能模式内存分配模型")。'
+- en: 'Each thread that the server uses to manage client connections requires some
+    thread-specific space. The following list indicates these and which system variables
+    control their size:'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器用于管理客户端连接的每个线程都需要一些特定于线程的空间。以下列表指示了这些空间以及控制它们大小的系统变量：
+- en: A stack ([`thread_stack`](server-system-variables.html#sysvar_thread_stack))
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个堆栈（[`thread_stack`](server-system-variables.html#sysvar_thread_stack)）
+- en: A connection buffer ([`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length))
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个连接缓冲区（[`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length)）
+- en: A result buffer ([`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length))
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个结果缓冲区（[`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length))
+- en: The connection buffer and result buffer each begin with a size equal to [`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length)
+    bytes, but are dynamically enlarged up to [`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)
+    bytes as needed. The result buffer shrinks to [`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length)
+    bytes after each SQL statement. While a statement is running, a copy of the current
+    statement string is also allocated.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 连接缓冲区和结果缓冲区的初始大小均为[`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length)字节，但根据需要动态扩大至[`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)字节。每个SQL语句执行完毕后，结果缓冲区会缩小至[`net_buffer_length`](server-system-variables.html#sysvar_net_buffer_length)字节。在语句运行时，当前语句字符串的副本也会被分配。
+- en: Each connection thread uses memory for computing statement digests. The server
+    allocates [`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)
+    bytes per session. See [Section 29.10, “Performance Schema Statement Digests and
+    Sampling”](performance-schema-statement-digests.html "29.10 Performance Schema
+    Statement Digests and Sampling").
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个连接线程使用内存来计算语句摘要。服务器为每个会话分配[`max_digest_length`](server-system-variables.html#sysvar_max_digest_length)字节。请参阅[第29.10节，“性能模式语句摘要和采样”](performance-schema-statement-digests.html
+    "29.10 性能模式语句摘要和采样")。
+- en: All threads share the same base memory.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有线程共享相同的基本内存。
+- en: When a thread is no longer needed, the memory allocated to it is released and
+    returned to the system unless the thread goes back into the thread cache. In that
+    case, the memory remains allocated.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当不再需要一个线程时，分配给它的内存会被释放并返回给系统，除非线程重新进入线程缓存。在这种情况下，内存仍然保持分配状态。
+- en: Each request that performs a sequential scan of a table allocates a read buffer.
+    The [`read_buffer_size`](server-system-variables.html#sysvar_read_buffer_size)
+    system variable determines the buffer size.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个执行表的顺序扫描的请求都会分配一个读取缓冲区。[`read_buffer_size`](server-system-variables.html#sysvar_read_buffer_size)系统变量确定了缓冲区的大小。
+- en: When reading rows in an arbitrary sequence (for example, following a sort),
+    a random-read buffer may be allocated to avoid disk seeks. The [`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)
+    system variable determines the buffer size.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在以任意顺序读取行（例如，遵循排序）时，可能会分配一个随机读取缓冲区以避免磁盘查找。[`read_rnd_buffer_size`](server-system-variables.html#sysvar_read_rnd_buffer_size)系统变量确定了���冲区的大小。
+- en: All joins are executed in a single pass, and most joins can be done without
+    even using a temporary table. Most temporary tables are memory-based hash tables.
+    Temporary tables with a large row length (calculated as the sum of all column
+    lengths) or that contain [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types")
+    columns are stored on disk.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有连接都在单次执行中执行，大多数连接甚至可以在不使用临时表的情况下完成。大多数临时表都是基于内存的哈希表。具有大行长度（计算为所有列长度之和）或包含[`BLOB`](blob.html
+    "13.3.4 BLOB和TEXT类型")列的临时表存储在磁盘上。
+- en: Most requests that perform a sort allocate a sort buffer and zero to two temporary
+    files depending on the result set size. See [Section B.3.3.5, “Where MySQL Stores
+    Temporary Files”](temporary-files.html "B.3.3.5 Where MySQL Stores Temporary Files").
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 大多数执行排序操作的请求会分配一个排序缓冲区，并根据结果集大小分配零到两个临时文件。请参阅[Section B.3.3.5, “Where MySQL
+    Stores Temporary Files”](temporary-files.html "B.3.3.5 Where MySQL Stores Temporary
+    Files")。
+- en: Almost all parsing and calculating is done in thread-local and reusable memory
+    pools. No memory overhead is needed for small items, thus avoiding the normal
+    slow memory allocation and freeing. Memory is allocated only for unexpectedly
+    large strings.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 几乎所有的解析和计算都是在线程本地和可重用的内存池中完成的。对于小项目，不需要额外的内存开销，从而避免了常规的缓慢内存分配和释放。只有对于异常大的字符串才会分配内存。
+- en: For each table having [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") columns,
+    a buffer is enlarged dynamically to read in larger [`BLOB`](blob.html "13.3.4 The
+    BLOB and TEXT Types") values. If you scan a table, the buffer grows as large as
+    the largest [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") value.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于每个具有[`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types")列的表，缓冲区会动态扩大以读取更大的[`BLOB`](blob.html
+    "13.3.4 The BLOB and TEXT Types")值。如果扫描一个表，缓冲区会增长到最大的[`BLOB`](blob.html "13.3.4 The
+    BLOB and TEXT Types")值的大小。
+- en: MySQL requires memory and descriptors for the table cache. Handler structures
+    for all in-use tables are saved in the table cache and managed as “First In, First
+    Out” (FIFO). The [`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)
+    system variable defines the initial table cache size; see [Section 10.4.3.1, “How
+    MySQL Opens and Closes Tables”](table-cache.html "10.4.3.1 How MySQL Opens and
+    Closes Tables").
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL需要为表缓存分配内存和描述符。所有正在使用的表的处理程序结构保存在表缓存中，并按照“先进先出”（FIFO）的方式进行管理。[`table_open_cache`](server-system-variables.html#sysvar_table_open_cache)系统变量定义了初始表缓存大小；请参阅[Section 10.4.3.1,
+    “How MySQL Opens and Closes Tables”](table-cache.html "10.4.3.1 How MySQL Opens
+    and Closes Tables")。
+- en: MySQL also requires memory for the table definition cache. The [`table_definition_cache`](server-system-variables.html#sysvar_table_definition_cache)
+    system variable defines the number of table definitions that can be stored in
+    the table definition cache. If you use a large number of tables, you can create
+    a large table definition cache to speed up the opening of tables. The table definition
+    cache takes less space and does not use file descriptors, unlike the table cache.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL还需要为表定义缓存分配内存。[`table_definition_cache`](server-system-variables.html#sysvar_table_definition_cache)系统变量定义了可以存储在表定义缓存中的表定义数量。如果使用大量表，可以创建一个大的表定义缓存以加快表的打开速度。表定义缓存占用的空间较小，不使用文件描述符，与表缓存不同。
+- en: A [`FLUSH TABLES`](flush.html#flush-tables) statement or [**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") command closes all
+    tables that are not in use at once and marks all in-use tables to be closed when
+    the currently executing thread finishes. This effectively frees most in-use memory.
+    [`FLUSH TABLES`](flush.html#flush-tables) does not return until all tables have
+    been closed.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个[`FLUSH TABLES`](flush.html#flush-tables)语句或[**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")命令会立即关闭所有未使用的表，并标记所有正在使用的表在当前执行线程完成时关闭。这有效地释放了大部分正在使用的内存。[`FLUSH
+    TABLES`](flush.html#flush-tables)在所有表关闭后才会返回。
+- en: The server caches information in memory as a result of [`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement"), [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement"), [`CREATE SERVER`](create-server.html "15.1.18 CREATE SERVER
+    Statement"), and [`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN
+    Statement") statements. This memory is not released by the corresponding [`REVOKE`](revoke.html
+    "15.7.1.8 REVOKE Statement"), [`DROP USER`](drop-user.html "15.7.1.5 DROP USER
+    Statement"), [`DROP SERVER`](drop-server.html "15.1.30 DROP SERVER Statement"),
+    and [`UNINSTALL PLUGIN`](uninstall-plugin.html "15.7.4.6 UNINSTALL PLUGIN Statement")
+    statements, so for a server that executes many instances of the statements that
+    cause caching, there is an increase in cached memory use unless it is freed with
+    [`FLUSH PRIVILEGES`](flush.html#flush-privileges).
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器会因为[`GRANT`](grant.html "15.7.1.6 GRANT Statement")、[`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement")、[`CREATE SERVER`](create-server.html "15.1.18 CREATE
+    SERVER Statement")和[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN
+    Statement")语句而在内存中缓存信息。这些内存不会被相应的[`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement")、[`DROP
+    USER`](drop-user.html "15.7.1.5 DROP USER Statement")、[`DROP SERVER`](drop-server.html
+    "15.1.30 DROP SERVER Statement")和[`UNINSTALL PLUGIN`](uninstall-plugin.html "15.7.4.6 UNINSTALL
+    PLUGIN Statement")语句释放，因此对于执行许多导致缓存的语句实例的服务器，除非使用[`FLUSH PRIVILEGES`](flush.html#flush-privileges)释放，否则缓存内存使用量会增加。
+- en: 'In a replication topology, the following settings affect memory usage, and
+    can be adjusted as required:'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在复制拓扑中，以下设置会影响内存使用，并可以根据需要进行调整：
+- en: The [`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)
+    system variable on a replication source limits the maximum message size that the
+    source sends to its replicas for processing. This setting defaults to 64M.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 复制源上的[`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)系统变量限制源发送给其复制品进行处理的最大消息大小。此设置默认为64M。
+- en: The system variable [`replica_pending_jobs_size_max`](replication-options-replica.html#sysvar_replica_pending_jobs_size_max)
+    (from MySQL 8.0.26) or [`slave_pending_jobs_size_max`](replication-options-replica.html#sysvar_slave_pending_jobs_size_max)
+    (before MySQL 8.0.26) on a multithreaded replica sets the maximum amount of memory
+    that is made available for holding messages awaiting processing. This setting
+    defaults to 128M. The memory is only allocated when needed, but it might be used
+    if your replication topology handles large transactions sometimes. It is a soft
+    limit, and larger transactions can be processed.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 多线程复制品上的[`replica_pending_jobs_size_max`](replication-options-replica.html#sysvar_replica_pending_jobs_size_max)（从MySQL
+    8.0.26开始）或MySQL 8.0.26之前的[`slave_pending_jobs_size_max`](replication-options-replica.html#sysvar_slave_pending_jobs_size_max)系统变量设置用于保存等待处理消息的最大内存量。此设置默认为128M。只有在需要时才分配内存，但如果您的复制拓扑有时处理大事务，则可能会使用它。这是一个软限制，可以处理更大的事务。
+- en: The [`rpl_read_size`](replication-options-replica.html#sysvar_rpl_read_size)
+    system variable on a replication source or replica controls the minimum amount
+    of data in bytes that is read from the binary log files and relay log files. The
+    default is 8192 bytes. A buffer the size of this value is allocated for each thread
+    that reads from the binary log and relay log files, including dump threads on
+    sources and coordinator threads on replicas.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 复制源或复制品上的[`rpl_read_size`](replication-options-replica.html#sysvar_rpl_read_size)系统变量控制从二进制日志文件和中继日志文件中读取的最小数据量（以字节为单位）。默认值为8192字节。为从二进制日志和中继日志文件中读取数据的每个线程分配了与此值大小相同的缓冲区，包括源上的转储线程和复制品上的协调器线程。
+- en: The [`binlog_transaction_dependency_history_size`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_history_size)
+    system variable limits the number of row hashes held as an in-memory history.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`binlog_transaction_dependency_history_size`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_history_size)系统变量限制保存在内存中的行哈希数量。'
+- en: The [`max_binlog_cache_size`](replication-options-binary-log.html#sysvar_max_binlog_cache_size)
+    system variable specifies the upper limit of memory usage by an individual transaction.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`max_binlog_cache_size`](replication-options-binary-log.html#sysvar_max_binlog_cache_size)系统变量指定单个事务的内存使用上限。'
+- en: The [`max_binlog_stmt_cache_size`](replication-options-binary-log.html#sysvar_max_binlog_stmt_cache_size)
+    system variable specifies the upper limit of memory usage by the statement cache.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`max_binlog_stmt_cache_size`](replication-options-binary-log.html#sysvar_max_binlog_stmt_cache_size)系统变量指定语句缓存的内存使用上限。'
+- en: '**ps** and other system status programs may report that [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") uses a lot of memory. This may be caused by
+    thread stacks on different memory addresses. For example, the Solaris version
+    of **ps** counts the unused memory between stacks as used memory. To verify this,
+    check available swap with `swap -s`. We test [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") with several memory-leakage detectors (both commercial and
+    Open Source), so there should be no memory leaks.'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**ps** 和其他系统状态程序可能会报告说[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")使用了大量内存。这可能是由于不同内存地址上的线程堆栈导致的。例如，Solaris
+    版本的 **ps** 将堆栈之间未使用的内存计算为已使用内存。要验证这一点，请使用 `swap -s` 检查可用交换空间。我们使用了几种内存泄漏检测工具来测试[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")（包括商业和开源的），因此不应该有内存泄漏。'

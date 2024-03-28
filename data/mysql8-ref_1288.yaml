@@ -1,0 +1,546 @@
+- en: 17.20.8 InnoDB memcached Plugin Internals
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.20.8 InnoDB memcached插件内部
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-internals.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-internals.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-internals.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-internals.html)
+- en: InnoDB API for the InnoDB memcached Plugin
+  id: totrans-2
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: InnoDB memcached插件的InnoDB API
+- en: The `InnoDB` **memcached** engine accesses `InnoDB` through `InnoDB` APIs, most
+    of which are directly adopted from embedded `InnoDB`. `InnoDB` API functions are
+    passed to the `InnoDB` **memcached** engine as callback functions. `InnoDB` API
+    functions access the `InnoDB` tables directly, and are mostly DML operations with
+    the exception of [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE
+    Statement").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB` **memcached**引擎通过`InnoDB` API访问`InnoDB`，其中大部分直接采用自嵌入式`InnoDB`。 `InnoDB`
+    API函数作为回调函数传递给`InnoDB` **memcached**引擎。 `InnoDB` API函数直接访问`InnoDB`表，大多数是DML操作，除了[`TRUNCATE
+    TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement")。'
+- en: '**memcached** commands are implemented through the `InnoDB` **memcached** API.
+    The following table outlines how **memcached** commands are mapped to DML or DDL
+    operations.'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**memcached**命令通过`InnoDB` **memcached** API实现。以下表格概述了如何将**memcached**命令映射到DML或DDL操作。'
+- en: '**Table 17.27 memcached Commands and Associated DML or DDL Operations**'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表17.27 memcached命令及相关的DML或DDL操作**'
+- en: '| memcached Command | DML or DDL Operations |'
+  id: totrans-6
+  prefs: []
+  type: TYPE_TB
+  zh: '| memcached命令 | DML或DDL操作 |'
+- en: '| `get` | a read/fetch command |'
+  id: totrans-7
+  prefs: []
+  type: TYPE_TB
+  zh: '| `get` | 读取/获取命令 |'
+- en: '| `set` | a search followed by an `INSERT` or `UPDATE` (depending on whether
+    or not a key exists) |'
+  id: totrans-8
+  prefs: []
+  type: TYPE_TB
+  zh: '| `set` | 一次搜索，然后是`INSERT`或`UPDATE`（取决于键是否存在）|'
+- en: '| `add` | a search followed by an `INSERT` or `UPDATE` |'
+  id: totrans-9
+  prefs: []
+  type: TYPE_TB
+  zh: '| `add` | 一次搜索，然后是`INSERT`或`UPDATE`|'
+- en: '| `replace` | a search followed by an `UPDATE` |'
+  id: totrans-10
+  prefs: []
+  type: TYPE_TB
+  zh: '| `replace` | 一次搜索，然后是`UPDATE`|'
+- en: '| `append` | a search followed by an `UPDATE` (appends data to the result before
+    `UPDATE`) |'
+  id: totrans-11
+  prefs: []
+  type: TYPE_TB
+  zh: '| `append` | 一次搜索，然后是`UPDATE`（在`UPDATE`之前将数据追加到结果中）|'
+- en: '| `prepend` | a search followed by an `UPDATE` (prepends data to the result
+    before `UPDATE`) |'
+  id: totrans-12
+  prefs: []
+  type: TYPE_TB
+  zh: '| `prepend` | 一次搜索，然后是`UPDATE`（在`UPDATE`之前将数据前置到结果中）|'
+- en: '| `incr` | a search followed by an `UPDATE` |'
+  id: totrans-13
+  prefs: []
+  type: TYPE_TB
+  zh: '| `incr` | 一次搜索，然后是`UPDATE`|'
+- en: '| `decr` | a search followed by an `UPDATE` |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| `decr` | 一次搜索，然后是`UPDATE`|'
+- en: '| `delete` | a search followed by a `DELETE` |'
+  id: totrans-15
+  prefs: []
+  type: TYPE_TB
+  zh: '| `delete` | 一次搜索，然后是`DELETE`|'
+- en: '| `flush_all` | `TRUNCATE TABLE` (DDL) |'
+  id: totrans-16
+  prefs: []
+  type: TYPE_TB
+  zh: '| `flush_all` | `TRUNCATE TABLE`（DDL）|'
+- en: '| memcached Command | DML or DDL Operations |'
+  id: totrans-17
+  prefs: []
+  type: TYPE_TB
+  zh: '| memcached命令 | DML或DDL操作 |'
+- en: InnoDB memcached Plugin Configuration Tables
+  id: totrans-18
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: InnoDB memcached插件配置表
+- en: This section describes configuration tables used by the `daemon_memcached` plugin.
+    The `cache_policies` table, `config_options` table, and `containers` table are
+    created by the `innodb_memcached_config.sql` configuration script in the `innodb_memcache`
+    database.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了`daemon_memcached`插件使用的配置表。 `cache_policies`表，`config_options`表和`containers`表由`innodb_memcached_config.sql`配置脚本在`innodb_memcache`数据库中创建。
+- en: '[PRE0]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: cache_policies Table
+  id: totrans-21
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: cache_policies表
+- en: The `cache_policies` table defines a cache policy for the `InnoDB` `memcached`
+    installation. You can specify individual policies for `get`, `set`, `delete`,
+    and `flush` operations, within a single cache policy. The default setting for
+    all operations is `innodb_only`.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`cache_policies`表定义了`InnoDB` `memcached`安装的缓存策略。您可以在单个缓存策略中为`get`，`set`，`delete`和`flush`操作指定单独的策略。所有操作的默认设置为`innodb_only`。'
+- en: '`innodb_only`: Use `InnoDB` as the data store.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`innodb_only`: 使用`InnoDB`作为数据存储。'
+- en: '`cache_only`: Use the **memcached** engine as the data store.'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`cache_only`: 使用**memcached**引擎作为数据存储。'
+- en: '`caching`: Use both `InnoDB` and the **memcached** engine as data stores. In
+    this case, if **memcached** cannot find a key in memory, it searches for the value
+    in an `InnoDB` table.'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`caching`: 同时使用`InnoDB`和**memcached**引擎作为数据存储。在这种情况下，如果**memcached**在内存中找不到键，则会在`InnoDB`表中搜索该值。'
+- en: '`disable`: Disable caching.'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`disable`: 禁用缓存。'
+- en: '**Table 17.28 cache_policies Columns**'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表17.28 cache_policies列**'
+- en: '| Column | Description |'
+  id: totrans-28
+  prefs: []
+  type: TYPE_TB
+  zh: '| 列 | 描述 |'
+- en: '| `policy_name` | Name of the cache policy. The default cache policy name is
+    `cache_policy`. |'
+  id: totrans-29
+  prefs: []
+  type: TYPE_TB
+  zh: '| `policy_name` | 缓存策略的名称。默认缓存策略名称为`cache_policy`。|'
+- en: '| `get_policy` | The cache policy for get operations. Valid values are `innodb_only`,
+    `cache_only`, `caching`, or `disabled`. The default setting is `innodb_only`.
+    |'
+  id: totrans-30
+  prefs: []
+  type: TYPE_TB
+  zh: '| `get_policy` | get操作的缓存策略。有效值为`innodb_only`，`cache_only`，`caching`或`disabled`。默认设置为`innodb_only`。
+    |'
+- en: '| `set_policy` | The cache policy for set operations. Valid values are `innodb_only`,
+    `cache_only`, `caching`, or `disabled`. The default setting is `innodb_only`.
+    |'
+  id: totrans-31
+  prefs: []
+  type: TYPE_TB
+  zh: '| `set_policy` | set操作的缓存策略。有效值为`innodb_only`，`cache_only`，`caching`或`disabled`。默认设置为`innodb_only`。|'
+- en: '| `delete_policy` | The cache policy for delete operations. Valid values are
+    `innodb_only`, `cache_only`, `caching`, or `disabled`. The default setting is
+    `innodb_only`. |'
+  id: totrans-32
+  prefs: []
+  type: TYPE_TB
+  zh: '| `delete_policy` | 删除操作的缓存策略。有效值为`innodb_only`、`cache_only`、`caching`或`disabled`。默认设置为`innodb_only`。'
+- en: '| `flush_policy` | The cache policy for flush operations. Valid values are
+    `innodb_only`, `cache_only`, `caching`, or `disabled`. The default setting is
+    `innodb_only`. |'
+  id: totrans-33
+  prefs: []
+  type: TYPE_TB
+  zh: '| `flush_policy` | 刷新操作的缓存策略。有效值为`innodb_only`、`cache_only`、`caching`或`disabled`。默认设置为`innodb_only`。'
+- en: config_options Table
+  id: totrans-34
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: config_options 表
+- en: The `config_options` table stores **memcached**-related settings that can be
+    changed at runtime using SQL. Supported configuration options are `separator`
+    and `table_map_delimiter`.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`config_options`表存储可以使用SQL在运行时更改的与**memcached**相关的设置。支持的配置选项是`separator`和`table_map_delimiter`。'
+- en: '**Table 17.29 config_options Columns**'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表17.29 config_options 列**'
+- en: '| Column | Description |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| 列 | 描述 |'
+- en: '| `Name` | Name of the **memcached**-related configuration option. The following
+    configuration options are supported by the `config_options` table:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '| `Name` | **memcached**相关配置选项的名称。`config_options`表支持以下配置选项：'
+- en: '`separator`: Used to separate values of a long string into separate values
+    when there are multiple `value_columns` defined. By default, the `separator` is
+    a `&#124;` character. For example, if you define `col1, col2` as value columns,
+    and you define `&#124;` as the separator, you can issue the following **memcached**
+    command to insert values into `col1` and `col2`, respectively:'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`separator`：用于将长字符串的值分隔为单独的值的分隔符，当定义了多个`value_columns`时。默认情况下，分隔符是`&#124;`字符。例如，如果您将`col1,
+    col2`定义为值列，并将`&#124;`定义为分隔符，则可以发出以下**memcached**命令将值分别插入到`col1`和`col2`中：'
+- en: '[PRE1]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '`valuecol1x` is stored in `col1` and `valuecoly` is stored in `col2`.'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`valuecol1x`存储在`col1`中，`valuecoly`存储在`col2`中。'
+- en: '`table_map_delimiter`: The character separating the schema name and the table
+    name when you use the `@@` notation in a key name to access a key in a specific
+    table. For example, `@@t1.some_key` and `@@t2.some_key` have the same key value,
+    but are stored in different tables.'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`table_map_delimiter`：在使用`@@`符号访问特定表中的键时，用于分隔模式名称和表名称的字符。例如，`@@t1.some_key`和`@@t2.some_key`具有相同的键值，但存储在不同的表中。'
+- en: '|'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '|'
+- en: '| `Value` | The value assigned to the **memcached**-related configuration option.
+    |'
+  id: totrans-44
+  prefs: []
+  type: TYPE_TB
+  zh: '| `Value` | 分配给与**memcached**相关的配置选项的值。'
+- en: containers Table
+  id: totrans-45
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: containers 表
+- en: The `containers` table is the most important of the three configuration tables.
+    Each `InnoDB` table that is used to store **memcached** values must have an entry
+    in the `containers` table. The entry provides a mapping between `InnoDB` table
+    columns and container table columns, which is required for `memcached` to work
+    with `InnoDB` tables.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`containers`表是三个配置表中最重要的一个。用于存储**memcached**值的每个`InnoDB`表必须在`containers`表中有一个条目。该条目提供了`InnoDB`表列和容器表列之间的映射，这对于`memcached`与`InnoDB`表一起工作是必需的。'
+- en: The `containers` table contains a default entry for the `test.demo_test` table,
+    which is created by the `innodb_memcached_config.sql` configuration script. To
+    use the `daemon_memcached` plugin with your own `InnoDB` table, you must create
+    an entry in the `containers` table.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`containers`表包含`test.demo_test`表的默认条目，该表是由`innodb_memcached_config.sql`配置脚本创建的。要使用`daemon_memcached`插件与自己的`InnoDB`表，必须在`containers`表中创建一个条目。'
+- en: '**Table 17.30 containers Columns**'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表17.30 containers 列**'
+- en: '| Column | Description |'
+  id: totrans-49
+  prefs: []
+  type: TYPE_TB
+  zh: '| 列 | 描述 |'
+- en: '| `name` | The name given to the container. If an `InnoDB` table is not requested
+    by name using `@@` notation, the `daemon_memcached` plugin uses the `InnoDB` table
+    with a `containers.name` value of `default`. If there is no such entry, the first
+    entry in the `containers` table, ordered alphabetically by `name` (ascending),
+    determines the default `InnoDB` table. |'
+  id: totrans-50
+  prefs: []
+  type: TYPE_TB
+  zh: '| `name` | 分配给容器的名称。如果没有使用`@@`符号按名称请求`InnoDB`表，则`daemon_memcached`插件将使用具有`containers.name`值为`default`的`InnoDB`表。如果没有这样的条目，则按`name`（升序）字母顺序排列的`containers`表中的第一个条目确定默认的`InnoDB`表。'
+- en: '| `db_schema` | The name of the database where the `InnoDB` table resides.
+    This is a required value. |'
+  id: totrans-51
+  prefs: []
+  type: TYPE_TB
+  zh: '| `db_schema` | 包含`InnoDB`表的数据库的名称。这是一个必填值。'
+- en: '| `db_table` | The name of the `InnoDB` table that stores **memcached** values.
+    This is a required value. |'
+  id: totrans-52
+  prefs: []
+  type: TYPE_TB
+  zh: '| `db_table` | 存储**memcached**值的`InnoDB`表的名称。这是一个必填值。'
+- en: '| `key_columns` | The column in the `InnoDB` table that contains lookup key
+    values for **memcached** operations. This is a required value. |'
+  id: totrans-53
+  prefs: []
+  type: TYPE_TB
+  zh: '| `key_columns` | 包含**memcached**操作查找键值的`InnoDB`表中的列。这是一个必填值。'
+- en: '| `value_columns` | The `InnoDB` table columns (one or more) that store `memcached`
+    data. Multiple columns can be specified using the separator character specified
+    in the `innodb_memcached.config_options` table. By default, the separator is a
+    pipe character (“&#124;”). To specify multiple columns, separate them with the
+    defined separator character. For example: `col1&#124;col2&#124;col3`. This is
+    a required value. |'
+  id: totrans-54
+  prefs: []
+  type: TYPE_TB
+  zh: '| `value_columns` | 存储`memcached`数据的`InnoDB`表列（一个或多个）。可以使用`innodb_memcached.config_options`表中指定的分隔符字符指定多个列。默认情况下，分隔符是一个竖线字符（“|”）。要指定多个列，请使用定义的分隔符字符分隔它们。例如：`col1|col2|col3`。这是一个必需的值。'
+- en: '| `flags` | The `InnoDB` table columns that are used as flags (a user-defined
+    numeric value that is stored and retrieved along with the main value) for **memcached**.
+    A flag value can be used as a column specifier for some operations (such as `incr`,
+    `prepend`) if a **memcached** value is mapped to multiple columns, so that an
+    operation is performed on a specified column. For example, if you have mapped
+    a `value_columns` to three `InnoDB` table columns, and only want the increment
+    operation performed on one columns, use the `flags` column to specify the column.
+    If you do not use the `flags` column, set a value of `0` to indicate that it is
+    unused. |'
+  id: totrans-55
+  prefs: []
+  type: TYPE_TB
+  zh: '| `flags` | 用作**memcached**标志（与主值一起存储和检索的用户定义的数值）的`InnoDB`表列。如果**memcached**值映射到多个列，则标志值可以用作某些操作（如`incr`，`prepend`）的列指定符，以便在指定列上执行操作。例如，如果你已将`value_columns`映射到三个`InnoDB`表列，并且只想要增量操作在一个列上执行，请使用`flags`列指定该列。如果你不使用`flags`列，请设置值为`0`以指示未使用。'
+- en: '| `cas_column` | The `InnoDB` table column that stores compare-and-swap (cas)
+    values. The `cas_column` value is related to the way **memcached** hashes requests
+    to different servers and caches data in memory. Because the `InnoDB` **memcached**
+    plugin is tightly integrated with a single **memcached** daemon, and the in-memory
+    caching mechanism is handled by MySQL and the [InnoDB buffer pool](glossary.html#glos_buffer_pool
+    "buffer pool"), this column is rarely needed. If you do not use this column, set
+    a value of `0` to indicate that it is unused. |'
+  id: totrans-56
+  prefs: []
+  type: TYPE_TB
+  zh: '| `cas_column` | 存储比较和交换（cas）值的`InnoDB`表列。`cas_column`值与**memcached**如何将请求哈希到不同服务器并在内存中缓存数据有关。由于`InnoDB`
+    **memcached**插件与单个**memcached**守护程序紧密集成，并且内存缓存机制由MySQL和[InnoDB缓冲池](glossary.html#glos_buffer_pool
+    "缓冲池")处理，因此很少需要此列。如果你不使用此列，请设置值为`0`以指示未使用。'
+- en: '| `expire_time_column` | The `InnoDB` table column that stores expiration values.
+    The `expire_time_column` value is related to the way **memcached** hashes requests
+    to different servers and caches data in memory. Because the `InnoDB` **memcached**
+    plugin is tightly integrated with a single **memcached** daemon, and the in-memory
+    caching mechanism is handled by MySQL and the [InnoDB buffer pool](glossary.html#glos_buffer_pool
+    "buffer pool"), this column is rarely needed. If you do not use this column, set
+    a value of `0` to indicate that the column is unused. The maximum expire time
+    is defined as `INT_MAX32` or 2147483647 seconds (approximately 68 years). |'
+  id: totrans-57
+  prefs: []
+  type: TYPE_TB
+  zh: '| `expire_time_column` | 存储过期值的`InnoDB`表列。`expire_time_column`值与**memcached**如何将请求哈希到不同服务器并在内存中缓存数据有关。由于`InnoDB`
+    **memcached**插件与单个**memcached**守护程序紧密集成，并且内存缓存机制由MySQL和[InnoDB缓冲池](glossary.html#glos_buffer_pool
+    "缓冲池")处理，因此很少需要此列。如果你不使用此列，请设置值为`0`以指示未使用。最大过期时间定义为`INT_MAX32`或2147483647秒（约68年）。'
+- en: '| `unique_idx_name_on_key` | The name of the index on the key column. It must
+    be a unique index. It can be the [primary key](glossary.html#glos_primary_key
+    "primary key") or a [secondary index](glossary.html#glos_secondary_index "secondary
+    index"). Preferably, use the primary key of the `InnoDB` table. Using the primary
+    key avoids a lookup that is performed when using a secondary index. You cannot
+    make a [covering index](glossary.html#glos_covering_index "covering index") for
+    **memcached** lookups; `InnoDB` returns an error if you try to define a composite
+    secondary index over both the key and value columns. |'
+  id: totrans-58
+  prefs: []
+  type: TYPE_TB
+  zh: '| `unique_idx_name_on_key` | 索引在关键列上的名称。它必须是一个唯一索引。它可以是[主键](glossary.html#glos_primary_key
+    "主键")或[次要索引](glossary.html#glos_secondary_index "次要索引")。最好使用`InnoDB`表的主键。使用主键可以避免在使用次要索引时进行查找。你不能为**memcached**查找创建一个[覆盖索引](glossary.html#glos_covering_index
+    "覆盖索引")；如果你尝试在键和值列上定义一个复合次要索引，`InnoDB`会返回错误。'
+- en: containers Table Column Constraints
+  id: totrans-59
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 容器表列约束
+- en: You must supply a value for `db_schema`, `db_name`, `key_columns`, `value_columns`
+    and `unique_idx_name_on_key`. Specify `0` for `flags`, `cas_column`, and `expire_time_column`
+    if they are unused. Failing to do so could cause your setup to fail.
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您必须为`db_schema`、`db_name`、`key_columns`、`value_columns`和`unique_idx_name_on_key`提供值。如果未使用，将`flags`、`cas_column`和`expire_time_column`设置为`0`。如果未这样做，可能会导致设置失败。
+- en: '`key_columns`: The maximum limit for a **memcached** key is 250 characters,
+    which is enforced by **memcached**. The mapped key must be a non-Null [`CHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types") or [`VARCHAR`](char.html "13.3.2 The CHAR
+    and VARCHAR Types") type.'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_columns`: **memcached**键的最大限制为250个字符，由**memcached**强制执行。映射键必须是非空的[`CHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")或[`VARCHAR`](char.html "13.3.2 CHAR和VARCHAR类型")类型。'
+- en: '`value_columns`: Must be mapped to a [`CHAR`](char.html "13.3.2 The CHAR and
+    VARCHAR Types"), [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), or
+    [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") column. There is no length
+    restriction and the value can be NULL.'
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`value_columns`: 必须映射到[`CHAR`](char.html "13.3.2 CHAR和VARCHAR类型")、[`VARCHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")或[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")列。没有长度限制，值可以为NULL。'
+- en: '`cas_column`: The `cas` value is a 64 bit integer. It must be mapped to a [`BIGINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT") of at least 8 bytes. If you do not use this column, set a value of `0`
+    to indicate that it is unused.'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`cas_column`: `cas`值是64位整数。必须映射到至少8字节的[`BIGINT`](integer-types.html "13.1.2 整数类型（精确值）
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")。如果您不使用此列，请设置值为`0`以指示未使用。'
+- en: '`expiration_time_column`: Must mapped to an [`INTEGER`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT") of at least 4 bytes. Expiration time is defined as a 32-bit integer for
+    Unix time (the number of seconds since January 1, 1970, as a 32-bit value), or
+    the number of seconds starting from the current time. For the latter, the number
+    of seconds may not exceed 60*60*24*30 (the number of seconds in 30 days). If the
+    number sent by a client is larger, the server considers it to be a real Unix time
+    value rather than an offset from the current time. If you do not use this column,
+    set a value of `0` to indicate that it is unused.'
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`expiration_time_column`: 必须映射到至少4字节的[`INTEGER`](integer-types.html "13.1.2 整数类型（精确值）
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")。过期时间定义为Unix时间的32位整数（自1970年1月1日以来的秒数作为32位值），或从当前时间开始的秒数。对于后者，秒数不得超过60*60*24*30（30天内的秒数）。如果客户端发送的数字较大，则服务器将其视为真实的Unix时间值，而不是从当前时间的偏移量。如果不使用此列，请设置值为`0`以指示未使用。'
+- en: '`flags`: Must be mapped to an [`INTEGER`](integer-types.html "13.1.2 Integer
+    Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT") of
+    at least 32-bits and can be NULL. If you do not use this column, set a value of
+    `0` to indicate that it is unused.'
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`flags`: 必须映射到至少32位的[`INTEGER`](integer-types.html "13.1.2 整数类型（精确值） - INTEGER,
+    INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")，可以为NULL。如果您不使用此列，请设置值为`0`以指示未使用。'
+- en: A pre-check is performed at plugin load time to enforce column constraints.
+    If mismatches are found, the plugin is not loaded.
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在插件加载时执行预检查以强制执行列约束。如果发现不匹配，插件将不加载。
+- en: Multiple Value Column Mapping
+  id: totrans-67
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 多值列映射
+- en: During plugin initialization, when `InnoDB` **memcached** is configured with
+    information defined in the `containers` table, each mapped column defined in `containers.value_columns`
+    is verified against the mapped `InnoDB` table. If multiple `InnoDB` table columns
+    are mapped, there is a check to ensure that each column exists and is the right
+    type.
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在插件初始化期间，当`InnoDB` **memcached**配置为`containers`表中定义的信息时，将验证`containers.value_columns`中定义的每个映射列与映射的`InnoDB`表。如果映射了多个`InnoDB`表列，则会检查以确保每个列存在且为正确类型。
+- en: At run-time, for `memcached` insert operations, if there are more delimited
+    values than the number of mapped columns, only the number of mapped values are
+    taken. For example, if there are six mapped columns, and seven delimited values
+    are provided, only the first six delimited values are taken. The seventh delimited
+    value is ignored.
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在运行时，对于`memcached`插入操作，如果有比映射列数更多的分隔值，则仅取映射值的数量。例如，如果有六个映射列，并且提供了七个分隔值，则仅取前六个分隔值。第七个分隔值将被忽略。
+- en: If there are fewer delimited values than mapped columns, unfilled columns are
+    set to NULL. If an unfilled column cannot be set to NULL, insert operations fail.
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果分隔值少于映射的列数，未填充的列将被设置为 NULL。如果无法将未填充的列设置为 NULL，则插入操作将失败。
+- en: If a table has more columns than mapped values, the extra columns do not affect
+    results.
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个表的列数多于映射值，额外的列不会影响结果。
+- en: The demo_test Example Table
+  id: totrans-72
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: demo_test 示例表
+- en: The `innodb_memcached_config.sql` configuration script creates a `demo_test`
+    table in the `test` database, which can be used to verify `InnoDB` **memcached**
+    plugin installation immediately after setup.
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`innodb_memcached_config.sql` 配置脚本在 `test` 数据库中创建了一个 `demo_test` 表，可用于在安装`InnoDB`
+    **memcached** 插件后立即验证安装。'
+- en: The `innodb_memcached_config.sql` configuration script also creates an entry
+    for the `demo_test` table in the `innodb_memcache.containers` table.
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`innodb_memcached_config.sql` 配置脚本还在 `innodb_memcache.containers` 表中为 `demo_test`
+    表创建了一个条目。'
+- en: '[PRE2]'
+  id: totrans-75
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'

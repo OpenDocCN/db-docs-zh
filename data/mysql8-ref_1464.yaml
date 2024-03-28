@@ -1,0 +1,129 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-triggers.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-triggers.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-triggers.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-triggers.html)
+- en: 19.5.1.36 Replication and Triggers
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.36 复制和触发器
+- en: With statement-based replication, triggers executed on the source also execute
+    on the replica. With row-based replication, triggers executed on the source do
+    not execute on the replica. Instead, the row changes on the source resulting from
+    trigger execution are replicated and applied on the replica.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在基于语句的复制中，源上执行的触发器也会在副本上执行。在基于行的复制中，源上执行的触发器不会在副本上执行。相反，源上由触发器执行导致的行更改会被复制并应用到副本上。
+- en: This behavior is by design. If under row-based replication the replica applied
+    the triggers as well as the row changes caused by them, the changes would in effect
+    be applied twice on the replica, leading to different data on the source and the
+    replica.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种行为是有意设计的。如果在基于行的复制下，副本服务器应用触发器以及由它们引起的行更改，那么实际上更改会在副本上应用两次，导致源和副本上的数据不同。
+- en: If you want triggers to execute on both the source and the replica, perhaps
+    because you have different triggers on the source and replica, you must use statement-based
+    replication. However, to enable replica-side triggers, it is not necessary to
+    use statement-based replication exclusively. It is sufficient to switch to statement-based
+    replication only for those statements where you want this effect, and to use row-based
+    replication the rest of the time.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果希望触发器在源和副本上都执行，可能是因为源和副本上有不同的触发器，则必须使用基于语句的复制。然而，为了启用副本端触发器，不必完全使用基于语句的复制。只需在希望产生此效果的语句上切换到基于语句的复制即可，其余时间继续使用基于行的复制。
+- en: 'A statement invoking a trigger (or function) that causes an update to an `AUTO_INCREMENT`
+    column is not replicated correctly using statement-based replication. MySQL 8.0
+    marks such statements as unsafe. (Bug #45677)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '调用导致对`AUTO_INCREMENT`列进行更新的触发器（或函数）的语句在使用基于语句的复制时无法正确复制。MySQL 8.0 将这类语句标记为不安全。（Bug
+    #45677）'
+- en: A trigger can have triggers for different combinations of trigger event ([`INSERT`](insert.html
+    "15.2.7 INSERT Statement"), [`UPDATE`](update.html "15.2.17 UPDATE Statement"),
+    [`DELETE`](delete.html "15.2.2 DELETE Statement")) and action time (`BEFORE`,
+    `AFTER`), and multiple triggers are permitted.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 触发器可以针对不同的触发事件组合（[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")、[`DELETE`](delete.html "15.2.2 DELETE Statement")）和动作时间（`BEFORE`、`AFTER`）拥有触发器，并且允许多个触发器。
+- en: For brevity, “multiple triggers” here is shorthand for “multiple triggers that
+    have the same trigger event and action time.”
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为简洁起见，“多个触发器”在这里是“具有相同触发事件和动作时间的多个触发器”的简称。
+- en: '**Upgrades.** Multiple triggers are not supported in versions earlier than
+    MySQL 5.7\. If you upgrade servers in a replication topology that use a version
+    earlier than MySQL 5.7, upgrade the replicas first and then upgrade the source.
+    If an upgraded replication source server still has old replicas using MySQL versions
+    that do not support multiple triggers, an error occurs on those replicas if a
+    trigger is created on the source for a table that already has a trigger with the
+    same trigger event and action time.'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**升级。** 早于 MySQL 5.7 版本不支持多个触发器。如果在使用早于 MySQL 5.7 的版本的复制拓扑中升级服务器，请先升级副本，然后再升级源。如果升级后的复制源服务器仍有使用不支持多个触发器的
+    MySQL 版本的旧副本，那么如果在源上为已经具有相同触发事件和动作时间的触发器的表创建触发器，则在这些副本上会出现错误。'
+- en: '**Downgrades.** If you downgrade a server that supports multiple triggers to
+    an older version that does not, the downgrade has these effects:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**降级。** 如果将支持多个触发器的服务器降级到不支持多个触发器的旧版本，降级会产生以下影响：'
+- en: For each table that has triggers, all trigger definitions are in the `.TRG`
+    file for the table. However, if there are multiple triggers with the same trigger
+    event and action time, the server executes only one of them when the trigger event
+    occurs. For information about `.TRG` files, see the Table Trigger Storage section
+    of the MySQL Server Doxygen documentation, available at [https://dev.mysql.com/doc/index-other.html](/doc/index-other.html).
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于具有触发器的每个表，所有触发器定义都在该表的`.TRG`文件中。然而，如果存在具有相同触发事件和动作时间的多个触发器，当触发事件发生时，服务器只会执行其中一个。有关`.TRG`文件的信息，请参阅
+    MySQL 服务器 Doxygen 文档中的表触发器存储部分，网址为[https://dev.mysql.com/doc/index-other.html](/doc/index-other.html)。
+- en: If triggers for the table are added or dropped subsequent to the downgrade,
+    the server rewrites the table's `.TRG` file. The rewritten file retains only one
+    trigger per combination of trigger event and action time; the others are lost.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在降级后添加或删除表的触发器，则服务器会重写表的`.TRG`文件。重写后的文件仅保留每个触发器事件和动作时间组合中的一个触发器；其他触发器将丢失。
+- en: 'To avoid these problems, modify your triggers before downgrading. For each
+    table that has multiple triggers per combination of trigger event and action time,
+    convert each such set of triggers to a single trigger as follows:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为避免这些问题，在降级之前修改您的触发器。对于每个表，如果每个触发器事件和动作时间组合中有多个触发器，请将每组触发器转换为单个触发器，方法如下：
+- en: For each trigger, create a stored routine that contains all the code in the
+    trigger. Values accessed using `NEW` and `OLD` can be passed to the routine using
+    parameters. If the trigger needs a single result value from the code, you can
+    put the code in a stored function and have the function return the value. If the
+    trigger needs multiple result values from the code, you can put the code in a
+    stored procedure and return the values using `OUT` parameters.
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对于每个触发器，创建一个包含触发器中所有代码的存储过程。使用`NEW`和`OLD`访问的值可以通过参数传递给存储过程。如果触发器需要代码中的单个结果值，可以将代码放入存储函数中，并让函数返回该值。如果触发器需要代码中的多个结果值，可以将代码放入存储过程中，并使用`OUT`参数返回这些值。
+- en: Drop all triggers for the table.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 删除表的所有触发器。
+- en: Create one new trigger for the table that invokes the stored routines just created.
+    The effect for this trigger is thus the same as the multiple triggers it replaces.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 为表创建一个新的触发器，调用刚刚创建的存储过程。因此，这个触发器的效果与它替代的多个触发器相同。

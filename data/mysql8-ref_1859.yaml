@@ -1,0 +1,334 @@
+- en: 26.4 Partition Pruning
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 26.4 分区修剪
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-pruning.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-pruning.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/partitioning-pruning.html](https://dev.mysql.com/doc/refman/8.0/en/partitioning-pruning.html)
+- en: 'The optimization known as partition pruning is based on a relatively simple
+    concept which can be described as “Do not scan partitions where there can be no
+    matching values”. Suppose a partitioned table `t1` is created by this statement:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分区修剪优化基于一个相对简单的概念，可以描述为“不要扫描那些不可能有匹配值的分区”。假设通过以下语句创建了一个分区表`t1`：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Suppose that you wish to obtain results from a [`SELECT`](select.html "15.2.13 SELECT
+    Statement") statement such as this one:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您希望从类似于以下语句的[`SELECT`](select.html "15.2.13 SELECT Statement")语句中获取结果：
+- en: '[PRE1]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: It is easy to see that none of the rows which ought to be returned are in either
+    of the partitions `p0` or `p3`; that is, we need search only in partitions `p1`
+    and `p2` to find matching rows. By limiting the search, it is possible to expend
+    much less time and effort in finding matching rows than by scanning all partitions
+    in the table. This “cutting away” of unneeded partitions is known as pruning.
+    When the optimizer can make use of partition pruning in performing this query,
+    execution of the query can be an order of magnitude faster than the same query
+    against a nonpartitioned table containing the same column definitions and data.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 很容易看出，应该返回的行中没有任何位于分区`p0`或`p3`中的行；也就是说，我们只需要在分区`p1`和`p2`中搜索匹配的行。通过限制搜索范围，可以比扫描表中的所有分区更少的时间和精力来找到匹配的行。这种“剪掉”不需要的分区的操作称为修剪。当优化器在执行此查询时可以利用分区修剪时，查询的执行速度可能比针对包含相同列定义和数据的非分区表的相同查询快一个数量级。
+- en: 'The optimizer can perform pruning whenever a `WHERE` condition can be reduced
+    to either one of the following two cases:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器可以在`WHERE`条件可以简化为以下两种情况之一时执行修剪：
+- en: '`*`partition_column`* = *`constant`*`'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`*`partition_column`* = *`constant`*`'
+- en: '`*`partition_column`* IN (*`constant1`*, *`constant2`*, ..., *`constantN`*)`'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`*`partition_column`* IN (*`constant1`*, *`constant2`*, ..., *`constantN`*)`'
+- en: In the first case, the optimizer simply evaluates the partitioning expression
+    for the value given, determines which partition contains that value, and scans
+    only this partition. In many cases, the equal sign can be replaced with another
+    arithmetic comparison, including `<`, `>`, `<=`, `>=`, and `<>`. Some queries
+    using `BETWEEN` in the `WHERE` clause can also take advantage of partition pruning.
+    See the examples later in this section.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第一种情况下，优化器简单地对给定值评估分区表达式，确定包含该值的分区，并仅扫描此分区。在许多情况下，等号可以替换为另一个算术比较，包括`<`、`>`、`<=`、`>=`和`<>`。一些在`WHERE`子句中使用`BETWEEN`的查询也可以利用分区修剪。请参见本节后面的示例。
+- en: In the second case, the optimizer evaluates the partitioning expression for
+    each value in the list, creates a list of matching partitions, and then scans
+    only the partitions in this partition list.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第二种情况下，优化器对列表中的每个值评估分区表达式，创建一个匹配分区的列表，然后仅扫描此分区列表中的分区。
+- en: '[`SELECT`](select.html "15.2.13 SELECT Statement"), [`DELETE`](delete.html
+    "15.2.2 DELETE Statement"), and [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    statements support partition pruning. An [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statement also accesses only one partition per inserted row; this
+    is true even for a table that is partitioned by `HASH` or `KEY` although this
+    is not currently shown in the output of [`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement").'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SELECT`](select.html "15.2.13 SELECT Statement")、[`DELETE`](delete.html "15.2.2 DELETE
+    Statement")和[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句支持分区修剪。[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句也仅访问每个插入行的一个分区；即使对于使用`HASH`或`KEY`进行分区的表，这也是正确的，尽管目前在[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")的输出中没有显示。'
+- en: Pruning can also be applied to short ranges, which the optimizer can convert
+    into equivalent lists of values. For instance, in the previous example, the `WHERE`
+    clause can be converted to `WHERE region_code IN (126, 127, 128, 129)`. Then the
+    optimizer can determine that the first two values in the list are found in partition
+    `p1`, the remaining two values in partition `p2`, and that the other partitions
+    contain no relevant values and so do not need to be searched for matching rows.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修剪也可以应用于短范围，优化器可以将其转换为等效值列表。例如，在前面的例子中，`WHERE` 子句可以转换为 `WHERE region_code IN
+    (126, 127, 128, 129)`。然后优化器可以确定列表中的前两个值位于分区 `p1` 中，剩下的两个值位于分区 `p2` 中，其他分区不包含相关值，因此不需要搜索匹配行。
+- en: The optimizer can also perform pruning for `WHERE` conditions that involve comparisons
+    of the preceding types on multiple columns for tables that use `RANGE COLUMNS`
+    or `LIST COLUMNS` partitioning.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器还可以对使用 `RANGE COLUMNS` 或 `LIST COLUMNS` 分区的表上涉及多列比较的 `WHERE` 条件执行修剪。
+- en: This type of optimization can be applied whenever the partitioning expression
+    consists of an equality or a range which can be reduced to a set of equalities,
+    or when the partitioning expression represents an increasing or decreasing relationship.
+    Pruning can also be applied for tables partitioned on a [`DATE`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") or [`DATETIME`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") column when the partitioning
+    expression uses the [`YEAR()`](date-and-time-functions.html#function_year) or
+    [`TO_DAYS()`](date-and-time-functions.html#function_to-days) function. Pruning
+    can also be applied for such tables when the partitioning expression uses the
+    [`TO_SECONDS()`](date-and-time-functions.html#function_to-seconds) function.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只要分区表达式由相等性或可减少为一组相等性的范围组成，或者分区表达式表示递增或递减关系，就可以应用这种优化。当分区表达式使用 [`YEAR()`](date-and-time-functions.html#function_year)
+    或 [`TO_DAYS()`](date-and-time-functions.html#function_to-days) 函数时，也可以应用修剪到基于
+    [`DATE`](datetime.html "13.2.2 日期、日期时间和时间戳类型") 或 [`DATETIME`](datetime.html "13.2.2 日期、日期时间和时间戳类型")
+    列分区的表。当分区表达式使用 [`TO_SECONDS()`](date-and-time-functions.html#function_to-seconds)
+    函数时，也可以应用修剪到这样的表。
+- en: 'Suppose that table `t2`, partitioned on a [`DATE`](datetime.html "13.2.2 The
+    DATE, DATETIME, and TIMESTAMP Types") column, is created using the statement shown
+    here:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设表 `t2`，根据一个 [`DATE`](datetime.html "13.2.2 日期、日期时间和时间戳类型") 列进行分区，是使用以下语句创建的：
+- en: '[PRE2]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The following statements using `t2` can make of use partition pruning:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下使用 `t2` 的语句可以利用分区修剪：
+- en: '[PRE3]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'In the case of the last statement, the optimizer can also act as follows:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于最后一条语句，优化器还可以执行以下操作：
+- en: '*Find the partition containing the low end of the range*.'
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*找到包含范围低端的分区*。'
+- en: '[`YEAR(''1984-06-21'')`](date-and-time-functions.html#function_year) yields
+    the value `1984`, which is found in partition `d3`.'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`YEAR(''1984-06-21'')`](date-and-time-functions.html#function_year) 返回值为 `1984`，该值位于分区
+    `d3` 中。'
+- en: '*Find the partition containing the high end of the range*.'
+  id: totrans-23
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*找到包含范围高端的分区*。'
+- en: '[`YEAR(''1999-06-21'')`](date-and-time-functions.html#function_year) evaluates
+    to `1999`, which is found in partition `d5`.'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`YEAR(''1999-06-21'')`](date-and-time-functions.html#function_year) 计算结果为
+    `1999`，该值位于分区 `d5` 中。'
+- en: '*Scan only these two partitions and any partitions that may lie between them*.'
+  id: totrans-25
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*仅扫描这两个分区以及可能位于它们之间的任何分区*。'
+- en: In this case, this means that only partitions `d3`, `d4`, and `d5` are scanned.
+    The remaining partitions may be safely ignored (and are ignored).
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，这意味着只有分区 `d3`、`d4` 和 `d5` 被扫描。其余分区可以安全地被忽略（并且被忽略）。
+- en: Important
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: 'Invalid `DATE` and `DATETIME` values referenced in the `WHERE` condition of
+    a statement against a partitioned table are treated as `NULL`. This means that
+    a query such as `SELECT * FROM *`partitioned_table`* WHERE *`date_column`* < ''2008-12-00''`
+    does not return any values (see Bug #40972).'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '对于针对分区表的语句中 `WHERE` 条件引用的无效 `DATE` 和 `DATETIME` 值，将被视为 `NULL`。这意味着像 `SELECT
+    * FROM *`partitioned_table`* WHERE *`date_column`* < ''2008-12-00''` 这样的查询不会返回任何值（参见
+    Bug #40972）。'
+- en: So far, we have looked only at examples using `RANGE` partitioning, but pruning
+    can be applied with other partitioning types as well.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 到目前为止，我们只看过使用 `RANGE` 分区的示例，但修剪也可以应用于其他分区类型。
+- en: Consider a table that is partitioned by `LIST`, where the partitioning expression
+    is increasing or decreasing, such as the table `t3` shown here. (In this example,
+    we assume for the sake of brevity that the `region_code` column is limited to
+    values between 1 and 10 inclusive.)
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑一个由`LIST`分区的表，其中分区表达式是递增或递减的，例如这里显示的表`t3`。（在本例中，为简洁起见，我们假设`region_code`列的值限定在1到10之间。）
+- en: '[PRE4]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: For a statement such as `SELECT * FROM t3 WHERE region_code BETWEEN 1 AND 3`,
+    the optimizer determines in which partitions the values 1, 2, and 3 are found
+    (`r0` and `r1`) and skips the remaining ones (`r2` and `r3`).
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于像`SELECT * FROM t3 WHERE region_code BETWEEN 1 AND 3`这样的语句，优化器确定值1、2和3在哪些分区中找到（`r0`和`r1`），并跳过其余的分区（`r2`和`r3`）。
+- en: 'For tables that are partitioned by `HASH` or `[LINEAR] KEY`, partition pruning
+    is also possible in cases in which the `WHERE` clause uses a simple `=` relation
+    against a column used in the partitioning expression. Consider a table created
+    like this:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于由`HASH`或`[LINEAR] KEY`分区的表，如果`WHERE`子句使用简单的`=`关系针对分区表达式中使用的列，则也可以进行分区修剪。考虑创建如下表：
+- en: '[PRE5]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'A statement that compares a column value with a constant can be pruned:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将列值与常量进行比较的语句可以被修剪：
+- en: '[PRE6]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Pruning can also be employed for short ranges, because the optimizer can turn
+    such conditions into `IN` relations. For example, using the same table `t4` as
+    defined previously, queries such as these can be pruned:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于短范围，修剪也可以用于，因为优化器可以将这种条件转换为`IN`关系。例如，使用之前定义的相同表`t4`，可以修剪以下查询：
+- en: '[PRE7]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: In both these cases, the `WHERE` clause is transformed by the optimizer into
+    `WHERE region_code IN (3, 4, 5)`.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这两种情况下，优化器将`WHERE`子句转换为`WHERE region_code IN (3, 4, 5)`。
+- en: Important
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: 'This optimization is used only if the range size is smaller than the number
+    of partitions. Consider this statement:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有当范围大小小于分区数时才使用这种优化。考虑这个语句：
+- en: '[PRE8]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: The range in the `WHERE` clause covers 9 values (4, 5, 6, 7, 8, 9, 10, 11, 12),
+    but `t4` has only 8 partitions. This means that the `DELETE` cannot be pruned.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`WHERE`子句中的范围涵盖了9个值（4, 5, 6, 7, 8, 9, 10, 11, 12），但`t4`只有8个分区。这意味着`DELETE`无法被修剪。'
+- en: 'When a table is partitioned by `HASH` or `[LINEAR] KEY`, pruning can be used
+    only on integer columns. For example, this statement cannot use pruning because
+    `dob` is a [`DATE`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    column:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当表由`HASH`或`[LINEAR] KEY`分区时，修剪只能用于整数列。例如，这个语句不能使用修剪，因为`dob`是一个[`DATE`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")列：
+- en: '[PRE9]'
+  id: totrans-45
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: However, if the table stores year values in an [`INT`](integer-types.html "13.1.2 Integer
+    Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT") column,
+    then a query having `WHERE year_col >= 2001 AND year_col <= 2005` can be pruned.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，如果表在[`INT`](integer-types.html "13.1.2 整数类型（精确值） - INTEGER, INT, SMALLINT,
+    TINYINT, MEDIUMINT, BIGINT")列中存储年份值，则查询`WHERE year_col >= 2001 AND year_col <=
+    2005`可以被修剪。
+- en: Tables using a storage engine that provides automatic partitioning, such as
+    the `NDB` storage engine used by MySQL Cluster can be pruned if they are explicitly
+    partitioned.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用提供自动分区的存储引擎的表，例如MySQL Cluster使用的`NDB`存储引擎，如果它们被显式分区，则可以被修剪。

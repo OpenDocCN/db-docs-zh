@@ -1,0 +1,81 @@
+- en: 10.5.1 Optimizing Storage Layout for InnoDB Tables
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.5.1 优化InnoDB表的存储布局
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-storage-layout.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-storage-layout.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-storage-layout.html](https://dev.mysql.com/doc/refman/8.0/en/optimizing-innodb-storage-layout.html)
+- en: Once your data reaches a stable size, or a growing table has increased by tens
+    or some hundreds of megabytes, consider using the `OPTIMIZE TABLE` statement to
+    reorganize the table and compact any wasted space. The reorganized tables require
+    less disk I/O to perform full table scans. This is a straightforward technique
+    that can improve performance when other techniques such as improving index usage
+    or tuning application code are not practical.
+  id: totrans-2
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一旦你的数据达到稳定大小，或者一个增长中的表增加了几十或几百兆字节，考虑使用`OPTIMIZE TABLE`语句重新组织表并压缩任何浪费的空间。重新组织的表需要更少的磁盘I/O来执行全表扫描。这是一种简单的技术，当其他技术如改进索引使用或调整应用程序代码不可行时，可以提高性能。
+- en: '`OPTIMIZE TABLE` copies the data part of the table and rebuilds the indexes.
+    The benefits come from improved packing of data within indexes, and reduced fragmentation
+    within the tablespaces and on disk. The benefits vary depending on the data in
+    each table. You may find that there are significant gains for some and not for
+    others, or that the gains decrease over time until you next optimize the table.
+    This operation can be slow if the table is large or if the indexes being rebuilt
+    do not fit into the buffer pool. The first run after adding a lot of data to a
+    table is often much slower than later runs.'
+  id: totrans-3
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`OPTIMIZE TABLE`会复制表的数据部分并重建索引。好处来自于索引内数据的改进打包，以及表空间和磁盘上的碎片减少。好处取决于每个表中的数据。你可能会发现对于某些表有显著的收益，而对于其他表则没有，或者收益会随着时间的推移而减少，直到下次优化表为止。如果表很大或者重建的索引不适合缓冲池，这个操作可能会很慢。在向表中添加大量数据后的第一次运行通常比后续运行慢得多。'
+- en: In `InnoDB`, having a long `PRIMARY KEY` (either a single column with a lengthy
+    value, or several columns that form a long composite value) wastes a lot of disk
+    space. The primary key value for a row is duplicated in all the secondary index
+    records that point to the same row. (See [Section 17.6.2.1, “Clustered and Secondary
+    Indexes”](innodb-index-types.html "17.6.2.1 Clustered and Secondary Indexes").)
+    Create an `AUTO_INCREMENT` column as the primary key if your primary key is long,
+    or index a prefix of a long `VARCHAR` column instead of the entire column.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`InnoDB`中，拥有一个长的`PRIMARY KEY`（要么是一个具有冗长值的单列，要么是几个列形成的长复合值）会浪费大量磁盘空间。一行的主键值会在指向同一行的所有二级索引记录中重复。
+    （参见[第17.6.2.1节，“聚簇索引和二级索引”](innodb-index-types.html "17.6.2.1 聚簇索引和二级索引")。）如果你的主键很长，可以创建一个`AUTO_INCREMENT`列作为主键，或者索引长`VARCHAR`列的前缀而不是整个列。
+- en: Use the [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types") data type
+    instead of [`CHAR`](char.html "13.3.2 The CHAR and VARCHAR Types") to store variable-length
+    strings or for columns with many `NULL` values. A [`CHAR(*`N`*)`](char.html "13.3.2 The
+    CHAR and VARCHAR Types") column always takes *`N`* characters to store data, even
+    if the string is shorter or its value is `NULL`. Smaller tables fit better in
+    the buffer pool and reduce disk I/O.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[`VARCHAR`](char.html "13.3.2 CHAR和VARCHAR类型")数据类型来存储变长字符串或具有许多`NULL`值的列，而不是使用[`CHAR`](char.html
+    "13.3.2 CHAR和VARCHAR类型")。[`CHAR(*`N`*)`](char.html "13.3.2 CHAR和VARCHAR类型")列始终需要*`N`*个字符来存储数据，即使字符串较短或其值为`NULL`。较小的表更适合缓冲池，并减少磁盘I/O。
+- en: When using `COMPACT` row format (the default `InnoDB` format) and variable-length
+    character sets, such as `utf8mb4` or `sjis`, [`CHAR(*`N`*)`](char.html "13.3.2 The
+    CHAR and VARCHAR Types") columns occupy a variable amount of space, but still
+    at least *`N`* bytes.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当使用`COMPACT`行格式（默认的`InnoDB`格式）和变长字符集，比如`utf8mb4`或`sjis`时，[`CHAR(*`N`*)`](char.html
+    "13.3.2 CHAR和VARCHAR类型")列占据可变数量的空间，但至少占用*`N`*字节。
+- en: For tables that are big, or contain lots of repetitive text or numeric data,
+    consider using `COMPRESSED` row format. Less disk I/O is required to bring data
+    into the buffer pool, or to perform full table scans. Before making a permanent
+    decision, measure the amount of compression you can achieve by using `COMPRESSED`
+    versus `COMPACT` row format.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于大表，或包含大量重复文本或数字数据的表，考虑使用`COMPRESSED`行格式。需要更少的磁盘I/O将数据带入缓冲池，或执行全表扫描。在做出永久决定之前，通过使用`COMPRESSED`与`COMPACT`行格式来衡量你可以实现的压缩量。

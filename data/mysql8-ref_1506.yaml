@@ -1,0 +1,120 @@
+- en: 20.5.1 Configuring an Online Group
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.5.1 配置在线组
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-configuring-online-group.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-configuring-online-group.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-configuring-online-group.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-configuring-online-group.html)
+- en: '[20.5.1.1 Changing the Primary](group-replication-change-primary.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.1.1 更改主服务器](group-replication-change-primary.html)'
+- en: '[20.5.1.2 Changing the Group Mode](group-replication-changing-group-mode.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.1.2 改变组模式](group-replication-changing-group-mode.html)'
+- en: '[20.5.1.3 Using Group Replication Group Write Consensus](group-replication-group-write-consensus.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.1.3 使用 Group Replication 组写一致性](group-replication-group-write-consensus.html)'
+- en: '[20.5.1.4 Setting a Group''s Communication Protocol Version](group-replication-communication-protocol.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.1.4 设置组的通信协议版本](group-replication-communication-protocol.html)'
+- en: '[20.5.1.5 Configuring Member Actions](group-replication-member-actions.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.5.1.5 配置成员操作](group-replication-member-actions.html)'
+- en: You can configure an online group while Group Replication is running by using
+    a set of functions, which rely on a group action coordinator. These functions
+    are installed by the Group Replication plugin in version 8.0.13 and higher. This
+    section describes how changes are made to a running group, and the available functions.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在 Group Replication 运行时使用一组函数配置在线组，这些函数依赖于组操作协调员。这些函数由 Group Replication
+    插件在 8.0.13 及更高版本中安装。本节描述了如何对运行中的组进行更改以及可用的功能。
+- en: Important
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: For the coordinator to be able to configure group wide actions on a running
+    group, all members must be running MySQL 8.0.13 or higher and have the functions
+    installed.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 协调员要能够在运行中的组上配置组范围的操作，所有成员必须运行 MySQL 8.0.13 或更高版本，并安装了这些功能。
+- en: To use the functions, connect to a member of the running group and invoke the
+    function with the [`SELECT`](select.html "15.2.13 SELECT Statement") statement.
+    The Group Replication plugin processes the action and its parameters and the coordinator
+    sends it to all members which are visible to the member where you invoked the
+    function. If the action is accepted, all members execute the action and send a
+    termination message when completed. Once all members declare the action as finished,
+    the invoking member returns the result to the client.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用这些功能，请连接到运行中的组的成员，并使用[`SELECT`](select.html "15.2.13 SELECT Statement")语句调用该函数。
+    Group Replication 插件处理操作及其参数，协调员将其发送给所有对调用函数的成员可见的成员。如果操作被接受，所有成员执行该操作并在完成后发送终止消息。一旦所有成员声明操作已完成，调用成员将结果返回给客户端。
+- en: 'When configuring a whole group, the distributed nature of the operations means
+    that they interact with many processes of the Group Replication plugin, and therefore
+    you should observe the following:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在配置整个组时，操作的分布性意味着它们与 Group Replication 插件的许多进程进行交互，因此您应该遵守以下规定：
+- en: '**You can issue configuration operations everywhere. ** If you want to make
+    member A the new primary you do not need to invoke the operation on member A.
+    All operations are sent and executed in a coordinated way on all group members.
+    Also, this distributed execution of an operation has a different ramification:
+    if the invoking member dies, any already running configuration process continues
+    to run on other members. In the unlikely event that the invoking member dies,
+    you can still use the monitoring features to ensure other members complete the
+    operation successfully.'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**您可以在任何地方发出配置操作。** 如果要将成员 A 设置为新的主服务器，则无需在成员 A 上调用操作。所有操作都以协调的方式发送并在所有组成员上执行。此外，操作的分布式执行具有不同的影响：如果发出操作的成员死亡，则任何已经运行的配置过程将继续在其他成员上运行。在发出操作的成员死亡的极少情况下，您仍然可以使用监控功能确保其他成员成功完成操作。'
+- en: '**All members must be online. ** To simplify the migration or election processes
+    and guarantee they are as fast as possible, the group must not contain any member
+    currently in the distributed recovery process, otherwise the configuration action
+    is rejected by the member where you issue the statement.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**所有成员必须在线。** 为了简化迁移或选举过程并确保它们尽可能快速，组不得包含当前处于分布式恢复过程中的任何成员，否则配置操作将被发出语句的成员拒绝。'
+- en: '**No members can join a group during a configuration change. ** Any member
+    that attempts to join the group during a coordinated configuration change leaves
+    the group and cancels its join process.'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**在配置更改期间，没有成员可以加入组。** 任何尝试在协调的配置更改期间加入组的成员都会离开组并取消其加入过程。'
+- en: '**Only one configuration at once. ** A group which is executing a configuration
+    change cannot accept any other group configuration change, because concurrent
+    configuration operations could lead to member divergence.'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**一次只能进行一个配置更改。** 正在执行配置更改的组不能接受任何其他组的配置更改，因为并发的配置操作可能导致成员分歧。'
+- en: '**All members must be running MySQL 8.0.13 or higher. ** Due to the distributed
+    nature of the configuration actions, all members must recognize them in order
+    to execute them. The operation is therefore rejected if any server running MySQL
+    Server version 8.0.12 or lower is present in the group.'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**所有成员必须运行 MySQL 8.0.13 或更高版本。** 由于配置操作的分布式特性，所有成员必须识别它们才能执行它们。如果任何运行 MySQL
+    Server 版本低于 8.0.12 的服务器存在于组中，则操作将被拒绝。'

@@ -1,0 +1,332 @@
+- en: 8.4.6 The Audit Message Component
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.4.6 审计消息组件
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/audit-api-message-emit.html](https://dev.mysql.com/doc/refman/8.0/en/audit-api-message-emit.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/audit-api-message-emit.html](https://dev.mysql.com/doc/refman/8.0/en/audit-api-message-emit.html)
+- en: As of MySQL 8.0.14, the `audit_api_message_emit` component enables applications
+    to add their own message events to the audit log, using the [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    function.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至 MySQL 8.0.14，`audit_api_message_emit` 组件使应用程序能够使用 [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    函数将自己的消息事件添加到审计日志中。
+- en: The `audit_api_message_emit` component cooperates with all plugins of audit
+    type. For concreteness, examples use the `audit_log` plugin described in [Section 8.4.5,
+    “MySQL Enterprise Audit”](audit-log.html "8.4.5 MySQL Enterprise Audit").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`audit_api_message_emit` 组件与所有类型为审计的插件合作。为了具体起见，示例使用了[第8.4.5节，“MySQL企业审计”](audit-log.html
+    "8.4.5 MySQL Enterprise Audit")中描述的 `audit_log` 插件。'
+- en: '[Installing or Uninstalling the Audit Message Component](audit-api-message-emit.html#audit-api-message-emit-install
+    "Installing or Uninstalling the Audit Message Component")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[安装或卸载审计消息组件](audit-api-message-emit.html#audit-api-message-emit-install "安装或卸载审计消息组件")'
+- en: '[Audit Message Function](audit-api-message-emit.html#audit-api-message-emit-functions
+    "Audit Message Function")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[审计消息函数](audit-api-message-emit.html#audit-api-message-emit-functions "审计消息函数")'
+- en: Installing or Uninstalling the Audit Message Component
+  id: totrans-6
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 安装或卸载审计消息组件
+- en: To be usable by the server, the component library file must be located in the
+    MySQL plugin directory (the directory named by the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    system variable). If necessary, configure the plugin directory location by setting
+    the value of [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir) at
+    server startup.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使服务器可用，组件库文件必须位于 MySQL 插件目录中（由 [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    系统变量命名的目录）。如果需要，通过在服务器启动时设置 [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    的值来配置插件目录位置。
+- en: 'To install the `audit_api_message_emit` component, use this statement:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要安装 `audit_api_message_emit` 组件，请使用以下语句：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Component installation is a one-time operation that need not be done per server
+    startup. [`INSTALL COMPONENT`](install-component.html "15.7.4.3 INSTALL COMPONENT
+    Statement") loads the component, and also registers it in the `mysql.component`
+    system table to cause it to be loaded during subsequent server startups.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组件安装是一次性操作，不需要每次服务器启动都执行。[`INSTALL COMPONENT`](install-component.html "15.7.4.3 INSTALL
+    COMPONENT Statement") 加载组件，并在 `mysql.component` 系统表中注册它，以便在后续服务器启动时加载它。
+- en: 'To uninstall the `audit_api_message_emit` component, use this statement:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要卸载 `audit_api_message_emit` 组件，请使用以下语句：
+- en: '[PRE1]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '[`UNINSTALL COMPONENT`](uninstall-component.html "15.7.4.5 UNINSTALL COMPONENT
+    Statement") unloads the component, and unregisters it from the `mysql.component`
+    system table to cause it not to be loaded during subsequent server startups.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`UNINSTALL COMPONENT`](uninstall-component.html "15.7.4.5 UNINSTALL COMPONENT
+    Statement") 卸载组件，并从 `mysql.component` 系统表中注销它，以使其在后续服务器启动时不加载。'
+- en: Because installing and uninstalling the `audit_api_message_emit` component installs
+    and uninstalls the [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    function that the component implements, it is not necessary to use `CREATE FUNCTION`
+    or `DROP FUNCTION` to do so.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为安装和卸载 `audit_api_message_emit` 组件会安装和卸载组件实现的 [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    函数，所以不需要使用 `CREATE FUNCTION` 或 `DROP FUNCTION` 来执行此操作。
+- en: Audit Message Function
+  id: totrans-15
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 审计消息函数
+- en: This section describes the [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    function implemented by the `audit_api_message_emit` component.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了 `audit_api_message_emit` 组件实现的 [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    函数。
+- en: Before using the audit message function, install the audit message component
+    according to the instructions provided at [Installing or Uninstalling the Audit
+    Message Component](audit-api-message-emit.html#audit-api-message-emit-install
+    "Installing or Uninstalling the Audit Message Component").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用审计消息函数之前，请根据[安装或卸载审计消息组件](audit-api-message-emit.html#audit-api-message-emit-install
+    "安装或卸载审计消息组件")中提供的说明安装审计消息组件。
+- en: '[`audit_api_message_emit_udf(*`component`*, *`producer`*, *`message`*[, *`key`*,
+    *`value`*] ...)`](audit-api-message-emit.html#function_audit-api-message-emit-udf)'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`audit_api_message_emit_udf(*`component`*, *`producer`*, *`message`*[, *`key`*,
+    *`value`*] ...)`](audit-api-message-emit.html#function_audit-api-message-emit-udf)'
+- en: Adds a message event to the audit log. Message events include component, producer,
+    and message strings of the caller's choosing, and optionally a set of key-value
+    pairs.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 向审计日志添加消息事件。消息事件包括调用者选择的组件、生产者和消息字符串，以及可选的一组键值对。
+- en: An event posted by this function is sent to all enabled plugins of audit type,
+    each of which handles the event according to its own rules. If no plugin of audit
+    type is enabled, posting the event has no effect.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由此函数发布的事件发送到所有已启用的审计类型插件，每个插件根据自己的规则处理事件。如果未启用任何审计类型的插件，则发布事件不会产生任何效果。
+- en: 'Arguments:'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参数：
+- en: '*`component`*: A string that specifies a component name.'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`component`*: 一个指定组件名称的字符串。'
+- en: '*`producer`*: A string that specifies a producer name.'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`producer`*: 一个指定生产者名称的字符串。'
+- en: '*`message`*: A string that specifies the event message.'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`message`*: 一个指定事件消息的字符串。'
+- en: '*`key`*, *`value`*: Events may include 0 or more key-value pairs that specify
+    an arbitrary application-provided data map. Each *`key`* argument is a string
+    that specifies a name for its immediately following *`value`* argument. Each *`value`*
+    argument specifies a value for its immediately following *`key`* argument. Each
+    *`value`* can be a string or numeric value, or `NULL`.'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`key`*, *`value`*: 事件可能包括 0 或多个键值对，指定任意应用程序提供的数据映射。每个 *`key`* 参数是一个指定其紧随其后的
+    *`value`* 参数名称的字符串。每个 *`value`* 参数指定其紧随其后的 *`key`* 参数的值。每个 *`value`* 可以是字符串或数值，或
+    `NULL`。'
+- en: 'Return value:'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回值：
+- en: The string `OK` to indicate success. An error occurs if the function fails.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 字符串 `OK` 表示成功。如果函数失败，则会发生错误。
+- en: 'Example:'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE2]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Additional information:'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 附加信息：
+- en: 'Each audit plugin that receives an event posted by [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    logs the event in plugin-specific format. For example, the `audit_log` plugin
+    (see [Section 8.4.5, “MySQL Enterprise Audit”](audit-log.html "8.4.5 MySQL Enterprise
+    Audit")) logs message values as follows, depending on the log format configured
+    by the [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format)
+    system variable:'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由 [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    接收到的事件由每个启用的审计类型插件以特定于插件的格式记录。例如，`audit_log` 插件（参见 [Section 8.4.5, “MySQL Enterprise
+    Audit”](audit-log.html "8.4.5 MySQL Enterprise Audit")）根据由 [`audit_log_format`](audit-log-reference.html#sysvar_audit_log_format)
+    系统变量配置的日志格式记录消息值，具体取决于配置的日志格式：
+- en: 'JSON format ([`audit_log_format=JSON`](audit-log-reference.html#sysvar_audit_log_format)):'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: JSON 格式（[`audit_log_format=JSON`](audit-log-reference.html#sysvar_audit_log_format)）：
+- en: '[PRE3]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'New-style XML format ([`audit_log_format=NEW`](audit-log-reference.html#sysvar_audit_log_format)):'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 新式 XML 格式（[`audit_log_format=NEW`](audit-log-reference.html#sysvar_audit_log_format)）：
+- en: '[PRE4]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Old-style XML format ([`audit_log_format=OLD`](audit-log-reference.html#sysvar_audit_log_format)):'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 旧式 XML 格式（[`audit_log_format=OLD`](audit-log-reference.html#sysvar_audit_log_format)）：
+- en: '[PRE5]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Note
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Message events logged in old-style XML format do not include the key-value map
+    due to representational constraints imposed by this format.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以旧式 XML 格式记录的消息事件不包括键值映射，因为该格式施加的表现约束。
+- en: 'Messages posted by [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    have an event class of `MYSQL_AUDIT_MESSAGE_CLASS` and a subclass of `MYSQL_AUDIT_MESSAGE_USER`.
+    (Internally generated audit messages have the same class and a subclass of `MYSQL_AUDIT_MESSAGE_INTERNAL`;
+    this subclass currently is unused.) To refer to such events in `audit_log` filtering
+    rules, use a `class` element with a `name` value of `message`. For example:'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由 [`audit_api_message_emit_udf()`](audit-api-message-emit.html#function_audit-api-message-emit-udf)
+    发布的消息具有 `MYSQL_AUDIT_MESSAGE_CLASS` 的事件类别和 `MYSQL_AUDIT_MESSAGE_USER` 的子类别。（内部生成的审计消息具有相同的类别和
+    `MYSQL_AUDIT_MESSAGE_INTERNAL` 的子类别；目前未使用此子类别。）要在 `audit_log` 过滤规则中引用此类事件，请使用具有
+    `name` 值为 `message` 的 `class` 元素。例如：
+- en: '[PRE6]'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Should it be necessary to distinguish user-generated and internally generated
+    message events, test the `subclass` value against `user` or `internal`.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果需要区分用户生成的和内部生成的消息事件，请将 `subclass` 值与 `user` 或 `internal` 进行测试。
+- en: Filtering based on the contents of the key-value map is not supported.
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不支持基于键值映射内容的过滤。
+- en: For information about writing filtering rules, see [Section 8.4.5.7, “Audit
+    Log Filtering”](audit-log-filtering.html "8.4.5.7 Audit Log Filtering").
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关编写过滤规则的信息，请���阅 [Section 8.4.5.7, “Audit Log Filtering”](audit-log-filtering.html
+    "8.4.5.7 Audit Log Filtering")。

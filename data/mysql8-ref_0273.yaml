@@ -1,0 +1,663 @@
+- en: 7.4.4 The Binary Log
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.4.4 二进制日志
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/binary-log.html](https://dev.mysql.com/doc/refman/8.0/en/binary-log.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/binary-log.html](https://dev.mysql.com/doc/refman/8.0/en/binary-log.html)
+- en: '[7.4.4.1 Binary Logging Formats](binary-log-formats.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[7.4.4.1 二进制日志格式](binary-log-formats.html)'
+- en: '[7.4.4.2 Setting The Binary Log Format](binary-log-setting.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[7.4.4.2 设置二进制日志格式](binary-log-setting.html)'
+- en: '[7.4.4.3 Mixed Binary Logging Format](binary-log-mixed.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[7.4.4.3 混合二进制日志格式](binary-log-mixed.html)'
+- en: '[7.4.4.4 Logging Format for Changes to mysql Database Tables](binary-log-mysql-database.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[7.4.4.4 更改mysql数据库表的日志格式](binary-log-mysql-database.html)'
+- en: '[7.4.4.5 Binary Log Transaction Compression](binary-log-transaction-compression.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[7.4.4.5 二进制日志事务压缩](binary-log-transaction-compression.html)'
+- en: 'The binary log contains “events” that describe database changes such as table
+    creation operations or changes to table data. It also contains events for statements
+    that potentially could have made changes (for example, a [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") which matched no rows), unless row-based logging is
+    used. The binary log also contains information about how long each statement took
+    that updated data. The binary log has two important purposes:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志包含描述数据库更改的“事件”，例如表创建操作或表数据更改。它还包含可能已经进行更改的语句的事件（例如，一个[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")未匹配任何行），除非使用基于行的日志记录。二进制日志还包含更新数据的每个语句所花费的时间信息。二进制日志有两个重要目的：
+- en: For replication, the binary log on a replication source server provides a record
+    of the data changes to be sent to replicas. The source sends the information contained
+    in its binary log to its replicas, which reproduce those transactions to make
+    the same data changes that were made on the source. See [Section 19.2, “Replication
+    Implementation”](replication-implementation.html "19.2 Replication Implementation").
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于复制，复制源服务器上的二进制日志提供了要发送到副本的数据更改记录。源服务器将其二进制日志中包含的信息发送给其副本，副本会重现这些事务以进行与源服务器上进行的相同数据更改。参见[第19.2节，“复制实现”](replication-implementation.html
+    "19.2 Replication Implementation")。
+- en: Certain data recovery operations require use of the binary log. After a backup
+    has been restored, the events in the binary log that were recorded after the backup
+    was made are re-executed. These events bring databases up to date from the point
+    of the backup. See [Section 9.5, “Point-in-Time (Incremental) Recovery”](point-in-time-recovery.html
+    "9.5 Point-in-Time (Incremental) Recovery").
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 某些数据恢复操作需要使用二进制日志。在备份被恢复后，备份后记录的二进制日志中的事件将被重新执行。这些事件将数据库从备份点更新到最新状态。参见[第9.5节，“时间点（增量）恢复”](point-in-time-recovery.html
+    "9.5 Point-in-Time (Incremental) Recovery")。
+- en: The binary log is not used for statements such as [`SELECT`](select.html "15.2.13 SELECT
+    Statement") or [`SHOW`](show.html "15.7.7 SHOW Statements") that do not modify
+    data. To log all statements (for example, to identify a problem query), use the
+    general query log. See [Section 7.4.3, “The General Query Log”](query-log.html
+    "7.4.3 The General Query Log").
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志不用于诸如[`SELECT`](select.html "15.2.13 SELECT Statement")或[`SHOW`](show.html
+    "15.7.7 SHOW Statements")等不修改数据的语句。要记录所有语句（例如，以识别问题查询），请使用一般查询日志。参见[第7.4.3节，“一般查询日志”](query-log.html
+    "7.4.3 The General Query Log")。
+- en: Running a server with binary logging enabled makes performance slightly slower.
+    However, the benefits of the binary log in enabling you to set up replication
+    and for restore operations generally outweigh this minor performance decrement.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 启用二进制日志记录的服务器运行性能略有下降。然而，二进制日志在启用复制和进行恢复操作方面的好处通常超过了这种轻微的性能降低。
+- en: The binary log is resilient to unexpected halts. Only complete events or transactions
+    are logged or read back.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志对意外停止是有弹性的。只有完整的事件或事务才会被记录或读取回来。
+- en: Passwords in statements written to the binary log are rewritten by the server
+    not to occur literally in plain text. See also [Section 8.1.2.3, “Passwords and
+    Logging”](password-logging.html "8.1.2.3 Passwords and Logging").
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 写入二进制日志的语句中的密码由服务器重写，以避免明文出现。另请参见[第8.1.2.3节，“密码和日志记录”](password-logging.html
+    "8.1.2.3 Passwords and Logging")。
+- en: From MySQL 8.0.14, binary log files and relay log files can be encrypted, helping
+    to protect these files and the potentially sensitive data contained in them from
+    being misused by outside attackers, and also from unauthorized viewing by users
+    of the operating system where they are stored. You enable encryption on a MySQL
+    server by setting the [`binlog_encryption`](replication-options-binary-log.html#sysvar_binlog_encryption)
+    system variable to `ON`. For more information, see [Section 19.3.2, “Encrypting
+    Binary Log Files and Relay Log Files”](replication-binlog-encryption.html "19.3.2 Encrypting
+    Binary Log Files and Relay Log Files").
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.14 开始，二进制日志文件和中继日志文件可以加密，有助于保护这些文件以及其中可能包含的敏感数据免受外部攻击者的滥用，也免受存储它们的操作系统用户的未经授权查看。
+    您可以通过将 [`binlog_encryption`](replication-options-binary-log.html#sysvar_binlog_encryption)
+    系统变量设置为 `ON` 在 MySQL 服务器上启用加密。 有关更多信息，请参见 [Section 19.3.2, “加密二进制日志文件和中继日志文件”](replication-binlog-encryption.html
+    "19.3.2 加密二进制日志文件和中继日志文件")。
+- en: The following discussion describes some of the server options and variables
+    that affect the operation of binary logging. For a complete list, see [Section 19.1.6.4,
+    “Binary Logging Options and Variables”](replication-options-binary-log.html "19.1.6.4 Binary
+    Logging Options and Variables").
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论描述了一些影响二进制日志记录操作的服务器选项和变量。 完整列表，请参见 [Section 19.1.6.4, “二进制日志记录选项和变量”](replication-options-binary-log.html
+    "19.1.6.4 二进制日志记录选项和变量")。
+- en: Binary logging is enabled by default (the [`log_bin`](replication-options-binary-log.html#sysvar_log_bin)
+    system variable is set to ON). The exception is if you use [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") to initialize the data directory manually by
+    invoking it with the [`--initialize`](server-options.html#option_mysqld_initialize)
+    or [`--initialize-insecure`](server-options.html#option_mysqld_initialize-insecure)
+    option, when binary logging is disabled by default, but can be enabled by specifying
+    the [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin) option.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志记录默认启用（[`log_bin`](replication-options-binary-log.html#sysvar_log_bin)
+    系统变量设置为 ON）。 例外情况是，如果您使用 [**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")
+    手动调用 [`--initialize`](server-options.html#option_mysqld_initialize) 或 [`--initialize-insecure`](server-options.html#option_mysqld_initialize-insecure)
+    选项初始化数据目录，则默认情况下禁用二进制日志记录，但可以通过指定 [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    选项启用。
+- en: To disable binary logging, you can specify the [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    or [`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option at startup. If either of these options is specified and [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    is also specified, the option specified later takes precedence.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要禁用二进制日志记录，您可以在启动时指定 [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    或 [`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    选项。 如果指定了其中任何一个选项，并且同时指定了 [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)，则后面指定的选项优先。
+- en: The [`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    and [`--slave-preserve-commit-order`](replication-options-replica.html#sysvar_slave_preserve_commit_order)
+    options require binary logging. If you disable binary logging, either omit these
+    options, or specify [`--log-slave-updates=OFF`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    and [`--skip-slave-preserve-commit-order`](replication-options-replica.html#sysvar_slave_preserve_commit_order).
+    MySQL disables these options by default when [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    or [`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    is specified. If you specify [`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    or [`--slave-preserve-commit-order`](replication-options-replica.html#sysvar_slave_preserve_commit_order)
+    together with [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    or [`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin),
+    a warning or error message is issued.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)和[`--slave-preserve-commit-order`](replication-options-replica.html#sysvar_slave_preserve_commit_order)选项需要进行二进制日志记录。如果禁用二进制日志记录，要么省略这些选项，要么指定[`--log-slave-updates=OFF`](replication-options-binary-log.html#sysvar_log_slave_updates)和[`--skip-slave-preserve-commit-order`](replication-options-replica.html#sysvar_slave_preserve_commit_order)。当指定[`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)或[`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)时，MySQL默认禁用这些选项。如果同时指定[`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)或[`--slave-preserve-commit-order`](replication-options-replica.html#sysvar_slave_preserve_commit_order)和[`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)或[`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)，将发出警告或错误消息。'
+- en: The [`--log-bin[=*`base_name`*]`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option is used to specify the base name for binary log files. If you do not supply
+    the `--log-bin` option, MySQL uses `binlog` as the default base name for the binary
+    log files. For compatibility with earlier releases, if you supply the `--log-bin`
+    option with no string or with an empty string, the base name defaults to `*`host_name`*-bin`,
+    using the name of the host machine. It is recommended that you specify a base
+    name, so that if the host name changes, you can easily continue to use the same
+    binary log file names (see [Section B.3.7, “Known Issues in MySQL”](known-issues.html
+    "B.3.7 Known Issues in MySQL")). If you supply an extension in the log name (for
+    example, [`--log-bin=*`base_name.extension`*`](replication-options-binary-log.html#option_mysqld_log-bin)),
+    the extension is silently removed and ignored.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`--log-bin[=*`base_name`*]`](replication-options-binary-log.html#option_mysqld_log-bin)选项用于指定二进制日志文件的基本名称。如果不提供`--log-bin`选项，MySQL将使用`binlog`作为二进制日志文件的默认基本名称。为了与早期版本兼容，如果提供了`--log-bin`选项但没有字符串或为空字符串，则基本名称默认为`*`host_name`*-bin`，使用主机机器的名称。建议您指定一个基本名称，这样如果主机名更改，您可以轻松地继续使用相同的二进制日志文件名称（参见[Section B.3.7,
+    “Known Issues in MySQL”](known-issues.html "B.3.7 MySQL中的已知问题")）。如果在日志名称中提供了扩展名（例如，[`--log-bin=*`base_name.extension`*`](replication-options-binary-log.html#option_mysqld_log-bin)），则扩展名会被静默删除并忽略。'
+- en: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") appends a numeric
+    extension to the binary log base name to generate binary log file names. The number
+    increases each time the server creates a new log file, thus creating an ordered
+    series of files. The server creates a new file in the series each time any of
+    the following events occurs:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器")会在二进制日志基本名称后附加一个数字扩展名以生成二进制日志文件名称。每次服务器创建新的日志文件时，该数字会增加，从而创建一个有序的文件系列。每当发生以下事件之一时，服务器都会在系列中创建一个新文件：'
+- en: The server is started or restarted
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器启动或重新启动
+- en: The server flushes the logs.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器会刷新日志。
+- en: The size of the current log file reaches [`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size).
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当��日志文件的大小达到[`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size)设置的大小。
+- en: A binary log file may become larger than [`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size)
+    if you are using large transactions because a transaction is written to the file
+    in one piece, never split between files.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果使用大型事务，二进制日志文件可能会比[`max_binlog_size`](replication-options-binary-log.html#sysvar_max_binlog_size)设置的大小更大，因为事务会一次性写入文件，而不会在文件之间分割。
+- en: To keep track of which binary log files have been used, [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") also creates a binary log index file that contains
+    the names of the binary log files. By default, this has the same base name as
+    the binary log file, with the extension `'.index'`. You can change the name of
+    the binary log index file with the [`--log-bin-index[=*`file_name`*]`](replication-options-binary-log.html#option_mysqld_log-bin-index)
+    option. You should not manually edit this file while [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") is running; doing so would confuse [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server").
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了跟踪已使用的二进制日志文件，[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")还会创建一个包含二进制日志文件名称的二进制日志索引文件。默认情况下，这个文件与二进制日志文件具有相同的基本名称，扩展名为`'.index'`。您可以使用[`--log-bin-index[=*`file_name`*]`](replication-options-binary-log.html#option_mysqld_log-bin-index)选项更改二进制日志索引文件的名称。在[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL 服务器")运行时不应手动编辑此文件；这样做会使[**mysqld**](mysqld.html "6.3.1 mysqld
+    — MySQL 服务器")混淆。
+- en: The term “binary log file” generally denotes an individual numbered file containing
+    database events. The term “binary log” collectively denotes the set of numbered
+    binary log files plus the index file.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 术语“二进制日志文件”通常表示包含数据库事件的单个编号文件。术语“二进制日志”集体表示一组编号的二进制日志文件和索引文件。
+- en: The default location for binary log files and the binary log index file is the
+    data directory. You can use the [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option to specify an alternative location, by adding a leading absolute path name
+    to the base name to specify a different directory. When the server reads an entry
+    from the binary log index file, which tracks the binary log files that have been
+    used, it checks whether the entry contains a relative path. If it does, the relative
+    part of the path is replaced with the absolute path set using the [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option. An absolute path recorded in the binary log index file remains unchanged;
+    in such a case, the index file must be edited manually to enable a new path or
+    paths to be used. The binary log file base name and any specified path are available
+    as the [`log_bin_basename`](replication-options-binary-log.html#sysvar_log_bin_basename)
+    system variable.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认的二进制日志文件和二进制日志索引文件的位置是数据目录。您可以使用[`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)选项来指定另一个位置，只需在基本名称前添加绝对路径名以指定不同的目录。当服务器从二进制日志索引文件中读取条目时（该文件跟踪已使用的二进制日志文件），它会检查条目是否包含相对路径。如果包含相对路径，则使用[`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)选项设置的绝对路径将替换路径的相对部分。在二进制日志索引文件中记录的绝对路径保持不变；在这种情况下，必须手动编辑索引文件以启用新路径或路径的使用。二进制日志文件基本名称和任何指定的路径可作为[`log_bin_basename`](replication-options-binary-log.html#sysvar_log_bin_basename)系统变量使用。
+- en: In MySQL 5.7, a server ID had to be specified when binary logging was enabled,
+    or the server would not start. In MySQL 8.0, the [`server_id`](replication-options.html#sysvar_server_id)
+    system variable is set to 1 by default. The server can be started with this default
+    ID when binary logging is enabled, but an informational message is issued if you
+    do not specify a server ID explicitly using the [`server_id`](replication-options.html#sysvar_server_id)
+    system variable. For servers that are used in a replication topology, you must
+    specify a unique nonzero server ID for each server.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 5.7 中，启用二进制日志记录时必须指定服务器 ID，否则服务器将无法启动。在 MySQL 8.0 中，默认情况下将[`server_id`](replication-options.html#sysvar_server_id)系统变量设置为
+    1。当启用二进制日志记录时，服务器可以使用此默认 ID 启动，但如果您不使用[`server_id`](replication-options.html#sysvar_server_id)系统变量显式指定服务器
+    ID，则会发出信息消息。对于用于复制拓扑的服务器，必须为每个服务器指定唯一的非零服务器 ID。
+- en: A client that has privileges sufficient to set restricted session system variables
+    (see [Section 7.1.9.1, “System Variable Privileges”](system-variable-privileges.html
+    "7.1.9.1 System Variable Privileges")) can disable binary logging of its own statements
+    by using a [`SET sql_log_bin=OFF`](set-sql-log-bin.html "15.4.1.3 SET sql_log_bin
+    Statement") statement.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 拥有足够权限设置受限会话系统变量的客户端（参见[第 7.1.9.1 节，“系统变量权限”](system-variable-privileges.html
+    "7.1.9.1 系统变量权限")）可以通过使用[`SET sql_log_bin=OFF`](set-sql-log-bin.html "15.4.1.3 SET
+    sql_log_bin 语句")语句禁用自己语句的二进制日志记录。
+- en: By default, the server logs the length of the event as well as the event itself
+    and uses this to verify that the event was written correctly. You can also cause
+    the server to write checksums for the events by setting the [`binlog_checksum`](replication-options-binary-log.html#sysvar_binlog_checksum)
+    system variable. When reading back from the binary log, the source uses the event
+    length by default, but can be made to use checksums if available by enabling the
+    system variable [`source_verify_checksum`](replication-options-binary-log.html#sysvar_source_verify_checksum)
+    (from MySQL 8.0.26) or [`master_verify_checksum`](replication-options-binary-log.html#sysvar_master_verify_checksum)
+    (before MySQL 8.0.26). The replication I/O (receiver) thread on the replica also
+    verifies events received from the source. You can cause the replication SQL (applier)
+    thread to use checksums if available when reading from the relay log by enabling
+    the system variable [`replica_sql_verify_checksum`](replication-options-replica.html#sysvar_replica_sql_verify_checksum)
+    (from MySQL 8.0.26) or [`slave_sql_verify_checksum`](replication-options-replica.html#sysvar_slave_sql_verify_checksum)
+    (before MySQL 8.0.26).
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，服务器记录事件的长度以及事件本身，并使用这些信息来验证事件是否正确写入。您还可以通过设置[`binlog_checksum`](replication-options-binary-log.html#sysvar_binlog_checksum)系统变量来导致服务器为事件编写校验和。从二进制日志中读取时，默认情况下源使用事件长度，但可以通过启用系统变量[`source_verify_checksum`](replication-options-binary-log.html#sysvar_source_verify_checksum)（从MySQL
+    8.0.26开始）或[`master_verify_checksum`](replication-options-binary-log.html#sysvar_master_verify_checksum)（在MySQL
+    8.0.26之前）来使用校验和（如果可用）。副本上的复制I/O（接收器）线程还会验证从源接收的事件。您可以通过启用系统变量[`replica_sql_verify_checksum`](replication-options-replica.html#sysvar_replica_sql_verify_checksum)（从MySQL
+    8.0.26开始）或[`slave_sql_verify_checksum`](replication-options-replica.html#sysvar_slave_sql_verify_checksum)（在MySQL
+    8.0.26之前）来导致复制SQL（应用程序）线程在从中继日志读取时使用校验和（如果可用）。
+- en: 'The format of the events recorded in the binary log is dependent on the binary
+    logging format. Three format types are supported: row-based logging, statement-based
+    logging and mixed-base logging. The binary logging format used depends on the
+    MySQL version. For general descriptions of the logging formats, see [Section 7.4.4.1,
+    “Binary Logging Formats”](binary-log-formats.html "7.4.4.1 Binary Logging Formats").
+    For detailed information about the format of the binary log, see [MySQL Internals:
+    The Binary Log](/doc/internals/en/binary-log.html).'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '记录在二进制日志中的事件的格式取决于二进制日志格式。支持三种格式类型：基于行的日志记录、基于语句的日志记录和混合基于日志记录。所使用的二进制日志格式取决于MySQL版本。有关日志格式的一般描述，请参见[Section 7.4.4.1,
+    “Binary Logging Formats”](binary-log-formats.html "7.4.4.1 Binary Logging Formats")。有关二进制日志格式的详细信息，请参见[MySQL
+    Internals: The Binary Log](/doc/internals/en/binary-log.html)。'
+- en: The server evaluates the [`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)
+    and [`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)
+    options in the same way as it does the [`--replicate-do-db`](replication-options-replica.html#option_mysqld_replicate-do-db)
+    and [`--replicate-ignore-db`](replication-options-replica.html#option_mysqld_replicate-ignore-db)
+    options. For information about how this is done, see [Section 19.2.5.1, “Evaluation
+    of Database-Level Replication and Binary Logging Options”](replication-rules-db-options.html
+    "19.2.5.1 Evaluation of Database-Level Replication and Binary Logging Options").
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器以与[`--replicate-do-db`](replication-options-replica.html#option_mysqld_replicate-do-db)和[`--replicate-ignore-db`](replication-options-replica.html#option_mysqld_replicate-ignore-db)选项相同的方式评估[`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)和[`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)选项。有关此操作的信息，请参见[Section 19.2.5.1,
+    “Evaluation of Database-Level Replication and Binary Logging Options”](replication-rules-db-options.html
+    "19.2.5.1 Evaluation of Database-Level Replication and Binary Logging Options")。
+- en: A replica is started with the system variable [`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    (from MySQL 8.0.26) or [`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    (before MySQL 8.0.26) enabled by default, meaning that the replica writes to its
+    own binary log any data modifications that are received from the source. The binary
+    log must be enabled for this setting to work (see [Section 19.1.6.3, “Replica
+    Server Options and Variables”](replication-options-replica.html "19.1.6.3 Replica
+    Server Options and Variables")). This setting enables the replica to act as a
+    source to other replicas.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个复制品默认启用系统变量[`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)（从MySQL
+    8.0.26开始）或[`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)（MySQL
+    8.0.26之前），这意味着复制品会将从源接收到的任何数据修改写入自己的二进制日志。必须启用二进制日志才能使此设置生效（参见[第19.1.6.3节，“复制品服务器选项和变量”](replication-options-replica.html
+    "19.1.6.3 复制品服务器选项和变量")）。此设置使复制品能够作为其他复制品的源。
+- en: You can delete all binary log files with the [`RESET MASTER`](reset-master.html
+    "15.4.1.2 RESET MASTER Statement") statement, or a subset of them with [`PURGE
+    BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS Statement").
+    See [Section 15.7.8.6, “RESET Statement”](reset.html "15.7.8.6 RESET Statement"),
+    and [Section 15.4.1.1, “PURGE BINARY LOGS Statement”](purge-binary-logs.html "15.4.1.1 PURGE
+    BINARY LOGS Statement").
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[`RESET MASTER`](reset-master.html "15.4.1.2 RESET MASTER语句")语句删除所有二进制日志文件，或使用[`PURGE
+    BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS语句")删除其中的一部分。请参见[第15.7.8.6节，“RESET语句”](reset.html
+    "15.7.8.6 RESET语句")，以及[第15.4.1.1节，“PURGE BINARY LOGS语句”](purge-binary-logs.html
+    "15.4.1.1 PURGE BINARY LOGS语句")。
+- en: If you are using replication, you should not delete old binary log files on
+    the source until you are sure that no replica still needs to use them. For example,
+    if your replicas never run more than three days behind, once a day you can execute
+    [**mysqladmin flush-logs binary**](mysqladmin.html "6.5.2 mysqladmin — A MySQL
+    Server Administration Program") on the source and then remove any logs that are
+    more than three days old. You can remove the files manually, but it is preferable
+    to use [`PURGE BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS
+    Statement"), which also safely updates the binary log index file for you (and
+    which can take a date argument). See [Section 15.4.1.1, “PURGE BINARY LOGS Statement”](purge-binary-logs.html
+    "15.4.1.1 PURGE BINARY LOGS Statement").
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您正在使用复制，应在确定没有复制品仍然需要使用旧二进制日志文件之前，不要删除源上的旧二进制日志文件。例如，如果您的复制品永远不会落后于三天，那么每天您可以在源上执行[**mysqladmin
+    flush-logs binary**](mysqladmin.html "6.5.2 mysqladmin — 一个MySQL服务器管理程序")，然后删除三天前的任何日志。您可以手动删除文件，但最好使用[`PURGE
+    BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS语句")，这也会安全地为您更新二进制日志索引文件（并且可以接受日期参数）。请参见[第15.4.1.1节，“PURGE
+    BINARY LOGS语句”](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS语句")。
+- en: 'You can display the contents of binary log files with the [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") utility. This can
+    be useful when you want to reprocess statements in the log for a recovery operation.
+    For example, you can update a MySQL server from the binary log as follows:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")实用程序显示二进制日志文件的内容。当您想要重新处理日志中的语句以进行恢复操作时，这可能很有用。例如，您可以按以下方式从二进制日志更新MySQL服务器：
+- en: '[PRE0]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") also can be used to display the contents of the relay log file
+    on a replica, because they are written using the same format as binary log files.
+    For more information on the [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") utility and how to use it, see [Section 6.6.9,
+    “mysqlbinlog — Utility for Processing Binary Log Files”](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files"). For more information about the binary
+    log and recovery operations, see [Section 9.5, “Point-in-Time (Incremental) Recovery”](point-in-time-recovery.html
+    "9.5 Point-in-Time (Incremental) Recovery").'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")还可以用于显示复制品上中继日志文件的内容，因为它们使用与二进制日志文件相同的格式进行编写。有关[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")实用程序及其使用方法的更多信息，请参见[第6.6.9节，“mysqlbinlog
+    — 用于处理二进制日志文件的实用���序”](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")。有关二进制日志和恢复操作的更多信息，请参见[第9.5节，“时间点（增量）恢复”](point-in-time-recovery.html
+    "9.5 时间点（增量）恢复")。'
+- en: Binary logging is done immediately after a statement or transaction completes
+    but before any locks are released or any commit is done. This ensures that the
+    log is logged in commit order.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志记录在语句或事务完成后立即进行，但在释放任何锁或执行任何提交之前。这确保了日志按提交顺序记录。
+- en: Updates to nontransactional tables are stored in the binary log immediately
+    after execution.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对非事务表的更新会立即存储在二进制日志中。
+- en: Within an uncommitted transaction, all updates ([`UPDATE`](update.html "15.2.17 UPDATE
+    Statement"), [`DELETE`](delete.html "15.2.2 DELETE Statement"), or [`INSERT`](insert.html
+    "15.2.7 INSERT Statement")) that change transactional tables such as `InnoDB`
+    tables are cached until a [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements") statement is received by the server. At that point,
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") writes the entire
+    transaction to the binary log before the [`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements") is executed.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在未提交的事务中，所有更新（[`UPDATE`](update.html "15.2.17 UPDATE Statement")、[`DELETE`](delete.html
+    "15.2.2 DELETE Statement") 或 [`INSERT`](insert.html "15.2.7 INSERT Statement")）对更改事务表（如
+    `InnoDB` 表）的操作都会被缓存，直到服务器接收到 [`COMMIT`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") 语句。此时，[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") 在执行 [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements") 之前将整个事务写入二进制日志。
+- en: Modifications to nontransactional tables cannot be rolled back. If a transaction
+    that is rolled back includes modifications to nontransactional tables, the entire
+    transaction is logged with a [`ROLLBACK`](commit.html "15.3.1 START TRANSACTION,
+    COMMIT, and ROLLBACK Statements") statement at the end to ensure that the modifications
+    to those tables are replicated.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对非事务表的修改无法回滚。如果要回滚的事务包括对非事务表的修改，则整个事务将以 [`ROLLBACK`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements") 语句记录，以确保这些表的修改被复制。
+- en: When a thread that handles the transaction starts, it allocates a buffer of
+    [`binlog_cache_size`](replication-options-binary-log.html#sysvar_binlog_cache_size)
+    to buffer statements. If a statement is bigger than this, the thread opens a temporary
+    file to store the transaction. The temporary file is deleted when the thread ends.
+    From MySQL 8.0.17, if binary log encryption is active on the server, the temporary
+    file is encrypted.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当处理事务的线程启动时，它会分配一个大小为 [`binlog_cache_size`](replication-options-binary-log.html#sysvar_binlog_cache_size)
+    的缓冲区来缓冲语句。如果语句大于此值，线程将打开一个临时文件来存储事务。当线程结束时，临时文件将被删除。从 MySQL 8.0.17 开始，如果服务器上启用了二进制日志加密，则临时文件将被加密。
+- en: The [`Binlog_cache_use`](server-status-variables.html#statvar_Binlog_cache_use)
+    status variable shows the number of transactions that used this buffer (and possibly
+    a temporary file) for storing statements. The [`Binlog_cache_disk_use`](server-status-variables.html#statvar_Binlog_cache_disk_use)
+    status variable shows how many of those transactions actually had to use a temporary
+    file. These two variables can be used for tuning [`binlog_cache_size`](replication-options-binary-log.html#sysvar_binlog_cache_size)
+    to a large enough value that avoids the use of temporary files.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`Binlog_cache_use`](server-status-variables.html#statvar_Binlog_cache_use)
+    状态变量显示了使用此缓冲区（可能还包括临时文件）存储语句的事务数量。[`Binlog_cache_disk_use`](server-status-variables.html#statvar_Binlog_cache_disk_use)
+    状态变量显示了实际需要使用临时文件的事务数量。这两个变量可用于调整 [`binlog_cache_size`](replication-options-binary-log.html#sysvar_binlog_cache_size)
+    的值，使其足够大，避免使用临时文件。'
+- en: The [`max_binlog_cache_size`](replication-options-binary-log.html#sysvar_max_binlog_cache_size)
+    system variable (default 4GB, which is also the maximum) can be used to restrict
+    the total size used to cache a multiple-statement transaction. If a transaction
+    is larger than this many bytes, it fails and rolls back. The minimum value is
+    4096.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`max_binlog_cache_size`](replication-options-binary-log.html#sysvar_max_binlog_cache_size)
+    系统变量（默认为4GB，也是最大值）可用于限制用于缓存多语句事务的总大小。如果事务大于此字节数，它将失败并回滚。最小值为4096。'
+- en: If you are using the binary log and row based logging, concurrent inserts are
+    converted to normal inserts for `CREATE ... SELECT` or [`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT Statement") statements. This is done to ensure that
+    you can re-create an exact copy of your tables by applying the log during a backup
+    operation. If you are using statement-based logging, the original statement is
+    written to the log.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您正在使用二进制日志和基于行的日志记录，`CREATE ... SELECT`或[`INSERT ... SELECT`](insert-select.html
+    "15.2.7.1 INSERT ... SELECT语句")语句中的并发插入将转换为普通插入。这样做是为了确保您可以通过在备份操作期间应用日志来重新创建表的精确副本。如果使用基于语句的日志记录，则原始语句将写入日志。
+- en: The binary log format has some known limitations that can affect recovery from
+    backups. See [Section 19.5.1, “Replication Features and Issues”](replication-features.html
+    "19.5.1 Replication Features and Issues").
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志格式存在一些已知限制，可能会影响从备份中恢复。参见[第19.5.1节，“复制功能和问题”](replication-features.html
+    "19.5.1 复制功能和问题")。
+- en: Binary logging for stored programs is done as described in [Section 27.7, “Stored
+    Program Binary Logging”](stored-programs-logging.html "27.7 Stored Program Binary
+    Logging").
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存储程序的二进制日志记录如[第27.7节，“存储程序二进制日志记录”](stored-programs-logging.html "27.7 存储程序二进制日志记录")所述。
+- en: Note that the binary log format differs in MySQL 8.0 from previous versions
+    of MySQL, due to enhancements in replication. See [Section 19.5.2, “Replication
+    Compatibility Between MySQL Versions”](replication-compatibility.html "19.5.2 Replication
+    Compatibility Between MySQL Versions").
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，由于复制功能的增强，MySQL 8.0中的二进制日志格式与MySQL先前版本不同。请参见[第19.5.2节，“MySQL版本之间的复制兼容性”](replication-compatibility.html
+    "19.5.2 MySQL版本之间的复制兼容性")。
+- en: If the server is unable to write to the binary log, flush binary log files,
+    or synchronize the binary log to disk, the binary log on the replication source
+    server can become inconsistent and replicas can lose synchronization with the
+    source. The [`binlog_error_action`](replication-options-binary-log.html#sysvar_binlog_error_action)
+    system variable controls the action taken if an error of this type is encountered
+    with the binary log.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果服务器无法写入二进制日志，刷新二进制日志文件，或将二进制日志同步到磁盘，复制源服务器上的二进制日志可能会变得不一致，副本可能会与源失去同步。[`binlog_error_action`](replication-options-binary-log.html#sysvar_binlog_error_action)系统变量控制在遇到此类错误时采取的操作。
+- en: The default setting, `ABORT_SERVER`, makes the server halt binary logging and
+    shut down. At this point, you can identify and correct the cause of the error.
+    On restart, recovery proceeds as in the case of an unexpected server halt (see
+    [Section 19.4.2, “Handling an Unexpected Halt of a Replica”](replication-solutions-unexpected-replica-halt.html
+    "19.4.2 Handling an Unexpected Halt of a Replica")).
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认设置`ABORT_SERVER`使服务器停止二进制日志记录并关闭。此时，您可以识别和纠正错误的原因。在重新启动时，恢复将如同意外服务器停止的情况一样进行（参见[第19.4.2节，“处理副本意外停止”](replication-solutions-unexpected-replica-halt.html
+    "19.4.2 处理副本意外停止")）。
+- en: The setting `IGNORE_ERROR` provides backward compatibility with older versions
+    of MySQL. With this setting, the server continues the ongoing transaction and
+    logs the error, then halts binary logging, but continues to perform updates. At
+    this point, you can identify and correct the cause of the error. To resume binary
+    logging, [`log_bin`](replication-options-binary-log.html#sysvar_log_bin) must
+    be enabled again, which requires a server restart. Only use this option if you
+    require backward compatibility, and the binary log is non-essential on this MySQL
+    server instance. For example, you might use the binary log only for intermittent
+    auditing or debugging of the server, and not use it for replication from the server
+    or rely on it for point-in-time restore operations.
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 设置`IGNORE_ERROR`提供与旧版本MySQL的向后兼容性。使用此设置，服务器将继续进行进行中的事务并记录错误，然后停止二进制日志记录，但继续执行更新。此时，您可以识别和纠正错误的原因。要恢复二进制日志记录，必须重新启用[`log_bin`](replication-options-binary-log.html#sysvar_log_bin)，这需要重新启动服务器。只有在需要向后兼容性，并且二进制日志在此MySQL服务器实例上是非必需的情况下才使用此选项。例如，您可能仅将二进制日志用于服务器的间歇性审计或调试，并且不将其用于从服务器复制或依赖于其进行时间点还原操作。
+- en: By default, the binary log is synchronized to disk at each write ([`sync_binlog=1`](replication-options-binary-log.html#sysvar_sync_binlog)).
+    If [`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog) was
+    not enabled, and the operating system or machine (not only the MySQL server) crashed,
+    there is a chance that the last statements of the binary log could be lost. To
+    prevent this, enable the [`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog)
+    system variable to synchronize the binary log to disk after every *`N`* commit
+    groups. See [Section 7.1.8, “Server System Variables”](server-system-variables.html
+    "7.1.8 Server System Variables"). The safest value for [`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog)
+    is 1 (the default), but this is also the slowest.
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，二进制日志在每次写入时都会同步到磁盘（[`sync_binlog=1`](replication-options-binary-log.html#sysvar_sync_binlog)）。如果未启用[`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog)，并且操作系统或机器（不仅仅是MySQL服务器）崩溃，那么二进制日志的最后几条语句可能会丢失。为了防止这种情况发生，启用[`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog)系统变量，以在每个*`N`*提交组后将二进制日志同步到磁盘。参见[第7.1.8节，“服务器系统变量”](server-system-variables.html
+    "7.1.8 服务器系统变量")。[`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog)的最安全值是1（默认值），但这也是最慢的。
+- en: In earlier MySQL releases, there was a chance of inconsistency between the table
+    content and binary log content if a crash occurred, even with [`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog)
+    set to 1\. For example, if you are using `InnoDB` tables and the MySQL server
+    processes a [`COMMIT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK
+    Statements") statement, it writes many prepared transactions to the binary log
+    in sequence, synchronizes the binary log, and then commits the transaction into
+    `InnoDB`. If the server unexpectedly exited between those two operations, the
+    transaction would be rolled back by `InnoDB` at restart but still exist in the
+    binary log. Such an issue was resolved in previous releases by enabling `InnoDB`
+    support for two-phase commit in XA transactions. In MySQL 8.0, `InnoDB` support
+    for two-phase commit in XA transactions is always enabled.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在早期的MySQL版本中，即使将[`sync_binlog`](replication-options-binary-log.html#sysvar_sync_binlog)设置为1，如果发生崩溃，表内容和二进制日志内容之间仍可能存在不一致的情况。例如，如果您正在使用`InnoDB`表，并且MySQL服务器处理一个[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")语句，它会按顺序将许多准备好的事务写入二进制日志，同步二进制日志，然后将事务提交到`InnoDB`。如果服务器在这两个操作之间意外退出，`InnoDB`会在重新启动时回滚事务，但事务仍然存在于二进制日志中。在以前的版本中，通过在XA事务中启用`InnoDB`支持两阶段提交来解决了这个问题。在MySQL
+    8.0中，`InnoDB`对XA事务中的两阶段提交始终是启用的。
+- en: '`InnoDB` support for two-phase commit in XA transactions ensures that the binary
+    log and `InnoDB` data files are synchronized. However, the MySQL server should
+    also be configured to synchronize the binary log and the `InnoDB` logs to disk
+    before committing the transaction. The `InnoDB` logs are synchronized by default,
+    and `sync_binlog=1` ensures the binary log is synchronized. The effect of implicit
+    `InnoDB` support for two-phase commit in XA transactions and `sync_binlog=1` is
+    that at restart after a crash, after doing a rollback of transactions, the MySQL
+    server scans the latest binary log file to collect transaction *`xid`* values
+    and calculate the last valid position in the binary log file. The MySQL server
+    then tells `InnoDB` to complete any prepared transactions that were successfully
+    written to the to the binary log, and truncates the binary log to the last valid
+    position. This ensures that the binary log reflects the exact data of `InnoDB`
+    tables, and therefore the replica remains in synchrony with the source because
+    it does not receive a statement which has been rolled back.'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`对XA事务中的两阶段提交支持确保了二进制日志和`InnoDB`数据文件的同步。然而，MySQL服务器还应配置为在提交事务之前将二进制日志和`InnoDB`日志同步到磁盘。`InnoDB`日志默认是同步的，而`sync_binlog=1`确保了二进制日志的同步。隐式`InnoDB`对XA事务中的两阶段提交支持和`sync_binlog=1`的效果是，在崩溃后重新启动后，在回滚事务后，MySQL服务器会扫描最新的二进制日志文件以收集事务*`xid`*值，并计算二进制日志文件中的最后有效位置。然后，MySQL服务器告诉`InnoDB`完成已成功写入二进制日志的任何准备好的事务，并将二进制日志截断到最后的有效位置。这确保了二进制日志反映了`InnoDB`表的确切数据，因此复制品保持与源的同步，因为它不会接收已回滚的语句。'
+- en: If the MySQL server discovers at crash recovery that the binary log is shorter
+    than it should have been, it lacks at least one successfully committed `InnoDB`
+    transaction. This should not happen if `sync_binlog=1` and the disk/file system
+    do an actual sync when they are requested to (some do not), so the server prints
+    an error message `The binary log *`file_name`* is shorter than its expected size`.
+    In this case, this binary log is not correct and replication should be restarted
+    from a fresh snapshot of the source's data.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 MySQL 服务器在崩溃恢复时发现二进制日志比应该的长度短，那么至少缺少一个成功提交的`InnoDB`事务。如果`sync_binlog=1`，并且磁盘/文件系统在被请求时进行了实际同步（有些不会），那么不应该发生这种情况，因此服务器会打印错误消息`The
+    binary log *`file_name`* is shorter than its expected size`。在这种情况下，此二进制日志不正确，复制应该从源数据的新快照重新启动。
+- en: 'The session values of the following system variables are written to the binary
+    log and honored by the replica when parsing the binary log:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下系统变量的会话值将被写入二进制日志，并在解析二进制日志时被复制实例所遵守：
+- en: '[`sql_mode`](server-system-variables.html#sysvar_sql_mode) (except that the
+    [`NO_DIR_IN_CREATE`](sql-mode.html#sqlmode_no_dir_in_create) mode is not replicated;
+    see [Section 19.5.1.39, “Replication and Variables”](replication-features-variables.html
+    "19.5.1.39 Replication and Variables"))'
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`sql_mode`](server-system-variables.html#sysvar_sql_mode)（除了[`NO_DIR_IN_CREATE`](sql-mode.html#sqlmode_no_dir_in_create)模式不会被复制；参见[第19.5.1.39节，“复制和变量”](replication-features-variables.html
+    "19.5.1.39 复制和变量")）'
+- en: '[`foreign_key_checks`](server-system-variables.html#sysvar_foreign_key_checks)'
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`foreign_key_checks`](server-system-variables.html#sysvar_foreign_key_checks)'
+- en: '[`unique_checks`](server-system-variables.html#sysvar_unique_checks)'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`unique_checks`](server-system-variables.html#sysvar_unique_checks)'
+- en: '[`character_set_client`](server-system-variables.html#sysvar_character_set_client)'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`character_set_client`](server-system-variables.html#sysvar_character_set_client)'
+- en: '[`collation_connection`](server-system-variables.html#sysvar_collation_connection)'
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`collation_connection`](server-system-variables.html#sysvar_collation_connection)'
+- en: '[`collation_database`](server-system-variables.html#sysvar_collation_database)'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`collation_database`](server-system-variables.html#sysvar_collation_database)'
+- en: '[`collation_server`](server-system-variables.html#sysvar_collation_server)'
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`collation_server`](server-system-variables.html#sysvar_collation_server)'
+- en: '[`sql_auto_is_null`](server-system-variables.html#sysvar_sql_auto_is_null)'
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`sql_auto_is_null`](server-system-variables.html#sysvar_sql_auto_is_null)'

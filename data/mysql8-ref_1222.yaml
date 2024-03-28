@@ -1,0 +1,82 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-background.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-background.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-background.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-compression-background.html)
+- en: 17.9.1.1 Overview of Table Compression
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.9.1.1 表压缩概述
+- en: Because processors and cache memories have increased in speed more than disk
+    storage devices, many workloads are [disk-bound](glossary.html#glos_disk_bound
+    "disk-bound"). Data [compression](glossary.html#glos_compression "compression")
+    enables smaller database size, reduced I/O, and improved throughput, at the small
+    cost of increased CPU utilization. Compression is especially valuable for read-intensive
+    applications, on systems with enough RAM to keep frequently used data in memory.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为处理器和缓存内存的速度增加比磁盘存储设备更快，许多工作负载是[磁盘限制](glossary.html#glos_disk_bound "disk-bound")的。数据[压缩](glossary.html#glos_compression
+    "compression")可以使数据库大小更小，减少I/O，并提高吞吐量，但会增加CPU利用率。压缩对于读密集型应用程序特别有价值，在具有足够RAM的系统上，可以将经常使用的数据保留在内存中。
+- en: An `InnoDB` table created with `ROW_FORMAT=COMPRESSED` can use a smaller [page
+    size](glossary.html#glos_page_size "page size") on disk than the configured [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    value. Smaller pages require less I/O to read from and write to disk, which is
+    especially valuable for [SSD](glossary.html#glos_ssd "SSD") devices.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`ROW_FORMAT=COMPRESSED`创建的`InnoDB`表可以在磁盘上使用比配置的[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)值更小的[页面大小](glossary.html#glos_page_size
+    "page size")。较小的页面需要更少的I/O来从磁盘读取和写入，这对[SSD](glossary.html#glos_ssd "SSD")设备特别有价值。
+- en: The compressed page size is specified through the [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") or [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") `KEY_BLOCK_SIZE` parameter. The different page size requires
+    that the table be placed in a [file-per-table](glossary.html#glos_file_per_table
+    "file-per-table") tablespace or [general tablespace](glossary.html#glos_general_tablespace
+    "general tablespace") rather than in the [system tablespace](glossary.html#glos_system_tablespace
+    "system tablespace"), as the system tablespace cannot store compressed tables.
+    For more information, see [Section 17.6.3.2, “File-Per-Table Tablespaces”](innodb-file-per-table-tablespaces.html
+    "17.6.3.2 File-Per-Table Tablespaces"), and [Section 17.6.3.3, “General Tablespaces”](general-tablespaces.html
+    "17.6.3.3 General Tablespaces").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 压缩页面大小是通过[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")或[`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")的`KEY_BLOCK_SIZE`参数指定的。不同的页面大小要求表必须放置在[file-per-table](glossary.html#glos_file_per_table
+    "file-per-table")表空间或[general tablespace](glossary.html#glos_general_tablespace
+    "general tablespace")中，而不是在[system tablespace](glossary.html#glos_system_tablespace
+    "system tablespace")中，因为系统表空间无法存储压缩表。有关更多信息，请参见[Section 17.6.3.2, “File-Per-Table
+    Tablespaces”](innodb-file-per-table-tablespaces.html "17.6.3.2 File-Per-Table
+    Tablespaces")和[Section 17.6.3.3, “General Tablespaces”](general-tablespaces.html
+    "17.6.3.3 General Tablespaces")。
+- en: The level of compression is the same regardless of the `KEY_BLOCK_SIZE` value.
+    As you specify smaller values for `KEY_BLOCK_SIZE`, you get the I/O benefits of
+    increasingly smaller pages. But if you specify a value that is too small, there
+    is additional overhead to reorganize the pages when data values cannot be compressed
+    enough to fit multiple rows in each page. There is a hard limit on how small `KEY_BLOCK_SIZE`
+    can be for a table, based on the lengths of the key columns for each of its indexes.
+    Specify a value that is too small, and the [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") or [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") statement fails.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 无论`KEY_BLOCK_SIZE`值如何，压缩级别都是相同的。当您为`KEY_BLOCK_SIZE`指定较小的值时，您将获得越来越小页面的I/O优势。但是，如果指定的值太小，当数据值无法压缩到足以适应每个页面的多行时，重新组织页面会增加额外的开销。对于每个索引的关键列的长度，表的`KEY_BLOCK_SIZE`可以有一个硬限制。指定一个太小的值，[`CREATE
+    TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")或[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")语句将失败。
+- en: In the buffer pool, the compressed data is held in small pages, with a page
+    size based on the `KEY_BLOCK_SIZE` value. For extracting or updating the column
+    values, MySQL also creates an uncompressed page in the buffer pool with the uncompressed
+    data. Within the buffer pool, any updates to the uncompressed page are also re-written
+    back to the equivalent compressed page. You might need to size your buffer pool
+    to accommodate the additional data of both compressed and uncompressed pages,
+    although the uncompressed pages are [evicted](glossary.html#glos_eviction "eviction")
+    from the buffer pool when space is needed, and then uncompressed again on the
+    next access.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在缓冲池中，压缩数据以小页面的形式保存，页面大小基于`KEY_BLOCK_SIZE`值。为了提取或更新列值，MySQL还在缓冲池中创建一个包含未压缩数据的未压缩页面。在缓冲池中，对未压缩页面的任何更新也会重新写回等效的压缩页面。您可能需要调整缓冲池的大小以容纳压缩和未压缩页面的额外数据，尽管在需要空间时，未压缩页面会从缓冲池中被[驱逐](glossary.html#glos_eviction
+    "eviction")，然后在下一次访问时再次解压缩。

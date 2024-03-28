@@ -1,0 +1,343 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-logging.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-logging.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-logging.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-logging.html)
+- en: 6.5.1.3 mysql Client Logging
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 6.5.1.3 mysql客户端日志记录
+- en: 'The [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client
+    can do these types of logging for statements executed interactively:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")客户端可以对交互式执行的语句进行以下类型的记录：'
+- en: On Unix, [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    writes the statements to a history file. By default, this file is named `.mysql_history`
+    in your home directory. To specify a different file, set the value of the `MYSQL_HISTFILE`
+    environment variable.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在Unix上，[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")将语句写入历史文件。默认情况下，此文件在您的主目录中命名为`.mysql_history`。要指定不同的文件，请设置`MYSQL_HISTFILE`环境变量的值。
+- en: On all platforms, if the `--syslog` option is given, [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") writes the statements to the system
+    logging facility. On Unix, this is `syslog`; on Windows, it is the Windows Event
+    Log. The destination where logged messages appear is system dependent. On Linux,
+    the destination is often the `/var/log/messages` file.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在所有平台上，如果给定`--syslog`选项，[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client")会将语句写入系统日志设施。在Unix上，这是`syslog`；在Windows上，这是Windows事件日志。记录消息出现的目的地取决于系统。在Linux上，目的地通常是`/var/log/messages`文件。
+- en: The following discussion describes characteristics that apply to all logging
+    types and provides information specific to each logging type.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论描述适用于所有日志类型的特征，并提供每种日志类型的特定信息。
+- en: '[How Logging Occurs](mysql-logging.html#mysql-logging-how-logging-occurs "How
+    Logging Occurs")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[日志记录方式](mysql-logging.html#mysql-logging-how-logging-occurs "日志记录方式")'
+- en: '[Controlling the History File](mysql-logging.html#mysql-logging-history-file
+    "Controlling the History File")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[控制历史文件](mysql-logging.html#mysql-logging-history-file "控制历史文件")'
+- en: '[syslog Logging Characteristics](mysql-logging.html#mysql-logging-syslog "syslog
+    Logging Characteristics")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[syslog日志特性](mysql-logging.html#mysql-logging-syslog "syslog日志特性")'
+- en: How Logging Occurs
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 日志记录方式
+- en: 'For each enabled logging destination, statement logging occurs as follows:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于每个启用的日志记录目的地，语句记录如下进行：
+- en: Statements are logged only when executed interactively. Statements are noninteractive,
+    for example, when read from a file or a pipe. It is also possible to suppress
+    statement logging by using the [`--batch`](mysql-command-options.html#option_mysql_batch)
+    or [`--execute`](mysql-command-options.html#option_mysql_execute) option.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 只有在交互式执行时才记录语句。例如，从文件或管道中读取时，语句是非交互式的。还可以通过使用[`--batch`](mysql-command-options.html#option_mysql_batch)或[`--execute`](mysql-command-options.html#option_mysql_execute)选项来抑制语句记录。
+- en: Statements are ignored and not logged if they match any pattern in the “ignore”
+    list. This list is described later.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果语句与“忽略”列表中的任何模式匹配，则会被忽略并不记录。此列表稍后描述。
+- en: '[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") logs
+    each nonignored, nonempty statement line individually.'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")会单独记录每个非忽略的非空语句行。'
+- en: If a nonignored statement spans multiple lines (not including the terminating
+    delimiter), [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    concatenates the lines to form the complete statement, maps newlines to spaces,
+    and logs the result, plus a delimiter.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个非忽略的语句跨越多行（不包括结束分隔符），[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client")会将这些行连接起来形成完整的语句，将换行符映射为空格，并记录结果，再加上一个分隔符。
+- en: 'Consequently, an input statement that spans multiple lines can be logged twice.
+    Consider this input:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，跨越多行的输入语句可能会被记录两次。考虑以下输入：
+- en: '[PRE0]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'In this case, [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") logs the “SELECT”, “''Today is''”, “,”, “CURDATE()”, and “;” lines as
+    it reads them. It also logs the complete statement, after mapping `SELECT\n''Today
+    is''\n,\nCURDATE()` to `SELECT ''Today is'' , CURDATE()`, plus a delimiter. Thus,
+    these lines appear in logged output:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")记录“SELECT”、“'Today
+    is'”、“,”、“CURDATE()”和“;”行，然后将它们映射到`SELECT 'Today is' , CURDATE()`，再加上一个分隔符。因此，这些行会出现在记录的输出中：
+- en: '[PRE1]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") ignores
+    for logging purposes statements that match any pattern in the “ignore” list. By
+    default, the pattern list is `"*IDENTIFIED*:*PASSWORD*"`, to ignore statements
+    that refer to passwords. Pattern matching is not case-sensitive. Within patterns,
+    two characters are special:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysql**](mysql.html "6.5.1 mysql — MySQL 命令行客户端") 在记录日志时会忽略与“ignore”列表中任何模式匹配的语句。默认情况下，模式列表是`"*IDENTIFIED*:*PASSWORD*"`，用于忽略涉及密码的语句。模式匹配不区分大小写。在模式中，两个字符是特殊的：'
+- en: '`?` matches any single character.'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`?` 匹配任何单个字符。'
+- en: '`*` matches any sequence of zero or more characters.'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`*` 匹配零个或多个字符的任意序列。'
+- en: To specify additional patterns, use the [`--histignore`](mysql-command-options.html#option_mysql_histignore)
+    option or set the `MYSQL_HISTIGNORE` environment variable. (If both are specified,
+    the option value takes precedence.) The value should be a list of one or more
+    colon-separated patterns, which are appended to the default pattern list.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要指定额外的模式，请使用[`--histignore`](mysql-command-options.html#option_mysql_histignore)选项或设置`MYSQL_HISTIGNORE`环境变量。（如果两者都指定，则选项值优先。）该值应该是一个或多个以冒号分隔的模式列表，这些模式将附加到默认模式列表。
+- en: 'Patterns specified on the command line might need to be quoted or escaped to
+    prevent your command interpreter from treating them specially. For example, to
+    suppress logging for `UPDATE` and `DELETE` statements in addition to statements
+    that refer to passwords, invoke [**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client") like this:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在命令行上指定的模式可能需要用引号引起或转义，以防止您的命令解释器将其视为特殊字符。例如，为了除了忽略涉及密码的语句外，还抑制`UPDATE`和`DELETE`语句的记录，请像这样调用[**mysql**](mysql.html
+    "6.5.1 mysql — MySQL 命令行客户端")：
+- en: '[PRE2]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Controlling the History File
+  id: totrans-25
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 控制历史文件
+- en: The `.mysql_history` file should be protected with a restrictive access mode
+    because sensitive information might be written to it, such as the text of SQL
+    statements that contain passwords. See [Section 8.1.2.1, “End-User Guidelines
+    for Password Security”](password-security-user.html "8.1.2.1 End-User Guidelines
+    for Password Security"). Statements in the file are accessible from the [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") client when the **up-arrow** key
+    is used to recall the history. See [Disabling Interactive History](mysql-tips.html#mysql-history
+    "Disabling Interactive History").
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`.mysql_history`文件应受到限制访问模式的保护，因为可能会写入敏感信息，例如包含密码的 SQL 语句的文本。当使用**上箭头**键召回历史记录时，文件中的语句可从[**mysql**](mysql.html
+    "6.5.1 mysql — MySQL 命令行客户端")客户端访问。请参阅[禁用交互式历史记录](mysql-tips.html#mysql-history
+    "禁用交互式历史记录")。'
+- en: 'If you do not want to maintain a history file, first remove `.mysql_history`
+    if it exists. Then use either of the following techniques to prevent it from being
+    created again:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您不想维护历史文件，请先删除`.mysql_history`（如果存在）。然后使用以下任一技术防止它再次被创建：
+- en: Set the `MYSQL_HISTFILE` environment variable to `/dev/null`. To cause this
+    setting to take effect each time you log in, put it in one of your shell's startup
+    files.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将`MYSQL_HISTFILE`环境变量设置为`/dev/null`。要使此设置每次登录时生效，请将其放入您的 shell 启动文件之一。
+- en: 'Create `.mysql_history` as a symbolic link to `/dev/null`; this need be done
+    only once:'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 创建`.mysql_history`作为指向`/dev/null`的符号链接；这只需要做一次：
+- en: '[PRE3]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: syslog Logging Characteristics
+  id: totrans-31
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: syslog 日志特性
+- en: If the `--syslog` option is given, [**mysql**](mysql.html "6.5.1 mysql — The
+    MySQL Command-Line Client") writes interactive statements to the system logging
+    facility. Message logging has the following characteristics.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果给出`--syslog`选项，[**mysql**](mysql.html "6.5.1 mysql — MySQL 命令行客户端")将交互式语句写入系统日志设施。消息记录具有以下特性。
+- en: Logging occurs at the “information” level. This corresponds to the `LOG_INFO`
+    priority for `syslog` on Unix/Linux `syslog` capability and to `EVENTLOG_INFORMATION_TYPE`
+    for the Windows Event Log. Consult your system documentation for configuration
+    of your logging capability.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 记录发生在“信息”级别。这对应于 Unix/Linux 上`syslog`功能的`LOG_INFO`优先级和 Windows 事件日志的`EVENTLOG_INFORMATION_TYPE`。请参考您的系统文档以配置您的日志功能。
+- en: Message size is limited to 1024 bytes.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 消息大小限制为1024字节。
+- en: 'Messages consist of the identifier `MysqlClient` followed by these values:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 消息由标识符`MysqlClient`后跟这些值组成：
+- en: '`SYSTEM_USER`'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SYSTEM_USER`'
+- en: The operating system user name (login name) or `--` if the user is unknown.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 操作系统用户名（登录名）或如果用户未知则为`--`。
+- en: '`MYSQL_USER`'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MYSQL_USER`'
+- en: The MySQL user name (specified with the [`--user`](mysql-command-options.html#option_mysql_user)
+    option) or `--` if the user is unknown.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL用户名（使用[`--user`](mysql-command-options.html#option_mysql_user)选项指定）或者`--`如果用户未知。
+- en: '`CONNECTION_ID`:'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CONNECTION_ID`：'
+- en: The client connection identifier. This is the same as the [`CONNECTION_ID()`](information-functions.html#function_connection-id)
+    function value within the session.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端连接标识符。这与会话中的[`CONNECTION_ID()`](information-functions.html#function_connection-id)函数值相同。
+- en: '`DB_SERVER`'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DB_SERVER`'
+- en: The server host or `--` if the host is unknown.
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 服务器主机或者`--`如果主机未知。
+- en: '`DB`'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DB`'
+- en: The default database or `--` if no database has been selected.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认数据库或者`--`如果没有选择数据库。
+- en: '`QUERY`'
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`QUERY`'
+- en: The text of the logged statement.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 记录语句的文本。
+- en: Here is a sample of output generated on Linux by using `--syslog`. This output
+    is formatted for readability; each logged message actually takes a single line.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是在Linux上使用`--syslog`生成的输出示例。此输出已经格式化以便阅读；每个记录的消息实际上占据一行。
+- en: '[PRE4]'
+  id: totrans-49
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'

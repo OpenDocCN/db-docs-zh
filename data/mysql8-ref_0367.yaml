@@ -1,0 +1,217 @@
+- en: '8.2.7 Access Control, Stage 2: Request Verification'
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.2.7 访问控制，第2阶段：请求验证
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/request-access.html](https://dev.mysql.com/doc/refman/8.0/en/request-access.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/request-access.html](https://dev.mysql.com/doc/refman/8.0/en/request-access.html)
+- en: After the server accepts a connection, it enters Stage 2 of access control.
+    For each request that you issue through the connection, the server determines
+    what operation you want to perform, then checks whether your privileges are sufficient.
+    This is where the privilege columns in the grant tables come into play. These
+    privileges can come from any of the `user`, `global_grants`, `db`, `tables_priv`,
+    `columns_priv`, or `procs_priv` tables. (You may find it helpful to refer to [Section 8.2.3,
+    “Grant Tables”](grant-tables.html "8.2.3 Grant Tables"), which lists the columns
+    present in each grant table.)
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器接受连接后，进入访问控制的第2阶段。对于通过连接发出的每个请求，服务器确定您要执行的操作，然后检查您的权限是否足够。这是授予权限表中的权限列发挥作用的地方。这些权限可以来自`user`、`global_grants`、`db`、`tables_priv`、`columns_priv`或`procs_priv`表。（您可能会发现参考[第8.2.3节，“授予权限表”](grant-tables.html
+    "8.2.3 授予权限表")有所帮助，该节列出了每个授予权限表中存在的列。）
+- en: The `user` and `global_grants` tables grant global privileges. The rows in these
+    tables for a given account indicate the account privileges that apply on a global
+    basis no matter what the default database is. For example, if the `user` table
+    grants you the [`DELETE`](privileges-provided.html#priv_delete) privilege, you
+    can delete rows from any table in any database on the server host. It is wise
+    to grant privileges in the `user` table only to people who need them, such as
+    database administrators. For other users, leave all privileges in the `user` table
+    set to `'N'` and grant privileges at more specific levels only (for particular
+    databases, tables, columns, or routines). It is also possible to grant database
+    privileges globally but use partial revokes to restrict them from being exercised
+    on specific databases (see [Section 8.2.12, “Privilege Restriction Using Partial
+    Revokes”](partial-revokes.html "8.2.12 Privilege Restriction Using Partial Revokes")).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`user`和`global_grants`表授予全局权限。这些表中的行针对给定帐户指示适用于全局基础的帐户权限，无论默认数据库是什么。例如，如果`user`表授予您[`DELETE`](privileges-provided.html#priv_delete)权限，您可以在服务器主机上的任何数据库中删除行。明智的做法是仅向需要这些权限的人授予`user`表中的权限，例如数据库管理员。对于其他用户，将`user`表中的所有权限设置为`''N''`，并仅在更具体的级别（特定数据库、表、列或例程）上授予权限。还可以全局授予数据库权限，但使用部分撤销来限制它们在特定数据库上的执行（参见[第8.2.12节，“使用部分撤销限制权限”](partial-revokes.html
+    "8.2.12 使用部分撤销限制权限")）。'
+- en: 'The `db` table grants database-specific privileges. Values in the scope columns
+    of this table can take the following forms:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`db`表授予特定数据库的权限。此表的范围列中的值可以采用以下形式：'
+- en: A blank `User` value matches the anonymous user. A nonblank value matches literally;
+    there are no wildcards in user names.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 空白的`User`值匹配匿名用户。非空值字面匹配；用户名称中没有通配符。
+- en: The wildcard characters `%` and `_` can be used in the `Host` and `Db` columns.
+    These have the same meaning as for pattern-matching operations performed with
+    the [`LIKE`](string-comparison-functions.html#operator_like) operator. If you
+    want to use either character literally when granting privileges, you must escape
+    it with a backslash. For example, to include the underscore character (`_`) as
+    part of a database name, specify it as `\_` in the [`GRANT`](grant.html "15.7.1.6 GRANT
+    Statement") statement.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通配符字符`%`和`_`可以在`Host`和`Db`列中使用。这些字符的含义与使用[`LIKE`](string-comparison-functions.html#operator_like)运算符执行的模式匹配操作相同。如果要在授予权限时使用这两个字符，必须使用反斜杠进行转义。例如，要将下划线字符(`_`)包含在数据库名称中，请在[`GRANT`](grant.html
+    "15.7.1.6 GRANT语句")语句中指定为`\_`。
+- en: A `'%'` or blank `Host` value means “any host.”
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`''%''`或空白的`Host`值表示“任何主机”。'
+- en: A `'%'` or blank `Db` value means “any database.”
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 空白的`Db`值或`%`表示“任何数据库”。
+- en: The server reads the `db` table into memory and sorts it at the same time that
+    it reads the `user` table. The server sorts the `db` table based on the `Host`,
+    `Db`, and `User` scope columns. As with the `user` table, sorting puts the most-specific
+    values first and least-specific values last, and when the server looks for matching
+    rows, it uses the first match that it finds.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器将`db`表读入内存并同时对其进行排序，同时读取`user`表。服务器根据`Host`、`Db`和`User`范围列对`db`表进行排序。与`user`表一样，排序将最具体的值放在最前面，最不具体的值放在最后，当服务器查找匹配行时，它使用找到的第一个匹配项。
+- en: 'The `tables_priv`, `columns_priv`, and `procs_priv` tables grant table-specific,
+    column-specific, and routine-specific privileges. Values in the scope columns
+    of these tables can take the following forms:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`tables_priv`、`columns_priv`和`procs_priv`表授予特定于表、特定于列和特定于例程的权限。这些表的作用域列中的值可以采用以下形式：'
+- en: The wildcard characters `%` and `_` can be used in the `Host` column. These
+    have the same meaning as for pattern-matching operations performed with the [`LIKE`](string-comparison-functions.html#operator_like)
+    operator.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通配符字符`%`和`_`可以在`Host`列中使用。这些与使用[`LIKE`](string-comparison-functions.html#operator_like)运算符执行的模式匹配操作具有相同的含义。
+- en: A `'%'` or blank `Host` value means “any host.”
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个`'%'`或空白的`Host`值表示“任何主机”。
+- en: The `Db`, `Table_name`, `Column_name`, and `Routine_name` columns cannot contain
+    wildcards or be blank.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Db`、`Table_name`、`Column_name`和`Routine_name`列不能包含通配符或为空。'
+- en: The server sorts the `tables_priv`, `columns_priv`, and `procs_priv` tables
+    based on the `Host`, `Db`, and `User` columns. This is similar to `db` table sorting,
+    but simpler because only the `Host` column can contain wildcards.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器根据`Host`、`Db`和`User`列对`tables_priv`、`columns_priv`和`procs_priv`表进行排序。这类似于`db`表的排序，但更简单，因为只有`Host`列可以包含通配符。
+- en: The server uses the sorted tables to verify each request that it receives. For
+    requests that require administrative privileges such as [`SHUTDOWN`](privileges-provided.html#priv_shutdown)
+    or [`RELOAD`](privileges-provided.html#priv_reload), the server checks only the
+    `user` and `global_privilege` tables because those are the only tables that specify
+    administrative privileges. The server grants access if a row for the account in
+    those tables permits the requested operation and denies access otherwise. For
+    example, if you want to execute [**mysqladmin shutdown**](mysqladmin.html "6.5.2 mysqladmin
+    — A MySQL Server Administration Program") but your `user` table row does not grant
+    the [`SHUTDOWN`](privileges-provided.html#priv_shutdown) privilege to you, the
+    server denies access without even checking the `db` table. (The latter table contains
+    no `Shutdown_priv` column, so there is no need to check it.)
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用排序后的表来验证收到的每个请求。对于需要管理员权限的请求，如[`SHUTDOWN`](privileges-provided.html#priv_shutdown)或[`RELOAD`](privileges-provided.html#priv_reload)，服务器仅检查`user`和`global_privilege`表，因为这些是唯一指定管理员权限的表。如果这些表中的帐户行允许请求的操作，则授予访问权限；否则拒绝访问。例如，如果您想执行[**mysqladmin
+    shutdown**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program")，但您的`user`表行没有授予您[`SHUTDOWN`](privileges-provided.html#priv_shutdown)权限，服务器会拒绝访问，甚至不会检查`db`表。（后者表中不包含`Shutdown_priv`列，因此无需检查它。）
+- en: 'For database-related requests ([`INSERT`](insert.html "15.2.7 INSERT Statement"),
+    [`UPDATE`](update.html "15.2.17 UPDATE Statement"), and so on), the server first
+    checks the user''s global privileges in the `user` table row (less any privilege
+    restrictions imposed by partial revokes). If the row permits the requested operation,
+    access is granted. If the global privileges in the `user` table are insufficient,
+    the server determines the user''s database-specific privileges from the `db` table:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于与数据库相关的请求（[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")等），服务器首先检查`user`表行中的用户全局权限（减去部分撤销所施加的权限限制）。如果行允许请求的操作，则授予访问权限。如果`user`表中的全局权限不足，则服务器从`db`表中确定用户的数据库特定权限：
+- en: The server looks in the `db` table for a match on the `Host`, `Db`, and `User`
+    columns.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器在`db`表中查找与`Host`、`Db`和`User`列匹配的内容。
+- en: The `Host` and `User` columns are matched to the connecting user's host name
+    and MySQL user name.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Host`和`User`列与连接用户的主机名和MySQL用户名匹配。'
+- en: The `Db` column is matched to the database that the user wants to access.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Db`列与用户想要访问的数据库匹配。'
+- en: If there is no row for the `Host` and `User`, access is denied.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果`Host`和`User`没有对应的行，则拒绝访问。
+- en: After determining the database-specific privileges granted by the `db` table
+    rows, the server adds them to the global privileges granted by the `user` table.
+    If the result permits the requested operation, access is granted. Otherwise, the
+    server successively checks the user's table and column privileges in the `tables_priv`
+    and `columns_priv` tables, adds those to the user's privileges, and permits or
+    denies access based on the result. For stored-routine operations, the server uses
+    the `procs_priv` table rather than `tables_priv` and `columns_priv`.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在确定由`db`表行授予的特定于数据库的权限后，服务器将其添加到由`user`表授予的全局权限中。如果结果允许请求的操作，则授予访问权限。否则，服务器将逐个检查`tables_priv`和`columns_priv`表中的用户表和列权限，将它们添加到用户的权限中，并根据结果允许或拒绝访问。对于存储过程操作，服务器使用`procs_priv`表而不是`tables_priv`和`columns_priv`。
+- en: 'Expressed in boolean terms, the preceding description of how a user''s privileges
+    are calculated may be summarized like this:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用布尔术语表达，关于如何计算用户权限的前述描述可以总结如下：
+- en: '[PRE0]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: It may not be apparent why, if the global privileges are initially found to
+    be insufficient for the requested operation, the server adds those privileges
+    to the database, table, and column privileges later. The reason is that a request
+    might require more than one type of privilege. For example, if you execute an
+    [`INSERT INTO ... SELECT`](insert-select.html "15.2.7.1 INSERT ... SELECT Statement")
+    statement, you need both the [`INSERT`](privileges-provided.html#priv_insert)
+    and the [`SELECT`](privileges-provided.html#priv_select) privileges. Your privileges
+    might be such that the `user` table row grants one privilege global and the `db`
+    table row grants the other specifically for the relevant database. In this case,
+    you have the necessary privileges to perform the request, but the server cannot
+    tell that from either your global or database privileges alone. It must make an
+    access-control decision based on the combined privileges.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果发现全局权限最初不足以执行请求的操作，为什么服务器会在后来将这些权限添加到数据库、表和列权限中可能并不明显。原因在于一个请求可能需要多种类型的权限。例如，如果执行[`INSERT
+    INTO ... SELECT`](insert-select.html "15.2.7.1 INSERT ... SELECT Statement")语句，您需要[`INSERT`](privileges-provided.html#priv_insert)和[`SELECT`](privileges-provided.html#priv_select)权限。您的权限可能是`user`表行全局授予一个权限，而`db`表行专门为相关数据库授予另一个权限。在这种情况下，您具有执行请求所需的权限，但服务器无法仅从您的全局或数据库权限中判断出来。它必须根据综合权限做出访问控制决定。

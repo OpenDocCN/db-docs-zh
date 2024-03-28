@@ -1,0 +1,548 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/diagnostics-area.html](https://dev.mysql.com/doc/refman/8.0/en/diagnostics-area.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/diagnostics-area.html](https://dev.mysql.com/doc/refman/8.0/en/diagnostics-area.html)
+- en: 15.6.7.7 The MySQL Diagnostics Area
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.6.7.7 MySQL诊断区
+- en: SQL statements produce diagnostic information that populates the diagnostics
+    area. Standard SQL has a diagnostics area stack, containing a diagnostics area
+    for each nested execution context. Standard SQL also supports [`GET STACKED DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement") syntax for referring to the second diagnostics
+    area during condition handler execution.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SQL语句生成填充诊断区的诊断信息。标准SQL具有诊断区堆栈，每个嵌套执行上下文都包含一个诊断区。标准SQL还支持[`GET STACKED DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement")语法，用于在条件处理程序执行期间引用第二个诊断区。
+- en: The following discussion describes the structure of the diagnostics area in
+    MySQL, the information items recognized by MySQL, how statements clear and set
+    the diagnostics area, and how diagnostics areas are pushed to and popped from
+    the stack.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论描述了MySQL中诊断区的结构，MySQL识别的信息项，语句如何清除和设置诊断区，以及诊断区如何推送到堆栈并从堆栈中弹出。
+- en: '[Diagnostics Area Structure](diagnostics-area.html#diagnostics-area-structure
+    "Diagnostics Area Structure")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[诊断区结构](diagnostics-area.html#diagnostics-area-structure "诊断区结构")'
+- en: '[Diagnostics Area Information Items](diagnostics-area.html#diagnostics-area-information-items
+    "Diagnostics Area Information Items")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[诊断区信息项](diagnostics-area.html#diagnostics-area-information-items "诊断区信息项")'
+- en: '[How the Diagnostics Area is Cleared and Populated](diagnostics-area.html#diagnostics-area-populating
+    "How the Diagnostics Area is Cleared and Populated")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[诊断区如何清除和填充](diagnostics-area.html#diagnostics-area-populating "诊断区如何清除和填充")'
+- en: '[How the Diagnostics Area Stack Works](diagnostics-area.html#diagnostics-area-stack
+    "How the Diagnostics Area Stack Works")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[诊断区堆栈的工作原理](diagnostics-area.html#diagnostics-area-stack "诊断区堆栈的工作原理")'
+- en: '[Diagnostics Area-Related System Variables](diagnostics-area.html#diagnostics-area-system-variables
+    "Diagnostics Area-Related System Variables")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[与诊断区相关的系统变量](diagnostics-area.html#diagnostics-area-system-variables "与诊断区相关的系统变量")'
+- en: Diagnostics Area Structure
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 诊断区结构
+- en: 'The diagnostics area contains two kinds of information:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 诊断区包含两种信息：
+- en: Statement information, such as the number of conditions that occurred or the
+    affected-rows count.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 语句信息，例如发生的条件数量或受影响行数。
+- en: Condition information, such as the error code and message. If a statement raises
+    multiple conditions, this part of the diagnostics area has a condition area for
+    each one. If a statement raises no conditions, this part of the diagnostics area
+    is empty.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 条件信息，例如错误代码和消息。如果语句引发多个条件，则诊断区的此部分为每个条件区域都有一个条件区域。如果语句未引发任何条件，则诊断区的此部分为空。
+- en: 'For a statement that produces three conditions, the diagnostics area contains
+    statement and condition information like this:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于生成三个条件的语句，诊断区包含如下语句和条件信息：
+- en: '[PRE0]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Diagnostics Area Information Items
+  id: totrans-15
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 诊断区信息项
+- en: The diagnostics area contains statement and condition information items. Numeric
+    items are integers. The character set for character items is UTF-8\. No item can
+    be `NULL`. If a statement or condition item is not set by a statement that populates
+    the diagnostics area, its value is 0 or the empty string, depending on the item
+    data type.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 诊断区包含语句和条件信息项。数值项为整数。字符项的字符集为UTF-8。没有任何项可以是`NULL`。如果语句未设置填充诊断区的语句或条件项，则其值为0或空字符串，取决于项的数据类型。
+- en: 'The statement information part of the diagnostics area contains these items:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 诊断区的语句信息部分包含以下内容：
+- en: '`NUMBER`: An integer indicating the number of condition areas that have information.'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NUMBER`: 一个整数，表示具有信息的条件区域数量。'
+- en: '`ROW_COUNT`: An integer indicating the number of rows affected by the statement.
+    `ROW_COUNT` has the same value as the [`ROW_COUNT()`](information-functions.html#function_row-count)
+    function (see [Section 14.15, “Information Functions”](information-functions.html
+    "14.15 Information Functions")).'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ROW_COUNT`: 一个整数，表示语句影响的行数。`ROW_COUNT`与[`ROW_COUNT()`](information-functions.html#function_row-count)函数的值相同（参见[第14.15节，“信息函数”](information-functions.html
+    "14.15 信息函数")）。'
+- en: The condition information part of the diagnostics area contains a condition
+    area for each condition. Condition areas are numbered from 1 to the value of the
+    `NUMBER` statement condition item. If `NUMBER` is 0, there are no condition areas.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 诊断区域的条件信息部分包含每个条件的条件区域。条件区域从1到`NUMBER`语句条件项的值编号。如果`NUMBER`为0，则没有条件区域。
+- en: Each condition area contains the items in the following list. All items are
+    standard SQL except `MYSQL_ERRNO`, which is a MySQL extension. The definitions
+    apply for conditions generated other than by a signal (that is, by a [`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement") or [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL
+    Statement") statement). For nonsignal conditions, MySQL populates only those condition
+    items not described as always empty. The effects of signals on the condition area
+    are described later.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个条件区域包含以下列表中的项目。所有项目都是标准SQL，除了`MYSQL_ERRNO`，它是MySQL的扩展。这些定义适用于除信号（即由[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")或[`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement")语句生成的条件之外的条件。对于非信号条件，MySQL仅填充未描述为始终为空的那些条件项。信号对条件区域的影响稍后描述。
+- en: '`CLASS_ORIGIN`: A string containing the class of the `RETURNED_SQLSTATE` value.
+    If the `RETURNED_SQLSTATE` value begins with a class value defined in SQL standards
+    document ISO 9075-2 (section 24.1, SQLSTATE), `CLASS_ORIGIN` is `''ISO 9075''`.
+    Otherwise, `CLASS_ORIGIN` is `''MySQL''`.'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CLASS_ORIGIN`：包含`RETURNED_SQLSTATE`值的类的字符串。如果`RETURNED_SQLSTATE`值以SQL标准文档ISO
+    9075-2（第24.1节，SQLSTATE）中定义的类值开头，则`CLASS_ORIGIN`为`''ISO 9075''`。否则，`CLASS_ORIGIN`为`''MySQL''`。'
+- en: '`SUBCLASS_ORIGIN`: A string containing the subclass of the `RETURNED_SQLSTATE`
+    value. If `CLASS_ORIGIN` is `''ISO 9075''` or `RETURNED_SQLSTATE` ends with `''000''`,
+    `SUBCLASS_ORIGIN` is `''ISO 9075''`. Otherwise, `SUBCLASS_ORIGIN` is `''MySQL''`.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUBCLASS_ORIGIN`：包含`RETURNED_SQLSTATE`值的子类的字符串。如果`CLASS_ORIGIN`为`''ISO 9075''`或`RETURNED_SQLSTATE`以`''000''`结尾，则`SUBCLASS_ORIGIN`为`''ISO
+    9075''`。否则，`SUBCLASS_ORIGIN`为`''MySQL''`。'
+- en: '`RETURNED_SQLSTATE`: A string that indicates the `SQLSTATE` value for the condition.'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`RETURNED_SQLSTATE`：指示条件的`SQLSTATE`值的字符串。'
+- en: '`MESSAGE_TEXT`: A string that indicates the error message for the condition.'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MESSAGE_TEXT`：指示条件的错误消息的字符串。'
+- en: '`MYSQL_ERRNO`: An integer that indicates the MySQL error code for the condition.'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MYSQL_ERRNO`：指示条件的MySQL错误代码的整数。'
+- en: '`CONSTRAINT_CATALOG`, `CONSTRAINT_SCHEMA`, `CONSTRAINT_NAME`: Strings that
+    indicate the catalog, schema, and name for a violated constraint. They are always
+    empty.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CONSTRAINT_CATALOG`、`CONSTRAINT_SCHEMA`、`CONSTRAINT_NAME`：指示违反约束的目录、模式和名称的字符串。它们始终为空。'
+- en: '`CATALOG_NAME`, `SCHEMA_NAME`, `TABLE_NAME`, `COLUMN_NAME`: Strings that indicate
+    the catalog, schema, table, and column related to the condition. They are always
+    empty.'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CATALOG_NAME`、`SCHEMA_NAME`、`TABLE_NAME`、`COLUMN_NAME`：指示与条件相关的目录、模式、表和列的字符串。它们始终为空。'
+- en: '`CURSOR_NAME`: A string that indicates the cursor name. This is always empty.'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CURSOR_NAME`：指示游标名称的字符串。这始终为空。'
+- en: For the `RETURNED_SQLSTATE`, `MESSAGE_TEXT`, and `MYSQL_ERRNO` values for particular
+    errors, see [Server Error Message Reference](/doc/mysql-errors/8.0/en/server-error-reference.html).
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关特定错误的`RETURNED_SQLSTATE`、`MESSAGE_TEXT`和`MYSQL_ERRNO`值，请参阅[服务器错误消息参考](/doc/mysql-errors/8.0/en/server-error-reference.html)。
+- en: If a [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") (or [`RESIGNAL`](resignal.html
+    "15.6.7.4 RESIGNAL Statement")) statement populates the diagnostics area, its
+    `SET` clause can assign to any condition information item except `RETURNED_SQLSTATE`
+    any value that is legal for the item data type. [`SIGNAL`](signal.html "15.6.7.5 SIGNAL
+    Statement") also sets the `RETURNED_SQLSTATE` value, but not directly in its `SET`
+    clause. That value comes from the [`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")
+    statement `SQLSTATE` argument.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")（或[`RESIGNAL`](resignal.html
+    "15.6.7.4 RESIGNAL Statement")）语句填充诊断区域，则其`SET`子句可以为除`RETURNED_SQLSTATE`之外的任何条件信息项分配合法的数据类型值。[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")还设置`RETURNED_SQLSTATE`值，但不是直接在其`SET`子句中。该值来自[`SIGNAL`](signal.html
+    "15.6.7.5 SIGNAL Statement")语句的`SQLSTATE`参数。
+- en: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement") also sets statement information
+    items. It sets `NUMBER` to 1\. It sets `ROW_COUNT` to −1 for errors and 0 otherwise.'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")还设置语句信息项。它将`NUMBER`设置为1。对于错误，它将`ROW_COUNT`设置为−1，否则为0。'
+- en: How the Diagnostics Area is Cleared and Populated
+  id: totrans-33
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 诊断区域如何清除和填充
+- en: Nondiagnostic SQL statements populate the diagnostics area automatically, and
+    its contents can be set explicitly with the [`SIGNAL`](signal.html "15.6.7.5 SIGNAL
+    Statement") and [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement") statements.
+    The diagnostics area can be examined with [`GET DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement") to extract specific items, or with [`SHOW
+    WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement") or [`SHOW ERRORS`](show-errors.html
+    "15.7.7.17 SHOW ERRORS Statement") to see conditions or errors.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非诊断性 SQL 语句会自动填充诊断区域，并且其内容可以通过[`SIGNAL`](signal.html "15.6.7.5 SIGNAL Statement")和[`RESIGNAL`](resignal.html
+    "15.6.7.4 RESIGNAL Statement")语句明确设置。可以使用[`GET DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement")提取特定项来检查诊断区域，或者使用[`SHOW WARNINGS`](show-warnings.html
+    "15.7.7.42 SHOW WARNINGS Statement")或[`SHOW ERRORS`](show-errors.html "15.7.7.17 SHOW
+    ERRORS Statement")来查看条件或错误。
+- en: 'SQL statements clear and set the diagnostics area as follows:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: SQL 语句如下清除和设置诊断区域：
+- en: 'When the server starts executing a statement after parsing it, it clears the
+    diagnostics area for nondiagnostic statements. Diagnostic statements do not clear
+    the diagnostics area. These statements are diagnostic:'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当服务器开始执行解析后的语句时，它会清除非诊断性语句的诊断区域。诊断性语句不会清除诊断区域。这些语句是诊断性的：
+- en: '[`GET DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS Statement")'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`GET DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS Statement")'
+- en: '[`SHOW ERRORS`](show-errors.html "15.7.7.17 SHOW ERRORS Statement")'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SHOW ERRORS`](show-errors.html "15.7.7.17 SHOW ERRORS Statement")'
+- en: '[`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")'
+- en: If a statement raises a condition, the diagnostics area is cleared of conditions
+    that belong to earlier statements. The exception is that conditions raised by
+    [`GET DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS Statement")
+    and [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement") are added to the
+    diagnostics area without clearing it.
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个语句引发条件，那么诊断区域将清除属于先前语句的条件。唯一的例外是由[`GET DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement")和[`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL
+    Statement")引发的条件会被添加到诊断区域而不清除它。
+- en: Thus, even a statement that does not normally clear the diagnostics area when
+    it begins executing clears it if the statement raises a condition.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，即使一个语句在开始执行时通常不清除诊断区域，但如果该语句引发条件，则会清除它。
+- en: The following example shows the effect of various statements on the diagnostics
+    area, using [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement")
+    to display information about conditions stored there.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例展示了各种语句对诊断区域的影响，使用[`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS
+    Statement")显示存储在其中的条件信息。
+- en: 'This [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") statement
+    clears the diagnostics area and populates it when the condition occurs:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")语句在条件发生时清除诊断区域并填充它：
+- en: '[PRE1]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'This [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    statement generates an error, so it clears and populates the diagnostics area:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这个[`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")语句生成一个错误，因此它会清除并填充诊断区域：
+- en: '[PRE2]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The previous [`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    statement produced a single condition, so 1 is the only valid condition number
+    for [`GET DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS Statement")
+    at this point. The following statement uses a condition number of 2, which produces
+    a warning that is added to the diagnostics area without clearing it:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 先前的[`SET`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")语句产生了一个条件，因此在这一点上，1是唯一有效的[`GET
+    DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS Statement")条件号。以下语句使用条件号为2，这会产生一个警告，该警告被添加到诊断区域而不清除它：
+- en: '[PRE3]'
+  id: totrans-48
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Now there are two conditions in the diagnostics area, so the same [`GET DIAGNOSTICS`](get-diagnostics.html
+    "15.6.7.3 GET DIAGNOSTICS Statement") statement succeeds:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在诊断区域中有两个条件，因此相同的[`GET DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS
+    Statement")语句成功执行：
+- en: '[PRE4]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: How the Diagnostics Area Stack Works
+  id: totrans-51
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 诊断区域栈的工作原理
+- en: 'When a push to the diagnostics area stack occurs, the first (current) diagnostics
+    area becomes the second (stacked) diagnostics area and a new current diagnostics
+    area is created as a copy of it. Diagnostics areas are pushed to and popped from
+    the stack under the following circumstances:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当诊断区域栈发生推送时，第一个（当前的）诊断区域变为第二个（堆叠的）诊断区域，并创建一个新的当前诊断区域作为其副本。诊断区域在以下情况下被推送到栈中并从栈中弹出：
+- en: Execution of a stored program
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行存储程序
+- en: A push occurs before the program executes and a pop occurs afterward. If the
+    stored program ends while handlers are executing, there can be more than one diagnostics
+    area to pop; this occurs due to an exception for which there are no appropriate
+    handlers or due to [`RETURN`](return.html "15.6.5.7 RETURN Statement") in the
+    handler.
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 程序执行前发生推送，执行后发生弹出。如果存储程序在处理程序执行时结束，则可能有多个要弹出的诊断区；这是由于没有适当处理程序的异常或处理程序中的[`返回`](return.html
+    "15.6.5.7 返回语句")引起的。
+- en: Any warning or error conditions in the popped diagnostics areas then are added
+    to the current diagnostics area, except that, for triggers, only errors are added.
+    When the stored program ends, the caller sees these conditions in its current
+    diagnostics area.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 弹出的诊断区中的任何警告或错误条件都会添加到当前诊断区中，但对于触发器，只会添加错误。当存储程序结束时，调用者会在其当前诊断区中看到这些条件。
+- en: Execution of a condition handler within a stored program
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在存储程序中执行条件处理程序
+- en: When a push occurs as a result of condition handler activation, the stacked
+    diagnostics area is the area that was current within the stored program prior
+    to the push. The new now-current diagnostics area is the handler's current diagnostics
+    area. [`GET [CURRENT] DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET DIAGNOSTICS
+    Statement") and [`GET STACKED DIAGNOSTICS`](get-diagnostics.html "15.6.7.3 GET
+    DIAGNOSTICS Statement") can be used within the handler to access the contents
+    of the current (handler) and stacked (stored program) diagnostics areas. Initially,
+    they return the same result, but statements executing within the handler modify
+    the current diagnostics area, clearing and setting its contents according to the
+    normal rules (see [How the Diagnostics Area is Cleared and Populated](diagnostics-area.html#diagnostics-area-populating
+    "How the Diagnostics Area is Cleared and Populated")). The stacked diagnostics
+    area cannot be modified by statements executing within the handler except [`RESIGNAL`](resignal.html
+    "15.6.7.4 RESIGNAL Statement").
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当由于条件处理程序激活而发生推送时，堆栈诊断区是在推送之前存储程序中的当前区域。新的当前诊断区现在是处理程序的当前诊断区。[`获取[当前]诊断`](get-diagnostics.html
+    "15.6.7.3 获取诊断语句")和[`获取堆叠诊断`](get-diagnostics.html "15.6.7.3 获取诊断语句")可以在处理程序中使用，以访问当前（处理程序）和堆叠（存储程序）诊断区的内容。最初，它们返回相同的结果，但在处理程序中执行的语句会修改当前诊断区，根据正常规则清除和设置其内容（参见[诊断区如何清除和填充](diagnostics-area.html#diagnostics-area-populating
+    "诊断区如何清除和填充")）。堆叠诊断区不能被处理程序中执行的语句修改，除非使用[`重新发出`](resignal.html "15.6.7.4 重新发出语句")。
+- en: If the handler executes successfully, the current (handler) diagnostics area
+    is popped and the stacked (stored program) diagnostics area again becomes the
+    current diagnostics area. Conditions added to the handler diagnostics area during
+    handler execution are added to the current diagnostics area.
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果处理程序成功执行，则当前（处理程序）诊断区将被弹出，堆叠（存储程序）诊断区再次成为当前诊断区。在处理程序执行期间添加到处理程序诊断区的条件将被添加到当前诊断区。
+- en: Execution of [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement")
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行[`重新发出`](resignal.html "15.6.7.4 重新发出语句")
+- en: The [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement") statement passes
+    on the error condition information that is available during execution of a condition
+    handler within a compound statement inside a stored program. [`RESIGNAL`](resignal.html
+    "15.6.7.4 RESIGNAL Statement") may change some or all information before passing
+    it on, modifying the diagnostics stack as described in [Section 15.6.7.4, “RESIGNAL
+    Statement”](resignal.html "15.6.7.4 RESIGNAL Statement").
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`重新发出`](resignal.html "15.6.7.4 重新发出语句")语句传递在存储程序内部复合语句中执行条件处理程序期间可用的错误条件信息。[`重新发出`](resignal.html
+    "15.6.7.4 重新发出语句")可能在传递之前更改一些或所有信息，根据[第15.6.7.4节，“重新发出语句”](resignal.html "15.6.7.4 重新发出语句")中描述的方式修改诊断堆栈。'
+- en: Diagnostics Area-Related System Variables
+  id: totrans-61
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 与诊断区相关的系统变量
+- en: 'Certain system variables control or are related to some aspects of the diagnostics
+    area:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 某些系统变量控制或与诊断区的某些方面相关：
+- en: '[`max_error_count`](server-system-variables.html#sysvar_max_error_count) controls
+    the number of condition areas in the diagnostics area. If more conditions than
+    this occur, MySQL silently discards information for the excess conditions. (Conditions
+    added by [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement") are always
+    added, with older conditions being discarded as necessary to make room.)'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`max_error_count`](server-system-variables.html#sysvar_max_error_count) 控制诊断区域中条件区域的数量。如果发生的条件超过这个数量，MySQL
+    会悄悄地丢弃多余条件的信息。（通过 [`RESIGNAL`](resignal.html "15.6.7.4 RESIGNAL Statement") 添加的条件始终会被添加，旧条件会根据需要被丢弃以腾出空间。）'
+- en: '[`warning_count`](server-system-variables.html#sysvar_warning_count) indicates
+    the number of conditions that occurred. This includes errors, warnings, and notes.
+    Normally, `NUMBER` and [`warning_count`](server-system-variables.html#sysvar_warning_count)
+    are the same. However, as the number of conditions generated exceeds [`max_error_count`](server-system-variables.html#sysvar_max_error_count),
+    the value of [`warning_count`](server-system-variables.html#sysvar_warning_count)
+    continues to rise whereas `NUMBER` remains capped at [`max_error_count`](server-system-variables.html#sysvar_max_error_count)
+    because no additional conditions are stored in the diagnostics area.'
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`warning_count`](server-system-variables.html#sysvar_warning_count) 表示发生的条件数量。这包括错误、警告和注释。通常情况下，`NUMBER`
+    和 [`warning_count`](server-system-variables.html#sysvar_warning_count) 是相同的。然而，当生成的条件数量超过
+    [`max_error_count`](server-system-variables.html#sysvar_max_error_count) 时，[`warning_count`](server-system-variables.html#sysvar_warning_count)
+    的值会继续上升，而 `NUMBER` 保持在 [`max_error_count`](server-system-variables.html#sysvar_max_error_count)
+    上限，因为诊断区域中不会存储额外的条件。'
+- en: '[`error_count`](server-system-variables.html#sysvar_error_count) indicates
+    the number of errors that occurred. This value includes “not found” and exception
+    conditions, but excludes warnings and notes. Like [`warning_count`](server-system-variables.html#sysvar_warning_count),
+    its value can exceed [`max_error_count`](server-system-variables.html#sysvar_max_error_count).'
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`error_count`](server-system-variables.html#sysvar_error_count) 表示发生的错误数量。这个值包括“未找到”和异常条件，但不包括警告和注释。与
+    [`warning_count`](server-system-variables.html#sysvar_warning_count) 类似，它的值可以超过
+    [`max_error_count`](server-system-variables.html#sysvar_max_error_count)。'
+- en: If the [`sql_notes`](server-system-variables.html#sysvar_sql_notes) system variable
+    is set to 0, notes are not stored and do not increment [`warning_count`](server-system-variables.html#sysvar_warning_count).
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果 [`sql_notes`](server-system-variables.html#sysvar_sql_notes) 系统变量设置为 0，则不会存储注释，也不会增加
+    [`warning_count`](server-system-variables.html#sysvar_warning_count)。
+- en: 'Example: If [`max_error_count`](server-system-variables.html#sysvar_max_error_count)
+    is 10, the diagnostics area can contain a maximum of 10 condition areas. Suppose
+    that a statement raises 20 conditions, 12 of which are errors. In that case, the
+    diagnostics area contains the first 10 conditions, `NUMBER` is 10, [`warning_count`](server-system-variables.html#sysvar_warning_count)
+    is 20, and [`error_count`](server-system-variables.html#sysvar_error_count) is
+    12.'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如：如果 [`max_error_count`](server-system-variables.html#sysvar_max_error_count)
+    是 10，诊断区域最多可以包含 10 个条件区域。假设一条语句引发了 20 个条件，其中有 12 个错误。在这种情况下，诊断区域包含前 10 个条件，`NUMBER`
+    是 10，[`warning_count`](server-system-variables.html#sysvar_warning_count) 是 20，[`error_count`](server-system-variables.html#sysvar_error_count)
+    是 12。
+- en: Changes to the value of [`max_error_count`](server-system-variables.html#sysvar_max_error_count)
+    have no effect until the next attempt to modify the diagnostics area. If the diagnostics
+    area contains 10 condition areas and [`max_error_count`](server-system-variables.html#sysvar_max_error_count)
+    is set to 5, that has no immediate effect on the size or content of the diagnostics
+    area.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对 [`max_error_count`](server-system-variables.html#sysvar_max_error_count) 的更改在下一次尝试修改诊断区域时才会生效。如果诊断区域包含
+    10 个条件区域，而 [`max_error_count`](server-system-variables.html#sysvar_max_error_count)
+    设置为 5，这对诊断区域的大小或内容没有立即影响。

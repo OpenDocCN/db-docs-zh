@@ -1,0 +1,202 @@
+- en: 29.9 Performance Schema Tables for Current and Historical Events
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 29.9 性能模式表用于当前和历史事件
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-event-tables.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-event-tables.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-event-tables.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-event-tables.html)
+- en: 'For wait, stage, statement, and transaction events, the Performance Schema
+    can monitor and store current events. In addition, when events end, the Performance
+    Schema can store them in history tables. For each event type, the Performance
+    Schema uses three tables for storing current and historical events. The tables
+    have names of the following forms, where *`xxx`* indicates the event type (`waits`,
+    `stages`, `statements`, `transactions`):'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于等待、阶段、语句和事务事件，性能模式可以监视和存储当前事件。此外，当事件结束时，性能模式可以将它们存储在历史表中。对于每种事件类型，性能模式使用三个表来存储当前和历史事件。这些表的名称采用以下形式，其中*`xxx`*表示事件类型（`waits`、`stages`、`statements`、`transactions`）：
+- en: '`events_*`xxx`*_current`: The “current events” table stores the current monitored
+    event for each thread (one row per thread).'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`events_*`xxx`*_current`： “当前事件”表为每个线程存储当前监视的事件（每个线程一行）。'
+- en: '`events_*`xxx`*_history`: The “recent history” table stores the most recent
+    events that have ended per thread (up to a maximum number of rows per thread).'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`events_*`xxx`*_history`： “最近历史”表存储每个线程中已结束的最新事件（每个线程最多一定数量的行）。'
+- en: '`events_*`xxx`*_history_long`: The “long history” table stores the most recent
+    events that have ended globally (across all threads, up to a maximum number of
+    rows per table).'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`events_*`xxx`*_history_long`： “长历史”表存储全局结束的最新事件（跨所有线程，每个表最多一定数量的行）。'
+- en: The `_current` table for each event type contains one row per thread, so there
+    is no system variable for configuring its maximum size. The Performance Schema
+    autosizes the history tables, or the sizes can be configured explicitly at server
+    startup using table-specific system variables, as indicated in the sections that
+    describe the individual history tables. Typical autosized values are 10 rows per
+    thread for `_history` tables, and 10,000 rows total for `_history_long` tables.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每种事件类型的`_current`表每个线程包含一行，因此没有用于配置其最大大小的系统变量。性能模式自动调整历史表的大小，或者可以在服务器启动时使用特定于表的系统变量显式配置大小，如在描述各个历史表的部分中所示。典型的自动调整值为`_history`表每个线程10行，`_history_long`表总共10,000行。
+- en: For each event type, the `_current`, `_history`, and `_history_long` tables
+    have the same columns. The `_current` and `_history` tables have the same indexing.
+    The `_history_long` table has no indexing.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于每种事件类型，`_current`、`_history`和`_history_long`表具有相同的列。`_current`和`_history`表具有相同的索引。`_history_long`表没有索引。
+- en: The `_current` tables show what is currently happening within the server. When
+    a current event ends, it is removed from its `_current` table.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`_current`表显示服务器当前正在发生的情况。当当前事件结束时，它将从其`_current`表中移除。'
+- en: 'The `_history` and `_history_long` tables show what has happened in the recent
+    past. When the history tables become full, old events are discarded as new events
+    are added. Rows expire from the `_history` and `_history_long` tables in different
+    ways because the tables serve different purposes:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`_history`和`_history_long`表显示最近发生的事件。当历史表变满时，旧事件将被丢弃，新事件将被添加。行从`_history`和`_history_long`表中以不同的方式过期，因为这些表有不同的用途：'
+- en: '`_history` is meant to investigate individual threads, independently of the
+    global server load.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`_history`用于独立于全局服务器负载调查单个线程。'
+- en: '`_history_long` is meant to investigate the server globally, not each thread.'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`_history_long`用于全局调查服务器，而不是每个线程。'
+- en: 'The difference between the two types of history tables relates to the data
+    retention policy. Both tables contains the same data when an event is first seen.
+    However, data within each table expires differently over time, so that data might
+    be preserved for a longer or shorter time in each table:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两种历史表之间的区别与数据保留政策有关。当事件首次出现时，两个表包含相同的数据。然而，随着时间的推移，每个表中的数据会以不同的方式过期，因此在每个表中可能会保留更长或更短的时间：
+- en: For `_history`, when the table contains the maximum number of rows for a given
+    thread, the oldest thread row is discarded when a new row for that thread is added.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`_history`，当表对于给定线程包含最大数量的行时，当为该线程添加新行时，最旧的线程行将被丢弃。
+- en: For `_history_long`, when the table becomes full, the oldest row is discarded
+    when a new row is added, regardless of which thread generated either row.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`_history_long`，当表变满时，无论哪个线程生成了这两行，当添加新行时，最老的行都会被丢弃。
+- en: When a thread ends, all its rows are discarded from the `_history` table but
+    not from the `_history_long` table.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当一个线程结束时，它的所有行都会从`_history`表中丢弃，但不会从`_history_long`表中丢弃。
+- en: 'The following example illustrates the differences in how events are added to
+    and discarded from the two types of history tables. The principles apply equally
+    to all event types. The example is based on these assumptions:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例说明了如何向这两种类型的历史表中添加和丢弃事件的差异。这些原则同样适用于所有事件类型。该示例基于以下假设：
+- en: The Performance Schema is configured to retain 10 rows per thread in the `_history`
+    table and 10,000 rows total in the `_history_long` table.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 性能模式被配置为在`_history`表中保留每个线程的10行，在`_history_long`表中总共保留10,000行。
+- en: Thread A generates 1 event per second.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 线程A每秒生成1个事件。
+- en: Thread B generates 100 events per second.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 线程B每秒生成100个事件。
+- en: No other threads are running.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有其他线程在运行。
+- en: 'After 5 seconds of execution:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行5秒后：
+- en: A and B have generated 5 and 500 events, respectively.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: A和B分别生成了5和500个事件。
+- en: '`_history` contains 5 rows for A and 10 rows for B. Because storage per thread
+    is limited to 10 rows, no rows have been discarded for A, whereas 490 rows have
+    been discarded for B.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`_history`包含了A的5行和B的10行。因为每个线程的存储限制为10行，所以对于A没有丢弃行，而对于B已经丢弃了490行。'
+- en: '`_history_long` contains 5 rows for A and 500 rows for B. Because the table
+    has a maximum size of 10,000 rows, no rows have been discarded for either thread.'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`_history_long`包含了A的5行和B的500行。因为表的最大行数为10,000行，所以对于任何一个线程都没有丢弃行。'
+- en: 'After 5 minutes (300 seconds) of execution:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行5分钟（300秒）后：
+- en: A and B have generated 300 and 30,000 events, respectively.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: A和B分别生成了300和30,000个事件。
+- en: '`_history` contains 10 rows for A and 10 rows for B. Because storage per thread
+    is limited to 10 rows, 290 rows have been discarded for A, whereas 29,990 rows
+    have been discarded for B. Rows for A include data up to 10 seconds old, whereas
+    rows for B include data up to only .1 seconds old.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`_history`包含了A的10行和B的10行。因为每个线程的存储限制为10行，对于A已经丢弃了290行，而对于B已经丢弃了29,990行。A的行包含了10秒前的数据，而B的行只包含了0.1秒前的数据。'
+- en: '`_history_long` contains 10,000 rows. Because A and B together generate 101
+    events per second, the table contains data up to approximately 10,000/101 = 99
+    seconds old, with a mix of rows approximately 100 to 1 from B as opposed to A.'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`_history_long`包含了10,000行。因为A和B一起每秒生成101个事件，所以表中的数据大约是10,000/101 = 99秒前的数据，其中B的行数大约是A的100倍。'

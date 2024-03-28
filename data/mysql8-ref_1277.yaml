@@ -1,0 +1,641 @@
+- en: 17.20.3 Setting Up the InnoDB memcached Plugin
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.20.3 设置 InnoDB memcached 插件
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-setup.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-setup.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-setup.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-setup.html)
+- en: This section describes how to set up the `daemon_memcached` plugin on a MySQL
+    server. Because the **memcached** daemon is tightly integrated with the MySQL
+    server to avoid network traffic and minimize latency, you perform this process
+    on each MySQL instance that uses this feature.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何在 MySQL 服务器上设置`daemon_memcached`插件。由于**memcached**守护程序与 MySQL 服务器紧密集成，以避免网络流量并最小化延迟，因此你需要在使用此功能的每个
+    MySQL 实例上执行此过程。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Before setting up the `daemon_memcached` plugin, consult [Section 17.20.5, “Security
+    Considerations for the InnoDB memcached Plugin”](innodb-memcached-security.html
+    "17.20.5 Security Considerations for the InnoDB memcached Plugin") to understand
+    the security procedures required to prevent unauthorized access.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在设置`daemon_memcached`插件之前，请参考 [Section 17.20.5, “InnoDB memcached 插件的安全注意事项”](innodb-memcached-security.html
+    "17.20.5 InnoDB memcached 插件的安全注意事项") 以了解所需的安全程序，以防止未经授权的访问。
+- en: Prerequisites
+  id: totrans-5
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 先决条件
+- en: The `daemon_memcached` plugin is only supported on Linux, Solaris, and macOS
+    platforms. Other operating systems are not supported.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`daemon_memcached`插件仅支持 Linux、Solaris 和 macOS 平台。其他操作系统不受支持。'
+- en: 'When building MySQL from source, you must build with [`-DWITH_INNODB_MEMCACHED=ON`](source-configuration-options.html#option_cmake_with_innodb_memcached).
+    This build option generates two shared libraries in the MySQL plugin directory
+    ([`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)) that are required
+    to run the `daemon_memcached` plugin:'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在从源代码构建 MySQL 时，你必须使用 [`-DWITH_INNODB_MEMCACHED=ON`](source-configuration-options.html#option_cmake_with_innodb_memcached)
+    构建选项。此构建选项在 MySQL 插件目录（[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)）中生成两个共享库，这些库是运行`daemon_memcached`插件所需的：
+- en: '`libmemcached.so`: the **memcached** daemon plugin to MySQL.'
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`libmemcached.so`：**memcached** 守护程序插件到 MySQL。'
+- en: '`innodb_engine.so`: an `InnoDB` API plugin to **memcached**.'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`innodb_engine.so`：**memcached** 的`InnoDB` API 插件。'
+- en: '`libevent` must be installed.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须安装`libevent`。
+- en: 'If you did not build MySQL from source, the `libevent` library is not included
+    in your installation. Use the installation method for your operating system to
+    install `libevent` 1.4.12 or later. For example, depending on the operating system,
+    you might use `apt-get`, `yum`, or `port install`. For example, on Ubuntu Linux,
+    use:'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果你没有从源代码构建 MySQL，那么`libevent`库不会包含在你的安装中。使用你的操作系统的安装方法来安装`libevent` 1.4.12或更高版本。例如，根据操作系统的不同，你可能会使用`apt-get`、`yum`或`port
+    install`。例如，在 Ubuntu Linux 上，使用：
+- en: '[PRE0]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: If you installed MySQL from a source code release, `libevent` 1.4.12 is bundled
+    with the package and is located at the top level of the MySQL source code directory.
+    If you use the bundled version of `libevent`, no action is required. If you want
+    to use a local system version of `libevent`, you must build MySQL with the [`-DWITH_LIBEVENT`](source-configuration-options.html#option_cmake_with_libevent)
+    build option set to `system` or `yes`.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果你从源代码发布中安装了 MySQL，`libevent` 1.4.12已经捆绑在包中，并位于 MySQL 源代码目录的顶层。如果你使用捆绑版本的`libevent`，则无需采取任何操作。如果你想使用本地系统版本的`libevent`，你必须使用
+    [`-DWITH_LIBEVENT`](source-configuration-options.html#option_cmake_with_libevent)
+    构建选项设置为`system`或`yes`来构建 MySQL。
+- en: Installing and Configuring the InnoDB memcached Plugin
+  id: totrans-14
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 安装和配置 InnoDB memcached 插件
+- en: Configure the `daemon_memcached` plugin so it can interact with `InnoDB` tables
+    by running the `innodb_memcached_config.sql` configuration script, which is located
+    in `*`MYSQL_HOME`*/share`. This script installs the `innodb_memcache` database
+    with three required tables (`cache_policies`, `config_options`, and `containers`).
+    It also installs the `demo_test` sample table in the `test` database.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过运行位于`*`MYSQL_HOME`*/share`中的`innodb_memcached_config.sql`配置脚本，配置`daemon_memcached`插件以与`InnoDB`表交互。此脚本安装了包含三个必需表（`cache_policies`、`config_options`和`containers`）的`innodb_memcache`数据库。它还在`test`数据库中安装了`demo_test`示例表。
+- en: '[PRE1]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Running the `innodb_memcached_config.sql` script is a one-time operation. The
+    tables remain in place if you later uninstall and re-install the `daemon_memcached`
+    plugin.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 运行`innodb_memcached_config.sql`脚本是一次性操作。如果以后卸载并重新安装`daemon_memcached`插件，表将保留在原位。
+- en: '[PRE2]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Of these tables, the `innodb_memcache.containers` table is the most important.
+    Entries in the `containers` table provide a mapping to `InnoDB` table columns.
+    Each `InnoDB` table used with the `daemon_memcached` plugin requires an entry
+    in the `containers` table.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这些表中，`innodb_memcache.containers` 表最重要。`containers` 表中的条目提供到 `InnoDB` 表列的映射。每个使用
+    `daemon_memcached` 插件的 `InnoDB` 表都需要在 `containers` 表中有一个条目。
+- en: The `innodb_memcached_config.sql` script inserts a single entry in the `containers`
+    table that provides a mapping for the `demo_test` table. It also inserts a single
+    row of data into the `demo_test` table. This data allows you to immediately verify
+    the installation after the setup is completed.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`innodb_memcached_config.sql` 脚本在 `containers` 表中插入一个条目，为 `demo_test` 表提供映射。它还在
+    `demo_test` 表中插入一行数据。这些数据允许你在设置完成后立即验证安装。'
+- en: '[PRE3]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: For more information about `innodb_memcache` tables and the `demo_test` sample
+    table, see [Section 17.20.8, “InnoDB memcached Plugin Internals”](innodb-memcached-internals.html
+    "17.20.8 InnoDB memcached Plugin Internals").
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关 `innodb_memcache` 表和 `demo_test` 示例表的更多信息，请参见 [第 17.20.8 节，“InnoDB memcached
+    插件内部”](innodb-memcached-internals.html "17.20.8 InnoDB memcached 插件内部")。
+- en: 'Activate the `daemon_memcached` plugin by running the [`INSTALL PLUGIN`](install-plugin.html
+    "15.7.4.4 INSTALL PLUGIN Statement") statement:'
+  id: totrans-23
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过运行 [`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN 语句") 语句激活
+    `daemon_memcached` 插件：
+- en: '[PRE4]'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Once the plugin is installed, it is automatically activated each time the MySQL
+    server is restarted.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一旦插件安装完成，每次 MySQL 服务器重新启动时都会自动激活。
+- en: Verifying the InnoDB and memcached Setup
+  id: totrans-26
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 验证 InnoDB 和 memcached 设置
+- en: To verify the `daemon_memcached` plugin setup, use a **telnet** session to issue
+    **memcached** commands. By default, the **memcached** daemon listens on port 11211.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要验证 `daemon_memcached` 插件设置，使用 **telnet** 会话发出 **memcached** 命令。默认情况下，**memcached**
+    守护程序监听端口 11211。
+- en: Retrieve data from the `test.demo_test` table. The single row of data in the
+    `demo_test` table has a key value of `AA`.
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从 `test.demo_test` 表中检索数据。`demo_test` 表中的单行数据具有键值 `AA`。
+- en: '[PRE5]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Insert data using a `set` command.
+  id: totrans-30
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用 `set` 命令插入数据。
+- en: '[PRE6]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'where:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 其中：
+- en: '`set` is the command to store a value'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`set` 是存储值的命令'
+- en: '`BB` is the key'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`BB` 是键'
+- en: '`10` is a flag for the operation; ignored by **memcached** but may be used
+    by the client to indicate any type of information; specify `0` if unused'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`10` 是操作的标志；**memcached** 忽略但客户端可能用于指示任何类型的信息；如果未使用，请指定 `0`'
+- en: '`0` is the expiration time (TTL); specify `0` if unused'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`0` 是过期时间（TTL）；如果未使用，请指定 `0`'
+- en: '`16` is the length of the supplied value block in bytes'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 提供的值块的长度为 `16` 字节
+- en: '`GOODBYE, GOODBYE` is the value that is stored'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GOODBYE, GOODBYE` 是存储的值'
+- en: Verify that the data inserted is stored in MySQL by connecting to the MySQL
+    server and querying the `test.demo_test` table.
+  id: totrans-39
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过连接到 MySQL 服务器并查询 `test.demo_test` 表来验证插入的数据是否存储在 MySQL 中。
+- en: '[PRE7]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: Return to the telnet session and retrieve the data that you inserted earlier
+    using key `BB`.
+  id: totrans-41
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 返回 telnet 会话并使用键 `BB` 检索之前插入的数据。
+- en: '[PRE8]'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: If you shut down the MySQL server, which also shuts off the integrated **memcached**
+    server, further attempts to access the **memcached** data fail with a connection
+    error. Normally, the **memcached** data also disappears at this point, and you
+    would require application logic to load the data back into memory when **memcached**
+    is restarted. However, the `InnoDB` **memcached** plugin automates this process
+    for you.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果关闭 MySQL 服务器，也会关闭集成的 **memcached** 服务器，进一步尝试访问 **memcached** 数据会因连接错误而失败。通常情况下，此时
+    **memcached** 数据也会消失，当 **memcached** 重新启动时，你需要应用逻辑来重新加载数据。然而，`InnoDB` **memcached**
+    插件会自动化这个过程。
+- en: When you restart MySQL, `get` operations once again return the key-value pairs
+    you stored in the earlier **memcached** session. When a key is requested and the
+    associated value is not already in the memory cache, the value is automatically
+    queried from the MySQL `test.demo_test` table.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当你重新启动 MySQL 时，`get` 操作会再次返回你在之前 **memcached** 会话中存储的键值对。当请求一个键并且相关值不在内存缓存中时，该值会自动从
+    MySQL `test.demo_test` 表中查询。
+- en: Creating a New Table and Column Mapping
+  id: totrans-45
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 创建新表和列映射
+- en: This example shows how to setup your own `InnoDB` table with the `daemon_memcached`
+    plugin.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此示例展示了如何使用 `daemon_memcached` 插件设置自己的 `InnoDB` 表。
+- en: Create an `InnoDB` table. The table must have a key column with a unique index.
+    The key column of the city table is `city_id`, which is defined as the primary
+    key. The table must also include columns for `flags`, `cas`, and `expiry` values.
+    There may be one or more value columns. The `city` table has three value columns
+    (`name`, `state`, `country`).
+  id: totrans-47
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建一个`InnoDB`表。表必须具有具有唯一索引的键列。城市表的键列是`city_id`，定义为主键。表还必须包括用于`flags`，`cas`和`expiry`值的列。可能有一个或多个值列。`city`表有三个值列（`name`，`state`，`country`）。
+- en: Note
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: There is no special requirement with respect to column names as along as a valid
+    mapping is added to the `innodb_memcache.containers` table.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 列名没有特殊要求，只要向`innodb_memcache.containers`表添加有效映射即可。
+- en: '[PRE9]'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Add an entry to the `innodb_memcache.containers` table so that the `daemon_memcached`
+    plugin knows how to access the `InnoDB` table. The entry must satisfy the `innodb_memcache.containers`
+    table definition. For a description of each field, see [Section 17.20.8, “InnoDB
+    memcached Plugin Internals”](innodb-memcached-internals.html "17.20.8 InnoDB memcached
+    Plugin Internals").
+  id: totrans-51
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 向`innodb_memcache.containers`表添加一个条目，以便`daemon_memcached`插件知道如何访问`InnoDB`表。该条目必须满足`innodb_memcache.containers`表的定义。有关每个字段的描述，请参见[第17.20.8节，“InnoDB
+    memcached插件内部”](innodb-memcached-internals.html "17.20.8 InnoDB memcached插件内部")。
+- en: '[PRE10]'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'The `innodb_memcache.containers` table entry for the city table is defined
+    as:'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 城市表的`innodb_memcache.containers`表条目定义为：
+- en: '[PRE11]'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: '`default` is specified for the `containers.name` column to configure the `city`
+    table as the default `InnoDB` table to be used with the `daemon_memcached` plugin.'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为`containers.name`列指定`default`，以将`city`表配置为与`daemon_memcached`插件一起使用的默认`InnoDB`表。
+- en: Multiple `InnoDB` table columns (`name`, `state`, `country`) are mapped to `containers.value_columns`
+    using a “|” delimiter.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 多个`InnoDB`表列（`name`，`state`，`country`）使用“|”分隔符映射到`containers.value_columns`。
+- en: The `flags`, `cas_column`, and `expire_time_column` fields of the `innodb_memcache.containers`
+    table are typically not significant in applications using the `daemon_memcached`
+    plugin. However, a designated `InnoDB` table column is required for each. When
+    inserting data, specify `0` for these columns if they are unused.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`innodb_memcache.containers`表的`flags`，`cas_column`和`expire_time_column`字段在使用`daemon_memcached`插件的应用程序中通常不重要。但是，每个字段都需要指定一个指定的`InnoDB`表列。在插入数据时，如果未使用这些列，请为这些列指定`0`。'
+- en: After updating the `innodb_memcache.containers` table, restart the `daemon_memcache`
+    plugin to apply the changes.
+  id: totrans-58
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 更新`innodb_memcache.containers`表后，重新启动`daemon_memcache`插件以应用更改。
+- en: '[PRE12]'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: Using telnet, insert data into the `city` table using a **memcached** `set`
+    command.
+  id: totrans-60
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用telnet，使用**memcached**的`set`命令向`city`表插入数据。
+- en: '[PRE13]'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Using MySQL, query the `test.city` table to verify that the data you inserted
+    was stored.
+  id: totrans-62
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用MySQL，查询`test.city`表以验证您插入的数据是否已存储。
+- en: '[PRE14]'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: Using MySQL, insert additional data into the `test.city` table.
+  id: totrans-64
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用MySQL，向`test.city`表插入额外数据。
+- en: '[PRE15]'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Note
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: It is recommended that you specify a value of `0` for the `flags`, `cas_column`,
+    and `expire_time_column` fields if they are unused.
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果未使用，建议为`flags`，`cas_column`和`expire_time_column`字段指定值`0`。
+- en: Using telnet, issue a **memcached** `get` command to retrieve data you inserted
+    using MySQL.
+  id: totrans-68
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用telnet，发出**memcached**的`get`命令以检索使用MySQL插入的数据。
+- en: '[PRE16]'
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: Configuring the InnoDB memcached Plugin
+  id: totrans-70
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置InnoDB memcached插件
+- en: Traditional `memcached` configuration options may be specified in a MySQL configuration
+    file or a [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") startup
+    string, encoded in the argument of the [`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)
+    configuration parameter. `memcached` configuration options take effect when the
+    plugin is loaded, which occurs each time the MySQL server is started.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 传统的`memcached`配置选项可以在MySQL配置文件或者[**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server")启动字符串中指定，编码在[`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)配置参数的参数中。`memcached`配置选项在插件加载时生效，这发生在每次启动MySQL服务器时。
+- en: 'For example, to make **memcached** listen on port 11222 instead of the default
+    port 11211, specify `-p11222` as an argument of the [`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)
+    configuration option:'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，要使**memcached**监听端口11222而不是默认端口11211，请将`-p11222`指定为[`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)配置选项的参数：
+- en: '[PRE17]'
+  id: totrans-73
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: Other **memcached** options can be encoded in the [`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)
+    string. For example, you can specify options to reduce the maximum number of simultaneous
+    connections, change the maximum memory size for a key-value pair, or enable debugging
+    messages for the error log, and so on.
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其他**memcached**选项可以编码在[`daemon_memcached_option`](innodb-parameters.html#sysvar_daemon_memcached_option)字符串中。例如，您可以指定选项来减少最大同时连接数，更改键值对的最大内存大小，或者启用错误日志的调试消息等。
+- en: 'There are also configuration options specific to the `daemon_memcached` plugin.
+    These include:'
+  id: totrans-75
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也有一些特定于`daemon_memcached`插件的配置选项。这些包括：
+- en: '[`daemon_memcached_engine_lib_name`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_name):
+    Specifies the shared library that implements the `InnoDB` **memcached** plugin.
+    The default setting is `innodb_engine.so`.'
+  id: totrans-76
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`daemon_memcached_engine_lib_name`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_name)：指定实现`InnoDB`
+    **memcached**插件的共享库。默认设置为`innodb_engine.so`。'
+- en: '[`daemon_memcached_engine_lib_path`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_path):
+    The path of the directory containing the shared library that implements the `InnoDB`
+    **memcached** plugin. The default is NULL, representing the plugin directory.'
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`daemon_memcached_engine_lib_path`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_path)：包含实现`InnoDB`
+    **memcached**插件的共享库的目录路径。默认值为NULL，表示插件目录。'
+- en: '[`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size):
+    Defines the batch commit size for read operations (`get`). It specifies the number
+    of **memcached** read operations after which a [commit](glossary.html#glos_commit
+    "commit") occurs. [`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size)
+    is set to 1 by default so that every `get` request accesses the most recently
+    committed data in the `InnoDB` table, whether the data was updated through **memcached**
+    or by SQL. When the value is greater than 1, the counter for read operations is
+    incremented with each `get` call. A `flush_all` call resets both read and write
+    counters.'
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size)：定义读操作（`get`）的批量提交大小。它指定在进行多少次**memcached**读取操作后发生[提交](glossary.html#glos_commit
+    "commit")。[`daemon_memcached_r_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_r_batch_size)默认设置为1，以便每个`get`请求访问`InnoDB`表中最近提交的数据，无论数据是通过**memcached**还是通过SQL更新的。当值大于1时，每次`get`调用都会增加读操作计数器。`flush_all`调用会重置读取和写入计数器。'
+- en: '[`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size):
+    Defines the batch commit size for write operations (`set`, `replace`, `append`,
+    `prepend`, `incr`, `decr`, and so on). [`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)
+    is set to 1 by default so that no uncommitted data is lost in case of an outage,
+    and so that SQL queries on the underlying table access the most recent data. When
+    the value is greater than 1, the counter for write operations is incremented for
+    each `add`, `set`, `incr`, `decr`, and `delete` call. A `flush_all` call resets
+    both read and write counters.'
+  id: totrans-79
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)：定义写操作（`set`、`replace`、`append`、`prepend`、`incr`、`decr`等）的批量提交大小。[`daemon_memcached_w_batch_size`](innodb-parameters.html#sysvar_daemon_memcached_w_batch_size)默认设置为1，以防止在停机情况下丢失未提交的数据，并且使底层表上的SQL查询访问最新数据。当值大于1时，每次`add`、`set`、`incr`、`decr`和`delete`调用都会增加写操作计数器。`flush_all`调用会重置读取和写入计数器。'
+- en: By default, you do not need to modify [`daemon_memcached_engine_lib_name`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_name)
+    or [`daemon_memcached_engine_lib_path`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_path).
+    You might configure these options if, for example, you want to use a different
+    storage engine for **memcached** (such as the NDB **memcached** engine).
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，您不需要修改[`daemon_memcached_engine_lib_name`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_name)或[`daemon_memcached_engine_lib_path`](innodb-parameters.html#sysvar_daemon_memcached_engine_lib_path)。例如，如果您想要使用不同的存储引擎来**memcached**（如NDB
+    **memcached**引擎），则可以配置这些选项。
+- en: '`daemon_memcached` plugin configuration parameters may be specified in the
+    MySQL configuration file or in a [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server") startup string. They take effect when you load the `daemon_memcached`
+    plugin.'
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`daemon_memcached`插件配置参数可以在MySQL配置文件中或在[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")启动字符串中指定。它们在加载`daemon_memcached`插件时生效。'
+- en: 'When making changes to `daemon_memcached` plugin configuration, reload the
+    plugin to apply the changes. To do so, issue the following statements:'
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在对`daemon_memcached`插件配置进行更改时，重新加载插件以应用更改。要这样做，请发出以下语句：
+- en: '[PRE18]'
+  id: totrans-83
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: Configuration settings, required tables, and data are preserved when the plugin
+    is restarted.
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 插件重新启动时会保留配置设置、所需表格和数据。
+- en: For additional information about enabling and disabling plugins, see [Section 7.6.1,
+    “Installing and Uninstalling Plugins”](plugin-loading.html "7.6.1 Installing and
+    Uninstalling Plugins").
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关启用和禁用插件的更多信息，请参见[第7.6.1节，“安装和卸载插件”](plugin-loading.html "7.6.1 Installing
+    and Uninstalling Plugins")。

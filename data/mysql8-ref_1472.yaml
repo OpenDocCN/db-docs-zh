@@ -1,0 +1,128 @@
+- en: 19.5.5 How to Report Replication Bugs or Problems
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.5.5 如何报告复制 Bug 或问题
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-bugs.html](https://dev.mysql.com/doc/refman/8.0/en/replication-bugs.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-bugs.html](https://dev.mysql.com/doc/refman/8.0/en/replication-bugs.html)
+- en: When you have determined that there is no user error involved, and replication
+    still either does not work at all or is unstable, it is time to send us a bug
+    report. We need to obtain as much information as possible from you to be able
+    to track down the bug. Please spend some time and effort in preparing a good bug
+    report.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当确定没有用户错误涉及，并且复制仍然无法正常工作或不稳定时，是时候向我们发送 bug 报告了。我们需要尽可能多地从您那里获取信息以便追踪 bug。请花些时间和精力准备一个好的
+    bug 报告。
+- en: 'If you have a repeatable test case that demonstrates the bug, please enter
+    it into our bugs database using the instructions given in [Section 1.5, “How to
+    Report Bugs or Problems”](bug-reports.html "1.5 How to Report Bugs or Problems").
+    If you have a “phantom” problem (one that you cannot duplicate at will), use the
+    following procedure:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您有一个可重现的测试用例来演示 bug，请按照[第 1.5 节“如何报告 Bug 或问题”](bug-reports.html "1.5 How to
+    Report Bugs or Problems")中给出的说明将其输入到我们的 bug 数据库中。如果您遇到“幻影”问题（即您无法随意复制的问题），请使用以下步骤：
+- en: Verify that no user error is involved. For example, if you update the replica
+    outside of the replication threads, the data goes out of synchrony, and you can
+    have unique key violations on updates. In this case, the replication thread stops
+    and waits for you to clean up the tables manually to bring them into synchrony.
+    *This is not a replication problem. It is a problem of outside interference causing
+    replication to fail.*
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证没有用户错误涉及。例如，如果您在复制线程之外更新复制端，数据将不同步，更新时可能会出现唯一键冲突。在这种情况下，复制线程会停止并等待您手动清理表以将其带入同步状态。*这不是一个复制问题。这是外部干扰导致复制失败的问题。*
+- en: Ensure that the replica is running with binary logging enabled (the [`log_bin`](replication-options-binary-log.html#sysvar_log_bin)
+    system variable), and with the [`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    option enabled, which causes the replica to log the updates that it receives from
+    the source into its own binary logs. These settings are the defaults.
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 确保复制端正在运行并启用了二进制日志记录（[`log_bin`](replication-options-binary-log.html#sysvar_log_bin)
+    系统变量），并启用了 [`--log-slave-updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    选项，这会导致复制端将从源端接收的更新记录到自己的二进制日志中。这些设置是默认设置。
+- en: 'Save all evidence before resetting the replication state. If we have no information
+    or only sketchy information, it becomes difficult or impossible for us to track
+    down the problem. The evidence you should collect is:'
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在重置复制状态之前，请保存所有证据。如果我们没有信息或只有零碎的信息，那么追踪问题将变得困难或不可能。您应该收集的证据包括：
+- en: All binary log files from the source
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有来自源端的二进制日志文件
+- en: All binary log files from the replica
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有来自复制端的二进制日志文件
+- en: The output of [`SHOW MASTER STATUS`](show-master-status.html "15.7.7.23 SHOW
+    MASTER STATUS Statement") from the source at the time you discovered the problem
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 源端在发现问题时的[`SHOW MASTER STATUS`](show-master-status.html "15.7.7.23 SHOW MASTER
+    STATUS Statement")输出
+- en: The output of [`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW
+    REPLICA STATUS Statement") from the replica at the time you discovered the problem
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 源端在发现问题时的[`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA
+    STATUS Statement")输出
+- en: Error logs from the source and the replica
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 源端和复制端的错误日志
+- en: Use [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") to examine the binary logs. The following should be helpful
+    to find the problem statement. *`log_file`* and *`log_pos`* are the `Master_Log_File`
+    and `Read_Master_Log_Pos` values from [`SHOW REPLICA STATUS`](show-replica-status.html
+    "15.7.7.35 SHOW REPLICA STATUS Statement").
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files")来检查二进制日志。以下内容应有助于找到问题陈述。*`log_file`*和*`log_pos`*是[`SHOW REPLICA
+    STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")中的`Master_Log_File`和`Read_Master_Log_Pos`值。
+- en: '[PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: After you have collected the evidence for the problem, try to isolate it as
+    a separate test case first. Then enter the problem with as much information as
+    possible into our bugs database using the instructions at [Section 1.5, “How to
+    Report Bugs or Problems”](bug-reports.html "1.5 How to Report Bugs or Problems").
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在收集了问题的证据之后，首先尝试将其作为一个独立的测试用例进行隔离。然后，按照[第1.5节，“如何报告错误或问题”](bug-reports.html
+    "1.5 如何报告错误或问题")中的说明，尽可能多地输入问题信息到我们的错误数据库中。

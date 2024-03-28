@@ -1,0 +1,264 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/where-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/where-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/where-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/where-optimization.html)
+- en: 10.2.1.1 WHERE Clause Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.1 WHERE 子句优化
+- en: This section discusses optimizations that can be made for processing `WHERE`
+    clauses. The examples use [`SELECT`](select.html "15.2.13 SELECT Statement") statements,
+    but the same optimizations apply for `WHERE` clauses in [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") and [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    statements.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论了用于处理`WHERE`子句的优化。示例使用[`SELECT`](select.html "15.2.13 SELECT Statement")语句，但相同的优化也适用于[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")和[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句中的`WHERE`子句。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Because work on the MySQL optimizer is ongoing, not all of the optimizations
+    that MySQL performs are documented here.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于 MySQL 优化器的工作正在进行中，MySQL 执行的并非所有优化都在此处记录。
+- en: 'You might be tempted to rewrite your queries to make arithmetic operations
+    faster, while sacrificing readability. Because MySQL does similar optimizations
+    automatically, you can often avoid this work, and leave the query in a more understandable
+    and maintainable form. Some of the optimizations performed by MySQL follow:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可能会尝试重写查询以加快算术运算速度，但会牺牲可读性。由于 MySQL 自动执行类似的优化，您通常可以避免这项工作，并将查询保留在更易理解和可维护的形式中。MySQL
+    执行的一些优化如下：
+- en: 'Removal of unnecessary parentheses:'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 删除不必要的括号：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Constant folding:'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 常量折叠：
+- en: '[PRE1]'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Constant condition removal:'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 常量条件移除：
+- en: '[PRE2]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: In MySQL 8.0.14 and later, this takes place during preparation rather than during
+    the optimization phase, which helps in simplification of joins. See [Section 10.2.1.9,
+    “Outer Join Optimization”](outer-join-optimization.html "10.2.1.9 Outer Join Optimization"),
+    for further information and examples.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.14 及更高版本中，这是在准备阶段而不是在优化阶段进行的，这有助于简化连接。有关更多信息和示例，请参见[Section 10.2.1.9,
+    “Outer Join Optimization”](outer-join-optimization.html "10.2.1.9 Outer Join Optimization")。
+- en: Constant expressions used by indexes are evaluated only once.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于索引的常量表达式仅评估一次。
+- en: 'Beginning with MySQL 8.0.16, comparisons of columns of numeric types with constant
+    values are checked and folded or removed for invalid or out-of-rage values:'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.16 开始，将检查和折叠或删除数值类型列与常量值的比较，以处理无效或超出范围的值：
+- en: '[PRE3]'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: See [Section 10.2.1.14, “Constant-Folding Optimization”](constant-folding-optimization.html
+    "10.2.1.14 Constant-Folding Optimization"), for more information.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更多信息请参见[Section 10.2.1.14, “Constant-Folding Optimization”](constant-folding-optimization.html
+    "10.2.1.14 Constant-Folding Optimization")。
+- en: '[`COUNT(*)`](aggregate-functions.html#function_count) on a single table without
+    a `WHERE` is retrieved directly from the table information for `MyISAM` and `MEMORY`
+    tables. This is also done for any `NOT NULL` expression when used with only one
+    table.'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在没有`WHERE`的单个表上的[`COUNT(*)`](aggregate-functions.html#function_count)直接从`MyISAM`和`MEMORY`表的表信息中检索。当与仅一个表一起使用时，对于任何`NOT
+    NULL`表达式也会执行此操作。
+- en: Early detection of invalid constant expressions. MySQL quickly detects that
+    some [`SELECT`](select.html "15.2.13 SELECT Statement") statements are impossible
+    and returns no rows.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 早期检测无效常量表达式。MySQL 快速检测到一些[`SELECT`](select.html "15.2.13 SELECT Statement")语句是不可能的，并且不返回任何行。
+- en: '`HAVING` is merged with `WHERE` if you do not use `GROUP BY` or aggregate functions
+    ([`COUNT()`](aggregate-functions.html#function_count), [`MIN()`](aggregate-functions.html#function_min),
+    and so on).'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您不使用`GROUP BY`或聚合函数（[`COUNT()`](aggregate-functions.html#function_count),
+    [`MIN()`](aggregate-functions.html#function_min)等），`HAVING`将与`WHERE`合并。
+- en: For each table in a join, a simpler `WHERE` is constructed to get a fast `WHERE`
+    evaluation for the table and also to skip rows as soon as possible.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于连接中的每个表，构建一个更简单的`WHERE`以获得快速的表`WHERE`评估，并尽快跳过行。
+- en: 'All constant tables are read first before any other tables in the query. A
+    constant table is any of the following:'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在查询中的任何其他表之前首先读取所有常量表。常量表包括以下内容：
+- en: An empty table or a table with one row.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 空表或具有一行的表。
+- en: A table that is used with a `WHERE` clause on a `PRIMARY KEY` or a `UNIQUE`
+    index, where all index parts are compared to constant expressions and are defined
+    as `NOT NULL`.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`PRIMARY KEY`或`UNIQUE`索引上使用`WHERE`子句的表，其中所有索引部分与常量表达式进行比较并定义为`NOT NULL`。
+- en: 'All of the following tables are used as constant tables:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 所有以下表都被用作常量表：
+- en: '[PRE4]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The best join combination for joining the tables is found by trying all possibilities.
+    If all columns in `ORDER BY` and `GROUP BY` clauses come from the same table,
+    that table is preferred first when joining.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过尝试所有可能性来找到连接表的最佳连接组合。如果`ORDER BY`和`GROUP BY`子句中的所有列来自同一张表，那么在连接时首选该表。
+- en: If there is an `ORDER BY` clause and a different `GROUP BY` clause, or if the
+    `ORDER BY` or `GROUP BY` contains columns from tables other than the first table
+    in the join queue, a temporary table is created.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果存在`ORDER BY`子句和不同的`GROUP BY`子句，或者如果`ORDER BY`或`GROUP BY`包含来自连接队列中第一张表以外的表的列，那么会创建一个临时表。
+- en: If you use the `SQL_SMALL_RESULT` modifier, MySQL uses an in-memory temporary
+    table.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果使用`SQL_SMALL_RESULT`修饰符，MySQL会使用内存临时表。
+- en: Each table index is queried, and the best index is used unless the optimizer
+    believes that it is more efficient to use a table scan. At one time, a scan was
+    used based on whether the best index spanned more than 30% of the table, but a
+    fixed percentage no longer determines the choice between using an index or a scan.
+    The optimizer now is more complex and bases its estimate on additional factors
+    such as table size, number of rows, and I/O block size.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个表索引都会被查询，除非优化器认为使用表扫描更有效，否则会使用最佳索引。曾经，基于最佳索引是否跨越表的30%以上而使用扫描，但现在不再根据固定百分比来决定使用索引还是扫描。优化器现在更加复杂，根据诸如表大小、行数和I/O块大小等额外因素来估计。
+- en: In some cases, MySQL can read rows from the index without even consulting the
+    data file. If all columns used from the index are numeric, only the index tree
+    is used to resolve the query.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在某些情况下，MySQL可以从索引中读取行，甚至无需查阅数据文件。如果从索引中使用的所有列都是数字型的，则仅使用索引树来解析查询。
+- en: Before each row is output, those that do not match the `HAVING` clause are skipped.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在输出每一行之前，不符合`HAVING`子句的行会被跳过。
+- en: 'Some examples of queries that are very fast:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些查询的示例非常快速：
+- en: '[PRE5]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'MySQL resolves the following queries using only the index tree, assuming that
+    the indexed columns are numeric:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL仅使用索引树解析以下查询，假设索引列是数字型的：
+- en: '[PRE6]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'The following queries use indexing to retrieve the rows in sorted order without
+    a separate sorting pass:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下查询使用索引检索按排序顺序排列的行，而无需单独的排序过程：
+- en: '[PRE7]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'

@@ -1,0 +1,99 @@
+- en: 17.11.1 InnoDB Disk I/O
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.11.1 InnoDB磁盘I/O
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-disk-io.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-disk-io.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-disk-io.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-disk-io.html)
+- en: '`InnoDB` uses asynchronous disk I/O where possible, by creating a number of
+    threads to handle I/O operations, while permitting other database operations to
+    proceed while the I/O is still in progress. On Linux and Windows platforms, `InnoDB`
+    uses the available OS and library functions to perform “native” asynchronous I/O.
+    On other platforms, `InnoDB` still uses I/O threads, but the threads may actually
+    wait for I/O requests to complete; this technique is known as “simulated” asynchronous
+    I/O.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`在可能的情况下使用异步磁盘I/O，通过创建多个线程来处理I/O操作，同时允许其他数据库操作在I/O仍在进行时继续进行。在Linux和Windows平台上，`InnoDB`使用可用的操作系统和库函数执行“本机”异步I/O。在其他平台上，`InnoDB`仍然使用I/O线程，但线程可能实际上会等待I/O请求完成；这种技术称为“模拟”异步I/O。'
+- en: Read-Ahead
+  id: totrans-3
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 预读
+- en: 'If `InnoDB` can determine there is a high probability that data might be needed
+    soon, it performs read-ahead operations to bring that data into the buffer pool
+    so that it is available in memory. Making a few large read requests for contiguous
+    data can be more efficient than making several small, spread-out requests. There
+    are two read-ahead heuristics in `InnoDB`:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`InnoDB`可以确定数据很可能很快就会被需要，它会执行预读操作将数据带入缓冲池，以便在内存中可用。对连续数据进行少量大的读取请求可能比进行几个小的分散请求更有效。`InnoDB`有两种预读启发式：
+- en: In sequential read-ahead, if `InnoDB` notices that the access pattern to a segment
+    in the tablespace is sequential, it posts in advance a batch of reads of database
+    pages to the I/O system.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在顺序读取预读中，如果`InnoDB`注意到表空间中某个段的访问模式是顺序的，它会提前向I/O系统发布一批数据库页面的读取。
+- en: In random read-ahead, if `InnoDB` notices that some area in a tablespace seems
+    to be in the process of being fully read into the buffer pool, it posts the remaining
+    reads to the I/O system.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在随机读取预读中，如果`InnoDB`注意到表空间中某个区域似乎正在被完全读入缓冲池，它会将剩余的读取发布到I/O系统。
+- en: For information about configuring read-ahead heuristics, see [Section 17.8.3.4,
+    “Configuring InnoDB Buffer Pool Prefetching (Read-Ahead)”](innodb-performance-read_ahead.html
+    "17.8.3.4 Configuring InnoDB Buffer Pool Prefetching (Read-Ahead)").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关配置预读启发式的信息，请参见[第17.8.3.4节，“配置InnoDB缓冲池预取（预读）”](innodb-performance-read_ahead.html
+    "17.8.3.4 Configuring InnoDB Buffer Pool Prefetching (Read-Ahead)")。
+- en: Doublewrite Buffer
+  id: totrans-8
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 双写缓冲区
+- en: '`InnoDB` uses a novel file flush technique involving a structure called the
+    [doublewrite buffer](glossary.html#glos_doublewrite_buffer "doublewrite buffer"),
+    which is enabled by default in most cases ([`innodb_doublewrite=ON`](innodb-parameters.html#sysvar_innodb_doublewrite)).
+    It adds safety to recovery following an unexpected exit or power outage, and improves
+    performance on most varieties of Unix by reducing the need for `fsync()` operations.'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`使用一种涉及名为[双写缓冲区](glossary.html#glos_doublewrite_buffer "doublewrite
+    buffer")的新颖文件刷新技术，默认情况下在大多数情况下启用（[`innodb_doublewrite=ON`](innodb-parameters.html#sysvar_innodb_doublewrite)）。它增加了在意外退出或停电后恢复的安全性，并通过减少`fsync()`操作的需求来提高大多数Unix系统的性能。'
+- en: Before writing pages to a data file, `InnoDB` first writes them to a storage
+    area called the doublewrite buffer. Only after the write and the flush to the
+    doublewrite buffer has completed does `InnoDB` write the pages to their proper
+    positions in the data file. If there is an operating system, storage subsystem,
+    or unexpected [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") process
+    exit in the middle of a page write (causing a [torn page](glossary.html#glos_torn_page
+    "torn page") condition), `InnoDB` can later find a good copy of the page from
+    the doublewrite buffer during recovery.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在将页面写入数据文件之前，`InnoDB`首先将它们写入称为双写缓冲区的存储区域。只有在写入和刷新到双写缓冲区完成后，`InnoDB`才将页面写入数据文件的适当位置。如果在页面写入过程中有操作系统、存储子系统或意外的[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")进程退出（导致[破碎页](glossary.html#glos_torn_page "torn
+    page")条件），`InnoDB`可以在恢复过程中从双写缓冲区找到页面的良好副本。
+- en: For more information about the doublewrite buffer, see [Section 17.6.4, “Doublewrite
+    Buffer”](innodb-doublewrite-buffer.html "17.6.4 Doublewrite Buffer").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关双写缓冲区的更多信息，请参见[第17.6.4节，“双写缓冲区”](innodb-doublewrite-buffer.html "17.6.4 Doublewrite
+    Buffer")。

@@ -1,0 +1,410 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/binary-log-transaction-compression.html](https://dev.mysql.com/doc/refman/8.0/en/binary-log-transaction-compression.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/binary-log-transaction-compression.html](https://dev.mysql.com/doc/refman/8.0/en/binary-log-transaction-compression.html)
+- en: 7.4.4.5 Binary Log Transaction Compression
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.4.4.5 二进制日志事务压缩
+- en: Beginning with MySQL 8.0.20, you can enable binary log transaction compression
+    on a MySQL server instance. When binary log transaction compression is enabled,
+    transaction payloads are compressed using the zstd algorithm, and then written
+    to the server's binary log file as a single event (a `Transaction_payload_event`).
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.20开始，您可以在MySQL服务器实例上启用二进制日志事务压缩。启用二进制日志事务压缩后，事务负载将使用zstd算法进行压缩，然后作为单个事件（`Transaction_payload_event`）写入服务器的二进制日志文件。
+- en: Compressed transaction payloads remain in a compressed state while they are
+    sent in the replication stream to replicas, other Group Replication group members,
+    or clients such as [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files"). They are not decompressed by receiver threads,
+    and are written to the relay log still in their compressed state. Binary log transaction
+    compression therefore saves storage space both on the originator of the transaction
+    and on the recipient (and for their backups), and saves network bandwidth when
+    the transactions are sent between server instances.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在将压缩的事务负载发送到副本、其他组复制组成员或客户端（如[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files")）时，压缩的事务负载保持压缩状态。接收线程不会对其进行解压缩，并且仍以压缩状态写入中继日志。因此，二进制日志事务压缩在事务发起者和接收者（以及它们的备份）上节省了存储空间，并在服务器实例之间发送事务时节省了网络带宽。
+- en: Compressed transaction payloads are decompressed when the individual events
+    contained in them need to be inspected. For example, the `Transaction_payload_event`
+    is decompressed by an applier thread in order to apply the events it contains
+    on the recipient. Decompression is also carried out during recovery, by [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") when replaying
+    transactions, and by the [`SHOW BINLOG EVENTS`](show-binlog-events.html "15.7.7.2 SHOW
+    BINLOG EVENTS Statement") and [`SHOW RELAYLOG EVENTS`](show-relaylog-events.html
+    "15.7.7.32 SHOW RELAYLOG EVENTS Statement") statements.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当需要检查其中包含的各个事件时，压缩的事务负载将被解压缩。例如，`Transaction_payload_event`由应用程序线程解压缩，以便在接收端应用其中包含的事件。在恢复期间，通过[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")重放事务时，以及通过[`SHOW
+    BINLOG EVENTS`](show-binlog-events.html "15.7.7.2 SHOW BINLOG EVENTS Statement")和[`SHOW
+    RELAYLOG EVENTS`](show-relaylog-events.html "15.7.7.32 SHOW RELAYLOG EVENTS Statement")语句进行解压缩。
+- en: You can enable binary log transaction compression on a MySQL server instance
+    using the [`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression)
+    system variable, which defaults to `OFF`. You can also use the [`binlog_transaction_compression_level_zstd`](replication-options-binary-log.html#sysvar_binlog_transaction_compression_level_zstd)
+    system variable to set the level for the zstd algorithm that is used for compression.
+    This value determines the compression effort, from 1 (the lowest effort) to 22
+    (the highest effort). As the compression level increases, the compression ratio
+    increases, which reduces the storage space and network bandwidth required for
+    the transaction payload. However, the effort required for data compression also
+    increases, taking time and CPU and memory resources on the originating server.
+    Increases in the compression effort do not have a linear relationship to increases
+    in the compression ratio.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以使用[`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression)系统变量在MySQL服务器实例上启用二进制日志事务压缩，该变量默认为`OFF`。您还可以使用[`binlog_transaction_compression_level_zstd`](replication-options-binary-log.html#sysvar_binlog_transaction_compression_level_zstd)系统变量设置用于压缩的zstd算法的级别。该值确定了压缩的努力程度，从1（最低努力）到22（最高努力）。随着压缩级别的增加，压缩比例增加，从而减少了事务负载所需的存储空间和网络带宽。然而，数据压缩所需的努力也增加，消耗了源服务器上的时间、CPU和内存资源。压缩努力的增加与压缩比例的增加之间没有线性关系。
+- en: Note
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '*Prior to NDB 8.0.31*: Binary log transaction compression can be enabled in
+    NDB Cluster, but only when starting the server using the --binlog-transaction-compression
+    option (and possibly --binlog-transaction-compression-level-zstd as well); changing
+    the value of either or both of the system variables [`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression)
+    and [`binlog_transaction_compression_level_zstd`](replication-options-binary-log.html#sysvar_binlog_transaction_compression_level_zstd)
+    at run time has no effect on the logging of [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") tables.'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*NDB 8.0.31之前*：可以在NDB Cluster中启用二进制日志事务压缩，但仅在使用--binlog-transaction-compression选项（可能还包括--binlog-transaction-compression-level-zstd）启动服务器时；在运行时更改[`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression)和[`binlog_transaction_compression_level_zstd`](replication-options-binary-log.html#sysvar_binlog_transaction_compression_level_zstd)系统变量的值对[`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0")表的日志记录没有影响。'
+- en: '*NDB 8.0.31 and later*: You can enable binary logging of compressed transactions
+    for tables using the `NDB` storage engine at run time using the [`ndb_log_transaction_compression`](mysql-cluster-options-variables.html#sysvar_ndb_log_transaction_compression)
+    system variable introduced in that release, and control the level of compression
+    using [`ndb_log_transaction_compression_level_zstd`](mysql-cluster-options-variables.html#sysvar_ndb_log_transaction_compression_level_zstd).
+    Starting [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") with `--binlog-transaction-compression`
+    on the command line or in a `my.cnf` file causes `ndb_log_transaction_compression`
+    to be enabled automatically and any setting for the `--ndb-log-transaction-compression`
+    option to be ignored; to disable binary log transaction compression for the `NDB`
+    storage engine *only*, set `ndb_log_transaction_compression=OFF` in a client session
+    after starting [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server").'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*NDB 8.0.31及更高版本*：您可以在运行时使用该版本引入的[`ndb_log_transaction_compression`](mysql-cluster-options-variables.html#sysvar_ndb_log_transaction_compression)系统变量启用对使用`NDB`存储引擎的表的压缩事务的二进制日志记录，并使用[`ndb_log_transaction_compression_level_zstd`](mysql-cluster-options-variables.html#sysvar_ndb_log_transaction_compression_level_zstd)控制压缩级别。在命令行或`my.cnf`文件中使用`--binlog-transaction-compression`启动[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")会自动启用`ndb_log_transaction_compression`，并忽略`--ndb-log-transaction-compression`选项的任何设置；要仅为`NDB`存储引擎禁用二进制日志事务压缩，需在启动[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")后在客户端会话中设置`ndb_log_transaction_compression=OFF`。'
+- en: 'The following types of event are excluded from binary log transaction compression,
+    so are always written uncompressed to the binary log:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下类型的事件不包括在二进制日志事务压缩中，因此始终以未压缩形式写入二进制日志：
+- en: Events relating to the GTID for the transaction (including anonymous GTID events).
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与事务的GTID相关的事件（包括匿名GTID事件）。
+- en: Other types of control event, such as view change events and heartbeat events.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 其他类型的控制事件，例如视图更改事件和心跳事件。
+- en: Incident events and the whole of any transactions that contain them.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 事故事件和包含它们的任何事务的全部内容。
+- en: Non-transactional events and the whole of any transactions that contain them.
+    A transaction involving a mix of non-transactional and transactional storage engines
+    does not have its payload compressed.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 非事务事件和包含它们的任何事务的全部内容。涉及非事务性和事务性存储引擎混合的事务不会对其有效负载进行压缩。
+- en: Events that are logged using statement-based binary logging. Binary log transaction
+    compression is only applied for the row-based binary logging format.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用基于语句的二进制日志记录的事件。二进制日志事务压缩仅适用于基于行的二进制日志格式。
+- en: Binary log encryption can be used on binary log files that contain compressed
+    transactions.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以在包含压缩事务的二进制日志文件上使用二进制日志加密。
+- en: 7.4.4.5.1 Behaviors When Binary Log Transaction Compression is Enabled
+  id: totrans-16
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.4.4.5.1 启用二进制日志事务压缩时的行为
+- en: Transactions with payloads that are compressed can be rolled back like any other
+    transaction, and they can also be filtered out on a replica by the usual filtering
+    options. Binary log transaction compression can be applied to XA transactions.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 具有压缩有效负载的事务可以像任何其他事务一样回滚，并且也可以通过常规过滤选项在副本中过滤掉。二进制日志事务压缩可以应用于XA事务。
+- en: When binary log transaction compression is enabled, the [`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)
+    and [`replica_max_allowed_packet`](replication-options-replica.html#sysvar_replica_max_allowed_packet)
+    or [`slave_max_allowed_packet`](replication-options-replica.html#sysvar_slave_max_allowed_packet)
+    limits for the server still apply, and are measured on the compressed size of
+    the `Transaction_payload_event`, plus the bytes used for the event header.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当启用二进制日志事务压缩时，服务器的[`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)和[`replica_max_allowed_packet`](replication-options-replica.html#sysvar_replica_max_allowed_packet)或[`slave_max_allowed_packet`](replication-options-replica.html#sysvar_slave_max_allowed_packet)限制仍然适用，并且是基于`Transaction_payload_event`的压缩大小加上事件头使用的字节进行计量。
+- en: Important
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: Compressed transaction payloads are sent as a single packet, rather than each
+    event of the transaction being sent in an individual packet, as is the case when
+    binary log transaction compression is not in use. If your replication topology
+    handles large transactions, be aware that a large transaction which can be replicated
+    successfully when binary log transaction compression is not in use, might stop
+    replication due to its size when binary log transaction compression is in use.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 压缩事务负载作为一个单独的数据包发送，而不是在未使用二进制日志事务压缩时，将事务的每个事件作为单独的数据包发送。如果您的复制拓扑处理大型事务，请注意，当使用二进制日志事务压缩时，一个在未使用二进制日志事务压缩时可以成功复制的大型事务，可能由于其大小而停止复制。
+- en: For multithreaded workers, each transaction (including its GTID event and `Transaction_payload_event`)
+    is assigned to a worker thread. The worker thread decompresses the transaction
+    payload and applies the individual events in it one by one. If an error is found
+    applying any event within the `Transaction_payload_event`, the complete transaction
+    is reported to the co-ordinator as having failed. When [`replica_parallel_type`](replication-options-replica.html#sysvar_replica_parallel_type)
+    or [`slave_parallel_type`](replication-options-replica.html#sysvar_slave_parallel_type)
+    is set to `DATABASE`, all the databases affected by the transaction are mapped
+    before the transaction is scheduled. The use of binary log transaction compression
+    with the `DATABASE` policy can reduce parallelism compared to uncompressed transactions,
+    which are mapped and scheduled for each event.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于多线程工作者，每个事务（包括其GTID事件和`Transaction_payload_event`）被分配给一个工作线程。工作线程解压缩事务负载，并逐个应用其中的各个事件。如果在`Transaction_payload_event`中应用任何事件时发现错误，则将报告整个事务失败给协调者。当[`replica_parallel_type`](replication-options-replica.html#sysvar_replica_parallel_type)或[`slave_parallel_type`](replication-options-replica.html#sysvar_slave_parallel_type)设置为`DATABASE`时，事务调度之前将受事务影响的所有数据库映射。与未压缩事务相比，使用二进制日志事务压缩与`DATABASE`策略可以减少并行性，后者将每个事件映射并调度。
+- en: For semisynchronous replication (see [Section 19.4.10, “Semisynchronous Replication”](replication-semisync.html
+    "19.4.10 Semisynchronous Replication")), the replica acknowledges the transaction
+    when the complete `Transaction_payload_event` has been received.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于半同步复制（参见[Section 19.4.10, “Semisynchronous Replication”](replication-semisync.html
+    "19.4.10 Semisynchronous Replication"))，当完整的`Transaction_payload_event`被接收时，副本确认事务。
+- en: When binary log checksums are enabled (which is the default), the replication
+    source server does not write checksums for individual events in a compressed transaction
+    payload. Instead, a checksum is written for the complete `Transaction_payload_event`,
+    and individual checksums are written for any events that were not compressed,
+    such as events relating to GTIDs.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当启用二进制日志校验和（这是默认设置）时，复制源服务器不会为压缩事务负载中的单个事件写入校验和。相反，为完整的`Transaction_payload_event`写入校验和，并为未压缩的任何事件写入单独的校验和，例如与GTID相关的事件。
+- en: For the [`SHOW BINLOG EVENTS`](show-binlog-events.html "15.7.7.2 SHOW BINLOG
+    EVENTS Statement") and [`SHOW RELAYLOG EVENTS`](show-relaylog-events.html "15.7.7.32 SHOW
+    RELAYLOG EVENTS Statement") statements, the `Transaction_payload_event` is first
+    printed as a single unit, then it is unpacked and each event inside it is printed.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`SHOW BINLOG EVENTS`](show-binlog-events.html "15.7.7.2 SHOW BINLOG EVENTS
+    Statement")和[`SHOW RELAYLOG EVENTS`](show-relaylog-events.html "15.7.7.32 SHOW
+    RELAYLOG EVENTS Statement")语句，`Transaction_payload_event`首先作为一个单元打印，然后解压缩并打印其中的每个事件。
+- en: For operations that reference the end position of an event, such as [`START
+    REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement") (or before MySQL
+    8.0.22, [`START SLAVE`](start-slave.html "15.4.2.7 START SLAVE Statement")) with
+    the `UNTIL` clause, [`SOURCE_POS_WAIT()`](replication-functions-synchronization.html#function_source-pos-wait)
+    or [`MASTER_POS_WAIT()`](replication-functions-synchronization.html#function_master-pos-wait),
+    and [`sql_replica_skip_counter`](replication-options-replica.html#sysvar_sql_replica_skip_counter)
+    or [`sql_slave_skip_counter`](replication-options-replica.html#sysvar_sql_slave_skip_counter),
+    you must specify the end position of the compressed transaction payload (the `Transaction_payload_event`).
+    When skipping events using [`sql_replica_skip_counter`](replication-options-replica.html#sysvar_sql_replica_skip_counter)
+    or [`sql_slave_skip_counter`](replication-options-replica.html#sysvar_sql_slave_skip_counter),
+    a compressed transaction payload is counted as a single counter value, so all
+    the events inside it are skipped as a unit.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于引用事件结束位置的操作，比如[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA
+    Statement")（或在MySQL 8.0.22之前的版本中，[`START SLAVE`](start-slave.html "15.4.2.7 START
+    SLAVE Statement")）带有`UNTIL`子句，[`SOURCE_POS_WAIT()`](replication-functions-synchronization.html#function_source-pos-wait)或[`MASTER_POS_WAIT()`](replication-functions-synchronization.html#function_master-pos-wait)，以及[`sql_replica_skip_counter`](replication-options-replica.html#sysvar_sql_replica_skip_counter)或[`sql_slave_skip_counter`](replication-options-replica.html#sysvar_sql_slave_skip_counter)，您必须指定压缩事务有效载荷（`Transaction_payload_event`）的结束位置。当使用[`sql_replica_skip_counter`](replication-options-replica.html#sysvar_sql_replica_skip_counter)或[`sql_slave_skip_counter`](replication-options-replica.html#sysvar_sql_slave_skip_counter)跳过事件时，压缩的事务有效载荷被计为单个计数器值，因此其中的所有事件都作为一个单元被跳过。
+- en: 7.4.4.5.2 Combining Compressed and Uncompressed Transaction Payloads
+  id: totrans-26
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.4.4.5.2 组合压缩和未压缩的事务有效载荷
+- en: MySQL Server releases that support binary log transaction compression can handle
+    a mix of compressed and uncompressed transaction payloads.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 支持二进制日志事务压缩的MySQL服务器版本可以处理压缩和未压缩的事务有效载荷的混合。
+- en: The system variables relating to binary log transaction compression do not need
+    to be set the same on all Group Replication group members, and are not replicated
+    from sources to replicas in a replication topology. You can decide whether or
+    not binary log transaction compression is appropriate for each MySQL Server instance
+    that has a binary log.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与二进制日志事务压缩相关的系统变量不需要在所有组复制组成员上设置相同，并且不会从源复制到副本在复制拓扑中。您可以决定是否对具有二进制日志的每个MySQL服务器实例启用二进制日志事务压缩。
+- en: If transaction compression is enabled then disabled on a server, compression
+    is not applied to future transactions originated on that server, but transaction
+    payloads that have been compressed can still be handled and displayed.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了事务压缩，然后在服务器上禁用了压缩，则未来在该服务器上发起的事务不会应用压缩，但已经压缩的事务有效载荷仍然可以被处理和显示。
+- en: If transaction compression is specified for individual sessions by setting the
+    session value of [`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression),
+    the binary log can contain a mix of compressed and uncompressed transaction payloads.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果通过设置[`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression)的会话值为个别会话指定了事务压缩，则二进制日志可以包含压缩和未压缩的事务有效载荷的混合。
+- en: When a source in a replication topology and its replica both have binary log
+    transaction compression enabled, the replica receives compressed transaction payloads
+    and writes them compressed to its relay log. It decompresses the transaction payloads
+    to apply the transactions, and then compresses them again after applying for writing
+    to its binary log. Any downstream replicas receive the compressed transaction
+    payloads.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当复制拓扑中的源和其副本都启用了二进制日志事务压缩时，副本接收压缩的事务有效载荷并将其压缩写入其中继日志。它解压事务有效载荷以应用事务，然后在应用后再次压缩以写入其二进制日志。任何下游副本都会接收压缩的事务有效载荷。
+- en: When a source in a replication topology has binary log transaction compression
+    enabled but its replica does not, the replica receives compressed transaction
+    payloads and writes them compressed to its relay log. It decompresses the transaction
+    payloads to apply the transactions, and then writes them uncompressed to its own
+    binary log, if it has one. Any downstream replicas receive the uncompressed transaction
+    payloads.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当复制拓扑中的源具有启用二进制日志事务压缩，但其副本没有启用时，副本接收压缩的事务有效载荷并将其压缩写入其中继日志。它解压事务有效载荷以应用事务，然后将其未压缩写入其自己的二进制日志（如果有）。任何下游副本接收未压缩的事务有效载荷。
+- en: When a source in a replication topology does not have binary log transaction
+    compression enabled but its replica does, if the replica has a binary log, it
+    compresses the transaction payloads after applying them, and writes the compressed
+    transaction payloads to its binary log. Any downstream replicas receive the compressed
+    transaction payloads.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当复制拓扑中的源没有启用二进制日志事务压缩，但其副本启用时，如果副本具有二进制日志，则在应用事务后压缩事务有效载荷，并将压缩的事务有效载荷写入其二进制日志。任何下游副本接收压缩的事务有效载荷。
+- en: When a MySQL server instance has no binary log, if it is at a release from MySQL
+    8.0.20, it can receive, handle, and display compressed transaction payloads regardless
+    of its value for [`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression).
+    Compressed transaction payloads received by such server instances are written
+    in their compressed state to the relay log, so they benefit indirectly from compression
+    that was carried out by other servers in the replication topology.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当MySQL服务器实例没有二进制日志时，如果它是来自MySQL 8.0.20的版本，则无论其对[`binlog_transaction_compression`](replication-options-binary-log.html#sysvar_binlog_transaction_compression)的值如何，它都可以接收、处理和显示压缩的事务有效载荷。这些服务器实例接收的压缩事务有效载荷以其压缩状态写入中继日志，因此它们间接受益于复制拓扑中其他服务器执行的压缩。
+- en: A replica at a release before MySQL 8.0.20 cannot replicate from a source with
+    binary log transaction compression enabled. A replica at or above MySQL 8.0.20
+    can replicate from a source at an earlier release that does not support binary
+    log transaction compression, and can carry out its own compression on transactions
+    received from that source when writing them to its own binary log.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.20之前的版本的副本无法从启用二进制日志事务压缩的源进行复制。MySQL 8.0.20或更高版本的副本可以从不支持二进制日志事务压缩的早期版本的源进行复制，并在将其写入自己的二进制日志时对从该源接收的事务进行自己的压缩。
+- en: 7.4.4.5.3 Monitoring Binary Log Transaction Compression
+  id: totrans-36
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 7.4.4.5.3 监视二进制日志事务压缩
+- en: You can monitor the effects of binary log transaction compression using the
+    Performance Schema table [`binary_log_transaction_compression_stats`](performance-schema-binary-log-transaction-compression-stats-table.html
+    "29.12.11.16 The binary_log_transaction_compression_stats Table"). The statistics
+    include the data compression ratio for the monitored period, and you can also
+    view the effect of compression on the last transaction on the server. You can
+    reset the statistics by truncating the table. Statistics for binary logs and relay
+    logs are split out so you can see the impact of compression for each log type.
+    The MySQL server instance must have a binary log to produce these statistics.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用性能模式表[`binary_log_transaction_compression_stats`](performance-schema-binary-log-transaction-compression-stats-table.html
+    "29.12.11.16 The binary_log_transaction_compression_stats Table")监视二进制日志事务压缩的影响。统计数据包括监控期间的数据压缩比率，您还可以查看压缩对服务器上最后一个事务的影响。您可以通过截断表来重置统计信息。二进制日志和中继日志的统计数据是分开的，因此您可以看到每种日志类型的压缩影响。MySQL服务器实例必须具有二进制日志才能生成这些统计信息。
+- en: The Performance Schema table [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 The events_stages_current Table") shows when a transaction is in the
+    stage of decompression or compression for its transaction payload, and displays
+    its progress for this stage. Compression is carried out by the worker thread handling
+    the transaction, just before the transaction is committed, provided that there
+    are no events in the finalized capture cache that exclude the transaction from
+    binary log transaction compression (for example, incident events). When decompression
+    is required, it is carried out for one event from the payload at a time.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema 表 [`events_stages_current`](performance-schema-events-stages-current-table.html
+    "29.12.5.1 events_stages_current 表") 显示事务何时处于解压缩或压缩阶段，以及显示该阶段的进度。压缩是由处理事务的工作线程在事务提交之前执行的，前提是在最终捕获缓存中没有排除事务的事件（例如，事故事件）。当需要解压缩时，会逐个事件从有效载荷中进行解压缩。
+- en: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") with the [`--verbose`](mysqlbinlog.html#option_mysqlbinlog_verbose)
+    option includes comments stating the compressed size and the uncompressed size
+    for compressed transaction payloads, and the compression algorithm that was used.'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")
+    使用 [`--verbose`](mysqlbinlog.html#option_mysqlbinlog_verbose) 选项时，会包含注释，说明压缩事务有效载荷的压缩大小和未压缩大小，以及所使用的压缩算法。'
+- en: You can enable connection compression at the protocol level for replication
+    connections, using the `SOURCE_COMPRESSION_ALGORITHMS` | `MASTER_COMPRESSION_ALGORITHMS`
+    and `SOURCE_ZSTD_COMPRESSION_LEVEL` | `MASTER_ZSTD_COMPRESSION_LEVEL`options of
+    the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") statement (from MySQL 8.0.23) or [`CHANGE MASTER
+    TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement") statement (before
+    MySQL 8.0.23), or the [`replica_compressed_protocol`](replication-options-replica.html#sysvar_replica_compressed_protocol)
+    or [`slave_compressed_protocol`](replication-options-replica.html#sysvar_slave_compressed_protocol)
+    system variable. If you enable binary log transaction compression in a system
+    where connection compression is also enabled, the impact of connection compression
+    is reduced, as there might be little opportunity to further compress the compressed
+    transaction payloads. However, connection compression can still operate on uncompressed
+    events and on message headers. Binary log transaction compression can be enabled
+    in combination with connection compression if you need to save storage space as
+    well as network bandwidth. For more information on connection compression for
+    replication connections, see [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 Connection Compression Control").
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在复制连接的协议级别启用连接压缩，使用 [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO 语句") 语句（从 MySQL 8.0.23 开始）或 [`CHANGE MASTER
+    TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO 语句") 语句（在 MySQL 8.0.23 之前），或
+    [`replica_compressed_protocol`](replication-options-replica.html#sysvar_replica_compressed_protocol)
+    或 [`slave_compressed_protocol`](replication-options-replica.html#sysvar_slave_compressed_protocol)
+    系统变量的 `SOURCE_COMPRESSION_ALGORITHMS` | `MASTER_COMPRESSION_ALGORITHMS` 和 `SOURCE_ZSTD_COMPRESSION_LEVEL`
+    | `MASTER_ZSTD_COMPRESSION_LEVEL` 选项。如果在启用连接压缩的系统中启用了二进制日志事务压缩，连接压缩的影响会减小，因为可能很少有机会进一步压缩已经压缩的事务有效载荷。但是，连接压缩仍然可以操作未压缩的事件和消息头。如果您需要节省存储空间以及网络带宽，可以在启用连接压缩的情况下启用二进制日志事务压缩。有关复制连接的连接压缩的更多信息，请参见
+    [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 连接压缩控制")。
+- en: For Group Replication, compression is enabled by default for messages that exceed
+    the threshold set by the [`group_replication_compression_threshold`](group-replication-system-variables.html#sysvar_group_replication_compression_threshold)
+    system variable. You can also configure compression for messages sent for distributed
+    recovery by the method of state transfer from a donor's binary log, using the
+    [`group_replication_recovery_compression_algorithms`](group-replication-system-variables.html#sysvar_group_replication_recovery_compression_algorithms)
+    and [`group_replication_recovery_zstd_compression_level`](group-replication-system-variables.html#sysvar_group_replication_recovery_zstd_compression_level)
+    system variables. If you enable binary log transaction compression in a system
+    where these are configured, Group Replication's message compression can still
+    operate on uncompressed events and on message headers, but its impact is reduced.
+    For more information on message compression for Group Replication, see [Section 20.7.4,
+    “Message Compression”](group-replication-message-compression.html "20.7.4 Message
+    Compression").
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于组复制，当消息超过[`group_replication_compression_threshold`](group-replication-system-variables.html#sysvar_group_replication_compression_threshold)系统变量设置的阈值时，默认启用压缩。您还可以通过使用[`group_replication_recovery_compression_algorithms`](group-replication-system-variables.html#sysvar_group_replication_recovery_compression_algorithms)和[`group_replication_recovery_zstd_compression_level`](group-replication-system-variables.html#sysvar_group_replication_recovery_zstd_compression_level)系统变量，为从捐赠者的二进制日志进行状态传输的消息配置压缩。如果在配置了这些内容的系统中启用了二进制日志事务压缩，组复制的消息压缩仍然可以在未压缩事件和消息头上运行，但其影响会减小。有关组复制消息压缩的更多信息，请参见[第20.7.4节，“消息压缩”](group-replication-message-compression.html
+    "20.7.4 消息压缩")。

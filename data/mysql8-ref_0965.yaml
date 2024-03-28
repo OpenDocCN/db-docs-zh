@@ -1,0 +1,218 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html](https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html](https://dev.mysql.com/doc/refman/8.0/en/lateral-derived-tables.html)
+- en: 15.2.15.9 Lateral Derived Tables
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.2.15.9 侧向派生表
+- en: A derived table cannot normally refer to (depend on) columns of preceding tables
+    in the same `FROM` clause. As of MySQL 8.0.14, a derived table may be defined
+    as a lateral derived table to specify that such references are permitted.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常，派生表不能引用同一`FROM`子句中之前表的列。从MySQL 8.0.14开始，可以将派生表定义为侧向派生表，以指定允许这种引用。
+- en: Nonlateral derived tables are specified using the syntax discussed in [Section 15.2.15.8,
+    “Derived Tables”](derived-tables.html "15.2.15.8 Derived Tables"). The syntax
+    for a lateral derived table is the same as for a nonlateral derived table except
+    that the keyword `LATERAL` is specified before the derived table specification.
+    The `LATERAL` keyword must precede each table to be used as a lateral derived
+    table.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非侧向派生表使用[第 15.2.15.8 节“派生表”](derived-tables.html "15.2.15.8 派生表")中讨论的语法来指定。侧向派生表的语法与非侧向派生表相同，只是在派生表规范之前指定了关键字`LATERAL`。`LATERAL`关键字必须在每个要用作侧向派生表的表之前。
+- en: 'Lateral derived tables are subject to these restrictions:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 侧向派生表受到以下限制：
+- en: A lateral derived table can occur only in a `FROM` clause, either in a list
+    of tables separated with commas or in a join specification (`JOIN`, `INNER JOIN`,
+    `CROSS JOIN`, `LEFT [OUTER] JOIN`, or `RIGHT [OUTER] JOIN`).
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 侧向派生表只能出现在`FROM`子句中，可以是用逗号分隔的表列表，也可以是连接规范（`JOIN`、`INNER JOIN`、`CROSS JOIN`、`LEFT
+    [OUTER] JOIN`或`RIGHT [OUTER] JOIN`）中。
+- en: If a lateral derived table is in the right operand of a join clause and contains
+    a reference to the left operand, the join operation must be an `INNER JOIN`, `CROSS
+    JOIN`, or `LEFT [OUTER] JOIN`.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个侧向派生表在连接子句的右操作数中，并且包含对左操作数的引用，则连接操作必须是`INNER JOIN`、`CROSS JOIN`或`LEFT [OUTER]
+    JOIN`。
+- en: If the table is in the left operand and contains a reference to the right operand,
+    the join operation must be an `INNER JOIN`, `CROSS JOIN`, or `RIGHT [OUTER] JOIN`.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果表在左操作数中，并且包含对右操作数的引用，则连接操作必须是`INNER JOIN`、`CROSS JOIN`或`RIGHT [OUTER] JOIN`。
+- en: If a lateral derived table references an aggregate function, the function's
+    aggregation query cannot be the one that owns the `FROM` clause in which the lateral
+    derived table occurs.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个侧向派生表引用了一个聚合函数，则该函数的聚合查询不能是包含侧向派生表的`FROM`子句所属的查询。
+- en: In accordance with the SQL standard, MySQL always treats a join with a table
+    function such as [`JSON_TABLE()`](json-table-functions.html#function_json-table)
+    as though `LATERAL` had been used. This is true regardless of MySQL release version,
+    which is why it is possible to join against this function even in MySQL versions
+    prior to 8.0.14\. In MySQL 8.0.14 and later, the `LATERAL` keyword is implicit,
+    and is not allowed before `JSON_TABLE()`. This is also according to the SQL standard.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 根据SQL标准，MySQL始终将与表函数（如[`JSON_TABLE()`](json-table-functions.html#function_json-table)）的连接视为已使用`LATERAL`。这在MySQL的任何版本中都是正确的，这就是为什么即使在MySQL
+    8.0.14之前的版本中也可以针对此函数进行连接。在MySQL 8.0.14及更高版本中，`LATERAL`关键字是隐式的，并且不允许在`JSON_TABLE()`之前使用。这也符合SQL标准。
+- en: The following discussion shows how lateral derived tables make possible certain
+    SQL operations that cannot be done with nonlateral derived tables or that require
+    less-efficient workarounds.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下讨论显示了侧向派生表如何使得某些SQL操作成为可能，这些操作无法通过非侧向派生表完成，或者需要更低效的解决方法。
+- en: 'Suppose that we want to solve this problem: Given a table of people in a sales
+    force (where each row describes a member of the sales force), and a table of all
+    sales (where each row describes a sale: salesperson, customer, amount, date),
+    determine the size and customer of the largest sale for each salesperson. This
+    problem can be approached two ways.'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设我们想解决这个问题：给定一个销售团队成员的表（其中每行描述一个销售团队成员），以及所有销售的表（其中每行描述一笔销售：销售人员、客户、金额、日期），确定每个销售人员的最大销售额及其客户。这个问题可以有两种方法来解决。
+- en: 'First approach to solving the problem: For each salesperson, calculate the
+    maximum sale size, and also find the customer who provided this maximum. In MySQL,
+    that can be done like this:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 解决问题的第一种方法：对于每个销售人员，计算最大销售额，并找到提供此最大销售额的客户。在MySQL中，可以这样做：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: That query is inefficient because it calculates the maximum size twice per salesperson
+    (once in the first subquery and once in the second).
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 那个查询是低效的，因为它在每个销售人员中计算最大尺寸两次（在第一个子查询中一次，在第二个子查询中一次）。
+- en: 'We can try to achieve an efficiency gain by calculating the maximum once per
+    salesperson and “caching” it in a derived table, as shown by this modified query:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以尝试通过在每个销售人员中计算最大值并在派生表中“缓存”它来实现效率提升，如这个修改后的查询所示：
+- en: '[PRE1]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'However, the query is illegal in SQL-92 because derived tables cannot depend
+    on other tables in the same `FROM` clause. Derived tables must be constant over
+    the query''s duration, not contain references to columns of other `FROM` clause
+    tables. As written, the query produces this error:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，在 SQL-92 中，该查询是非法的，因为派生表不能依赖于同一 `FROM` 子句中的其他表。派生表必须在查询的持续时间内保持恒定，不能包含对其他
+    `FROM` 子句表列的引用。如此编写的查询会产生以下错误：
+- en: '[PRE2]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'In SQL:1999, the query becomes legal if the derived tables are preceded by
+    the `LATERAL` keyword (which means “this derived table depends on previous tables
+    on its left side”):'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 SQL:1999 中，如果派生表前面有 `LATERAL` 关键字（表示“这个派生表依赖于其左侧的先前表”），则查询变得合法：
+- en: '[PRE3]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: A lateral derived table need not be constant and is brought up to date each
+    time a new row from a preceding table on which it depends is processed by the
+    top query.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个侧向派生表不需要是恒定的，并且每当依赖的前一个表中的新行被顶层查询处理时，它就会被更新。
+- en: 'Second approach to solving the problem: A different solution could be used
+    if a subquery in the [`SELECT`](select.html "15.2.13 SELECT Statement") list could
+    return multiple columns:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 解决问题的第二种方法：如果 [`SELECT`](select.html "15.2.13 SELECT Statement") 列表中的子查询可以返回多列，则可以使用不同的解决方案：
+- en: '[PRE4]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'That is efficient but illegal. It does not work because such subqueries can
+    return only a single column:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 那是高效的但是非法的。它不起作用，因为这样的子查询只能返回单列：
+- en: '[PRE5]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'One attempt at rewriting the query is to select multiple columns from a derived
+    table:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重写查询的一种尝试是从派生表中选择多列：
+- en: '[PRE6]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'However, that also does not work. The derived table is dependent on the `salesperson`
+    table and thus fails without `LATERAL`:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，那也不起作用。派生表依赖于 `salesperson` 表，因此在没有 `LATERAL` 的情况下失败：
+- en: '[PRE7]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Adding the `LATERAL` keyword makes the query legal:'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 添加 `LATERAL` 关键字使查询合法：
+- en: '[PRE8]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: In short, `LATERAL` is the efficient solution to all drawbacks in the two approaches
+    just discussed.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 简而言之，`LATERAL` 是刚刚讨论的两种方法中所有缺点的高效解决方案。

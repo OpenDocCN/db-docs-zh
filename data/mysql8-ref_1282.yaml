@@ -1,0 +1,75 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-memcached.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-memcached.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-memcached.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-memcached-porting-memcached.html)
+- en: 17.20.6.2 Adapting a memcached Application for the InnoDB memcached Plugin
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.20.6.2 调整 memcached 应用以适配 InnoDB memcached 插件
+- en: 'Consider these aspects of MySQL and `InnoDB` tables when adapting existing
+    **memcached** applications to use the `daemon_memcached` plugin:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在将现有的**memcached**应用程序调整为使用`daemon_memcached`插件时，请考虑MySQL和`InnoDB`表的这些方面：
+- en: If there are key values longer than a few bytes, it may be more efficient to
+    use a numeric auto-increment column as the [primary key](glossary.html#glos_primary_key
+    "primary key") of the `InnoDB` table, and to create a unique [secondary index](glossary.html#glos_secondary_index
+    "secondary index") on the column that contains the **memcached** key values. This
+    is because `InnoDB` performs best for large-scale insertions if primary key values
+    are added in sorted order (as they are with auto-increment values). Primary key
+    values are included in secondary indexes, which takes up unnecessary space if
+    the primary key is a long string value.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果键值长于几个字节，最好在`InnoDB`表的[主键](glossary.html#glos_primary_key "primary key")上使用数值自增列，并在包含**memcached**键值的列上创建唯一的[二级索引](glossary.html#glos_secondary_index
+    "secondary index")可能更有效。这是因为如果主键值按排序顺序添加（就像使用自增值一样），`InnoDB`在大规模插入时表现最佳。主键值包含在二级索引中，如果主键是长字符串值，则会占用不必要的空间。
+- en: If you store several different classes of information using **memcached**, consider
+    setting up a separate `InnoDB` table for each type of data. Define additional
+    table identifiers in the `innodb_memcache.containers` table, and use the `@@*`table_id`*.*`key`*`
+    notation to store and retrieve items from different tables. Physically dividing
+    different types of information allows you tune the characteristics of each table
+    for optimum space utilization, performance, and reliability. For example, you
+    might enable [compression](glossary.html#glos_compression "compression") for a
+    table that holds blog posts, but not for a table that holds thumbnail images.
+    You might back up one table more frequently than another because it holds critical
+    data. You might create additional [secondary indexes](glossary.html#glos_secondary_index
+    "secondary index") on tables that are frequently used to generate reports using
+    SQL.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您使用**memcached**存储多种不同类别的信息，请考虑为每种数据类型设置单独的`InnoDB`表。在`innodb_memcache.containers`表中定义额外的表标识符，并使用`@@*`table_id`*.*`key`*`的表示法来存储和检索来自不同表的项目。物理上划分不同类型的信息允许您调整每个表的特性，以实现最佳的空间利用率、性能和可靠性。例如，您可以为保存博客文章的表启用[压缩](glossary.html#glos_compression
+    "compression")，但不为保存缩略图图像的表启用。您可能更频繁地备份一个表，因为它包含关键数据。您可能在经常用于生成报告的表上创建额外的[二级索引](glossary.html#glos_secondary_index
+    "secondary index")。
+- en: Preferably, configure a stable set of table definitions for use with the **daemon_memcached**
+    plugin, and leave the tables in place permanently. Changes to the `innodb_memcache.containers`
+    table take effect the next time the `innodb_memcache.containers` table is queried.
+    Entries in the containers table are processed at startup, and are consulted whenever
+    an unrecognized table identifier (as defined by `containers.name`) is requested
+    using `@@` notation. Thus, new entries are visible as soon as you use the associated
+    table identifier, but changes to existing entries require a server restart before
+    they take effect.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 最好为与**daemon_memcached**插件一起使用的表定义一个稳定的表定义，并永久保留这些表。对`innodb_memcache.containers`表的更改将在下次查询`innodb_memcache.containers`表时生效。容器表中的条目在启动时被处理，并且在使用`@@`表示法请求未识别的表标识符（由`containers.name`定义）时会被查询。因此，只要使用相关的表标识符，新条目就会立即可见，但对现有条目的更改需要在生效之前重新启动服务器。
+- en: When you use the default `innodb_only` caching policy, calls to `add()`, `set()`,
+    `incr()`, and so on can succeed but still trigger debugging messages such as `while
+    expecting 'STORED', got unexpected response 'NOT_STORED`. Debug messages occur
+    because new and updated values are sent directly to the `InnoDB` table without
+    being saved in the memory cache, due to the `innodb_only` caching policy.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当您使用默认的`innodb_only`缓存策略时，对`add()`、`set()`、`incr()`等的调用可能会成功，但仍会触发调试消息，如`while
+    expecting 'STORED', got unexpected response 'NOT_STORED`。调试消息的出现是因为新值和更新值直接发送到`InnoDB`表，而不保存在内存缓存中，这是由于`innodb_only`缓存策略导致的。

@@ -1,0 +1,1074 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/range-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/range-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/range-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/range-optimization.html)
+- en: 10.2.1.2 Range Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.2 范围优化
+- en: The [`range`](explain-output.html#jointype_range) access method uses a single
+    index to retrieve a subset of table rows that are contained within one or several
+    index value intervals. It can be used for a single-part or multiple-part index.
+    The following sections describe conditions under which the optimizer uses range
+    access.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`range`](explain-output.html#jointype_range) 访问方法使用单个索引检索包含在一个或多个索引值区间内的表行子集。它可用于单部分或多部分索引。以下部分描述了优化器在何种条件下使用范围访问。'
+- en: '[Range Access Method for Single-Part Indexes](range-optimization.html#range-access-single-part
+    "Range Access Method for Single-Part Indexes")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[单部分索引的范围访问方法](range-optimization.html#range-access-single-part "单部分索引的范围访问方法")'
+- en: '[Range Access Method for Multiple-Part Indexes](range-optimization.html#range-access-multi-part
+    "Range Access Method for Multiple-Part Indexes")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[多部分索引的范围访问方法](range-optimization.html#range-access-multi-part "多部分索引的范围访问方法")'
+- en: '[Equality Range Optimization of Many-Valued Comparisons](range-optimization.html#equality-range-optimization
+    "Equality Range Optimization of Many-Valued Comparisons")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[多值比较的等值范围优化](range-optimization.html#equality-range-optimization "多值比较的等值范围优化")'
+- en: '[Skip Scan Range Access Method](range-optimization.html#range-access-skip-scan
+    "Skip Scan Range Access Method")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[跳过扫描范围访问方法](range-optimization.html#range-access-skip-scan "跳过扫描范围访问方法")'
+- en: '[Range Optimization of Row Constructor Expressions](range-optimization.html#row-constructor-range-optimization
+    "Range Optimization of Row Constructor Expressions")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[行构造表达式的范围优化](range-optimization.html#row-constructor-range-optimization "行构造表达式的范围优化")'
+- en: '[Limiting Memory Use for Range Optimization](range-optimization.html#range-optimization-memory-use
+    "Limiting Memory Use for Range Optimization")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[限制范围优化的内存使用](range-optimization.html#range-optimization-memory-use "限制范围优化的内存使用")'
+- en: Range Access Method for Single-Part Indexes
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 单部分索引的范围访问方法
+- en: For a single-part index, index value intervals can be conveniently represented
+    by corresponding conditions in the `WHERE` clause, denoted as range conditions
+    rather than “intervals.”
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于单部分索引，索引值区间可以通过`WHERE`子句中对应的条件方便地表示，表示为范围条件而不是“区间”。
+- en: 'The definition of a range condition for a single-part index is as follows:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 单部分索引的范围条件定义如下：
+- en: For both `BTREE` and `HASH` indexes, comparison of a key part with a constant
+    value is a range condition when using the [`=`](comparison-operators.html#operator_equal),
+    [`<=>`](comparison-operators.html#operator_equal-to), [`IN()`](comparison-operators.html#operator_in),
+    [`IS NULL`](comparison-operators.html#operator_is-null), or [`IS NOT NULL`](comparison-operators.html#operator_is-not-null)
+    operators.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`BTREE`和`HASH`索引，当使用[`=`](comparison-operators.html#operator_equal)、[`<=>`](comparison-operators.html#operator_equal-to)、[`IN()`](comparison-operators.html#operator_in)、[`IS
+    NULL`](comparison-operators.html#operator_is-null)或[`IS NOT NULL`](comparison-operators.html#operator_is-not-null)运算符进行键部分与常量值的比较时，为范围条件。
+- en: Additionally, for `BTREE` indexes, comparison of a key part with a constant
+    value is a range condition when using the [`>`](comparison-operators.html#operator_greater-than),
+    [`<`](comparison-operators.html#operator_less-than), [`>=`](comparison-operators.html#operator_greater-than-or-equal),
+    [`<=`](comparison-operators.html#operator_less-than-or-equal), [`BETWEEN`](comparison-operators.html#operator_between),
+    [`!=`](comparison-operators.html#operator_not-equal), or [`<>`](comparison-operators.html#operator_not-equal)
+    operators, or [`LIKE`](string-comparison-functions.html#operator_like) comparisons
+    if the argument to [`LIKE`](string-comparison-functions.html#operator_like) is
+    a constant string that does not start with a wildcard character.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此外，对于`BTREE`索引，当使用[`>`](comparison-operators.html#operator_greater-than)、[`<`](comparison-operators.html#operator_less-than)、[`>=`](comparison-operators.html#operator_greater-than-or-equal)、[`<=`](comparison-operators.html#operator_less-than-or-equal)、[`BETWEEN`](comparison-operators.html#operator_between)、[`!=`](comparison-operators.html#operator_not-equal)或[`<>`](comparison-operators.html#operator_not-equal)运算符进行键部分与常量值的比较，或者对于[`LIKE`](string-comparison-functions.html#operator_like)比较，如果[`LIKE`](string-comparison-functions.html#operator_like)的参数是不以通配符字符开头的常量字符串，则为范围条件。
+- en: For all index types, multiple range conditions combined with [`OR`](logical-operators.html#operator_or)
+    or [`AND`](logical-operators.html#operator_and) form a range condition.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于所有索引类型，多个范围条件与[`OR`](logical-operators.html#operator_or)或[`AND`](logical-operators.html#operator_and)组合形成一个范围条件。
+- en: '“Constant value” in the preceding descriptions means one of the following:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在前述描述中，“常量值”指以下之一：
+- en: A constant from the query string
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 来自查询字符串的一个常量
+- en: A column of a [`const`](explain-output.html#jointype_const) or [`system`](explain-output.html#jointype_system)
+    table from the same join
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 来自相同连接的[`const`](explain-output.html#jointype_const)或[`system`](explain-output.html#jointype_system)表的列
+- en: The result of an uncorrelated subquery
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个无关子查询的结果
+- en: Any expression composed entirely from subexpressions of the preceding types
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由前述类型的子表达式完全组成的任何表达式
+- en: 'Here are some examples of queries with range conditions in the `WHERE` clause:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下是一些在`WHERE`子句中具有范围条件的查询示例：
+- en: '[PRE0]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Some nonconstant values may be converted to constants during the optimizer constant
+    propagation phase.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器常量传播阶段可能会将一些非常量值转换为常量。
+- en: MySQL tries to extract range conditions from the `WHERE` clause for each of
+    the possible indexes. During the extraction process, conditions that cannot be
+    used for constructing the range condition are dropped, conditions that produce
+    overlapping ranges are combined, and conditions that produce empty ranges are
+    removed.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL尝试从`WHERE`子句中提取每个可能索引的范围条件。在提取过程中，无法用于构建范围条件的条件被丢弃，产生重叠范围的条件被合并，产生空范围的条件被移除。
+- en: 'Consider the following statement, where `key1` is an indexed column and `nonkey`
+    is not indexed:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下语句，其中`key1`是一个索引列，而`nonkey`不是索引列：
+- en: '[PRE1]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The extraction process for key `key1` is as follows:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对`key1`的提取过程如下：
+- en: 'Start with original `WHERE` clause:'
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从原始`WHERE`子句开始：
+- en: '[PRE2]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Remove `nonkey = 4` and `key1 LIKE ''%b''` because they cannot be used for
+    a range scan. The correct way to remove them is to replace them with `TRUE`, so
+    that we do not miss any matching rows when doing the range scan. Replacing them
+    with `TRUE` yields:'
+  id: totrans-29
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 移除`nonkey = 4`和`key1 LIKE '%b'`，因为它们不能用于范围扫描。正确的做法是用`TRUE`替换它们，这样在进行范围扫描时不会错过任何匹配的行。将它们替换为`TRUE`得到：
+- en: '[PRE3]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Collapse conditions that are always true or false:'
+  id: totrans-31
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 合并始终为真或假的条件：
+- en: '`(key1 LIKE ''abcde%'' OR TRUE)` is always true'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`(key1 LIKE ''abcde%'' OR TRUE)`始终为真'
+- en: '`(key1 < ''uux'' AND key1 > ''z'')` is always false'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`(key1 < ''uux'' AND key1 > ''z'')`始终为假'
+- en: 'Replacing these conditions with constants yields:'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将这些条件替换为常量得到：
+- en: '[PRE4]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Removing unnecessary `TRUE` and `FALSE` constants yields:'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 移除不必要的`TRUE`和`FALSE`常量得到：
+- en: '[PRE5]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Combining overlapping intervals into one yields the final condition to be used
+    for the range scan:'
+  id: totrans-38
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将重叠的区间合并为一个得到用于范围扫描的最终条件：
+- en: '[PRE6]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: In general (and as demonstrated by the preceding example), the condition used
+    for a range scan is less restrictive than the `WHERE` clause. MySQL performs an
+    additional check to filter out rows that satisfy the range condition but not the
+    full `WHERE` clause.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一般来说（并且如前面的示例所示），用于范围扫描的条件比`WHERE`子句要宽松。MySQL执行额外检查以过滤出满足范围条件但不满足完整`WHERE`子句的行。
+- en: The range condition extraction algorithm can handle nested [`AND`](logical-operators.html#operator_and)/[`OR`](logical-operators.html#operator_or)
+    constructs of arbitrary depth, and its output does not depend on the order in
+    which conditions appear in `WHERE` clause.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 范围条件提取算法可以处理任意深度的嵌套[`AND`](logical-operators.html#operator_and)/[`OR`](logical-operators.html#operator_or)结构，并且其输出不依赖于条件在`WHERE`子句中出现的顺序。
+- en: MySQL does not support merging multiple ranges for the [`range`](explain-output.html#jointype_range)
+    access method for spatial indexes. To work around this limitation, you can use
+    a [`UNION`](union.html "15.2.18 UNION Clause") with identical [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statements, except that you put each spatial predicate
+    in a different [`SELECT`](select.html "15.2.13 SELECT Statement").
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL不支持合并多个范围用于空间索引的[`range`](explain-output.html#jointype_range)访问方法。为了解决这个限制，可以使用具有相同[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句的[`UNION`](union.html "15.2.18 UNION Clause")，只是将每个空间谓词放在不同的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")中。
+- en: Range Access Method for Multiple-Part Indexes
+  id: totrans-43
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 用于多部分索引的范围访问方法
+- en: Range conditions on a multiple-part index are an extension of range conditions
+    for a single-part index. A range condition on a multiple-part index restricts
+    index rows to lie within one or several key tuple intervals. Key tuple intervals
+    are defined over a set of key tuples, using ordering from the index.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 多部分索引上的范围条件是单部分索引的范围条件的扩展。多部分索引上的范围条件将索引行限制在一个或多个键元组区间内。键元组区间是在索引上使用的键元组集合上定义的，使用索引的排序。
+- en: 'For example, consider a multiple-part index defined as `key1(*`key_part1`*,
+    *`key_part2`*, *`key_part3`*)`, and the following set of key tuples listed in
+    key order:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，考虑一个定义为`key1(*`key_part1`*, *`key_part2`*, *`key_part3`*)`的多部分索引，以及按关键顺序列出的以下一组关键元组：
+- en: '[PRE7]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The condition `*`key_part1`* = 1` defines this interval:'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 条件`*`key_part1`* = 1`定义了这个区间：
+- en: '[PRE8]'
+  id: totrans-48
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: The interval covers the 4th, 5th, and 6th tuples in the preceding data set and
+    can be used by the range access method.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该区间涵盖了前述数据集中的第4、5和6个元组，并可被范围访问方法使用。
+- en: By contrast, the condition `*`key_part3`* = 'abc'` does not define a single
+    interval and cannot be used by the range access method.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 相比之下，条件`*`key_part3`* = 'abc'`并未定义单个区间，因此无法被范围访问方法使用。
+- en: The following descriptions indicate how range conditions work for multiple-part
+    indexes in greater detail.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下描述更详细地说明了多部分索引的范围条件如何工作。
+- en: 'For `HASH` indexes, each interval containing identical values can be used.
+    This means that the interval can be produced only for conditions in the following
+    form:'
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`HASH`索引，每个包含相同值的区间都可以使用。这意味着区间只能针对以下形式的条件生成：
+- en: '[PRE9]'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'Here, *`const1`*, *`const2`*, … are constants, *`cmp`* is one of the [`=`](comparison-operators.html#operator_equal),
+    [`<=>`](comparison-operators.html#operator_equal-to), or [`IS NULL`](comparison-operators.html#operator_is-null)
+    comparison operators, and the conditions cover all index parts. (That is, there
+    are *`N`* conditions, one for each part of an *`N`*-part index.) For example,
+    the following is a range condition for a three-part `HASH` index:'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这里，*`const1`*、*`const2`*、…是常量，*`cmp`*是[`=`](comparison-operators.html#operator_equal)、[`<=>`](comparison-operators.html#operator_equal-to)或[`IS
+    NULL`](comparison-operators.html#operator_is-null)比较运算符之一，条件涵盖了所有索引部分。（也就是说，有*`N`*个条件，每个条件对应一个*`N`*部分索引的部分。）例如，以下是三部分`HASH`索引的范围条件：
+- en: '[PRE10]'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: For the definition of what is considered to be a constant, see [Range Access
+    Method for Single-Part Indexes](range-optimization.html#range-access-single-part
+    "Range Access Method for Single-Part Indexes").
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关什么被视为常量的定义，请参阅[单部分索引的范围访问方法](range-optimization.html#range-access-single-part
+    "单部分索引的范围访问方法")。
+- en: For a `BTREE` index, an interval might be usable for conditions combined with
+    [`AND`](logical-operators.html#operator_and), where each condition compares a
+    key part with a constant value using [`=`](comparison-operators.html#operator_equal),
+    [`<=>`](comparison-operators.html#operator_equal-to), [`IS NULL`](comparison-operators.html#operator_is-null),
+    [`>`](comparison-operators.html#operator_greater-than), [`<`](comparison-operators.html#operator_less-than),
+    [`>=`](comparison-operators.html#operator_greater-than-or-equal), [`<=`](comparison-operators.html#operator_less-than-or-equal),
+    [`!=`](comparison-operators.html#operator_not-equal), [`<>`](comparison-operators.html#operator_not-equal),
+    [`BETWEEN`](comparison-operators.html#operator_between), or [`LIKE '*`pattern`*'`](string-comparison-functions.html#operator_like)
+    (where `'*`pattern`*'` does not start with a wildcard). An interval can be used
+    as long as it is possible to determine a single key tuple containing all rows
+    that match the condition (or two intervals if [`<>`](comparison-operators.html#operator_not-equal)
+    or [`!=`](comparison-operators.html#operator_not-equal) is used).
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`BTREE`索引，一个区间可能适用于与[`AND`](logical-operators.html#operator_and)组合的条件，其中每个条件将一个关键部分与常量值使用[`=`](comparison-operators.html#operator_equal)、[`<=>`](comparison-operators.html#operator_equal-to)、[`IS
+    NULL`](comparison-operators.html#operator_is-null)、[`>`](comparison-operators.html#operator_greater-than)、[`<`](comparison-operators.html#operator_less-than)、[`>=`](comparison-operators.html#operator_greater-than-or-equal)、[`<=`](comparison-operators.html#operator_less-than-or-equal)、[`!=`](comparison-operators.html#operator_not-equal)、[`<>`](comparison-operators.html#operator_not-equal)、[`BETWEEN`](comparison-operators.html#operator_between)或[`LIKE
+    '*`pattern`*'`](string-comparison-functions.html#operator_like)进行比较（其中`'*`pattern`*'`不以通配符开头）。只要能够确定包含所有符合条件的行的单个关键元组（或者如果使用[`<>`](comparison-operators.html#operator_not-equal)或[`!=`](comparison-operators.html#operator_not-equal)则为两个区间），就可以使用区间。
+- en: 'The optimizer attempts to use additional key parts to determine the interval
+    as long as the comparison operator is [`=`](comparison-operators.html#operator_equal),
+    [`<=>`](comparison-operators.html#operator_equal-to), or [`IS NULL`](comparison-operators.html#operator_is-null).
+    If the operator is [`>`](comparison-operators.html#operator_greater-than), [`<`](comparison-operators.html#operator_less-than),
+    [`>=`](comparison-operators.html#operator_greater-than-or-equal), [`<=`](comparison-operators.html#operator_less-than-or-equal),
+    [`!=`](comparison-operators.html#operator_not-equal), [`<>`](comparison-operators.html#operator_not-equal),
+    [`BETWEEN`](comparison-operators.html#operator_between), or [`LIKE`](string-comparison-functions.html#operator_like),
+    the optimizer uses it but considers no more key parts. For the following expression,
+    the optimizer uses [`=`](comparison-operators.html#operator_equal) from the first
+    comparison. It also uses [`>=`](comparison-operators.html#operator_greater-than-or-equal)
+    from the second comparison but considers no further key parts and does not use
+    the third comparison for interval construction:'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 优化器尝试使用额外的键部分来确定区间，只要比较运算符是[`=`](comparison-operators.html#operator_equal)、[`<=>`](comparison-operators.html#operator_equal-to)或[`IS
+    NULL`](comparison-operators.html#operator_is-null)。如果运算符是[`>`](comparison-operators.html#operator_greater-than)、[`<`](comparison-operators.html#operator_less-than)、[`>=`](comparison-operators.html#operator_greater-than-or-equal)、[`<=`](comparison-operators.html#operator_less-than-or-equal)、[`!=`](comparison-operators.html#operator_not-equal)、[`<>`](comparison-operators.html#operator_not-equal)、[`BETWEEN`](comparison-operators.html#operator_between)或[`LIKE`](string-comparison-functions.html#operator_like)，优化器会使用它，但不考虑更多的键部分。对于以下表达式，优化器从第一个比较中使用[`=`](comparison-operators.html#operator_equal)。它还从第二个比较中使用[`>=`](comparison-operators.html#operator_greater-than-or-equal)，但不考虑更多的键部分，并且不使用第三个比较来构建区间：
+- en: '[PRE11]'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: 'The single interval is:'
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 单个区间是：
+- en: '[PRE12]'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: It is possible that the created interval contains more rows than the initial
+    condition. For example, the preceding interval includes the value `('foo', 11,
+    0)`, which does not satisfy the original condition.
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 创建的区间可能包含比初始条件更多的行。例如，前面的区间包括值`('foo', 11, 0)`，这不符合原始条件。
+- en: 'If conditions that cover sets of rows contained within intervals are combined
+    with [`OR`](logical-operators.html#operator_or), they form a condition that covers
+    a set of rows contained within the union of their intervals. If the conditions
+    are combined with [`AND`](logical-operators.html#operator_and), they form a condition
+    that covers a set of rows contained within the intersection of their intervals.
+    For example, for this condition on a two-part index:'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果涵盖区间内的行集的条件与[`OR`](logical-operators.html#operator_or)组合，它们形成一个涵盖其区间并集内的行集的条件。如果条件与[`AND`](logical-operators.html#operator_and)组合，它们形成一个涵盖其区间交集内的行集的条件。例如，对于两部分索引上的此条件：
+- en: '[PRE13]'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'The intervals are:'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 区间是：
+- en: '[PRE14]'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: In this example, the interval on the first line uses one key part for the left
+    bound and two key parts for the right bound. The interval on the second line uses
+    only one key part. The `key_len` column in the [`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement") output indicates the maximum length of the key prefix used.
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在此示例中，第一行的区间使用一个键部分作为左边界，两个键部分作为右边界。第二行的区间仅使用一个键部分。[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")输出中的`key_len`列指示使用的键前缀的最大长度。
+- en: 'In some cases, `key_len` may indicate that a key part was used, but that might
+    be not what you would expect. Suppose that *`key_part1`* and *`key_part2`* can
+    be `NULL`. Then the `key_len` column displays two key part lengths for the following
+    condition:'
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在某些情况下，`key_len`可能表明使用了一个键部分，但这可能不是您期望的。假设*`key_part1`*和*`key_part2`*可以是`NULL`。然后，`key_len`列显示以下条件的两个键部分长度：
+- en: '[PRE15]'
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'But, in fact, the condition is converted to this:'
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 但实际上，条件被转换为这样：
+- en: '[PRE16]'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: For a description of how optimizations are performed to combine or eliminate
+    intervals for range conditions on a single-part index, see [Range Access Method
+    for Single-Part Indexes](range-optimization.html#range-access-single-part "Range
+    Access Method for Single-Part Indexes"). Analogous steps are performed for range
+    conditions on multiple-part indexes.
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关如何对单部分索引上的范围条件执行优化以组合或消除区间的描述，请参见[单部分索引的范围访问方法](range-optimization.html#range-access-single-part
+    "单部分索引的范围访问方法")。类似的步骤也适用于多部分索引上的范围条件。
+- en: Equality Range Optimization of Many-Valued Comparisons
+  id: totrans-73
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 多值比较的等值范围优化
+- en: 'Consider these expressions, where *`col_name`* is an indexed column:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下表达式，其中*`col_name`*是一个索引列：
+- en: '[PRE17]'
+  id: totrans-75
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: 'Each expression is true if *`col_name`* is equal to any of several values.
+    These comparisons are equality range comparisons (where the “range” is a single
+    value). The optimizer estimates the cost of reading qualifying rows for equality
+    range comparisons as follows:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 *`col_name`* 等于多个值中的任何一个，则每个表达式为真。这些比较是相等范围比较（其中“范围”是单个值）。优化器估计读取符合相等范围比较条件的行的成本如下：
+- en: If there is a unique index on *`col_name`*, the row estimate for each range
+    is 1 because at most one row can have the given value.
+  id: totrans-77
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果 *`col_name`* 上有唯一索引，则每个范围的行估计值为 1，因为最多只有一行可以具有给定值。
+- en: Otherwise, any index on *`col_name`* is nonunique and the optimizer can estimate
+    the row count for each range using dives into the index or index statistics.
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 否则，*`col_name`* 上的任何索引都是非唯一的，优化器可以通过对索引或索引统计数据的深入来估计每个范围的行数。
+- en: With index dives, the optimizer makes a dive at each end of a range and uses
+    the number of rows in the range as the estimate. For example, the expression `*`col_name`*
+    IN (10, 20, 30)` has three equality ranges and the optimizer makes two dives per
+    range to generate a row estimate. Each pair of dives yields an estimate of the
+    number of rows that have the given value.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用索引深入，优化器在每个范围的两端进行深入，并将范围内的行数作为估计值。例如，表达式 `*`col_name`* IN (10, 20, 30)` 有三个相等范围，优化器每个范围进行两次深入以生成行估计值。每对深入提供给定值的行数的估计值。
+- en: Index dives provide accurate row estimates, but as the number of comparison
+    values in the expression increases, the optimizer takes longer to generate a row
+    estimate. Use of index statistics is less accurate than index dives but permits
+    faster row estimation for large value lists.
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引深入提供准确的行估计值，但随着表达式中比较值的增加，优化器生成行估计值的时间也会增加。使用索引统计数据比索引深入的准确性低，但允许更快地为大型值列表进行行估计。
+- en: The [`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    system variable enables you to configure the number of values at which the optimizer
+    switches from one row estimation strategy to the other. To permit use of index
+    dives for comparisons of up to *`N`* equality ranges, set [`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    to *`N`* + 1\. To disable use of statistics and always use index dives regardless
+    of *`N`*, set [`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    to 0.
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    系统变量允许您配置优化器在何时从一种行估计策略切换到另一种。要允许使用索引深入进行多达 *`N`* 个相等范围的比较，请将 [`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    设置为 *`N`* + 1\. 要禁用统计数据的使用并始终使用索引深入，无论 *`N`* 如何，请将 [`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    设置为 0。'
+- en: To update table index statistics for best estimates, use [`ANALYZE TABLE`](analyze-table.html
+    "15.7.3.1 ANALYZE TABLE Statement").
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要更新表索引统计数据以获得最佳估计值，请使用 [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement")。
+- en: 'Prior to MySQL 8.0, there is no way of skipping the use of index dives to estimate
+    index usefulness, except by using the [`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    system variable. In MySQL 8.0, index dive skipping is possible for queries that
+    satisfy all these conditions:'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0 之前，除了使用 [`eq_range_index_dive_limit`](server-system-variables.html#sysvar_eq_range_index_dive_limit)
+    系统变量外，没有跳过使用索引深入来估计索引有用性的方法。在 MySQL 8.0 中，对于满足以下所有条件的查询，可以跳过索引深入估计：
+- en: The query is for a single table, not a join on multiple tables.
+  id: totrans-84
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询针对单个表，而不是多个表的连接。
+- en: A single-index `FORCE INDEX` index hint is present. The idea is that if index
+    use is forced, there is nothing to be gained from the additional overhead of performing
+    dives into the index.
+  id: totrans-85
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存在单索引 `FORCE INDEX` 索引提示。这样做的想法是，如果强制使用索引，则执行对索引的深入所带来的额外开销没有任何好处。
+- en: The index is nonunique and not a `FULLTEXT` index.
+  id: totrans-86
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 索引是非唯一的，不是 `FULLTEXT` 索引。
+- en: No subquery is present.
+  id: totrans-87
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有子查询。
+- en: No `DISTINCT`, `GROUP BY`, or `ORDER BY` clause is present.
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有 `DISTINCT`、`GROUP BY` 或 `ORDER BY` 子句。
+- en: 'For [`EXPLAIN FOR CONNECTION`](explain.html "15.8.2 EXPLAIN Statement"), the
+    output changes as follows if index dives are skipped:'
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 [`EXPLAIN FOR CONNECTION`](explain.html "15.8.2 EXPLAIN Statement")，如果跳过索引深入，则输出如下更改：
+- en: For traditional output, the `rows` and `filtered` values are `NULL`.
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于传统输出，`rows` 和 `filtered` 值为 `NULL`。
+- en: For JSON output, `rows_examined_per_scan` and `rows_produced_per_join` do not
+    appear, `skip_index_dive_due_to_force` is `true`, and cost calculations are not
+    accurate.
+  id: totrans-91
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于JSON输出，`rows_examined_per_scan`和`rows_produced_per_join`不会出现，`skip_index_dive_due_to_force`为`true`，成本计算不准确。
+- en: Without `FOR CONNECTION`, [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")
+    output does not change when index dives are skipped.
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 没���`FOR CONNECTION`，当索引潜水被跳过时，[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出不会改变。
+- en: After execution of a query for which index dives are skipped, the corresponding
+    row in the Information Schema [`OPTIMIZER_TRACE`](information-schema-optimizer-trace-table.html
+    "28.3.19 The INFORMATION_SCHEMA OPTIMIZER_TRACE Table") table contains an `index_dives_for_range_access`
+    value of `skipped_due_to_force_index`.
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行一个查询，其中索引潜水被跳过后，信息模式[`OPTIMIZER_TRACE`](information-schema-optimizer-trace-table.html
+    "28.3.19 INFORMATION_SCHEMA OPTIMIZER_TRACE表")表中的相应行包含一个`index_dives_for_range_access`值为`skipped_due_to_force_index`。
+- en: Skip Scan Range Access Method
+  id: totrans-94
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 跳过扫描范围访问方法
+- en: 'Consider the following scenario:'
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下情景：
+- en: '[PRE18]'
+  id: totrans-96
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: To execute this query, MySQL can choose an index scan to fetch all rows (the
+    index includes all columns to be selected), then apply the `f2 > 40` condition
+    from the `WHERE` clause to produce the final result set.
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要执行这个查询，MySQL可以选择一个索引扫描来获取所有行（索引包括所有要选择的列），然后应用`WHERE`子句中的`f2 > 40`条件来生成最终结果集。
+- en: 'A range scan is more efficient than a full index scan, but cannot be used in
+    this case because there is no condition on `f1`, the first index column. However,
+    as of MySQL 8.0.13, the optimizer can perform multiple range scans, one for each
+    value of `f1`, using a method called Skip Scan that is similar to Loose Index
+    Scan (see [Section 10.2.1.17, “GROUP BY Optimization”](group-by-optimization.html
+    "10.2.1.17 GROUP BY Optimization")):'
+  id: totrans-98
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 范围扫描比完整索引扫描更有效，但在这种情况下无法使用，因为对第一个索引列`f1`没有条件。然而，从MySQL 8.0.13开始，优化器可以执行多个范围扫描，每个值`f1`一个，使用一种称为Skip
+    Scan的方法，类似于Loose Index Scan（参见[Section 10.2.1.17, “GROUP BY Optimization”](group-by-optimization.html
+    "10.2.1.17 GROUP BY Optimization")）：
+- en: Skip between distinct values of the first index part, `f1` (the index prefix).
+  id: totrans-99
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在第一个索引部分`f1`（索引前缀）的不同值之间跳过。
+- en: Perform a subrange scan on each distinct prefix value for the `f2 > 40` condition
+    on the remaining index part.
+  id: totrans-100
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对剩余索引部分上的`f2 > 40`条件的每个不同前缀值执行子范围扫描。
+- en: 'For the data set shown earlier, the algorithm operates like this:'
+  id: totrans-101
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于之前显示的数据集，算法的操作如下：
+- en: Get the first distinct value of the first key part (`f1 = 1`).
+  id: totrans-102
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 获取第一个关键部分的第一个不同值（`f1 = 1`）。
+- en: Construct the range based on the first and second key parts (`f1 = 1 AND f2
+    > 40`).
+  id: totrans-103
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 基于第一个和第二个关键部分构建范围（`f1 = 1 AND f2 > 40`）。
+- en: Perform a range scan.
+  id: totrans-104
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行一个范围扫描。
+- en: Get the next distinct value of the first key part (`f1 = 2`).
+  id: totrans-105
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 获取第一个关键部分的下一个不同值（`f1 = 2`）。
+- en: Construct the range based on the first and second key parts (`f1 = 2 AND f2
+    > 40`).
+  id: totrans-106
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 基于第一个和第二个关键部分构建范围（`f1 = 2 AND f2 > 40`）。
+- en: Perform a range scan.
+  id: totrans-107
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行一个范围扫描。
+- en: 'Using this strategy decreases the number of accessed rows because MySQL skips
+    the rows that do not qualify for each constructed range. This Skip Scan access
+    method is applicable under the following conditions:'
+  id: totrans-108
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用这种策略可以减少访问的行数，因为MySQL跳过了不符合每个构建范围的行。这种Skip Scan访问方法适用于以下条件：
+- en: Table T has at least one compound index with key parts of the form ([A_1, ...,
+    A_*`k`*,] B_1, ..., B_*`m`*, C [, D_1, ..., D_*`n`*]). Key parts A and D may be
+    empty, but B and C must be nonempty.
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表T至少有一个复合索引，其关键部分形式为([A_1, ..., A_*`k`*,] B_1, ..., B_*`m`*, C [, D_1, ...,
+    D_*`n`*])。关键部分A和D可能为空，但B和C必须非空。
+- en: The query references only one table.
+  id: totrans-110
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询仅引用一个表。
+- en: The query does not use `GROUP BY` or `DISTINCT`.
+  id: totrans-111
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询不使用`GROUP BY`或`DISTINCT`。
+- en: The query references only columns in the index.
+  id: totrans-112
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询仅引用索引中的列。
+- en: The predicates on A_1, ..., A_*`k`* must be equality predicates and they must
+    be constants. This includes the [`IN()`](comparison-operators.html#operator_in)
+    operator.
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: A_1, ..., A_*`k`*上的谓词必须是等式谓词，且它们必须是常量。这包括[`IN()`](comparison-operators.html#operator_in)运算符。
+- en: 'The query must be a conjunctive query; that is, an `AND` of `OR` conditions:
+    `(*`cond1`*(*`key_part1`*) OR *`cond2`*(*`key_part1`*)) AND (*`cond1`*(*`key_part2`*)
+    OR ...) AND ...`'
+  id: totrans-114
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询必须是一个连接查询；也就是说，是`OR`条件的`AND`：`(*`cond1`*(*`key_part1`*) OR *`cond2`*(*`key_part1`*))
+    AND (*`cond1`*(*`key_part2`*) OR ...) AND ...`
+- en: There must be a range condition on C.
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须对C列有一个范围条件。
+- en: Conditions on D columns are permitted. Conditions on D must be in conjunction
+    with the range condition on C.
+  id: totrans-116
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 允许对D列的条件。D列上的条件必须与C列上的范围条件一起。
+- en: 'Use of Skip Scan is indicated in `EXPLAIN` output as follows:'
+  id: totrans-117
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在`EXPLAIN`输出中指示使用跳过扫描如下：
+- en: '`Using index for skip scan` in the `Extra` column indicates that the loose
+    index Skip Scan access method is used.'
+  id: totrans-118
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`Extra`列中使用`Using index for skip scan`表示使用了宽松索引跳过扫描访问方法。
+- en: If the index can be used for Skip Scan, the index should be visible in the `possible_keys`
+    column.
+  id: totrans-119
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果索引可以用于跳过扫描，索引应该在`possible_keys`列中可见。
+- en: 'Use of Skip Scan is indicated in optimizer trace output by a `"skip scan"`
+    element of this form:'
+  id: totrans-120
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在优化器跟踪输出中，使用`"skip scan"`元素指示使用跳过扫描：
+- en: '[PRE19]'
+  id: totrans-121
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: You may also see a `"best_skip_scan_summary"` element. If Skip Scan is chosen
+    as the best range access variant, a `"chosen_range_access_summary"` is written.
+    If Skip Scan is chosen as the overall best access method, a `"best_access_path"`
+    element is present.
+  id: totrans-122
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可能会看到一个`"best_skip_scan_summary"`元素。如果跳过扫描被选择为最佳范围访问变体，则会写入`"chosen_range_access_summary"`。如果跳过扫描被选择为整体最佳访问方法，则会出现`"best_access_path"`元素。
+- en: Use of Skip Scan is subject to the value of the [`skip_scan`](switchable-optimizations.html#optflag_skip-scan)
+    flag of the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable. See [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations"). By default, this flag is `on`. To disable
+    it, set [`skip_scan`](switchable-optimizations.html#optflag_skip-scan) to `off`.
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用跳过扫描取决于[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量的[`skip_scan`](switchable-optimizations.html#optflag_skip-scan)标志的值。请参见[Section 10.9.2,
+    “Switchable Optimizations”](switchable-optimizations.html "10.9.2 可切换优化")。默认情况下，此标志为`on`。要禁用它，请将[`skip_scan`](switchable-optimizations.html#optflag_skip-scan)设置为`off`。
+- en: In addition to using the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable to control optimizer use of Skip Scan session-wide, MySQL supports
+    optimizer hints to influence the optimizer on a per-statement basis. See [Section 10.9.3,
+    “Optimizer Hints”](optimizer-hints.html "10.9.3 Optimizer Hints").
+  id: totrans-124
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了使用[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量来控制会话范围内优化器使用跳过扫描外，MySQL还支持优化器提示以影响每个语句的优化器。请参见[Section 10.9.3,
+    “Optimizer Hints”](optimizer-hints.html "10.9.3 优化器提示")。
+- en: Range Optimization of Row Constructor Expressions
+  id: totrans-125
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 行构造器表达式的范围优化
+- en: 'The optimizer is able to apply the range scan access method to queries of this
+    form:'
+  id: totrans-126
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器能够将范围扫描访问方法应用于此类查询：
+- en: '[PRE20]'
+  id: totrans-127
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: 'Previously, for range scans to be used, it was necessary to write the query
+    as:'
+  id: totrans-128
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以前，为了使用范围扫描，必须将查询编写为：
+- en: '[PRE21]'
+  id: totrans-129
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: 'For the optimizer to use a range scan, queries must satisfy these conditions:'
+  id: totrans-130
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了使优化器使用范围扫描，查询必须满足以下条件：
+- en: Only [`IN()`](comparison-operators.html#operator_in) predicates are used, not
+    [`NOT IN()`](comparison-operators.html#operator_not-in).
+  id: totrans-131
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仅使用[`IN()`](comparison-operators.html#operator_in)谓词，不使用[`NOT IN()`](comparison-operators.html#operator_not-in)。
+- en: On the left side of the [`IN()`](comparison-operators.html#operator_in) predicate,
+    the row constructor contains only column references.
+  id: totrans-132
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`IN()`](comparison-operators.html#operator_in)谓词的左侧，行构造器仅包含列引用。
+- en: On the right side of the [`IN()`](comparison-operators.html#operator_in) predicate,
+    row constructors contain only runtime constants, which are either literals or
+    local column references that are bound to constants during execution.
+  id: totrans-133
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`IN()`](comparison-operators.html#operator_in)谓词的右侧，行构造器仅包含运行时常量，这些常量可以是文字或在执行期间绑定为常量的本地列引用。
+- en: On the right side of the [`IN()`](comparison-operators.html#operator_in) predicate,
+    there is more than one row constructor.
+  id: totrans-134
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在[`IN()`](comparison-operators.html#operator_in)谓词的右侧，存在多个行构造器。
+- en: For more information about the optimizer and row constructors, see [Section 10.2.1.22,
+    “Row Constructor Expression Optimization”](row-constructor-optimization.html "10.2.1.22 Row
+    Constructor Expression Optimization")
+  id: totrans-135
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关优化器和行构造器的更多信息，请参见[Section 10.2.1.22, “Row Constructor Expression Optimization”](row-constructor-optimization.html
+    "10.2.1.22 行构造器表达式优化")
+- en: Limiting Memory Use for Range Optimization
+  id: totrans-136
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 限制范围优化的内存使用
+- en: 'To control the memory available to the range optimizer, use the [`range_optimizer_max_mem_size`](server-system-variables.html#sysvar_range_optimizer_max_mem_size)
+    system variable:'
+  id: totrans-137
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要控制范围优化器可用的内存，请使用[`range_optimizer_max_mem_size`](server-system-variables.html#sysvar_range_optimizer_max_mem_size)系统变量：
+- en: A value of 0 means “no limit.”
+  id: totrans-138
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 值为0表示“没有限制”。
+- en: 'With a value greater than 0, the optimizer tracks the memory consumed when
+    considering the range access method. If the specified limit is about to be exceeded,
+    the range access method is abandoned and other methods, including a full table
+    scan, are considered instead. This could be less optimal. If this happens, the
+    following warning occurs (where *`N`* is the current [`range_optimizer_max_mem_size`](server-system-variables.html#sysvar_range_optimizer_max_mem_size)
+    value):'
+  id: totrans-139
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当值大于0时，优化器会跟踪考虑范围访问方法时消耗的内存。如果即将超过指定限制，范围访问方法将被放弃，而考虑其他方法，包括全表扫描。这可能不太理想。如果发生这种情况，将出现以下警告（其中*`N`*是当前[`range_optimizer_max_mem_size`](server-system-variables.html#sysvar_range_optimizer_max_mem_size)值）：
+- en: '[PRE22]'
+  id: totrans-140
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: For [`UPDATE`](update.html "15.2.17 UPDATE Statement") and [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") statements, if the optimizer falls back to a full table
+    scan and the [`sql_safe_updates`](server-system-variables.html#sysvar_sql_safe_updates)
+    system variable is enabled, an error occurs rather than a warning because, in
+    effect, no key is used to determine which rows to modify. For more information,
+    see [Using Safe-Updates Mode (--safe-updates)](mysql-tips.html#safe-updates "Using
+    Safe-Updates Mode (--safe-updates)").
+  id: totrans-141
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于[`UPDATE`](update.html "15.2.17 UPDATE Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")语句，如果优化器回退到全表扫描，并且启用了[`sql_safe_updates`](server-system-variables.html#sysvar_sql_safe_updates)系统变量，则会发生错误而不是警告，因为实际上没有使用键来确定要修改哪些行。有关更多信息，请参见[使用安全更新模式（--safe-updates）](mysql-tips.html#safe-updates
+    "Using Safe-Updates Mode (--safe-updates)")。
+- en: For individual queries that exceed the available range optimization memory and
+    for which the optimizer falls back to less optimal plans, increasing the [`range_optimizer_max_mem_size`](server-system-variables.html#sysvar_range_optimizer_max_mem_size)
+    value may improve performance.
+  id: totrans-142
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于超出可用范围优化内存并且优化器回退到不太理想计划的单个查询，增加[`range_optimizer_max_mem_size`](server-system-variables.html#sysvar_range_optimizer_max_mem_size)值可能会提高性能。
+- en: 'To estimate the amount of memory needed to process a range expression, use
+    these guidelines:'
+  id: totrans-143
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要估算处理范围表达式所需的内存量，请使用以下准则：
+- en: 'For a simple query such as the following, where there is one candidate key
+    for the range access method, each predicate combined with [`OR`](logical-operators.html#operator_or)
+    uses approximately 230 bytes:'
+  id: totrans-144
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于像下面这样的简单查询，其中有一个候选键用于范围访问方法，每个与[`OR`](logical-operators.html#operator_or)结合的谓词大约使用230字节：
+- en: '[PRE23]'
+  id: totrans-145
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: 'Similarly for a query such as the following, each predicate combined with [`AND`](logical-operators.html#operator_and)
+    uses approximately 125 bytes:'
+  id: totrans-146
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类似地，对于像下面这样的查询，每个与[`AND`](logical-operators.html#operator_and)结合的谓词大约使用125字节：
+- en: '[PRE24]'
+  id: totrans-147
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: 'For a query with [`IN()`](comparison-operators.html#operator_in) predicates:'
+  id: totrans-148
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于带有[`IN()`](comparison-operators.html#operator_in)谓词的查询：
+- en: '[PRE25]'
+  id: totrans-149
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: Each literal value in an [`IN()`](comparison-operators.html#operator_in) list
+    counts as a predicate combined with [`OR`](logical-operators.html#operator_or).
+    If there are two [`IN()`](comparison-operators.html#operator_in) lists, the number
+    of predicates combined with [`OR`](logical-operators.html#operator_or) is the
+    product of the number of literal values in each list. Thus, the number of predicates
+    combined with [`OR`](logical-operators.html#operator_or) in the preceding case
+    is *`M`* × *`N`*.
+  id: totrans-150
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在[`IN()`](comparison-operators.html#operator_in)列表中的每个文字值都算作与[`OR`](logical-operators.html#operator_or)结合的谓词。如果有两个[`IN()`](comparison-operators.html#operator_in)列表，则与[`OR`](logical-operators.html#operator_or)结合的谓词数量是每个列表中文字值数量的乘积。因此，在前述情况下，与[`OR`](logical-operators.html#operator_or)结合的谓词数量为*`M`*
+    × *`N`*。

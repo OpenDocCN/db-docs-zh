@@ -1,0 +1,497 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html)
+- en: 29.12.21.3 The host_cache Table
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 29.12.21.3 主机缓存表
+- en: The MySQL server maintains an in-memory host cache that contains client host
+    name and IP address information and is used to avoid Domain Name System (DNS)
+    lookups. The [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The
+    host_cache Table") table exposes the contents of this cache. The [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)
+    system variable controls the size of the host cache, as well as the size of the
+    [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The host_cache
+    Table") table. For operational and configuration information about the host cache,
+    see [Section 7.1.12.3, “DNS Lookups and the Host Cache”](host-cache.html "7.1.12.3 DNS
+    Lookups and the Host Cache").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器维护一个内存中的主机缓存，其中包含客户端主机名和IP地址信息，并用于避免域名系统（DNS）查找。[`host_cache`](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html)表公开了此缓存的内容。[`host_cache_size`](https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html#sysvar_host_cache_size)系统变量控制主机缓存的大小，以及[`host_cache`](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html)表的大小。有关主机缓存的操作和配置信息，请参见[第7.1.12.3节，“DNS查找和主机缓存”](host-cache.html)。
+- en: Because the [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The
+    host_cache Table") table exposes the contents of the host cache, it can be examined
+    using [`SELECT`](select.html "15.2.13 SELECT Statement") statements. This may
+    help you diagnose the causes of connection problems.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为[`host_cache`](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html)表公开了主机缓存的内容，可以使用[`SELECT`](select.html)语句进行检查。这可能有助于诊断连接问题的原因。
+- en: 'The [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The
+    host_cache Table") table has these columns:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`host_cache`](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-host-cache-table.html)表具有以下列：'
+- en: '`IP`'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IP`'
+- en: The IP address of the client that connected to the server, expressed as a string.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以字符串形式表示连接到服务器的客户端的IP地址。
+- en: '`HOST`'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`HOST`'
+- en: The resolved DNS host name for that client IP, or `NULL` if the name is unknown.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端IP的解析DNS主机名，如果名称未知则为`NULL`。
+- en: '`HOST_VALIDATED`'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`HOST_VALIDATED`'
+- en: Whether the IP-to-host name-to-IP DNS resolution was performed successfully
+    for the client IP. If `HOST_VALIDATED` is `YES`, the `HOST` column is used as
+    the host name corresponding to the IP so that additional calls to DNS can be avoided.
+    While `HOST_VALIDATED` is `NO`, DNS resolution is attempted for each connection
+    attempt, until it eventually completes with either a valid result or a permanent
+    error. This information enables the server to avoid caching bad or missing host
+    names during temporary DNS failures, which would negatively affect clients forever.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端IP的IP到主机名到IP DNS解析是否成功。如果`HOST_VALIDATED`为`YES`，则`HOST`列用作对应于IP的主机名，以避免额外调用DNS。当`HOST_VALIDATED`为`NO`时，将尝试为每个连接尝试进行DNS解析，直到最终以有效结果或永久错误完成。此信息使服务器能够在临时DNS故障期间避免缓存错误或缺失的主机名，这将永久地对客户端产生负面影响。
+- en: '`SUM_CONNECT_ERRORS`'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUM_CONNECT_ERRORS`'
+- en: The number of connection errors that are deemed “blocking” (assessed against
+    the [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    system variable). Only protocol handshake errors are counted, and only for hosts
+    that passed validation (`HOST_VALIDATED = YES`).
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 被视为“阻塞”的连接错误数量（根据[`max_connect_errors`](https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html#sysvar_max_connect_errors)系统变量进行评估）。仅计算协议握手错误，并且仅适用于通过验证的主机（`HOST_VALIDATED
+    = YES`）。
+- en: Once `SUM_CONNECT_ERRORS` for a given host reaches the value of [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors),
+    new connections from that host are blocked. The `SUM_CONNECT_ERRORS` value can
+    exceed the [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    value because multiple connection attempts from a host can occur simultaneously
+    while the host is not blocked. Any or all of them can fail, independently incrementing
+    `SUM_CONNECT_ERRORS`, possibly beyond the value of [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors).
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一旦给定主机的`SUM_CONNECT_ERRORS`达到[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)的值，来自该主机的新连接将被阻止。`SUM_CONNECT_ERRORS`值可以超过[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)的值，因为在主机未被阻止的情况下，可以同时发生来自主机的多个连接尝试。任何一个或全部都可能失败，独立地增加`SUM_CONNECT_ERRORS`，可能超过[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)的值。
+- en: Suppose that [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    is 200 and `SUM_CONNECT_ERRORS` for a given host is 199\. If 10 clients attempt
+    to connect from that host simultaneously, none of them are blocked because `SUM_CONNECT_ERRORS`
+    has not reached 200. If blocking errors occur for five of the clients, `SUM_CONNECT_ERRORS`
+    is increased by one for each client, for a resulting `SUM_CONNECT_ERRORS` value
+    of 204\. The other five clients succeed and are not blocked because the value
+    of `SUM_CONNECT_ERRORS` when their connection attempts began had not reached 200\.
+    New connections from the host that begin after `SUM_CONNECT_ERRORS` reaches 200
+    are blocked.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)为200，对于给定主机的`SUM_CONNECT_ERRORS`为199。如果有10个客户端同时尝试从该主机连接，由于`SUM_CONNECT_ERRORS`尚未达到200，它们中的任何一个都不会被阻止。如果其中五个客户端发生阻止错误，对于每个客户端，`SUM_CONNECT_ERRORS`会增加一个，导致`SUM_CONNECT_ERRORS`值为204。另外五个客户端成功连接且不被阻止，因为当它们的连接尝试开始时，`SUM_CONNECT_ERRORS`的值尚未达到200。当`SUM_CONNECT_ERRORS`达到200后，从该主机发起的新连接将被阻止。
+- en: '`COUNT_HOST_BLOCKED_ERRORS`'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_HOST_BLOCKED_ERRORS`'
+- en: The number of connections that were blocked because `SUM_CONNECT_ERRORS` exceeded
+    the value of the [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    system variable.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为`SUM_CONNECT_ERRORS`超过[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)系统变量值而被阻止的连接数量。
+- en: '`COUNT_NAMEINFO_TRANSIENT_ERRORS`'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_NAMEINFO_TRANSIENT_ERRORS`'
+- en: The number of transient errors during IP-to-host name DNS resolution.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: IP到主机名DNS解析过程中的瞬时错误次数。
+- en: '`COUNT_NAMEINFO_PERMANENT_ERRORS`'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_NAMEINFO_PERMANENT_ERRORS`'
+- en: The number of permanent errors during IP-to-host name DNS resolution.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: IP到主机名DNS解析过程中的永久错误次数。
+- en: '`COUNT_FORMAT_ERRORS`'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_FORMAT_ERRORS`'
+- en: The number of host name format errors. MySQL does not perform matching of `Host`
+    column values in the `mysql.user` system table against host names for which one
+    or more of the initial components of the name are entirely numeric, such as `1.2.example.com`.
+    The client IP address is used instead. For the rationale why this type of matching
+    does not occur, see [Section 8.2.4, “Specifying Account Names”](account-names.html
+    "8.2.4 Specifying Account Names").
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 主机名格式错误的数量。MySQL不会对`mysql.user`系统表中`Host`列值与完全由数字组成的主机名进行匹配，例如`1.2.example.com`。而是使用客户端IP地址。关于为什么不进行这种匹配的原因，请参见[Section 8.2.4,
+    “Specifying Account Names”](account-names.html "8.2.4 Specifying Account Names")。
+- en: '`COUNT_ADDRINFO_TRANSIENT_ERRORS`'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_ADDRINFO_TRANSIENT_ERRORS`'
+- en: The number of transient errors during host name-to-IP reverse DNS resolution.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 主机名到IP反向DNS解析过程中出现的瞬时错误次数。
+- en: '`COUNT_ADDRINFO_PERMANENT_ERRORS`'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_ADDRINFO_PERMANENT_ERRORS`'
+- en: The number of permanent errors during host name-to-IP reverse DNS resolution.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 主机名到IP反向DNS解析过程中的永久错误次数。
+- en: '`COUNT_FCRDNS_ERRORS`'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_FCRDNS_ERRORS`'
+- en: The number of forward-confirmed reverse DNS errors. These errors occur when
+    IP-to-host name-to-IP DNS resolution produces an IP address that does not match
+    the client originating IP address.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 前向确认反向DNS错误的数量。当IP到主机名到IP DNS解析产生一个与客户端原始IP地址不匹配的IP地址时，就会发生这些错误。
+- en: '`COUNT_HOST_ACL_ERRORS`'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_HOST_ACL_ERRORS`'
+- en: The number of errors that occur because no users are permitted to connect from
+    the client host. In such cases, the server returns [`ER_HOST_NOT_PRIVILEGED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_host_not_privileged)
+    and does not even ask for a user name or password.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 出现的错误次数，因为没有用户被允许从客户端主机连接。在这种情况下，服务器返回[`ER_HOST_NOT_PRIVILEGED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_host_not_privileged)，甚至不要求用户名或密码。
+- en: '`COUNT_NO_AUTH_PLUGIN_ERRORS`'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_NO_AUTH_PLUGIN_ERRORS`'
+- en: The number of errors due to requests for an unavailable authentication plugin.
+    A plugin can be unavailable if, for example, it was never loaded or a load attempt
+    failed.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于请求不可用的身份验证插件而导致的错误数量。例如，如果插件从未加载或加载尝试失败，则插件可能不可用。
+- en: '`COUNT_AUTH_PLUGIN_ERRORS`'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_AUTH_PLUGIN_ERRORS`'
+- en: The number of errors reported by authentication plugins.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 身份验证插件报告的错误数量。
+- en: 'An authentication plugin can report different error codes to indicate the root
+    cause of a failure. Depending on the type of error, one of these columns is incremented:
+    `COUNT_AUTHENTICATION_ERRORS`, `COUNT_AUTH_PLUGIN_ERRORS`, `COUNT_HANDSHAKE_ERRORS`.
+    New return codes are an optional extension to the existing plugin API. Unknown
+    or unexpected plugin errors are counted in the `COUNT_AUTH_PLUGIN_ERRORS` column.'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 身份验证插件可以报告不同的错误代码以指示失败的根本原因。根据错误类型，将递增以下列之一：`COUNT_AUTHENTICATION_ERRORS`、`COUNT_AUTH_PLUGIN_ERRORS`、`COUNT_HANDSHAKE_ERRORS`。新的返回代码是现有插件API的可选扩展。未知或意外的插件错误计入`COUNT_AUTH_PLUGIN_ERRORS`列。
+- en: '`COUNT_HANDSHAKE_ERRORS`'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_HANDSHAKE_ERRORS`'
+- en: The number of errors detected at the wire protocol level.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在协议层面检测到的错误数量。
+- en: '`COUNT_PROXY_USER_ERRORS`'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_PROXY_USER_ERRORS`'
+- en: The number of errors detected when proxy user A is proxied to another user B
+    who does not exist.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当代理用户A被代理到另一个不存在的用户B时检测到的错误数量。
+- en: '`COUNT_PROXY_USER_ACL_ERRORS`'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_PROXY_USER_ACL_ERRORS`'
+- en: The number of errors detected when proxy user A is proxied to another user B
+    who does exist but for whom A does not have the [`PROXY`](privileges-provided.html#priv_proxy)
+    privilege.
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当代理用户A被代理到另一个存在但A没有[`PROXY`](privileges-provided.html#priv_proxy)权限的用户B时检测到的错误数量。
+- en: '`COUNT_AUTHENTICATION_ERRORS`'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_AUTHENTICATION_ERRORS`'
+- en: The number of errors caused by failed authentication.
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于身份验证失败导致的错误数量。
+- en: '`COUNT_SSL_ERRORS`'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_SSL_ERRORS`'
+- en: The number of errors due to SSL problems.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于SSL问题导致的错误数量。
+- en: '`COUNT_MAX_USER_CONNECTIONS_ERRORS`'
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_MAX_USER_CONNECTIONS_ERRORS`'
+- en: The number of errors caused by exceeding per-user connection quotas. See [Section 8.2.21,
+    “Setting Account Resource Limits”](user-resources.html "8.2.21 Setting Account
+    Resource Limits").
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于超出每用户连接配额而导致的错误数量。请参阅[Section 8.2.21, “Setting Account Resource Limits”](user-resources.html
+    "8.2.21 Setting Account Resource Limits")。
+- en: '`COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS`'
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS`'
+- en: The number of errors caused by exceeding per-user connections-per-hour quotas.
+    See [Section 8.2.21, “Setting Account Resource Limits”](user-resources.html "8.2.21 Setting
+    Account Resource Limits").
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于超出每小时每用户连接配额而导致的错误数量。请参阅[Section 8.2.21, “Setting Account Resource Limits”](user-resources.html
+    "8.2.21 Setting Account Resource Limits")。
+- en: '`COUNT_DEFAULT_DATABASE_ERRORS`'
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_DEFAULT_DATABASE_ERRORS`'
+- en: The number of errors related to the default database. For example, the database
+    does not exist or the user has no privileges to access it.
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与默认数据库相关的错误数量。例如，数据库不存在或用户没有访问权限。
+- en: '`COUNT_INIT_CONNECT_ERRORS`'
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_INIT_CONNECT_ERRORS`'
+- en: The number of errors caused by execution failures of statements in the [`init_connect`](server-system-variables.html#sysvar_init_connect)
+    system variable value.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于[`init_connect`](server-system-variables.html#sysvar_init_connect)系统变量值中语句执行失败而导致的错误数量。
+- en: '`COUNT_LOCAL_ERRORS`'
+  id: totrans-54
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_LOCAL_ERRORS`'
+- en: The number of errors local to the server implementation and not related to the
+    network, authentication, or authorization. For example, out-of-memory conditions
+    fall into this category.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与服务器实现本地的与网络、身份验证或授权无关的错误数量。例如，内存不足情况属于此类别。
+- en: '`COUNT_UNKNOWN_ERRORS`'
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT_UNKNOWN_ERRORS`'
+- en: The number of other, unknown errors not accounted for by other columns in this
+    table. This column is reserved for future use, in case new error conditions must
+    be reported, and if preserving the backward compatibility and structure of the
+    [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The host_cache
+    Table") table is required.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在此表中其他未被其他列考虑的未知错误数量。该列保留用于将来使用，以防必须报告新的错误条件，并且如果需要保留[`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table")表的向后兼容性和结构。
+- en: '`FIRST_SEEN`'
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FIRST_SEEN`'
+- en: The timestamp of the first connection attempt seen from the client in the `IP`
+    column.
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在`IP`列中看到的客户端首次连接尝试的时间戳。
+- en: '`LAST_SEEN`'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LAST_SEEN`'
+- en: The timestamp of the most recent connection attempt seen from the client in
+    the `IP` column.
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在`IP`列中看到的客户端最近连接尝试的时间戳。
+- en: '`FIRST_ERROR_SEEN`'
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FIRST_ERROR_SEEN`'
+- en: The timestamp of the first error seen from the client in the `IP` column.
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端在`IP`列中首次出现错误的时间戳。
+- en: '`LAST_ERROR_SEEN`'
+  id: totrans-64
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LAST_ERROR_SEEN`'
+- en: The timestamp of the most recent error seen from the client in the `IP` column.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在`IP`列中记录客户端最近出现错误的时间戳。
+- en: 'The [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The
+    host_cache Table") table has these indexes:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The host_cache
+    Table")表具有以下索引：'
+- en: Primary key on (`IP`)
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: (`IP`)上的主键
+- en: Index on (`HOST`)
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: (`HOST`)上的索引
+- en: '[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement")
+    is permitted for the [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The
+    host_cache Table") table. It requires the [`DROP`](privileges-provided.html#priv_drop)
+    privilege for the table. Truncating the table flushes the host cache, which has
+    the effects described in [Flushing the Host Cache](host-cache.html#host-cache-flushing
+    "Flushing the Host Cache").'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`host_cache`](performance-schema-host-cache-table.html "15.1.37 TRUNCATE
+    TABLE Statement")表，允许使用`TRUNCATE TABLE`语句。需要对该表具有[`DROP`](privileges-provided.html#priv_drop)权限。清空表会刷新主机缓存，具有[刷新主机缓存](host-cache.html#host-cache-flushing
+    "Flushing the Host Cache")中描述的效果。

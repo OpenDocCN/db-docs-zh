@@ -1,0 +1,170 @@
+- en: 10.3.1 How MySQL Uses Indexes
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.3.1 MySQL如何使用索引
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-indexes.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-indexes.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-indexes.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-indexes.html)
+- en: Indexes are used to find rows with specific column values quickly. Without an
+    index, MySQL must begin with the first row and then read through the entire table
+    to find the relevant rows. The larger the table, the more this costs. If the table
+    has an index for the columns in question, MySQL can quickly determine the position
+    to seek to in the middle of the data file without having to look at all the data.
+    This is much faster than reading every row sequentially.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引用于快速查找具有特定列值的行。没有索引，MySQL必须从第一行开始，然后读取整个表以找到相关行。表越大，成本越高。如果表中有涉及的列的索引，MySQL可以快速确定在数据文件中要查找的位置，而无需查看所有数据。这比顺序读取每一行要快得多。
+- en: 'Most MySQL indexes (`PRIMARY KEY`, `UNIQUE`, `INDEX`, and `FULLTEXT`) are stored
+    in [B-trees](glossary.html#glos_b_tree "B-tree"). Exceptions: Indexes on spatial
+    data types use R-trees; `MEMORY` tables also support [hash indexes](glossary.html#glos_hash_index
+    "hash index"); `InnoDB` uses inverted lists for `FULLTEXT` indexes.'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 大多数MySQL索引（`PRIMARY KEY`、`UNIQUE`、`INDEX`和`FULLTEXT`）存储在[B-trees](glossary.html#glos_b_tree
+    "B-tree")中。例外情况：空间数据类型的索引使用R-trees；`MEMORY`表还支持[hash索引](glossary.html#glos_hash_index
+    "hash index")；`InnoDB`对`FULLTEXT`索引使用倒排列表。
+- en: In general, indexes are used as described in the following discussion. Characteristics
+    specific to hash indexes (as used in `MEMORY` tables) are described in [Section 10.3.9,
+    “Comparison of B-Tree and Hash Indexes”](index-btree-hash.html "10.3.9 Comparison
+    of B-Tree and Hash Indexes").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一般来说，索引的使用如下所述。哈希索引（用于`MEMORY`表中）的特性在[第10.3.9节“B-Tree和Hash索引的比较”](index-btree-hash.html
+    "10.3.9 Comparison of B-Tree and Hash Indexes")中描述。
+- en: 'MySQL uses indexes for these operations:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL在以下操作中使用索引：
+- en: To find the rows matching a `WHERE` clause quickly.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 快速查找与`WHERE`子句匹配的行。
+- en: To eliminate rows from consideration. If there is a choice between multiple
+    indexes, MySQL normally uses the index that finds the smallest number of rows
+    (the most [selective](glossary.html#glos_selectivity "selectivity") index).
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要消除考虑的行。如果存在多个索引选择，MySQL通常使用找到最少行数（最具[选择性](glossary.html#glos_selectivity "selectivity")的索引）的索引。
+- en: If the table has a multiple-column index, any leftmost prefix of the index can
+    be used by the optimizer to look up rows. For example, if you have a three-column
+    index on `(col1, col2, col3)`, you have indexed search capabilities on `(col1)`,
+    `(col1, col2)`, and `(col1, col2, col3)`. For more information, see [Section 10.3.6,
+    “Multiple-Column Indexes”](multiple-column-indexes.html "10.3.6 Multiple-Column
+    Indexes").
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表具有多列索引，则优化器可以使用索引的任何最左前缀来查找行。例如，如果在`(col1, col2, col3)`上有一个三列索引，则可以在`(col1)`、`(col1,
+    col2)`和`(col1, col2, col3)`上进行索引搜索。有关更多信息，请参见[第10.3.6节“多列索引”](multiple-column-indexes.html
+    "10.3.6 Multiple-Column Indexes")。
+- en: To retrieve rows from other tables when performing joins. MySQL can use indexes
+    on columns more efficiently if they are declared as the same type and size. In
+    this context, [`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types") and [`CHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types") are considered the same if they are declared
+    as the same size. For example, `VARCHAR(10)` and `CHAR(10)` are the same size,
+    but `VARCHAR(10)` and `CHAR(15)` are not.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在执行连接时从其他表中检索行。如果声明为相同类型和大小的列，MySQL可以更有效地使用列上的索引。在这种情况下，如果它们声明为相同大小，则[`VARCHAR`](char.html
+    "13.3.2 The CHAR and VARCHAR Types")和[`CHAR`](char.html "13.3.2 The CHAR and VARCHAR
+    Types")被视为相同。例如，`VARCHAR(10)`和`CHAR(10)`是相同大小，但`VARCHAR(10)`和`CHAR(15)`不是。
+- en: For comparisons between nonbinary string columns, both columns should use the
+    same character set. For example, comparing a `utf8mb4` column with a `latin1`
+    column precludes use of an index.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于非二进制字符串列之间的比较，两列应使用相同的字符集。例如，将`utf8mb4`列与`latin1`列进行比较会排除索引的使用。
+- en: Comparison of dissimilar columns (comparing a string column to a temporal or
+    numeric column, for example) may prevent use of indexes if values cannot be compared
+    directly without conversion. For a given value such as `1` in the numeric column,
+    it might compare equal to any number of values in the string column such as `'1'`,
+    `' 1'`, `'00001'`, or `'01.e1'`. This rules out use of any indexes for the string
+    column.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 比较不同类型的列（例如将字符串列与时间或数字列进行比较）可能会阻止使用索引，如果值不能直接进行比较而需要转换。对于数字列中的给定值，例如`1`，它可能与字符串列中的任意数量的值相等，例如`'1'`，`' 1'`，`'00001'`或`'01.e1'`。这排除了对字符串列使用任何索引。
+- en: 'To find the [`MIN()`](aggregate-functions.html#function_min) or [`MAX()`](aggregate-functions.html#function_max)
+    value for a specific indexed column *`key_col`*. This is optimized by a preprocessor
+    that checks whether you are using `WHERE *`key_part_N`* = *`constant`*` on all
+    key parts that occur before *`key_col`* in the index. In this case, MySQL does
+    a single key lookup for each [`MIN()`](aggregate-functions.html#function_min)
+    or [`MAX()`](aggregate-functions.html#function_max) expression and replaces it
+    with a constant. If all expressions are replaced with constants, the query returns
+    at once. For example:'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要查找特定索引列*`key_col`*的[`MIN()`](aggregate-functions.html#function_min)或[`MAX()`](aggregate-functions.html#function_max)值。这是通过预处理器进行优化的，它会检查您是否在索引中使用了`WHERE
+    *`key_part_N`* = *`constant`*`，其中*`key_col`*之前的所有关键部分。在这种情况下，MySQL对每个[`MIN()`](aggregate-functions.html#function_min)或[`MAX()`](aggregate-functions.html#function_max)表达式进行单个关键查找，并将其替换为常量。如果所有表达式都被常量替换，查询将立即返回。例如：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: To sort or group a table if the sorting or grouping is done on a leftmost prefix
+    of a usable index (for example, `ORDER BY *`key_part1`*, *`key_part2`*`). If all
+    key parts are followed by `DESC`, the key is read in reverse order. (Or, if the
+    index is a descending index, the key is read in forward order.) See [Section 10.2.1.16,
+    “ORDER BY Optimization”](order-by-optimization.html "10.2.1.16 ORDER BY Optimization"),
+    [Section 10.2.1.17, “GROUP BY Optimization”](group-by-optimization.html "10.2.1.17 GROUP
+    BY Optimization"), and [Section 10.3.13, “Descending Indexes”](descending-indexes.html
+    "10.3.13 Descending Indexes").
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要对表进行排序或分组，如果排序或分组是在可用索引的最左前缀上完成的（例如，`ORDER BY *`key_part1`*, *`key_part2`*`）。如果所有关键部分后面都跟着`DESC`，则按相反顺序读取关键字。
+    （或者，如果索引是降序索引，则按正向顺序读取关键字。）请参见[Section 10.2.1.16，“ORDER BY Optimization”](order-by-optimization.html
+    "10.2.1.16 ORDER BY Optimization")，[Section 10.2.1.17，“GROUP BY Optimization”](group-by-optimization.html
+    "10.2.1.17 GROUP BY Optimization")和[Section 10.3.13，“Descending Indexes”](descending-indexes.html
+    "10.3.13 Descending Indexes")。
+- en: 'In some cases, a query can be optimized to retrieve values without consulting
+    the data rows. (An index that provides all the necessary results for a query is
+    called a [covering index](glossary.html#glos_covering_index "covering index").)
+    If a query uses from a table only columns that are included in some index, the
+    selected values can be retrieved from the index tree for greater speed:'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在某些情况下，可以优化查询以在不查看数据行的情况下检索值。（为查询提供所有必要结果的索引称为[覆盖索引](glossary.html#glos_covering_index
+    "covering index")。）如果查询仅使用了某个索引中包含的列，那么所选值可以从索引树中检索以提高速度：
+- en: '[PRE1]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Indexes are less important for queries on small tables, or big tables where
+    report queries process most or all of the rows. When a query needs to access most
+    of the rows, reading sequentially is faster than working through an index. Sequential
+    reads minimize disk seeks, even if not all the rows are needed for the query.
+    See [Section 10.2.1.23, “Avoiding Full Table Scans”](table-scan-avoidance.html
+    "10.2.1.23 Avoiding Full Table Scans") for details.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于小表或大表的查询，其中报表查询处理大部分或全部行，索引不那么重要。当查询需要访问大部分行时，顺序读取比通过索引逐个查找更快。顺序读取最小化磁盘寻址，即使查询不需要所有行。有关详细信息，请参见[Section 10.2.1.23，“Avoiding
+    Full Table Scans”](table-scan-avoidance.html "10.2.1.23 Avoiding Full Table Scans")。

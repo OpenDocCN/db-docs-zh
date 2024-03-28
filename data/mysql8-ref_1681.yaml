@@ -1,0 +1,1801 @@
+- en: 25.5.1 ndbd — The NDB Cluster Data Node Daemon
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.5.1 ndbd — NDB 集群数据节点守护进程
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndbd.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndbd.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndbd.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndbd.html)
+- en: '[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") is the process that is used to handle all the data in tables
+    using the NDB Cluster storage engine. This is the process that empowers a data
+    node to accomplish distributed transaction handling, node recovery, checkpointing
+    to disk, online backup, and related tasks.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") 是用于处理使用 NDB Cluster 存储引擎的表中所有数据的进程。这是使数据节点能够完成分布式事务处理、节点恢复、写入磁盘的检查点、在线备份以及相关任务的进程。'
+- en: In an NDB Cluster, a set of [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") processes cooperate in handling data. These
+    processes can execute on the same computer (host) or on different computers. The
+    correspondences between data nodes and Cluster hosts is completely configurable.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 NDB 集群中，一组 [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The
+    NDB Cluster Data Node Daemon") 进程协作处理数据。这些进程可以在同一台计算机（主机）上执行，也可以在不同计算机上执行。数据节点和集群主机之间的对应关系是完全可配置的。
+- en: Options that can be used with [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") are shown in the following table. Additional
+    descriptions follow the table.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可用于 [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") 的选项显示在下表中。表后面会有额外的描述。
+- en: '**Table 25.24 Command-line options used with the program ndbd**'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 25.24 与程序 ndbd 一起使用的命令行选项**'
+- en: '| Format | Description | Added, Deprecated, or Removed |'
+  id: totrans-6
+  prefs: []
+  type: TYPE_TB
+  zh: '| 格式 | 描述 | 添加、弃用或移除 |'
+- en: '| `[--bind-address=name](mysql-cluster-programs-ndbd.html#option_ndbd_bind-address)`
+    | Local bind address | (Supported in all NDB releases based on MySQL 8.0) |'
+  id: totrans-7
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--bind-address=name](mysql-cluster-programs-ndbd.html#option_ndbd_bind-address)`
+    | 本地绑定地址 | (适用于基于 MySQL 8.0 的所有 NDB 版本) |'
+- en: '| `[--character-sets-dir=path](mysql-cluster-programs-ndbd.html#option_ndbd_character-sets-dir)`
+    | Directory containing character sets | (Supported in all NDB releases based on
+    MySQL 8.0) |'
+  id: totrans-8
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--character-sets-dir=path](mysql-cluster-programs-ndbd.html#option_ndbd_character-sets-dir)`
+    | 包含字符集的目录 | (适用于基于 MySQL 8.0 的所有 NDB 版本) |'
+- en: '| `[--connect-delay=#](mysql-cluster-programs-ndbd.html#option_ndbd_connect-delay)`
+    | Obsolete synonym for --connect-retry-delay, which should be used instead of
+    this option | REMOVED: NDB 8.0.28 |'
+  id: totrans-9
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--connect-delay=#](mysql-cluster-programs-ndbd.html#option_ndbd_connect-delay)`
+    | --connect-retry-delay 的已弃用同义词，应使用该选项代替 | 移除：NDB 8.0.28 |'
+- en: '| `[--connect-retries=#](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)`
+    | Set the number of times to retry a connection before giving up; 0 means 1 attempt
+    only (and no retries); -1 means continue retrying indefinitely | (Supported in
+    all NDB releases based on MySQL 8.0) |'
+  id: totrans-10
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--connect-retries=#](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)`
+    | 设置在放弃之前重试连接的次数；0 表示仅尝试 1 次（无重试）；-1 表示持续无限重试 | (适用于基于 MySQL 8.0 的所有 NDB 版本) |'
+- en: '| `[--connect-retry-delay=#](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)`
+    | Time to wait between attempts to contact a management server, in seconds; 0
+    means do not wait between attempts | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-11
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--connect-retry-delay=#](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)`
+    | 尝试联系管理服务器之间的等待时间，单位为秒；0 表示尝试之间不等待 | (适用于基于 MySQL 8.0 的所有 NDB 版本) |'
+- en: '| `[--connect-string=connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_connect-string)`,`[-c
+    connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_connect-string)`
+    | Same as --ndb-connectstring | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-12
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--connect-string=connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_connect-string)`,`[-c
+    connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_connect-string)`
+    | 与 --ndb-connectstring 相同 | (适用于基于 MySQL 8.0 的所有 NDB 版本) |'
+- en: '| `[--core-file](mysql-cluster-programs-ndbd.html#option_ndbd_core-file)` |
+    Write core file on error; used in debugging | (Supported in all NDB releases based
+    on MySQL 8.0) |'
+  id: totrans-13
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--core-file](mysql-cluster-programs-ndbd.html#option_ndbd_core-file)` |
+    在错误时写入核心文件；用于调试 | (适用于基于 MySQL 8.0 的所有 NDB 版本) |'
+- en: '| `[--daemon](mysql-cluster-programs-ndbd.html#option_ndbd_daemon)`,`[-d](mysql-cluster-programs-ndbd.html#option_ndbd_daemon)`
+    | Start ndbd as daemon (default); override with --nodaemon | (Supported in all
+    NDB releases based on MySQL 8.0) |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--daemon](mysql-cluster-programs-ndbd.html#option_ndbd_daemon)`,`[-d](mysql-cluster-programs-ndbd.html#option_ndbd_daemon)`
+    | 以守护进程模式启动 ndbd（默认）；可使用 --nodaemon 参数覆盖 | (适用于基于 MySQL 8.0 的所有 NDB 版本) |'
+- en: '| `[--defaults-extra-file=path](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-extra-file)`
+    | Read given file after global files are read | (Supported in all NDB releases
+    based on MySQL 8.0) |'
+  id: totrans-15
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--defaults-extra-file=path](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-extra-file)`
+    | 在全局文件读取后读取给定文件 | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--defaults-file=path](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-file)`
+    | Read default options from given file only | (Supported in all NDB releases based
+    on MySQL 8.0) |'
+  id: totrans-16
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--defaults-file=path](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-file)`
+    | 仅从给定文件中读取默认选项 | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--defaults-group-suffix=string](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-group-suffix)`
+    | Also read groups with concat(group, suffix) | (Supported in all NDB releases
+    based on MySQL 8.0) |'
+  id: totrans-17
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--defaults-group-suffix=string](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-group-suffix)`
+    | 也读取连接(concat(group, suffix))的组 | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--filesystem-password=password](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password)`
+    | Password for node file system encryption; can be passed from stdin, tty, or
+    my.cnf file | ADDED: NDB 8.0.31 |'
+  id: totrans-18
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--filesystem-password=password](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password)`
+    | 节点文件系统加密的密码；可以从标准输入、终端或my.cnf文件中传递 | 新增：NDB 8.0.31 |'
+- en: '| `[--filesystem-password-from-stdin={TRUE&#124;FALSE}](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password-from-stdin)`
+    | Get password for node file system encryption, passed from stdin | ADDED: NDB
+    8.0.31 |'
+  id: totrans-19
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--filesystem-password-from-stdin={TRUE&#124;FALSE}](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password-from-stdin)`
+    | 从标准输入获取节点文件系统加密的密码 | 新增：NDB 8.0.31 |'
+- en: '| `[--foreground](mysql-cluster-programs-ndbd.html#option_ndbd_foreground)`
+    | Run ndbd in foreground, provided for debugging purposes (implies --nodaemon)
+    | (Supported in all NDB releases based on MySQL 8.0) |'
+  id: totrans-20
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--foreground](mysql-cluster-programs-ndbd.html#option_ndbd_foreground)`
+    | 在前台运行ndbd，用于调试目的（意味着--nodaemon） | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--help](mysql-cluster-programs-ndbd.html#option_ndbd_help)`,`[-?](mysql-cluster-programs-ndbd.html#option_ndbd_help)`
+    | Display help text and exit | (Supported in all NDB releases based on MySQL 8.0)
+    |'
+  id: totrans-21
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--help](mysql-cluster-programs-ndbd.html#option_ndbd_help)`,`[-?](mysql-cluster-programs-ndbd.html#option_ndbd_help)`
+    | 显示帮助文本并退出 | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--initial](mysql-cluster-programs-ndbd.html#option_ndbd_initial)` | Perform
+    initial start of ndbd, including file system cleanup; consult documentation before
+    using this option | (Supported in all NDB releases based on MySQL 8.0) |'
+  id: totrans-22
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--initial](mysql-cluster-programs-ndbd.html#option_ndbd_initial)` | 执行ndbd的初始启动，包括文件系统清理；在使用此选项之前请参考文档
+    | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--initial-start](mysql-cluster-programs-ndbd.html#option_ndbd_initial-start)`
+    | Perform partial initial start (requires --nowait-nodes) | (Supported in all
+    NDB releases based on MySQL 8.0) |'
+  id: totrans-23
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--initial-start](mysql-cluster-programs-ndbd.html#option_ndbd_initial-start)`
+    | 执行部分初始启动（需要--nowait-nodes） | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--install[=name]](mysql-cluster-programs-ndbd.html#option_ndbd_install)`
+    | Used to install data node process as Windows service; does not apply on other
+    platforms | (Supported in all NDB releases based on MySQL 8.0) |'
+  id: totrans-24
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--install[=name]](mysql-cluster-programs-ndbd.html#option_ndbd_install)`
+    | 用于将数据节点进程安装为Windows服务；不适用于其他平台 | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--logbuffer-size=#](mysql-cluster-programs-ndbd.html#option_ndbd_logbuffer-size)`
+    | Control size of log buffer; for use when debugging with many log messages being
+    generated; default is sufficient for normal operations | (Supported in all NDB
+    releases based on MySQL 8.0) |'
+  id: totrans-25
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--logbuffer-size=#](mysql-cluster-programs-ndbd.html#option_ndbd_logbuffer-size)`
+    | 控制日志缓冲区的大小；用于在生成许多日志消息时进行调试；默认值对于正常操作足够 | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--login-path=path](mysql-cluster-programs-ndbd.html#option_ndbd_login-path)`
+    | Read given path from login file | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-26
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--login-path=path](mysql-cluster-programs-ndbd.html#option_ndbd_login-path)`
+    | 从登录文件中读取给定路径 | (在基于MySQL 8.0的所有NDB版本���支持) |'
+- en: '| `[--ndb-connectstring=connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)`,`[-c
+    connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)`
+    | Set connect string for connecting to ndb_mgmd. Syntax: "[nodeid=id;][host=]hostname[:port]".
+    Overrides entries in NDB_CONNECTSTRING and my.cnf | (Supported in all NDB releases
+    based on MySQL 8.0) |'
+  id: totrans-27
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--ndb-connectstring=connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)`,`[-c
+    connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)`
+    | 设置连接到ndb_mgmd的连接字符串。语法："[nodeid=id;][host=]hostname[:port]"。覆盖NDB_CONNECTSTRING和my.cnf中的条目
+    | (在基于MySQL 8.0的所有NDB版本中支持) |'
+- en: '| `[--ndb-mgmd-host=connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-mgmd-host)`,`[-c
+    connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-mgmd-host)`
+    | Same as --ndb-connectstring | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-28
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--ndb-mgmd-host=connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-mgmd-host)`,`[-c
+    connection_string](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-mgmd-host)`
+    | 与--ndb-connectstring相同 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--ndb-nodeid=#](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-nodeid)`
+    | Set node ID for this node, overriding any ID set by --ndb-connectstring | (Supported
+    in all NDB releases based on MySQL 8.0) |'
+  id: totrans-29
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--ndb-nodeid=#](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-nodeid)`
+    | 设置此节点的节点ID，覆盖`--ndb-connectstring`设置的任何ID | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--nodaemon](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)` | Do
+    not start ndbd as daemon; provided for testing purposes | (Supported in all NDB
+    releases based on MySQL 8.0) |'
+  id: totrans-30
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--nodaemon](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)` | 不将ndbd作为守护进程启动；供测试目的使用
+    | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--no-defaults](mysql-cluster-programs-ndbd.html#option_ndbd_no-defaults)`
+    | Do not read default options from any option file other than login file | (Supported
+    in all NDB releases based on MySQL 8.0) |'
+  id: totrans-31
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--no-defaults](mysql-cluster-programs-ndbd.html#option_ndbd_no-defaults)`
+    | 不从登录文件以外的任何选项文件中读取默认选项 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--nostart](mysql-cluster-programs-ndbd.html#option_ndbd_nostart)`,`[-n](mysql-cluster-programs-ndbd.html#option_ndbd_nostart)`
+    | Do not start ndbd immediately; ndbd waits for command to start from ndb_mgm
+    | (Supported in all NDB releases based on MySQL 8.0) |'
+  id: totrans-32
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--nostart](mysql-cluster-programs-ndbd.html#option_ndbd_nostart)`,`[-n](mysql-cluster-programs-ndbd.html#option_ndbd_nostart)`
+    | 不立即启动ndbd；ndbd等待从ndb_mgm启动的命令 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--nowait-nodes=list](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes)`
+    | Do not wait for these data nodes to start (takes comma-separated list of node
+    IDs); requires --ndb-nodeid | (Supported in all NDB releases based on MySQL 8.0)
+    |'
+  id: totrans-33
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--nowait-nodes=list](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes)`
+    | 不等待这些数据节点启动（以逗号分隔的节点ID列表）；需要--ndb-nodeid | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--ndb-optimized-node-selection](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-optimized-node-selection)`
+    | Enable optimizations for selection of nodes for transactions. Enabled by default;
+    use --skip-ndb-optimized-node-selection to disable | REMOVED: 8.0.31 |'
+  id: totrans-34
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--ndb-optimized-node-selection](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-optimized-node-selection)`
+    | 启用用于事务节点选择的优化。默认启用；使用--skip-ndb-optimized-node-selection来禁用 | 已移除：8.0.31 |'
+- en: '| `[--print-defaults](mysql-cluster-programs-ndbd.html#option_ndbd_print-defaults)`
+    | Print program argument list and exit | (Supported in all NDB releases based
+    on MySQL 8.0) |'
+  id: totrans-35
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--print-defaults](mysql-cluster-programs-ndbd.html#option_ndbd_print-defaults)`
+    | 打印程序参数列表并退出 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--remove[=name]](mysql-cluster-programs-ndbd.html#option_ndbd_remove)`
+    | Used to remove data node process that was previously installed as Windows service;
+    does not apply on other platforms | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--remove[=name]](mysql-cluster-programs-ndbd.html#option_ndbd_remove)`
+    | 用于删除先前安装为Windows服务的数据节点进程；不适用于其他平台 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--usage](mysql-cluster-programs-ndbd.html#option_ndbd_usage)`,`[-?](mysql-cluster-programs-ndbd.html#option_ndbd_usage)`
+    | Display help text and exit; same as --help | (Supported in all NDB releases
+    based on MySQL 8.0) |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--usage](mysql-cluster-programs-ndbd.html#option_ndbd_usage)`,`[-?](mysql-cluster-programs-ndbd.html#option_ndbd_usage)`
+    | 显示帮助文本并退出；与--help相同 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--verbose](mysql-cluster-programs-ndbd.html#option_ndbd_verbose)`,`[-v](mysql-cluster-programs-ndbd.html#option_ndbd_verbose)`
+    | Write extra debugging information to node log | (Supported in all NDB releases
+    based on MySQL 8.0) |'
+  id: totrans-38
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--verbose](mysql-cluster-programs-ndbd.html#option_ndbd_verbose)`,`[-v](mysql-cluster-programs-ndbd.html#option_ndbd_verbose)`
+    | 将额外的调试信息写入节点日志 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| `[--version](mysql-cluster-programs-ndbd.html#option_ndbd_version)`,`[-V](mysql-cluster-programs-ndbd.html#option_ndbd_version)`
+    | Display version information and exit | (Supported in all NDB releases based
+    on MySQL 8.0) |'
+  id: totrans-39
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--version](mysql-cluster-programs-ndbd.html#option_ndbd_version)`,`[-V](mysql-cluster-programs-ndbd.html#option_ndbd_version)`
+    | 显示版本信息并退出 | (适用于基于MySQL 8.0的所有NDB版本) |'
+- en: '| Format | Description | Added, Deprecated, or Removed |'
+  id: totrans-40
+  prefs: []
+  type: TYPE_TB
+  zh: '| 格式 | 描述 | 添加、弃用或移除 |'
+- en: Note
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: All of these options also apply to the multithreaded version of this program
+    ([**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd — The NDB Cluster
+    Data Node Daemon (Multi-Threaded)")) and you may substitute “[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")” for “[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")” wherever the latter occurs
+    in this section.
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有这些选项也适用于此程序的多线程版本（[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)")），您可以在本节中出现的“[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")”处用“[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")”替换。
+- en: '[`--bind-address`](mysql-cluster-programs-ndbd.html#option_ndbd_bind-address)'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--bind-address`](mysql-cluster-programs-ndbd.html#option_ndbd_bind-address)'
+- en: '| Command-Line Format | `--bind-address=name` |'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--bind-address=name` |'
+- en: '| Type | String |'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value |  |'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 |  |'
+- en: Causes [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") to bind to a specific network interface (host name or IP address).
+    This option has no default value.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 导致 [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") 绑定到特定的网络接口（主机名或 IP 地址）。此选项没有默认值。
+- en: '[`--character-sets-dir`](mysql-cluster-programs-ndbd.html#option_ndbd_character-sets-dir)'
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--character-sets-dir`](mysql-cluster-programs-ndbd.html#option_ndbd_character-sets-dir)'
+- en: '| Command-Line Format | `--character-sets-dir=path` |'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--character-sets-dir=path` |'
+- en: Directory containing character sets.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 包含字符集的目录。
+- en: '[`--connect-delay=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-delay)'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--connect-delay=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-delay)'
+- en: '| Command-Line Format | `--connect-delay=#` |'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--connect-delay=#` |'
+- en: '| Deprecated | Yes (removed in 8.0.28-ndb-8.0.28) |'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 已弃用 | 是（在 8.0.28-ndb-8.0.28 中移除） |'
+- en: '| Type | Numeric |'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 数值 |'
+- en: '| Default Value | `5` |'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `5` |'
+- en: '| Minimum Value | `0` |'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最小值 | `0` |'
+- en: '| Maximum Value | `3600` |'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最大值 | `3600` |'
+- en: Determines the time to wait between attempts to contact a management server
+    when starting (the number of attempts is controlled by the [`--connect-retries`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)
+    option). The default is 5 seconds.
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 确定在启动时尝试联系管理服务器之间等待的时间（尝试次数由 [`--connect-retries`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)
+    选项控制）。默认值为 5 秒。
+- en: This option is deprecated, and is subject to removal in a future release of
+    NDB Cluster. Use [`--connect-retry-delay`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)
+    instead.
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项已弃用，并可能在将来的 NDB Cluster 版本中删除。请改用 [`--connect-retry-delay`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)。
+- en: '[`--connect-retries=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--connect-retries=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)'
+- en: '| Command-Line Format | `--connect-retries=#` |'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--connect-retries=#` |'
+- en: '| Type | Numeric |'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 数值 |'
+- en: '| Default Value | `12` |'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `12` |'
+- en: '| Minimum Value (≥ 8.0.28-ndb-8.0.28) | `-1` |'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最小值（≥ 8.0.28-ndb-8.0.28） | `-1` |'
+- en: '| Minimum Value | `-1` |'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最小值 | `-1` |'
+- en: '| Minimum Value | `-1` |'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最小值 | `-1` |'
+- en: '| Minimum Value (≤ 8.0.27-ndb-8.0.27) | `0` |'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最小值（≤ 8.0.27-ndb-8.0.27） | `0` |'
+- en: '| Maximum Value | `65535` |'
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最大值 | `65535` |'
+- en: Set the number of times to retry a connection before giving up; 0 means 1 attempt
+    only (and no retries). The default is 12 attempts. The time to wait between attempts
+    is controlled by the [`--connect-retry-delay`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)
+    option.
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置在放弃之前重试连接的次数；0 表示仅 1 次尝试（无重试）。默认值为 12 次尝试。尝试之间的等待时间由 [`--connect-retry-delay`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)
+    选项控制。
+- en: Beginning with NDB 8.0.28, you can set this option to -1, in which case, the
+    data node process continues indefinitely to try to connect.
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从 NDB 8.0.28 开始，您可以将此选项设置为 -1，在这种情况下，数据节点进程将持续不断地尝试连接。
+- en: '[`--connect-retry-delay=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)'
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--connect-retry-delay=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retry-delay)'
+- en: '| Command-Line Format | `--connect-retry-delay=#` |'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--connect-retry-delay=#` |'
+- en: '| Type | Numeric |'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 数值 |'
+- en: '| Default Value | `5` |'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `5` |'
+- en: '| Minimum Value | `0` |'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最小值 | `0` |'
+- en: '| Maximum Value | `4294967295` |'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最大值 | `4294967295` |'
+- en: Determines the time to wait between attempts to contact a management server
+    when starting (the time between attempts is controlled by the [`--connect-retries`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)
+    option). The default is 5 seconds.
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 确定在启动时尝试联系管理服务器之间等待的时间（尝试之间的时间由[`--connect-retries`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-retries)选项控制）。默认值为5秒。
+- en: This option takes the place of the [`--connect-delay`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-delay)
+    option, which is now deprecated and subject to removal in a future release of
+    NDB Cluster.
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项取代了[`--connect-delay`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-delay)选项，该选项现已弃用并可能在将来的NDB
+    Cluster版本中删除。
+- en: The short form `-r` for this option is deprecated as of NDB 8.0.28, and subject
+    to removal in a future release of NDB Cluster. Use the long form instead.
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项的短形式`-r`自NDB 8.0.28起已弃用，并可能在将来的NDB Cluster版本中删除。请改用长形式。
+- en: '[`--connect-string`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-string)'
+  id: totrans-80
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--connect-string`](mysql-cluster-programs-ndbd.html#option_ndbd_connect-string)'
+- en: '| Command-Line Format | `--connect-string=connection_string` |'
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--connect-string=connection_string` |'
+- en: '| Type | String |'
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-83
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[none]` |'
+- en: Same as [`--ndb-connectstring`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring).
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与[`--ndb-connectstring`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)相同。
+- en: '[`--core-file`](mysql-cluster-programs-ndbd.html#option_ndbd_core-file)'
+  id: totrans-85
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--core-file`](mysql-cluster-programs-ndbd.html#option_ndbd_core-file)'
+- en: '| Command-Line Format | `--core-file` |'
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--core-file` |'
+- en: Write core file on error; used in debugging.
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在错误时写入核心文件；用于调试。
+- en: '[`--daemon`](mysql-cluster-programs-ndbd.html#option_ndbd_daemon), `-d`'
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--daemon`](mysql-cluster-programs-ndbd.html#option_ndbd_daemon), `-d`'
+- en: '| Command-Line Format | `--daemon` |'
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--daemon` |'
+- en: Instructs [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") to execute
+    as a daemon process. This is the default behavior. [`--nodaemon`](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)
+    can be used to prevent the process from running as a daemon.
+  id: totrans-90
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指示[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)")作为守护进程执行。这是默认行为。[`--nodaemon`](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)可用于阻止进程作为守护进程运行。
+- en: This option has no effect when running [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") on Windows
+    platforms.
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在Windows平台上运行[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The
+    NDB Cluster Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")时，此选项无效。
+- en: '[`--defaults-extra-file`](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-extra-file)'
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--defaults-extra-file`](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-extra-file)'
+- en: '| Command-Line Format | `--defaults-extra-file=path` |'
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--defaults-extra-file=path` |'
+- en: '| Type | String |'
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[none]` |'
+- en: Read given file after global files are read.
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在全局文件读取后读取给定文件。
+- en: '[`--defaults-file`](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-file)'
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--defaults-file`](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-file)'
+- en: '| Command-Line Format | `--defaults-file=path` |'
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--defaults-file=path` |'
+- en: '| Type | String |'
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[none]` |'
+- en: Read default options from given file only.
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 仅从给定文件读取默认选项。
+- en: '[`--defaults-group-suffix`](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-group-suffix)'
+  id: totrans-102
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--defaults-group-suffix`](mysql-cluster-programs-ndbd.html#option_ndbd_defaults-group-suffix)'
+- en: '| Command-Line Format | `--defaults-group-suffix=string` |'
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--defaults-group-suffix=string` |'
+- en: '| Type | String |'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[none]` |'
+- en: Also read groups with concat(group, suffix).
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 还读取带有concat(group, suffix)的组。
+- en: '[`--filesystem-password`](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password)'
+  id: totrans-107
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--filesystem-password`](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password)'
+- en: '| Command-Line Format | `--filesystem-password=password` |'
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--filesystem-password=password` |'
+- en: '| Introduced | 8.0.31-ndb-8.0.31 |'
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入 | 8.0.31-ndb-8.0.31 |'
+- en: Pass the filesystem encryption and decryption password to the data node process
+    using `stdin`, `tty`, or the `my.cnf` file.
+  id: totrans-110
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 通过`stdin`、`tty`或`my.cnf`文件将文件系统加密和解密密码传递给数据节点进程。
+- en: Requires [`EncryptedFileSystem = 1`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-encryptedfilesystem).
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 需要[`EncryptedFileSystem = 1`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-encryptedfilesystem)。
+- en: For more information, see [Section 25.6.14, “File System Encryption for NDB
+    Cluster”](mysql-cluster-tde.html "25.6.14 File System Encryption for NDB Cluster").
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[第25.6.14节，“NDB集群的文件系统加密”](mysql-cluster-tde.html "25.6.14 File System
+    Encryption for NDB Cluster")。
+- en: '[`--filesystem-password-from-stdin`](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password-from-stdin)'
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--filesystem-password-from-stdin`](mysql-cluster-programs-ndbd.html#option_ndbd_filesystem-password-from-stdin)'
+- en: '| Command-Line Format | `--filesystem-password-from-stdin={TRUE&#124;FALSE}`
+    |'
+  id: totrans-114
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--filesystem-password-from-stdin={TRUE&#124;FALSE}` |'
+- en: '| Introduced | 8.0.31-ndb-8.0.31 |'
+  id: totrans-115
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.31-ndb-8.0.31 |'
+- en: Pass the filesystem encryption and decryption password to the data node process
+    from `stdin` (only).
+  id: totrans-116
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将文件系统加密和解密密码传递给数据节点进程，仅从`stdin`。
+- en: Requires [`EncryptedFileSystem = 1`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-encryptedfilesystem).
+  id: totrans-117
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 需要[`EncryptedFileSystem = 1`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-encryptedfilesystem)。
+- en: For more information, see [Section 25.6.14, “File System Encryption for NDB
+    Cluster”](mysql-cluster-tde.html "25.6.14 File System Encryption for NDB Cluster").
+  id: totrans-118
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更多信息，请参见[第25.6.14节，“NDB集群的文件系统加密”](mysql-cluster-tde.html "25.6.14 File System
+    Encryption for NDB Cluster")。
+- en: '[`--foreground`](mysql-cluster-programs-ndbd.html#option_ndbd_foreground)'
+  id: totrans-119
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--foreground`](mysql-cluster-programs-ndbd.html#option_ndbd_foreground)'
+- en: '| Command-Line Format | `--foreground` |'
+  id: totrans-120
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--foreground` |'
+- en: Causes [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)") to execute as a foreground
+    process, primarily for debugging purposes. This option implies the [`--nodaemon`](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)
+    option.
+  id: totrans-121
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 导致[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)")作为前台进程执行，主要用于调试目的。此选项意味着[`--nodaemon`](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)选项。
+- en: This option has no effect when running [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") on Windows
+    platforms.
+  id: totrans-122
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在Windows平台上运行[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The
+    NDB Cluster Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")时，此选项不起作用。
+- en: '[`--help`](mysql-cluster-programs-ndbd.html#option_ndbd_help)'
+  id: totrans-123
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--help`](mysql-cluster-programs-ndbd.html#option_ndbd_help)'
+- en: '| Command-Line Format | `--help` |'
+  id: totrans-124
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--help` |'
+- en: Display help text and exit.
+  id: totrans-125
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 显示帮助文本并退出。
+- en: '[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)'
+  id: totrans-126
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)'
+- en: '| Command-Line Format | `--initial` |'
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--initial` |'
+- en: Instructs [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon") to perform an initial start. An initial start erases
+    any files created for recovery purposes by earlier instances of [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon"). It also re-creates recovery
+    log files. On some operating systems, this process can take a substantial amount
+    of time.
+  id: totrans-128
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指示[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")执行初始启动。初始启动会擦除早期实例的恢复目的创建的任何文件，并重新创建恢复日志文件。在某些操作系统上，此过程可能需要相当长的时间。
+- en: 'An [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial) start
+    is to be used *only* when starting the [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process under very special circumstances;
+    this is because this option causes all files to be removed from the NDB Cluster
+    file system and all redo log files to be re-created. These circumstances are listed
+    here:'
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 只有在非常特殊的情况下才应使用[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)启动，因为此选项会导致从NDB集群文件系统中删除所有文件并重新创建所有重做日志文件。这些情况列在这里：
+- en: When performing a software upgrade which has changed the contents of any files.
+  id: totrans-130
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在执行更改了任何文件内容的软件升级时。
+- en: When restarting the node with a new version of [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon").
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用新版本的[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")重新启动节点时。
+- en: As a measure of last resort when for some reason the node restart or system
+    restart repeatedly fails. In this case, be aware that this node can no longer
+    be used to restore data due to the destruction of the data files.
+  id: totrans-132
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为最后一招的措施，当由于某种原因节点重新启动或系统重启反复失败时。在这种情况下，请注意由于数据文件的破坏，此节点将不再能用于恢复数据。
+- en: Warning
+  id: totrans-133
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 警告
+- en: 'To avoid the possibility of eventual data loss, it is recommended that you
+    *not* use the `--initial` option together with `StopOnError = 0`. Instead, set
+    `StopOnError` to 0 in `config.ini` only after the cluster has been started, then
+    restart the data nodes normally—that is, without the `--initial` option. See the
+    description of the [`StopOnError`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-stoponerror)
+    parameter for a detailed explanation of this issue. (Bug #24945638)'
+  id: totrans-134
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '为避免最终可能发生的数据丢失，建议您*不要*将`--initial`选项与`StopOnError = 0`一起使用。相反，在集群启动后，只需在`config.ini`中将`StopOnError`设置为0，然后正常重新启动数据节点，即不使用`--initial`选项。有关此问题的详细说明，请参阅[`StopOnError`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-stoponerror)参数的描述。（Bug
+    #24945638）'
+- en: Use of this option prevents the [`StartPartialTimeout`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-startpartialtimeout)
+    and [`StartPartitionedTimeout`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-startpartitionedtimeout)
+    configuration parameters from having any effect.
+  id: totrans-135
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用此选项会阻止[`StartPartialTimeout`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-startpartialtimeout)和[`StartPartitionedTimeout`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-startpartitionedtimeout)配置参数产生任何效果。
+- en: Important
+  id: totrans-136
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: This option does *not* affect backup files that have already been created by
+    the affected node.
+  id: totrans-137
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项*不会*影响已由受影响节点创建的备份文件。
+- en: Prior to NDB 8.0.21, the `--initial` option also did not affect any Disk Data
+    files. In NDB 8.0.21 and later, when used to perform an initial restart of the
+    cluster, the option causes the removal of all data files associated with Disk
+    Data tablespaces and undo log files associated with log file groups that existed
+    previously on this data node (see [Section 25.6.11, “NDB Cluster Disk Data Tables”](mysql-cluster-disk-data.html
+    "25.6.11 NDB Cluster Disk Data Tables")).
+  id: totrans-138
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在NDB 8.0.21之前，`--initial`选项也不会影响任何磁盘数据文件。在NDB 8.0.21及更高版本中，当用于执行集群的初始重新启动时，该选项会导致删除与磁盘数据表空间相关的所有数据文件以及与先前存在于此数据节点上的日志文件组相关联的撤销日志文件（请参阅[第25.6.11节，“NDB集群磁盘数据表”](mysql-cluster-disk-data.html
+    "25.6.11 NDB集群磁盘数据表")）。
+- en: This option also has no effect on recovery of data by a data node that is just
+    starting (or restarting) from data nodes that are already running (unless they
+    also were started with `--initial`, as part of an initial restart). This recovery
+    of data occurs automatically, and requires no user intervention in an NDB Cluster
+    that is running normally.
+  id: totrans-139
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项还不会影响数据节点在从已经运行的数据节点（除非它们也是作为初始重新启动的一部分而使用`--initial`启动）中自动恢复数据。在正常运行的NDB集群中，此数据恢复会自动发生，不需要用户干预。
+- en: It is permissible to use this option when starting the cluster for the very
+    first time (that is, before any data node files have been created); however, it
+    is *not* necessary to do so.
+  id: totrans-140
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在第一次启动集群时（即在创建任何数据节点文件之前），可以使用此选项；但是，这*不是*必需的。
+- en: '[`--initial-start`](mysql-cluster-programs-ndbd.html#option_ndbd_initial-start)'
+  id: totrans-141
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--initial-start`](mysql-cluster-programs-ndbd.html#option_ndbd_initial-start)'
+- en: '| Command-Line Format | `--initial-start` |'
+  id: totrans-142
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--initial-start` |'
+- en: This option is used when performing a partial initial start of the cluster.
+    Each node should be started with this option, as well as [`--nowait-nodes`](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes).
+  id: totrans-143
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项用于执行集群的部分初始启动。每个节点都应该使用此选项启动，以及[`--nowait-nodes`](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes)。
+- en: 'Suppose that you have a 4-node cluster whose data nodes have the IDs 2, 3,
+    4, and 5, and you wish to perform a partial initial start using only nodes 2,
+    4, and 5—that is, omitting node 3:'
+  id: totrans-144
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设您有一个4节点集群，其数据节点的ID分别为2、3、4和5，您希望仅使用节点2、4和5执行部分初始启动，即省略节点3：
+- en: '[PRE0]'
+  id: totrans-145
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: When using this option, you must also specify the node ID for the data node
+    being started with the [`--ndb-nodeid`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-nodeid)
+    option.
+  id: totrans-146
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用此选项时，您还必须使用[`--ndb-nodeid`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-nodeid)选项指定要启动的数据节点的节点ID。
+- en: Important
+  id: totrans-147
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: Do not confuse this option with the [`--nowait-nodes`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_nowait-nodes)
+    option for [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon"), which can be used to enable a cluster
+    configured with multiple management servers to be started without all management
+    servers being online.
+  id: totrans-148
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不要将此选项与[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon")的[`--nowait-nodes`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_nowait-nodes)选项混淆，该选项可用于启用配置有多个管理服务器的集群在不所有管理服务器在线的情况下启动。
+- en: '[`--install[=*`name`*]`](mysql-cluster-programs-ndbd.html#option_ndbd_install)'
+  id: totrans-149
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--install[=*`name`*]`](mysql-cluster-programs-ndbd.html#option_ndbd_install)'
+- en: '| Command-Line Format | `--install[=name]` |'
+  id: totrans-150
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--install[=name]` |'
+- en: '| Platform Specific | Windows |'
+  id: totrans-151
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 平台特定 | Windows |'
+- en: '| Type | String |'
+  id: totrans-152
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `ndbd` |'
+  id: totrans-153
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `ndbd` |'
+- en: Causes [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") to be installed as a Windows service. Optionally, you can specify
+    a name for the service; if not set, the service name defaults to `ndbd`. Although
+    it is preferable to specify other [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") program options in a `my.ini`
+    or `my.cnf` configuration file, it is possible to use together with `--install`.
+    However, in such cases, the `--install` option must be specified first, before
+    any other options are given, for the Windows service installation to succeed.
+  id: totrans-154
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 安装[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")作为Windows服务。可选地，您可以为服务指定一个名称；如果未设置，则服务名称默认为`ndbd`。虽然最好在`my.ini`或`my.cnf`配置文件中指定其他[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")程序选项，但也可以与`--install`一起使用。但是，在这种情况下，必须首先指定`--install`选项，然后再给出任何其他选项，以确保Windows服务安装成功。
+- en: It is generally not advisable to use this option together with the [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    option, since this causes the data node file system to be wiped and rebuilt every
+    time the service is stopped and started. Extreme care should also be taken if
+    you intend to use any of the other [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") options that affect the starting
+    of data nodes—including [`--initial-start`](mysql-cluster-programs-ndbd.html#option_ndbd_initial-start),
+    [`--nostart`](mysql-cluster-programs-ndbd.html#option_ndbd_nostart), and [`--nowait-nodes`](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes)—together
+    with [`--install`](mysql-cluster-programs-ndbd.html#option_ndbd_install), and
+    you should make absolutely certain you fully understand and allow for any possible
+    consequences of doing so.
+  id: totrans-155
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 通常不建议将此选项与[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)选项一起使用，因为这会导致每次停止和启动服务时数据节点文件系统被擦除并重建。如果您打算与其他影响数据节点启动的[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")选项一起使用[`--initial-start`](mysql-cluster-programs-ndbd.html#option_ndbd_initial-start)、[`--nostart`](mysql-cluster-programs-ndbd.html#option_ndbd_nostart)和[`--nowait-nodes`](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes)一起使用[`--install`](mysql-cluster-programs-ndbd.html#option_ndbd_install)，则应该非常小心，并确保您充分理解并考虑可能的后果。
+- en: The [`--install`](mysql-cluster-programs-ndbd.html#option_ndbd_install) option
+    has no effect on non-Windows platforms.
+  id: totrans-156
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`--install`](mysql-cluster-programs-ndbd.html#option_ndbd_install)选项对非Windows平台无效。'
+- en: '[`--logbuffer-size=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_logbuffer-size)'
+  id: totrans-157
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--logbuffer-size=*`#`*`](mysql-cluster-programs-ndbd.html#option_ndbd_logbuffer-size)'
+- en: '| Command-Line Format | `--logbuffer-size=#` |'
+  id: totrans-158
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--logbuffer-size=#` |'
+- en: '| Type | Integer |'
+  id: totrans-159
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 整数 |'
+- en: '| Default Value | `32768` |'
+  id: totrans-160
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `32768` |'
+- en: '| Minimum Value | `2048` |'
+  id: totrans-161
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最小值 | `2048` |'
+- en: '| Maximum Value | `4294967295` |'
+  id: totrans-162
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 最大值 | `4294967295` |'
+- en: Sets the size of the data node log buffer. When debugging with high amounts
+    of extra logging, it is possible for the log buffer to run out of space if there
+    are too many log messages, in which case some log messages can be lost. This should
+    not occur during normal operations.
+  id: totrans-163
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置数据节点日志缓冲区的大小。在进行大量额外日志记录的调试时，如果有太多日志消息，日志缓冲区可能会耗尽空间，从而可能会丢失一些日志消息。在正常操作中不应发生这种情况。
+- en: '[`--login-path`](mysql-cluster-programs-ndbd.html#option_ndbd_login-path)'
+  id: totrans-164
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--login-path`](mysql-cluster-programs-ndbd.html#option_ndbd_login-path)'
+- en: '| Command-Line Format | `--login-path=path` |'
+  id: totrans-165
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--login-path=path` |'
+- en: '| Type | String |'
+  id: totrans-166
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-167
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[none]` |'
+- en: Read given path from login file.
+  id: totrans-168
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从登录文件中读取给定路径。
+- en: '[`--ndb-connectstring`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)'
+  id: totrans-169
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--ndb-connectstring`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)'
+- en: '| Command-Line Format | `--ndb-connectstring=connection_string` |'
+  id: totrans-170
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--ndb-connectstring=connection_string` |'
+- en: '| Type | String |'
+  id: totrans-171
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-172
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[无]` |'
+- en: 'Set connect string for connecting to ndb_mgmd. Syntax: "[nodeid=id;][host=]hostname[:port]".
+    Overrides entries in NDB_CONNECTSTRING and my.cnf.'
+  id: totrans-173
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置连接到ndb_mgmd的连接字符串。语法："[nodeid=id;][host=]hostname[:port]"。覆盖NDB_CONNECTSTRING和my.cnf中的条目。
+- en: '[`--ndb-mgmd-host`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-mgmd-host)'
+  id: totrans-174
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--ndb-mgmd-host`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-mgmd-host)'
+- en: '| Command-Line Format | `--ndb-mgmd-host=connection_string` |'
+  id: totrans-175
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--ndb-mgmd-host=connection_string` |'
+- en: '| Type | String |'
+  id: totrans-176
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-177
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[无]` |'
+- en: Same as [`--ndb-connectstring`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring).
+  id: totrans-178
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与[`--ndb-connectstring`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-connectstring)相同。
+- en: '[`--ndb-nodeid`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-nodeid)'
+  id: totrans-179
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--ndb-nodeid`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-nodeid)'
+- en: '| Command-Line Format | `--ndb-nodeid=#` |'
+  id: totrans-180
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--ndb-nodeid=#` |'
+- en: '| Type | Integer |'
+  id: totrans-181
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 整数 |'
+- en: '| Default Value | `[none]` |'
+  id: totrans-182
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `[无]` |'
+- en: Set node ID for this node, overriding any ID set by --ndb-connectstring.
+  id: totrans-183
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置此节点的节点ID，覆盖由--ndb-connectstring设置的任何ID。
+- en: '[`--ndb-optimized-node-selection`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-optimized-node-selection)'
+  id: totrans-184
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--ndb-optimized-node-selection`](mysql-cluster-programs-ndbd.html#option_ndbd_ndb-optimized-node-selection)'
+- en: '| Command-Line Format | `--ndb-optimized-node-selection` |'
+  id: totrans-185
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--ndb-optimized-node-selection` |'
+- en: '| Removed | 8.0.31 |'
+  id: totrans-186
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 已移除 | 8.0.31 |'
+- en: Enable optimizations for selection of nodes for transactions. Enabled by default;
+    use `--skip-ndb-optimized-node-selection` to disable.
+  id: totrans-187
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启用优化以选择事务节点。默认情况下启用；使用`--skip-ndb-optimized-node-selection`来禁用。
+- en: '[`--nodaemon`](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)'
+  id: totrans-188
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--nodaemon`](mysql-cluster-programs-ndbd.html#option_ndbd_nodaemon)'
+- en: '| Command-Line Format | `--nodaemon` |'
+  id: totrans-189
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--nodaemon` |'
+- en: Prevents [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") from executing
+    as a daemon process. This option overrides the [`--daemon`](mysql-cluster-programs-ndbd.html#option_ndbd_daemon)
+    option. This is useful for redirecting output to the screen when debugging the
+    binary.
+  id: totrans-190
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 防止[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)")作为守护进程执行。此选项覆盖[`--daemon`](mysql-cluster-programs-ndbd.html#option_ndbd_daemon)选项。在调试二进制文件时，将输出重定向到屏幕非常有用。
+- en: The default behavior for [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") and [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") on Windows
+    is to run in the foreground, making this option unnecessary on Windows platforms,
+    where it has no effect.
+  id: totrans-191
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在Windows上，[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon")和[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — The NDB Cluster Data Node Daemon (Multi-Threaded)")的默认行为是在前台运行，使得此选项在Windows平台上不必要，对Windows平台没有影响。
+- en: '[`--no-defaults`](mysql-cluster-programs-ndbd.html#option_ndbd_no-defaults)'
+  id: totrans-192
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--no-defaults`](mysql-cluster-programs-ndbd.html#option_ndbd_no-defaults)'
+- en: '| Command-Line Format | `--no-defaults` |'
+  id: totrans-193
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--no-defaults` |'
+- en: Do not read default options from any option file other than login file.
+  id: totrans-194
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不要从登录文件以外的任何选项文件中读取默认选项。
+- en: '[`--nostart`](mysql-cluster-programs-ndbd.html#option_ndbd_nostart), `-n`'
+  id: totrans-195
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--nostart`](mysql-cluster-programs-ndbd.html#option_ndbd_nostart), `-n`'
+- en: '| Command-Line Format | `--nostart` |'
+  id: totrans-196
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--nostart` |'
+- en: Instructs [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon") not to start automatically. When this option is used,
+    [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster Data
+    Node Daemon") connects to the management server, obtains configuration data from
+    it, and initializes communication objects. However, it does not actually start
+    the execution engine until specifically requested to do so by the management server.
+    This can be accomplished by issuing the proper [`START`](mysql-cluster-mgm-client-commands.html#ndbclient-start)
+    command in the management client (see [Section 25.6.1, “Commands in the NDB Cluster
+    Management Client”](mysql-cluster-mgm-client-commands.html "25.6.1 Commands in
+    the NDB Cluster Management Client")).
+  id: totrans-197
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 指示[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") 不自动启动。当使用此选项时，[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") 连接到管理服务器，从中获取配置数据，并初始化通信对象。但是，直到管理服务器明确要求执行引擎启动为止，它才不会实际启动执行引擎。这可以通过在管理客户端中发出适当的[`START`](mysql-cluster-mgm-client-commands.html#ndbclient-start)
+    命令来实现（参见[第25.6.1节，“NDB集群管理客户端中的命令”](mysql-cluster-mgm-client-commands.html "25.6.1 Commands
+    in the NDB Cluster Management Client")）。
+- en: '[`--nowait-nodes=*`node_id_1`*[, *`node_id_2`*[, ...]]`](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes)'
+  id: totrans-198
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--nowait-nodes=*`node_id_1`*[, *`node_id_2`*[, ...]]`](mysql-cluster-programs-ndbd.html#option_ndbd_nowait-nodes)'
+- en: '| Command-Line Format | `--nowait-nodes=list` |'
+  id: totrans-199
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--nowait-nodes=list` |'
+- en: '| Type | String |'
+  id: totrans-200
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value |  |'
+  id: totrans-201
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 |  |'
+- en: This option takes a list of data nodes for which the cluster does not wait,
+    prior to starting.
+  id: totrans-202
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此选项接受一个数据节点列表，集群在启动之前不等待这些节点。
+- en: This can be used to start the cluster in a partitioned state. For example, to
+    start the cluster with only half of the data nodes (nodes 2, 3, 4, and 5) running
+    in a 4-node cluster, you can start each [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process with `--nowait-nodes=3,5`.
+    In this case, the cluster starts as soon as nodes 2 and 4 connect, and does *not*
+    wait [`StartPartitionedTimeout`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-startpartitionedtimeout)
+    milliseconds for nodes 3 and 5 to connect as it would otherwise.
+  id: totrans-203
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这可以用于以分区状态启动集群。例如，在一个4节点集群中只有一半数据节点（节点2、3、4和5）运行时，可以使用`--nowait-nodes=3,5`启动每个[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") 进程。在这种情况下，集群在节点2和4连接后立即启动，并且不会等待[`StartPartitionedTimeout`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-startpartitionedtimeout)
+    毫秒，以等待节点3和5连接，否则会等待。
+- en: If you wanted to start up the same cluster as in the previous example without
+    one [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") (say, for example, that the host machine for node 3 has suffered
+    a hardware failure) then start nodes 2, 4, and 5 with `--nowait-nodes=3`. Then
+    the cluster starts as soon as nodes 2, 4, and 5 connect, and does not wait for
+    node 3 to start.
+  id: totrans-204
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您想要启动与前面示例中相同的集群，但不包括一个[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon")（例如，假设节点3的主机机器发生了硬件故障），那么使用`--nowait-nodes=3`启动��点2、4和5。然后，集群在节点2、4和5连接后立即启动，并且不等待节点3启动。
+- en: '[`--print-defaults`](mysql-cluster-programs-ndbd.html#option_ndbd_print-defaults)'
+  id: totrans-205
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--print-defaults`](mysql-cluster-programs-ndbd.html#option_ndbd_print-defaults)'
+- en: '| Command-Line Format | `--print-defaults` |'
+  id: totrans-206
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--print-defaults` |'
+- en: Print program argument list and exit.
+  id: totrans-207
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 打印程序参数列表并退出。
+- en: '[`--remove[=*`name`*]`](mysql-cluster-programs-ndbd.html#option_ndbd_remove)'
+  id: totrans-208
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--remove[=*`name`*]`](mysql-cluster-programs-ndbd.html#option_ndbd_remove)'
+- en: '| Command-Line Format | `--remove[=name]` |'
+  id: totrans-209
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--remove[=name]` |'
+- en: '| Platform Specific | Windows |'
+  id: totrans-210
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 特定平台 | Windows |'
+- en: '| Type | String |'
+  id: totrans-211
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 字符串 |'
+- en: '| Default Value | `ndbd` |'
+  id: totrans-212
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `ndbd` |'
+- en: Causes an [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon") process that was previously installed as a Windows
+    service to be removed. Optionally, you can specify a name for the service to be
+    uninstalled; if not set, the service name defaults to `ndbd`.
+  id: totrans-213
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 导致之前安装为Windows服务的[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd —
+    The NDB Cluster Data Node Daemon") 进程被移除。可选地，您可以指定要卸载的服务的名称；如果未设置，则服务名称默认为`ndbd`。
+- en: The [`--remove`](mysql-cluster-programs-ndbd.html#option_ndbd_remove) option
+    has no effect on non-Windows platforms.
+  id: totrans-214
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`--remove`](mysql-cluster-programs-ndbd.html#option_ndbd_remove) 选项在非Windows平台上没有效果。'
+- en: '[`--usage`](mysql-cluster-programs-ndbd.html#option_ndbd_usage)'
+  id: totrans-215
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--usage`](mysql-cluster-programs-ndbd.html#option_ndbd_usage)'
+- en: '| Command-Line Format | `--usage` |'
+  id: totrans-216
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--usage` |'
+- en: Display help text and exit; same as --help.
+  id: totrans-217
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 显示帮助文本并退出；与--help相同。
+- en: '[`--verbose`](mysql-cluster-programs-ndbd.html#option_ndbd_verbose), `-v`'
+  id: totrans-218
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--verbose`](mysql-cluster-programs-ndbd.html#option_ndbd_verbose)，`-v`'
+- en: Causes extra debug output to be written to the node log.
+  id: totrans-219
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 导致额外的调试输出写入节点日志。
+- en: You can also use [`NODELOG DEBUG ON`](mysql-cluster-mgm-client-commands.html#ndbclient-nodelog-debug)
+    and [`NODELOG DEBUG OFF`](mysql-cluster-mgm-client-commands.html#ndbclient-nodelog-debug)
+    to enable and disable this extra logging while the data node is running.
+  id: totrans-220
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您还可以在数据节点运行时使用[`NODELOG DEBUG ON`](mysql-cluster-mgm-client-commands.html#ndbclient-nodelog-debug)和[`NODELOG
+    DEBUG OFF`](mysql-cluster-mgm-client-commands.html#ndbclient-nodelog-debug)来启用和禁用此额外的日志记录。
+- en: '[`--version`](mysql-cluster-programs-ndbd.html#option_ndbd_version)'
+  id: totrans-221
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--version`](mysql-cluster-programs-ndbd.html#option_ndbd_version)'
+- en: '| Command-Line Format | `--version` |'
+  id: totrans-222
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--version` |'
+- en: Display version information and exit.
+  id: totrans-223
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 显示版本信息并退出。
+- en: '[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") generates a set of log files which are placed in the directory
+    specified by [`DataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datadir)
+    in the `config.ini` configuration file.'
+  id: totrans-224
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")生成一组日志文件，这些文件放置在`config.ini`配置文件中的[`DataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datadir)指定的目录中。'
+- en: These log files are listed below. *`node_id`* is and represents the node's unique
+    identifier. For example, `ndb_2_error.log` is the error log generated by the data
+    node whose node ID is `2`.
+  id: totrans-225
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下面列出了这些日志文件。*`node_id`*是并代表节点的唯一标识符。例如，`ndb_2_error.log`是由节点ID为`2`的数据节点��成的错误日志。
+- en: '`ndb_*`node_id`*_error.log` is a file containing records of all crashes which
+    the referenced [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The
+    NDB Cluster Data Node Daemon") process has encountered. Each record in this file
+    contains a brief error string and a reference to a trace file for this crash.
+    A typical entry in this file might appear as shown here:'
+  id: totrans-226
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ndb_*`node_id`*_error.log`是一个文件，其中包含引用的[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程遇到的所有崩溃的记录。此文件中的每个记录都包含一个简短的错误字符串和此崩溃的跟踪文件的引用。此文件中的典型条目可能如下所示：'
+- en: '[PRE1]'
+  id: totrans-227
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Listings of possible [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") exit codes and messages generated when a
+    data node process shuts down prematurely can be found in [Data Node Error Messages](/doc/ndb-internals/en/ndb-node-error-messages.html).
+  id: totrans-228
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可在[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")退出代码和数据节点进程意外关闭时生成的消息列表中找到可能的列表。
+- en: Important
+  id: totrans-229
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: '*The last entry in the error log file is not necessarily the newest one* (nor
+    is it likely to be). Entries in the error log are *not* listed in chronological
+    order; rather, they correspond to the order of the trace files as determined in
+    the `ndb_*`node_id`*_trace.log.next` file (see below). Error log entries are thus
+    overwritten in a cyclical and not sequential fashion.'
+  id: totrans-230
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*错误日志文件中的最后一条记录不一定是最新的*（也不太可能是）。错误日志中的条目*不*按时间顺序列出；而是对应于`ndb_*`node_id`*_trace.log.next`文件中确定的跟踪文件顺序。因此，错误日志条目以循环而非顺序方式被覆盖。'
+- en: '`ndb_*`node_id`*_trace.log.*`trace_id`*` is a trace file describing exactly
+    what happened just before the error occurred. This information is useful for analysis
+    by the NDB Cluster development team.'
+  id: totrans-231
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ndb_*`node_id`*_trace.log.*`trace_id`*`是描述错误发生前发生的情况的跟踪文件。这些信息对NDB Cluster开发团队进行分析很有用。'
+- en: It is possible to configure the number of these trace files that are created
+    before old files are overwritten. *`trace_id`* is a number which is incremented
+    for each successive trace file.
+  id: totrans-232
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以配置在旧文件被覆盖之前创建的这些跟踪文件的数量。*`trace_id`*是一个数字，每个连续的跟踪文件都会递增。
+- en: '`ndb_*`node_id`*_trace.log.next` is the file that keeps track of the next trace
+    file number to be assigned.'
+  id: totrans-233
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ndb_*`node_id`*_trace.log.next`是跟踪下一个要分配的跟踪文件编号的文件。'
+- en: '`ndb_*`node_id`*_out.log` is a file containing any data output by the [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process. This file is created
+    only if [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") is started as a daemon, which is the default behavior.'
+  id: totrans-234
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ndb_*`node_id`*_out.log`是一个文件，其中包含[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程输出的任何数据。仅当[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")作为守护进程启动时才会创建此文件，这是默认行为。'
+- en: '`ndb_*`node_id`*.pid` is a file containing the process ID of the [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process when started as a daemon.
+    It also functions as a lock file to avoid the starting of nodes with the same
+    identifier.'
+  id: totrans-235
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ndb_*`node_id`*.pid`是一个文件，包含了作为守护进程启动时[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程的进程ID。它还充当锁文件，以避免使用相同标识符启动节点。'
+- en: '`ndb_*`node_id`*_signal.log` is a file used only in debug versions of [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon"), where it is possible to trace
+    all incoming, outgoing, and internal messages with their data in the [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process.'
+  id: totrans-236
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ndb_*`node_id`*_signal.log`是仅在调试版本的[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")中使用的文件，在这种版本中，可以跟踪所有传入、传出和内部消息及其数据在[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程中的情况。'
+- en: It is recommended not to use a directory mounted through NFS because in some
+    environments this can cause problems whereby the lock on the `.pid` file remains
+    in effect even after the process has terminated.
+  id: totrans-237
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不建议使用通过NFS挂载的目录，因为在某些环境中，这可能会导致问题，即使进程终止后，`.pid`文件上的锁仍然有效。
+- en: To start [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB
+    Cluster Data Node Daemon"), it may also be necessary to specify the host name
+    of the management server and the port on which it is listening. Optionally, one
+    may also specify the node ID that the process is to use.
+  id: totrans-238
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要启动[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")，可能还需要指定管理服务器的主机名和其监听的端口。还可以选择指定进程要使用的节点ID。
+- en: '[PRE2]'
+  id: totrans-239
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: See [Section 25.4.3.3, “NDB Cluster Connection Strings”](mysql-cluster-connection-strings.html
+    "25.4.3.3 NDB Cluster Connection Strings"), for additional information about this
+    issue. For more information about data node configuration parameters, see [Section 25.4.3.6,
+    “Defining NDB Cluster Data Nodes”](mysql-cluster-ndbd-definition.html "25.4.3.6 Defining
+    NDB Cluster Data Nodes").
+  id: totrans-240
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关此问题的更多信息，请参见[第25.4.3.3节，“NDB集群连接字符串”](mysql-cluster-connection-strings.html
+    "25.4.3.3 NDB Cluster Connection Strings")。有关数据节点配置参数的更多信息，请参见[第25.4.3.6节，“定义NDB集群数据节点”](mysql-cluster-ndbd-definition.html
+    "25.4.3.6 Defining NDB Cluster Data Nodes")。
+- en: When [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") starts, it actually initiates two processes. The first of these
+    is called the “angel process”; its only job is to discover when the execution
+    process has been completed, and then to restart the [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process if it is configured
+    to do so. Thus, if you attempt to kill [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") using the Unix [**kill**](kill.html
+    "15.7.8.4 KILL Statement") command, it is necessary to kill both processes, beginning
+    with the angel process. The preferred method of terminating an [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process is to use the management
+    client and stop the process from there.
+  id: totrans-241
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon")启动时，实际上启动了两个进程。第一个称为“angel进程”，它的唯一工作是发现执行进程何时完成，然后重新启动[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程（如果配置为这样做）。因此，如果尝试使用Unix的[**kill**](kill.html
+    "15.7.8.4 KILL Statement")命令杀死[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon")，则需要杀死这两个进程，首先是angel进程。终止[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程的首选方法是使用管理客户端并从那里停止进程。
+- en: The execution process uses one thread for reading, writing, and scanning data,
+    as well as all other activities. This thread is implemented asynchronously so
+    that it can easily handle thousands of concurrent actions. In addition, a watch-dog
+    thread supervises the execution thread to make sure that it does not hang in an
+    endless loop. A pool of threads handles file I/O, with each thread able to handle
+    one open file. Threads can also be used for transporter connections by the transporters
+    in the [**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The NDB Cluster
+    Data Node Daemon") process. In a multi-processor system performing a large number
+    of operations (including updates), the [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process can consume up to 2
+    CPUs if permitted to do so.
+  id: totrans-242
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行过程使用一个线程来读取、写入和扫描数据，以及进行所有其他活动。该线程是异步实现的，因此可以轻松处理成千上万个并发操作。此外，一个看门狗线程监督执行线程，以确保它不会陷入无限循环。一组线程处理文件
+    I/O，每个线程可以处理一个打开的文件。线程还可以被用于[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon")进程中的传输连接。在执行大量操作（包括更新）的多处理器系统中，[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程可以使用高达 2 个 CPU。
+- en: For a machine with many CPUs it is possible to use several [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") processes which belong to different
+    node groups; however, such a configuration is still considered experimental and
+    is not supported for MySQL 8.0 in a production setting. See [Section 25.2.7, “Known
+    Limitations of NDB Cluster”](mysql-cluster-limitations.html "25.2.7 Known Limitations
+    of NDB Cluster").
+  id: totrans-243
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于具有多个 CPU 的机器，可以使用几个属于不同节点组的[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon")进程；然而，这样的配置仍被视为实验性的，在生产环境中不支持 MySQL 8.0。请参阅[第
+    25.2.7 节，“NDB 集群的已知限制”](mysql-cluster-limitations.html "25.2.7 Known Limitations
+    of NDB Cluster")。

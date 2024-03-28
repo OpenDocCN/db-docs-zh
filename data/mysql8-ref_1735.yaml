@@ -1,0 +1,530 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-backup-using-management-client.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-backup-using-management-client.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-backup-using-management-client.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-backup-using-management-client.html)
+- en: 25.6.8.2 Using The NDB Cluster Management Client to Create a Backup
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.6.8.2 使用 NDB 集群管理客户端创建备份
+- en: Before starting a backup, make sure that the cluster is properly configured
+    for performing one. (See [Section 25.6.8.3, “Configuration for NDB Cluster Backups”](mysql-cluster-backup-configuration.html
+    "25.6.8.3 Configuration for NDB Cluster Backups").)
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在开始备份之前，请确保集群已正确配置以执行备份。（参见[第 25.6.8.3 节，“NDB 集群备份配置”](mysql-cluster-backup-configuration.html
+    "25.6.8.3 NDB 集群备份配置").）
+- en: 'The `START BACKUP` command is used to create a backup, and has the syntax shown
+    here:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`START BACKUP` 命令用于创建备份，其语法如下所示：'
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Successive backups are automatically identified sequentially, so the *`backup_id`*,
+    an integer greater than or equal to 1, is optional; if it is omitted, the next
+    available value is used. If an existing *`backup_id`* value is used, the backup
+    fails with the error Backup failed: file already exists. If used, the *`backup_id`*
+    must follow immediately after the `START BACKUP` keywords, before any other options
+    are used.'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 连续备份会自动按顺序识别，因此*`backup_id`*，一个大于或等于1的整数，是可选的；如果省略，则使用下一个可用值。如果使用现有的*`backup_id`*值，则备份将失败，并显示错误消息备份失败：文件已存在。如果使用*`backup_id`*，则必须紧跟在`START
+    BACKUP`关键字之后，在使用任何其他选项之前。
+- en: 'In NDB 8.0.22 and later, `START BACKUP` supports the creation of encrypted
+    backups using `ENCRYPT PASSWORD=*`password`*`. The *`password`* must meet all
+    of the following requirements:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 NDB 8.0.22 及更高版本中，`START BACKUP` 支持使用 `ENCRYPT PASSWORD=*`password`*` 创建加密备份。*`password`*
+    必须满足以下所有要求：
+- en: Uses any of the printable ASCII characters except `!`, `'`, `"`, `$`, `%`, `\`,
+    and `^`
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用除 `!`、`'`、`"`、`$`、`%`、`\` 和 `^` 之外的任何可打印 ASCII 字符。
+- en: Is no more than 256 characters in length
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 长度不超过256个字符
+- en: Is enclosed by single or double quotation marks
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用单引号或双引号括起来
+- en: 'When `ENCRYPT PASSWORD=''*`password`*''` is used, the backup data record and
+    log files written by each data node are encrypted with a key derived from the
+    user-provided *`password`* and a randomly-generated salt using a key derivation
+    function (KDF) that employs the PBKDF2-SHA256 algorithm to generate a symmetric
+    encryption key for that file. This function has the form shown here:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用 `ENCRYPT PASSWORD='*`password`*'` 时，由每个数据节点写入的备份数据记录和日志文件会使用从用户提供的*`password`*和随机生成的盐派生的密钥进行加密，使用
+    PBKDF2-SHA256 算法的密钥派生函数（KDF）生成用于该文件的对称加密密钥。此函数的形式如下所示：
+- en: '[PRE1]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The key so generated is then used to encrypt the backup data using AES 256 CBC
+    inline, and symmetric encryption is employed for encrypting the backup fileset
+    (with the generated key).
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后使用生成的密钥使用 AES 256 CBC 内联加密备份数据，并对备份文件集（使用生成的密钥）使用对称加密。
+- en: Note
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: NDB Cluster *never* saves the user-furnished password or generated encryption
+    key.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB 集群*永远*不会保存用户提供的密码或生成的加密密钥。
+- en: Starting with NDB 8.0.24, the `PASSWORD` option can be omitted from *`encryption_option`*.
+    In this case, the management client prompts the user for a password.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 NDB 8.0.24 开始，可以从*`encryption_option`*中省略 `PASSWORD` 选项。在这种情况下，管理客户端会提示用户输入密码。
+- en: It is possible using `PASSWORD` to set an empty password (`''` or `""`), but
+    this is not recommended.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用 `PASSWORD` 设置空密码（`''` 或 `""`），但不建议这样做。
+- en: 'An encrypted backup can be decrypted using any of the following commands:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用以下任一命令解密加密备份：
+- en: '[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") [`--decrypt`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_decrypt)
+    [`--backup-password=*`password`*`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-password)'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — 恢复 NDB 集群备份") [`--decrypt`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_decrypt)
+    [`--backup-password=*`password`*`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-password)'
+- en: '[**ndbxfrm**](mysql-cluster-programs-ndbxfrm.html "25.5.31 ndbxfrm — Compress,
+    Decompress, Encrypt, and Decrypt Files Created by NDB Cluster") [`--decrypt-password=*`password`*`](mysql-cluster-programs-ndbxfrm.html#option_ndbxfrm_decrypt-password)
+    *`input_file`* *`output_file`*'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndbxfrm**](mysql-cluster-programs-ndbxfrm.html "25.5.31 ndbxfrm — 压缩、解压、加密和解密
+    NDB 集群创建的文件") [`--decrypt-password=*`password`*`](mysql-cluster-programs-ndbxfrm.html#option_ndbxfrm_decrypt-password)
+    *`input_file`* *`output_file`*'
+- en: '[**ndb_print_backup_file**](mysql-cluster-programs-ndb-print-backup-file.html
+    "25.5.17 ndb_print_backup_file — Print NDB Backup File Contents") [`-P`](mysql-cluster-programs-ndb-print-backup-file.html#option_ndb_print_backup_file_backup-password)
+    *`password`* *`file_name`*'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndb_print_backup_file**](mysql-cluster-programs-ndb-print-backup-file.html
+    "25.5.17 ndb_print_backup_file — Print NDB Backup File Contents") [`-P`](mysql-cluster-programs-ndb-print-backup-file.html#option_ndb_print_backup_file_backup-password)
+    *`password`* *`file_name`*'
+- en: 'NDB 8.0.24 and later supports the additional commands listed here:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB 8.0.24及更高版本支持以下附加命令：
+- en: '[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") [`--decrypt`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_decrypt)
+    [`--backup-password-from-stdin`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-password-from-stdin)'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup") [`--decrypt`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_decrypt)
+    [`--backup-password-from-stdin`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_backup-password-from-stdin)'
+- en: '[**ndbxfrm**](mysql-cluster-programs-ndbxfrm.html "25.5.31 ndbxfrm — Compress,
+    Decompress, Encrypt, and Decrypt Files Created by NDB Cluster") [`--decrypt-password-from-stdin`](mysql-cluster-programs-ndbxfrm.html#option_ndbxfrm_decrypt-password-from-stdin)
+    *`input_file`* *`output_file`*'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndbxfrm**](mysql-cluster-programs-ndbxfrm.html "25.5.31 ndbxfrm — Compress,
+    Decompress, Encrypt, and Decrypt Files Created by NDB Cluster") [`--decrypt-password-from-stdin`](mysql-cluster-programs-ndbxfrm.html#option_ndbxfrm_decrypt-password-from-stdin)
+    *`input_file`* *`output_file`*'
+- en: '[**ndb_print_backup_file**](mysql-cluster-programs-ndb-print-backup-file.html
+    "25.5.17 ndb_print_backup_file — Print NDB Backup File Contents") [`--backup-password=*`password`*`](mysql-cluster-programs-ndb-print-backup-file.html#option_ndb_print_backup_file_backup-password)
+    *`file_name`*'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndb_print_backup_file**](mysql-cluster-programs-ndb-print-backup-file.html
+    "25.5.17 ndb_print_backup_file — Print NDB Backup File Contents") [`--backup-password=*`password`*`](mysql-cluster-programs-ndb-print-backup-file.html#option_ndb_print_backup_file_backup-password)
+    *`file_name`*'
+- en: '[**ndb_print_backup_file**](mysql-cluster-programs-ndb-print-backup-file.html
+    "25.5.17 ndb_print_backup_file — Print NDB Backup File Contents") [`--backup-password-from-stdin`](mysql-cluster-programs-ndb-print-backup-file.html#option_ndb_print_backup_file_backup-password-from-stdin)
+    *`file_name`*'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndb_print_backup_file**](mysql-cluster-programs-ndb-print-backup-file.html
+    "25.5.17 ndb_print_backup_file — Print NDB Backup File Contents") [`--backup-password-from-stdin`](mysql-cluster-programs-ndb-print-backup-file.html#option_ndb_print_backup_file_backup-password-from-stdin)
+    *`file_name`*'
+- en: '[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm — The NDB
+    Cluster Management Client") [`--backup-password-from-stdin`](mysql-cluster-programs-ndb-mgm.html#option_ndb_mgm_backup-password-from-stdin)
+    [`--execute "START BACKUP ..."`](mysql-cluster-programs-ndb-mgm.html#option_ndb_mgm_execute)'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm — The NDB
+    Cluster Management Client") [`--backup-password-from-stdin`](mysql-cluster-programs-ndb-mgm.html#option_ndb_mgm_backup-password-from-stdin)
+    [`--execute "START BACKUP ..."`](mysql-cluster-programs-ndb-mgm.html#option_ndb_mgm_execute)'
+- en: See the descriptions of these programs for more information, such as additional
+    options that may be required.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查看这些程序的描述以获取更多信息，例如可能需要的其他选项。
+- en: 'The *`wait_option`* can be used to determine when control is returned to the
+    management client after a `START BACKUP` command is issued, as shown in the following
+    list:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*`wait_option`* 可用于确定在发出 `START BACKUP` 命令后何时将控制权返回给管理客户端，如下列表所示：'
+- en: 'If `NOWAIT` is specified, the management client displays a prompt immediately,
+    as seen here:'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果指定了 `NOWAIT`，管理客户端会立即显示提示，如下所示：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: In this case, the management client can be used even while it prints progress
+    information from the backup process.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，管理客户端可以在打印备份过程的进度信息的同时使用。
+- en: 'With `WAIT STARTED` the management client waits until the backup has started
+    before returning control to the user, as shown here:'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 `WAIT STARTED`，管理客户端会等到备份开始后再将控制权返回给用户，如下所示：
+- en: '[PRE3]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '**`WAIT COMPLETED`** causes the management client to wait until the backup
+    process is complete before returning control to the user.'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**`WAIT COMPLETED`** 导致管理客户端在备份过程完成之前等待，然后将控制权返回给用户。'
+- en: '`WAIT COMPLETED` is the default.'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`WAIT COMPLETED` 是默认选项。'
+- en: A *`snapshot_option`* can be used to determine whether the backup matches the
+    state of the cluster when `START BACKUP` was issued, or when it was completed.
+    `SNAPSHOTSTART` causes the backup to match the state of the cluster when the backup
+    began; `SNAPSHOTEND` causes the backup to reflect the state of the cluster when
+    the backup was finished. `SNAPSHOTEND` is the default, and matches the behavior
+    found in previous NDB Cluster releases.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*`snapshot_option`*可用于确定备份是否与发出`START BACKUP`命令时的集群状态匹配，或者与备份完成时的状态匹配。`SNAPSHOTSTART`导致备份与备份开始时的集群状态匹配；`SNAPSHOTEND`导致备份反映备份完成时的集群状态。`SNAPSHOTEND`是默认值，并与以前的NDB
+    Cluster版本中找到的行为相匹配。'
+- en: Note
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you use the `SNAPSHOTSTART` option with `START BACKUP`, and the [`CompressedBackup`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-compressedbackup)
+    parameter is enabled, only the data and control files are compressed—the log file
+    is not compressed.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在`START BACKUP`中使用`SNAPSHOTSTART`选项，并且启用了[`CompressedBackup`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-compressedbackup)参数，则只有数据和控制文件会被压缩，日志文件不会被压缩。
+- en: 'If both a *`wait_option`* and a *`snapshot_option`* are used, they may be specified
+    in either order. For example, all of the following commands are valid, assuming
+    that there is no existing backup having 4 as its ID:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果同时使用*`wait_option`*和*`snapshot_option`*，它们可以以任何顺序指定。例如，假设不存在ID为4的现有备份，则以下所有命令都是有效的：
+- en: '[PRE4]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'The procedure for creating a backup consists of the following steps:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建备份的过程包括以下步骤：
+- en: Start the management client ([**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html
+    "25.5.5 ndb_mgm — The NDB Cluster Management Client")), if it not running already.
+  id: totrans-42
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动管理客户端（[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm —
+    The NDB Cluster Management Client")），如果尚未运行。
+- en: 'Execute the **`START BACKUP`** command. This produces several lines of output
+    indicating the progress of the backup, as shown here:'
+  id: totrans-43
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行**`START BACKUP`**命令。这将产生几行输出，指示备份的进度，如下所示：
+- en: '[PRE5]'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'When the backup has started the management client displays this message:'
+  id: totrans-45
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当备份开始时，管理客户端显示此消息：
+- en: '[PRE6]'
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '*`backup_id`* is the unique identifier for this particular backup. This identifier
+    is saved in the cluster log, if it has not been configured otherwise. *`node_id`*
+    is the identifier of the management server that is coordinating the backup with
+    the data nodes. At this point in the backup process the cluster has received and
+    processed the backup request. It does not mean that the backup has finished. An
+    example of this statement is shown here:'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*`backup_id`*是此特定备份的唯一标识符。如果未配置其他方式保存此标识符，则将其保存在集群日志中。*`node_id`*是协调备份与数据节点的管理服务器的标识符。在备份过程的这一点上，集群已经接收并处理了备份请求。这并不意味着备份已经完成。这种情况的示例如下：'
+- en: '[PRE7]'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'The management client indicates with a message like this one that the backup
+    has started:'
+  id: totrans-49
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 管理客户端通过类似于这样的消息指示备份已经开始：
+- en: '[PRE8]'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'As is the case for the notification that the backup has started, *`backup_id`*
+    is the unique identifier for this particular backup, and *`node_id`* is the node
+    ID of the management server that is coordinating the backup with the data nodes.
+    This output is accompanied by additional information including relevant global
+    checkpoints, the number of records backed up, and the size of the data, as shown
+    here:'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与指示备份已经开始的通知一样，*`backup_id`*是此特定备份的唯一标识符，而*`node_id`*是协调备份与数据节点的管理服务器的节点ID。此输出还附带其他信息，包括相关的全局检查点、备份的记录数以及数据的大小，如下所示：
+- en: '[PRE9]'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'It is also possible to perform a backup from the system shell by invoking [**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html
+    "25.5.5 ndb_mgm — The NDB Cluster Management Client") with the `-e` or [`--execute`](mysql-cluster-programs-ndb-mgm.html#option_ndb_mgm_execute)
+    option, as shown in this example:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以通过在系统shell中调用[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm
+    — The NDB Cluster Management Client")并使用`-e`或[`--execute`](mysql-cluster-programs-ndb-mgm.html#option_ndb_mgm_execute)选项来执行备份，如下例所示：
+- en: '[PRE10]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: When using `START BACKUP` in this way, you must specify the backup ID.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种方式下使用`START BACKUP`时，必须指定备份ID。
+- en: Cluster backups are created by default in the `BACKUP` subdirectory of the [`DataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datadir)
+    on each data node. This can be overridden for one or more data nodes individually,
+    or for all cluster data nodes in the `config.ini` file using the [`BackupDataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-backupdatadir)
+    configuration parameter. The backup files created for a backup with a given *`backup_id`*
+    are stored in a subdirectory named `BACKUP-*`backup_id`*` in the backup directory.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 集群备份默认创建在每个数据节点的`BACKUP`子目录中。这可以通过[`DataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datadir)中的一个或多个数据节点，或者在`config.ini`文件中使用[`BackupDataDir`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-backupdatadir)配置参数来覆盖。为具有给定*`backup_id`*的备份创建的备份文件存储在备份目录中名为`BACKUP-*backup_id*`的子目录中。
+- en: '**Cancelling backups. ** To cancel or abort a backup that is already in progress,
+    perform the following steps:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**取消备份。** 要取消或中止已经进行中的备份，请执行以下步骤：'
+- en: Start the management client.
+  id: totrans-58
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动管理客户端。
+- en: 'Execute this command:'
+  id: totrans-59
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行此命令：
+- en: '[PRE11]'
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: The number *`backup_id`* is the identifier of the backup that was included in
+    the response of the management client when the backup was started (in the message
+    `Backup *`backup_id`* started from node *`management_node_id`*`).
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 数字*`backup_id`*是在备份启动时管理客户端的响应中包含的备份标识符（在消息`Backup *backup_id* started from
+    node *management_node_id*`中）。
+- en: The management client acknowledges the abort request with `Abort of backup *`backup_id`*
+    ordered`.
+  id: totrans-62
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 管理客户端使用`Abort of backup *backup_id* ordered`确认中止请求。
+- en: Note
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: At this point, the management client has not yet received a response from the
+    cluster data nodes to this request, and the backup has not yet actually been aborted.
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此时，管理客户端尚未收到集群数据节点对此请求的响应，备份实际上尚未被中止。
+- en: 'After the backup has been aborted, the management client reports this fact
+    in a manner similar to what is shown here:'
+  id: totrans-65
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 备份被中止后，管理客户端以类似于以下所示的方式报告此事实：
+- en: '[PRE12]'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: In this example, we have shown sample output for a cluster with 4 data nodes,
+    where the sequence number of the backup to be aborted is `3`, and the management
+    node to which the cluster management client is connected has the node ID `5`.
+    The first node to complete its part in aborting the backup reports that the reason
+    for the abort was due to a request by the user. (The remaining nodes report that
+    the backup was aborted due to an unspecified internal error.)
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在此示例中，我们展示了一个具有4个数据节点的集群的示例输出，要中止的备份的序列号为`3`，并且集群管理客户端连接的管理节点具有节点ID`5`。完成中止备份的第一个节点报告中止的原因是由于用户的请求。（其余节点报告备份由于未指定的内部错误而中止。）
+- en: Note
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: There is no guarantee that the cluster nodes respond to an `ABORT BACKUP` command
+    in any particular order.
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不能保证集群节点以任何特定顺序响应`ABORT BACKUP`命令。
+- en: The `Backup *`backup_id`* started from node *`management_node_id`* has been
+    aborted` messages mean that the backup has been terminated and that all files
+    relating to this backup have been removed from the cluster file system.
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`备份 *backup_id* 从节点 *management_node_id* 开始已中止`消息意味着备份已终止，并且与此备份相关的所有文件已从集群文件系统中删除。'
+- en: 'It is also possible to abort a backup in progress from a system shell using
+    this command:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 也可以使用以下命令从系统shell中中止正在进行的备份：
+- en: '[PRE13]'
+  id: totrans-72
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Note
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If there is no backup having the ID *`backup_id`* running when an `ABORT BACKUP`
+    is issued, the management client makes no response, nor is it indicated in the
+    cluster log that an invalid abort command was sent.
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在发出`ABORT BACKUP`时没有正在运行ID为*`backup_id`*的备份，管理客户端不会做出响应，也不会在集群日志中指示发送了无效的中止命令。

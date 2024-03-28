@@ -1,0 +1,346 @@
+- en: 14.14 Locking Functions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 14.14 锁定函数
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/locking-functions.html](https://dev.mysql.com/doc/refman/8.0/en/locking-functions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/locking-functions.html](https://dev.mysql.com/doc/refman/8.0/en/locking-functions.html)
+- en: This section describes functions used to manipulate user-level locks.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述用于操作用户级别锁的函数。
+- en: '**Table 14.19 Locking Functions**'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 14.19 锁定函数**'
+- en: '| Name | Description |'
+  id: totrans-4
+  prefs: []
+  type: TYPE_TB
+  zh: '| 名称 | 描述 |'
+- en: '| [`GET_LOCK()`](locking-functions.html#function_get-lock) | Get a named lock
+    |'
+  id: totrans-5
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`GET_LOCK()`](locking-functions.html#function_get-lock) | 获取命名锁 |'
+- en: '| [`IS_FREE_LOCK()`](locking-functions.html#function_is-free-lock) | Whether
+    the named lock is free |'
+  id: totrans-6
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`IS_FREE_LOCK()`](locking-functions.html#function_is-free-lock) | 命名锁是否空闲
+    |'
+- en: '| [`IS_USED_LOCK()`](locking-functions.html#function_is-used-lock) | Whether
+    the named lock is in use; return connection identifier if true |'
+  id: totrans-7
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`IS_USED_LOCK()`](locking-functions.html#function_is-used-lock) | 命名锁是否正在使用；如果是，则返回连接标识符
+    |'
+- en: '| [`RELEASE_ALL_LOCKS()`](locking-functions.html#function_release-all-locks)
+    | Release all current named locks |'
+  id: totrans-8
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`RELEASE_ALL_LOCKS()`](locking-functions.html#function_release-all-locks)
+    | 释放所有当前命名锁 |'
+- en: '| [`RELEASE_LOCK()`](locking-functions.html#function_release-lock) | Release
+    the named lock |'
+  id: totrans-9
+  prefs: []
+  type: TYPE_TB
+  zh: '| [`RELEASE_LOCK()`](locking-functions.html#function_release-lock) | 释放命名锁
+    |'
+- en: '[`GET_LOCK(*`str`*,*`timeout`*)`](locking-functions.html#function_get-lock)'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`GET_LOCK(*`str`*,*`timeout`*)`](locking-functions.html#function_get-lock)'
+- en: Tries to obtain a lock with a name given by the string *`str`*, using a timeout
+    of *`timeout`* seconds. A negative *`timeout`* value means infinite timeout. The
+    lock is exclusive. While held by one session, other sessions cannot obtain a lock
+    of the same name.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 尝试使用字符串*`str`*给出的名称以及*`timeout`*秒的超时获取锁。负的*`timeout`*值表示无限超时。该锁是排他的。当一个会话持有锁时，其他会话无法获取相同名称的锁。
+- en: Returns `1` if the lock was obtained successfully, `0` if the attempt timed
+    out (for example, because another client has previously locked the name), or `NULL`
+    if an error occurred (such as running out of memory or the thread was killed with
+    [**mysqladmin kill**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program")).
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果成功获取锁，则返回`1`，如果尝试超时（例如，因为另一个客户端先前锁定了名称），则返回`0`，如果发生错误（例如，内存耗尽或线程被[**mysqladmin
+    kill**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration Program")杀死），则返回`NULL`。
+- en: A lock obtained with [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    is released explicitly by executing [`RELEASE_LOCK()`](locking-functions.html#function_release-lock)
+    or implicitly when your session terminates (either normally or abnormally). Locks
+    obtained with [`GET_LOCK()`](locking-functions.html#function_get-lock) are not
+    released when transactions commit or roll back.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用[`GET_LOCK()`](locking-functions.html#function_get-lock)获取的锁通过执行[`RELEASE_LOCK()`](locking-functions.html#function_release-lock)显式释放，或者在会话终止时（正常或异常）隐式释放。使用[`GET_LOCK()`](locking-functions.html#function_get-lock)获取的锁在事务提交或回滚时不会释放。
+- en: '[`GET_LOCK()`](locking-functions.html#function_get-lock) is implemented using
+    the metadata locking (MDL) subsystem. Multiple simultaneous locks can be acquired
+    and [`GET_LOCK()`](locking-functions.html#function_get-lock) does not release
+    any existing locks. For example, suppose that you execute these statements:'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`GET_LOCK()`](locking-functions.html#function_get-lock)是使用元数据锁定（MDL）子系统实现的。可以获取多个同时锁，并且[`GET_LOCK()`](locking-functions.html#function_get-lock)不会释放任何现有锁。例如，假设您执行以下语句：'
+- en: '[PRE0]'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The second [`GET_LOCK()`](locking-functions.html#function_get-lock) acquires
+    a second lock and both [`RELEASE_LOCK()`](locking-functions.html#function_release-lock)
+    calls return 1 (success).
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 第二个[`GET_LOCK()`](locking-functions.html#function_get-lock)获取第二个锁，两个[`RELEASE_LOCK()`](locking-functions.html#function_release-lock)调用都返回1（成功）。
+- en: It is even possible for a given session to acquire multiple locks for the same
+    name. Other sessions cannot acquire a lock with that name until the acquiring
+    session releases all its locks for the name.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 甚至可以让给定会话为同一名称获取多个锁。其他会话在获取会话释放该名称的所有锁之前无法获取具有该名称的锁。
+- en: Uniquely named locks acquired with [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    appear in the Performance Schema [`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table") table. The `OBJECT_TYPE` column says `USER
+    LEVEL LOCK` and the `OBJECT_NAME` column indicates the lock name. In the case
+    that multiple locks are acquired for the *same* name, only the first lock for
+    the name registers a row in the [`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table") table. Subsequent locks for the name increment
+    a counter in the lock but do not acquire additional metadata locks. The [`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table") row for the lock is deleted when the last
+    lock instance on the name is released.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用[`GET_LOCK()`](locking-functions.html#function_get-lock)获取的具有唯一名称的锁会出现在性能模式[`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table")表中。`OBJECT_TYPE`列显示`USER LEVEL LOCK`，`OBJECT_NAME`列指示锁名称。在为*相同*名称获取多个锁的情况下，只有第一个名称的锁会在[`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table")表中注册一行。对于该名称的后续锁将在锁中递增计数器，但不会获取额外的元数据锁。当名称上的最后一个锁实例被释放时，锁的[`metadata_locks`](performance-schema-metadata-locks-table.html
+    "29.12.13.3 The metadata_locks Table")行将被删除。
+- en: The capability of acquiring multiple locks means there is the possibility of
+    deadlock among clients. When this happens, the server chooses a caller and terminates
+    its lock-acquisition request with an [`ER_USER_LOCK_DEADLOCK`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_user_lock_deadlock)
+    error. This error does not cause transactions to roll back.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 获得多个锁的能力意味着客户端之间可能发生死锁。当这种情况发生时，服务器会选择一个调用者，并以[`ER_USER_LOCK_DEADLOCK`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_user_lock_deadlock)错误终止其锁获取请求。此错误不会导致事务回滚。
+- en: MySQL enforces a maximum length on lock names of 64 characters.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL对锁名称的最大长度强制为64个字符。
+- en: '[`GET_LOCK()`](locking-functions.html#function_get-lock) can be used to implement
+    application locks or to simulate record locks. Names are locked on a server-wide
+    basis. If a name has been locked within one session, [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    blocks any request by another session for a lock with the same name. This enables
+    clients that agree on a given lock name to use the name to perform cooperative
+    advisory locking. But be aware that it also enables a client that is not among
+    the set of cooperating clients to lock a name, either inadvertently or deliberately,
+    and thus prevent any of the cooperating clients from locking that name. One way
+    to reduce the likelihood of this is to use lock names that are database-specific
+    or application-specific. For example, use lock names of the form *`db_name.str`*
+    or *`app_name.str`*.'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`GET_LOCK()`](locking-functions.html#function_get-lock)可用于实现应用程序锁或模拟记录锁。名称在整个服务器范围内被锁定。如果一个名称在一个会话中被锁定，那么[`GET_LOCK()`](locking-functions.html#function_get-lock)会阻止另一个会话对具有相同名称的锁发出的任何请求。这使得同意给定锁名称的客户端可以使用该名称执行协作性咨询锁定。但请注意，这也使得不属于协作客户端集的客户端可以锁定一个名称，无论是无意还是故意，从而阻止任何协作客户端锁定该名称。减少这种可能性的一种方法是使用特定于数据库或应用程序的锁名称。例如，使用形式为*`db_name.str`*或*`app_name.str`*的锁名称。'
+- en: If multiple clients are waiting for a lock, the order in which they acquire
+    it is undefined. Applications should not assume that clients acquire the lock
+    in the same order that they issued the lock requests.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果多个客户端正在等待一个锁，它们获取锁的顺序是不确定的。应用程序不应假设客户端按照发出锁请求的顺序获取锁。
+- en: '[`GET_LOCK()`](locking-functions.html#function_get-lock) is unsafe for statement-based
+    replication. A warning is logged if you use this function when [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `STATEMENT`.'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时，[`GET_LOCK()`](locking-functions.html#function_get-lock)对基于语句的复制是不安全的。如果在此函数在此情况下使用，将记录一个警告。
+- en: Since `GET_LOCK()` establishes a lock only on a single [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server"), it is not suitable for use with NDB Cluster,
+    which has no way of enforcing an SQL lock across multiple MySQL servers. See [Section 25.2.7.10,
+    “Limitations Relating to Multiple NDB Cluster Nodes”](mysql-cluster-limitations-multiple-nodes.html
+    "25.2.7.10 Limitations Relating to Multiple NDB Cluster Nodes"), for more information.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于`GET_LOCK()`仅在单个[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")上建立锁，因此不适用于NDB
+    Cluster，后者无法强制执行跨多个MySQL服务器的SQL锁。有关更多信息，请参见[第25.2.7.10节，“与多个NDB Cluster节点相关的限制”](mysql-cluster-limitations-multiple-nodes.html
+    "25.2.7.10 Limitations Relating to Multiple NDB Cluster Nodes")。
+- en: Caution
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'With the capability of acquiring multiple named locks, it is possible for a
+    single statement to acquire a large number of locks. For example:'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 具有获取多个命名锁的能力，一个语句可以获取大量的锁。例如：
+- en: '[PRE1]'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: These types of statements may have certain adverse effects. For example, if
+    the statement fails part way through and rolls back, locks acquired up to the
+    point of failure still exist. If the intent is for there to be a correspondence
+    between rows inserted and locks acquired, that intent is not satisfied. Also,
+    if it is important that locks are granted in a certain order, be aware that result
+    set order may differ depending on which execution plan the optimizer chooses.
+    For these reasons, it may be best to limit applications to a single lock-acquisition
+    call per statement.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这些类型的语句可能会产生某些不良影响。例如，如果语句在中途失败并回滚，则在失败点之前获取的锁仍然存在。如果意图是要求插入的行与获取的锁对应，那么这个意图就无法满足。此外，如果重要的是按特定顺序授予锁，请注意结果集顺序可能会因优化器选择的执行计划而有所不同。因此，最好限制每个语句对单个锁获取调用。
+- en: A different locking interface is available as either a plugin service or a set
+    of loadable functions. This interface provides lock namespaces and distinct read
+    and write locks, unlike the interface provided by [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    and related functions. For details, see [Section 7.6.9.1, “The Locking Service”](locking-service.html
+    "7.6.9.1 The Locking Service").
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另一种不同的锁定接口可作为插件服务或一组可加载函数提供。该接口提供锁定命名空间和不同的读写锁，与[`GET_LOCK()`](locking-functions.html#function_get-lock)及相关函数提供的接口不同。有关详细信息，请参见[第7.6.9.1节，“锁定服务”](locking-service.html
+    "7.6.9.1 The Locking Service")。
+- en: '[`IS_FREE_LOCK(*`str`*)`](locking-functions.html#function_is-free-lock)'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`IS_FREE_LOCK(*`str`*)`](locking-functions.html#function_is-free-lock)'
+- en: Checks whether the lock named *`str`* is free to use (that is, not locked).
+    Returns `1` if the lock is free (no one is using the lock), `0` if the lock is
+    in use, and `NULL` if an error occurs (such as an incorrect argument).
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 检查名为*`str`*的锁是否可用（即未被锁定）。如果锁可用（没有人在使用锁），则返回`1`，如果锁正在使用，则返回`0`，如果发生错误（例如参数不正确），则返回`NULL`。
+- en: This function is unsafe for statement-based replication. A warning is logged
+    if you use this function when [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `STATEMENT`.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此函数对基于语句的复制不安全。如果在[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时使用此函数，将记录警告。
+- en: '[`IS_USED_LOCK(*`str`*)`](locking-functions.html#function_is-used-lock)'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`IS_USED_LOCK(*`str`*)`](locking-functions.html#function_is-used-lock)'
+- en: Checks whether the lock named *`str`* is in use (that is, locked). If so, it
+    returns the connection identifier of the client session that holds the lock. Otherwise,
+    it returns `NULL`.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 检查名为*`str`*的锁是否正在使用（即已锁定）。如果是，则返回持有锁的客户会话的连接标识符。否则，返回`NULL`。
+- en: This function is unsafe for statement-based replication. A warning is logged
+    if you use this function when [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `STATEMENT`.
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此函数对基于语句的复制不安全。如果在[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时使用此函数，将记录警告。
+- en: '[`RELEASE_ALL_LOCKS()`](locking-functions.html#function_release-all-locks)'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`RELEASE_ALL_LOCKS()`](locking-functions.html#function_release-all-locks)'
+- en: Releases all named locks held by the current session and returns the number
+    of locks released (0 if there were none)
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 释放当前会话持有的所有命名锁，并返回释放的锁数（如果没有锁则返回0）
+- en: This function is unsafe for statement-based replication. A warning is logged
+    if you use this function when [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `STATEMENT`.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此函数对基于语句的复制不安全。如果在[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时使用此函数，将记录警告。
+- en: '[`RELEASE_LOCK(*`str`*)`](locking-functions.html#function_release-lock)'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`RELEASE_LOCK(*`str`*)`](locking-functions.html#function_release-lock)'
+- en: Releases the lock named by the string *`str`* that was obtained with [`GET_LOCK()`](locking-functions.html#function_get-lock).
+    Returns `1` if the lock was released, `0` if the lock was not established by this
+    thread (in which case the lock is not released), and `NULL` if the named lock
+    did not exist. The lock does not exist if it was never obtained by a call to [`GET_LOCK()`](locking-functions.html#function_get-lock)
+    or if it has previously been released.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 释放由字符串*`str`*命名的锁，该锁是使用[`GET_LOCK()`](locking-functions.html#function_get-lock)获取的。如果释放了锁，则返回`1`，如果该线程未建立锁（在这种情况下不会释放锁），则返回`0`，如果命名的锁不存在，则返回`NULL`。如果从未通过调用[`GET_LOCK()`](locking-functions.html#function_get-lock)获取过锁，或者之前已释放锁，则该锁不存在。
+- en: The [`DO`](do.html "15.2.3 DO Statement") statement is convenient to use with
+    [`RELEASE_LOCK()`](locking-functions.html#function_release-lock). See [Section 15.2.3,
+    “DO Statement”](do.html "15.2.3 DO Statement").
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`DO`](do.html "15.2.3 DO Statement")语句与[`RELEASE_LOCK()`](locking-functions.html#function_release-lock)一起使用非常方便。请参阅[第15.2.3节，“DO语句”](do.html
+    "15.2.3 DO Statement")。'
+- en: This function is unsafe for statement-based replication. A warning is logged
+    if you use this function when [`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set to `STATEMENT`.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时，此函数对基于语句的复制不安全。如果在此函数中使用[`binlog_format`](replication-options-binary-log.html#sysvar_binlog_format)设置为`STATEMENT`时，将记录警告。

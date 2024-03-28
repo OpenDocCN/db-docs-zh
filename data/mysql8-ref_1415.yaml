@@ -1,0 +1,115 @@
+- en: 19.4.5 Using Replication for Scale-Out
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.4.5 利用复制进行规模扩展
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-scaleout.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-scaleout.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-scaleout.html](https://dev.mysql.com/doc/refman/8.0/en/replication-solutions-scaleout.html)
+- en: You can use replication as a scale-out solution; that is, where you want to
+    split up the load of database queries across multiple database servers, within
+    some reasonable limitations.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以将复制用作规模扩展解决方案；也就是说，您希望在多个数据库服务器之间分配数据库查询负载，但在一定的限制范围内。
+- en: Because replication works from the distribution of one source to one or more
+    replicas, using replication for scale-out works best in an environment where you
+    have a high number of reads and low number of writes/updates. Most websites fit
+    into this category, where users are browsing the website, reading articles, posts,
+    or viewing products. Updates only occur during session management, or when making
+    a purchase or adding a comment/message to a forum.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于复制是从一个源到一个或多个副本的分发，因此在具有大量读取和少量写入/更新的环境中使用复制以实现规模扩展性效果最佳。大多数网站属于这一类别，用户在浏览网站、阅读文章、帖子或查看产品时进行操作。更新仅在会话管理期间发生，或在进行购买或向论坛添加评论/消息时发生。
+- en: Replication in this situation enables you to distribute the reads over the replicas,
+    while still enabling your web servers to communicate with the source when a write
+    is required. You can see a sample replication layout for this scenario in [Figure 19.1,
+    “Using Replication to Improve Performance During Scale-Out”](replication-solutions-scaleout.html#figure_replication-scaleout
+    "Figure 19.1 Using Replication to Improve Performance During Scale-Out").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，复制使您能够将读取操作分布到副本上，同时仍然使您的网络服务器在需要写入时与源进行通信。您可以在[图19.1 “利用复制提高规模扩展性”](replication-solutions-scaleout.html#figure_replication-scaleout
+    "图19.1 利用复制提高规模扩展性")中查看此场景的示例复制布局。
+- en: '**Figure 19.1 Using Replication to Improve Performance During Scale-Out**'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图19.1 利用复制提高规模扩展性**'
+- en: '![Incoming requests from clients are directed to a load balancer, which distributes
+    client data among a number of web clients. Writes made by web clients are directed
+    to a single MySQL source server, and reads made by web clients are directed to
+    one of three MySQL replica servers. Replication takes place from the MySQL source
+    server to the three MySQL replica servers.](../Images/53c25b31a2204daff9e2aa8e9656495c.png)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_IMG
+  zh: '![来自客户端的请求被定向到负载均衡器，负载均衡器将客户端数据分发给多个网络客户端。网络客户端进行的写操作被定向到单个MySQL源服务器，而网络客户端进行的读操作被定向到三个MySQL副本服务器中的一个。复制操作是从MySQL源服务器到三个MySQL副本服务器进行的。](../Images/53c25b31a2204daff9e2aa8e9656495c.png)'
+- en: 'If the part of your code that is responsible for database access has been properly
+    abstracted/modularized, converting it to run with a replicated setup should be
+    very smooth and easy. Change the implementation of your database access to send
+    all writes to the source, and to send reads to either the source or a replica.
+    If your code does not have this level of abstraction, setting up a replicated
+    system gives you the opportunity and motivation to clean it up. Start by creating
+    a wrapper library or module that implements the following functions:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果负责数据库访问的代码部分已经被正确抽象化/模块化，那么将其转换为运行在复制设置中应该是非常顺利和容易的。将数据库访问的实现更改为将所有写操作发送到源，将读取操作发送到源或副本。如果您的代码没有达到这种抽象化水平，设置一个复制系统将为您提供整理代码的机会和动力。首先创建一个实现以下功能的包装库或模块：
+- en: '`safe_writer_connect()`'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`safe_writer_connect()`'
+- en: '`safe_reader_connect()`'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`safe_reader_connect()`'
+- en: '`safe_reader_statement()`'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`safe_reader_statement()`'
+- en: '`safe_writer_statement()`'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`safe_writer_statement()`'
+- en: '`safe_` in each function name means that the function takes care of handling
+    all error conditions. You can use different names for the functions. The important
+    thing is to have a unified interface for connecting for reads, connecting for
+    writes, doing a read, and doing a write.'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个函数名称中的`safe_`表示该函数负责处理所有错误条件。您可以为函数使用不同的名称。重要的是要为读取连接、写入连接、执行读取和执行写入提供统一的接口。
+- en: Then convert your client code to use the wrapper library. This may be a painful
+    and scary process at first, but it pays off in the long run. All applications
+    that use the approach just described are able to take advantage of a source/replica
+    configuration, even one involving multiple replicas. The code is much easier to
+    maintain, and adding troubleshooting options is trivial. You need modify only
+    one or two functions (for example, to log how long each statement took, or which
+    statement among those issued gave you an error).
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后将客户端代码转换为使用包装库。起初，这可能是一个痛苦和可怕的过程，但从长远来看是值得的。所有使用上述方法的应用程序都能够利用源/副本配置，甚至涉及多个副本。代码更容易维护，并且添加故障排除选项很简单。您只需要修改一个或两个函数（例如，记录每个语句花费的时间，或者哪个语句中出现了错误）。
+- en: If you have written a lot of code, you may want to automate the conversion task
+    by writing a conversion script. Ideally, your code uses consistent programming
+    style conventions. If not, then you are probably better off rewriting it anyway,
+    or at least going through and manually regularizing it to use a consistent style.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您编写了大量代码，可能希望通过编写转换脚本来自动化转换任务。理想情况下，您的代码使用一致的编程风格约定。如果没有，那么最好重新编写它，或者至少通过手动规范化来使用一致的风格。

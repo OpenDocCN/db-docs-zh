@@ -1,0 +1,233 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/large-page-support.html](https://dev.mysql.com/doc/refman/8.0/en/large-page-support.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/large-page-support.html](https://dev.mysql.com/doc/refman/8.0/en/large-page-support.html)
+- en: 10.12.3.3 Enabling Large Page Support
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.12.3.3 启用大页支持
+- en: Some hardware and operating system architectures support memory pages greater
+    than the default (usually 4KB). The actual implementation of this support depends
+    on the underlying hardware and operating system. Applications that perform a lot
+    of memory accesses may obtain performance improvements by using large pages due
+    to reduced Translation Lookaside Buffer (TLB) misses.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些硬件和操作系统架构支持大于默认值（通常为4KB）的内存页。此支持的实际实现取决于底层硬件和操作系统。执行大量内存访问的应用程序可能通过使用大页获得性能改进，因为减少了TLB（Translation
+    Lookaside Buffer）缺失。
+- en: In MySQL, large pages can be used by [`InnoDB`](innodb-storage-engine.html "Chapter 17 The
+    InnoDB Storage Engine"), to allocate memory for its buffer pool and additional
+    memory pool.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL中，大页可以被[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")使用，为其缓冲池和额外内存池分配内存。
+- en: Standard use of large pages in MySQL attempts to use the largest size supported,
+    up to 4MB. Under Solaris, a “super large pages” feature enables uses of pages
+    up to 256MB. This feature is available for recent SPARC platforms. It can be enabled
+    or disabled by using the [`--super-large-pages`](server-options.html#option_mysqld_super-large-pages)
+    or [`--skip-super-large-pages`](server-options.html#option_mysqld_super-large-pages)
+    option.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL中标准使用大页尝试使用支持的最大大小，最高可达4MB。在Solaris下，“超大页”功能使得可以使用高达256MB的页面。这个功能适用于最近的SPARC平台。可以通过使用[`--super-large-pages`](server-options.html#option_mysqld_super-large-pages)或[`--skip-super-large-pages`](server-options.html#option_mysqld_super-large-pages)选项来启用或禁用它。
+- en: MySQL also supports the Linux implementation of large page support (which is
+    called HugeTLB in Linux).
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL还支持Linux中的大页支持实现（在Linux中称为HugeTLB）。
+- en: Before large pages can be used on Linux, the kernel must be enabled to support
+    them and it is necessary to configure the HugeTLB memory pool. For reference,
+    the HugeTBL API is documented in the `Documentation/vm/hugetlbpage.txt` file of
+    your Linux sources.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在Linux上使用大页之前，必须启用内核以支持它们，并且需要配置HugeTLB内存池。有关参考，HugeTBL API在您的Linux源代码的`Documentation/vm/hugetlbpage.txt`文件中有文档。
+- en: 'The kernels for some recent systems such as Red Hat Enterprise Linux may have
+    the large pages feature enabled by default. To check whether this is true for
+    your kernel, use the following command and look for output lines containing “huge”:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些最近的系统（如Red Hat Enterprise Linux）的内核可能默认启用了大页功能。要检查您的内核是否为真，请使用以下命令，并查找包含“huge”的输出行：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The nonempty command output indicates that large page support is present, but
+    the zero values indicate that no pages are configured for use.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非空的命令输出表示大页支持存在，但零值表示未配置任何页面供使用。
+- en: If your kernel needs to be reconfigured to support large pages, consult the
+    `hugetlbpage.txt` file for instructions.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的内核需要重新配置以支持大页，请参考`hugetlbpage.txt`文件中的说明。
+- en: 'Assuming that your Linux kernel has large page support enabled, configure it
+    for use by MySQL using the following steps:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您的Linux内核已启用大页支持，请按以下步骤配置MySQL以使用它：
+- en: Determine the number of large pages needed. This is the size of the InnoDB buffer
+    pool divided by the large page size, which we can calculate as [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    / `Hugepagesize`. Assuming the default value for the [`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    (128MB) and using the `Hugepagesize` value obtained from `/proc/meminfo` (2MB),
+    this is 128MB / 2MB, or 64 Huge Pages. We call this value *`P`*.
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 确定所需的大页数。这是InnoDB缓冲池大小除以大页大小，我们可以计算为[`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)
+    / `Hugepagesize`。假设[`innodb_buffer_pool_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_size)的默认值（128MB）并使用从`/proc/meminfo`中获得的`Hugepagesize`值（2MB），这是128MB
+    / 2MB，或64个大页。我们称这个值为*`P`*。
+- en: 'As system root, open the file `/etc/sysctl.conf` in a text editor, and add
+    the line shown here, where *`P`* is the number of large pages obtained in the
+    previous step:'
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 作为系统根用户，在文本编辑器中打开文件`/etc/sysctl.conf`，并添加此处显示的行，其中*`P`*是先前步骤中获得的大页数：
+- en: '[PRE1]'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Using the actual value obtained previously, the additional line should look
+    like this:'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用先前获得的实际值，附加行应如下所示：
+- en: '[PRE2]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Save the updated file.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 保存更新后的文件。
+- en: 'As system root, run the following command:'
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 作为系统根用户，运行以下命令：
+- en: '[PRE3]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Note
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On some systems the large pages file may be named slightly differently; for
+    example, some distributions call it `nr_hugepages`. In the event **sysctl** returns
+    an error relating to the file name, check the name of the corresponding file in
+    `/proc/sys/vm` and use that instead.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在某些系统上，大页文件的名称可能略有不同；例如，某些发行版将其称为`nr_hugepages`。如果**sysctl**返回与文件名相关的错误，请检查`/proc/sys/vm`中相应文件的名称，并使用该名称。
+- en: 'To verify the large page configuration, check `/proc/meminfo` again as described
+    previously. Now you should see some additional nonzero values in the output, similar
+    to this:'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要验证大页配置，请再次检查`/proc/meminfo`，如前所述。现在，您应该在输出中看到一些额外的非零值，类似于这样：
+- en: '[PRE4]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Optionally, you may wish to compact the Linux VM. You can do this using a sequence
+    of commands, possibly in a script file, similar to what is shown here:'
+  id: totrans-24
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 可选地，您可能希望压缩Linux VM。您可以使用一系列命令来执行此操作，可能是在脚本文件中，类似于以下所示：
+- en: '[PRE5]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: See your operating platform documentation for more information about how to
+    do this.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查看您的操作平台文档以获取有关如何执行此操作的更多信息。
+- en: Check any configuration files such as `my.cnf` used by the server, and make
+    sure that [`innodb_buffer_pool_chunk_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_chunk_size)
+    is set larger than the huge page size. The default for this variable is 128M.
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查服务器使用的任何配置文件，如`my.cnf`，并确保[`innodb_buffer_pool_chunk_size`](innodb-parameters.html#sysvar_innodb_buffer_pool_chunk_size)设置为大于大页大小。此变量的默认值为128M。
+- en: 'Large page support in the MySQL server is disabled by default. To enable it,
+    start the server with [`--large-pages`](server-options.html#option_mysqld_large-pages).
+    You can also do so by adding the following line to the `[mysqld]` section of the
+    server `my.cnf` file:'
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: MySQL服务器中默认情况下禁用大页支持。要启用它，请使用[`--large-pages`](server-options.html#option_mysqld_large-pages)启动服务器。您还可以通过将以下行添加到服务器`my.cnf`文件的`[mysqld]`部分来执行此操作：
+- en: '[PRE6]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'With this option enabled, `InnoDB` uses large pages automatically for its buffer
+    pool and additional memory pool. If `InnoDB` cannot do this, it falls back to
+    use of traditional memory and writes a warning to the error log: Warning: Using
+    conventional memory pool.'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启用此选项后，`InnoDB`会自动为其缓冲池和额外内存池使用大页。如果`InnoDB`无法执行此操作，则会回退到使用传统内存，并在错误日志中写入警告：警告：使用传统内存池。
+- en: 'You can verify that MySQL is now using large pages by checking `/proc/meminfo`
+    again after restarting [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server"),
+    like this:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以通过在重新启动[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")后再次检查`/proc/meminfo`来验证MySQL是否正在使用大页，就像这样：
+- en: '[PRE7]'
+  id: totrans-32
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'

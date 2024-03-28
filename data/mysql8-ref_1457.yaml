@@ -1,0 +1,106 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-errors.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-errors.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-features-errors.html](https://dev.mysql.com/doc/refman/8.0/en/replication-features-errors.html)
+- en: 19.5.1.29 Replica Errors During Replication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 19.5.1.29 复制过程中的副本错误
+- en: If a statement produces the same error (identical error code) on both the source
+    and the replica, the error is logged, but replication continues.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一条语句在源端和副本端产生相同的错误（相同的错误代码），错误会被记录，但复制会继续。
+- en: If a statement produces different errors on the source and the replica, the
+    replication SQL thread terminates, and the replica writes a message to its error
+    log and waits for the database administrator to decide what to do about the error.
+    This includes the case that a statement produces an error on the source or the
+    replica, but not both. To address the issue, connect to the replica manually and
+    determine the cause of the problem. [`SHOW REPLICA STATUS`](show-replica-status.html
+    "15.7.7.35 SHOW REPLICA STATUS Statement") (or before MySQL 8.0.22, [`SHOW SLAVE
+    STATUS`](show-slave-status.html "15.7.7.36 SHOW SLAVE | REPLICA STATUS Statement"))
+    is useful for this. Then fix the problem and run [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement") (or before MySQL 8.0.22, [`START SLAVE`](start-slave.html
+    "15.4.2.7 START SLAVE Statement")). For example, you might need to create a nonexistent
+    table before you can start the replica again.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一条语句在源端和副本端产生不同的错误，复制 SQL 线程将终止，并且副本会在其错误日志中写入一条消息，等待数据库管理员决定如何处理该错误。这包括一种情况，即一条语句在源端或副本端产生错误，但不是同时在两端都出错。要解决这个问题，需要手动连接到副本并确定问题的原因。[`SHOW
+    REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")（或在
+    MySQL 8.0.22 之前，[`SHOW SLAVE STATUS`](show-slave-status.html "15.7.7.36 SHOW SLAVE
+    | REPLICA STATUS Statement"）对此很有帮助。然后修复问题并运行 [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement")（或在 MySQL 8.0.22 之前，[`START SLAVE`](start-slave.html
+    "15.4.2.7 START SLAVE Statement"）。例如，您可能需要在可以再次启动副本之前创建一个不存在的表。
+- en: Note
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If a temporary error is recorded in the replica's error log, you do not necessarily
+    have to take any action suggested in the quoted error message. Temporary errors
+    should be handled by the client retrying the transaction. For example, if the
+    replication SQL thread records a temporary error relating to a deadlock, you do
+    not need to restart the transaction manually on the replica, unless the replication
+    SQL thread subsequently terminates with a nontemporary error message.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在副本的错误日志中记录了临时错误，您不一定需要采取引用错误消息中建议的任何操作。临时错误应由客户端重试事务来处理。例如，如果复制 SQL 线程记录了与死锁相关的临时错误，您不需要在副本上手动重新启动事务，除非复制
+    SQL 线程随后以非临时错误消息终止。
+- en: If this error code validation behavior is not desirable, some or all errors
+    can be masked out (ignored) with the [`--slave-skip-errors`](replication-options-replica.html#option_mysqld_slave-skip-errors)
+    option.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果不希望进行错误代码验证行为，可以使用 [`--slave-skip-errors`](replication-options-replica.html#option_mysqld_slave-skip-errors)
+    选项屏蔽（忽略）一些或所有错误。
+- en: For nontransactional storage engines such as [`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine"), it is possible to have a statement that only
+    partially updates a table and returns an error code. This can happen, for example,
+    on a multiple-row insert that has one row violating a key constraint, or if a
+    long update statement is killed after updating some of the rows. If that happens
+    on the source, the replica expects execution of the statement to result in the
+    same error code. If it does not, the replication SQL thread stops as described
+    previously.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于非事务性存储引擎，如[`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage Engine")，可能会出现仅部分更新表并返回错误代码的语句。例如，在多行插入中有一行违反键约束，或者在更新了部分行后长时间的更新语句被终止。如果这种情况发生在源端，副本期望执行该语句会产生相同的错误代码。如果没有产生相同的错误代码，复制
+    SQL 线程将如前所述停止。
+- en: If you are replicating between tables that use different storage engines on
+    the source and replica, keep in mind that the same statement might produce a different
+    error when run against one version of the table, but not the other, or might cause
+    an error for one version of the table, but not the other. For example, since `MyISAM`
+    ignores foreign key constraints, an [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    or [`UPDATE`](update.html "15.2.17 UPDATE Statement") statement accessing an `InnoDB`
+    table on the source might cause a foreign key violation but the same statement
+    performed on a `MyISAM` version of the same table on the replica would produce
+    no such error, causing replication to stop.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在源表和副本上使用不同存储引擎的表之间进行复制，请记住，同一语句在针对表的一个版本运行时可能会产生不同的错误，但在另一个版本上不会，或者可能会导致一个版本的表出现错误，而另一个版本不会。例如，由于`MyISAM`忽略外键约束，访问源上的`InnoDB`表的[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")或[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句可能会导致外键违反，但在副本上的相同语句执行在`MyISAM`版本的相同表上不会产生此类错误，导致复制停止。
+- en: Beginning with MySQL 8.0.31, replication filter rules are applied first, prior
+    to making any privilege or row format checks, making it possible to filter out
+    any transactions that fail validation; no checks are performed and thus no errors
+    are raised for transactions which have been filtered out. This means that the
+    replica can accept only that part of the database to which a given user has been
+    granted access (as long as any updates to this part of the database use the row-based
+    replication format). This may be helpful when performing an upgrade or when migrating
+    to a system or application that uses administration tables to which the inbound
+    replication user does not have access. See also [Section 19.2.5, “How Servers
+    Evaluate Replication Filtering Rules”](replication-rules.html "19.2.5 How Servers
+    Evaluate Replication Filtering Rules").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.31开始，复制过滤规则首先应用，然后再进行任何权限或行格式检查，这样可以过滤掉任何未通过验证的事务；对于已被过滤的事务不执行任何检查，因此不会引发错误。这意味着副本只能接受给定用户已被授予访问权限的数据库部分（只要该数据库部分的更新使用基于行的复制格式）。在进行升级或迁移到一个使用入站复制用户无法访问管理表的系统或应用程序时，这可能会有所帮助。另请参阅[第19.2.5节，“服务器如何评估复制过滤规则”](replication-rules.html
+    "19.2.5 How Servers Evaluate Replication Filtering Rules")。

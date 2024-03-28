@@ -1,0 +1,129 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/dynamic-format.html](https://dev.mysql.com/doc/refman/8.0/en/dynamic-format.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/dynamic-format.html](https://dev.mysql.com/doc/refman/8.0/en/dynamic-format.html)
+- en: 18.2.3.2 Dynamic Table Characteristics
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 18.2.3.2 动态表特性
+- en: Dynamic storage format is used if a `MyISAM` table contains any variable-length
+    columns ([`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types"), [`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types"), [`BLOB`](blob.html "13.3.4 The BLOB
+    and TEXT Types"), or [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types")), or
+    if the table was created with the `ROW_FORMAT=DYNAMIC` table option.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`MyISAM`表包含任何可变长度列（[`VARCHAR`](char.html "13.3.2 The CHAR and VARCHAR Types")、[`VARBINARY`](binary-varbinary.html
+    "13.3.3 The BINARY and VARBINARY Types")、[`BLOB`](blob.html "13.3.4 The BLOB and
+    TEXT Types")或[`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types")），或者表是使用`ROW_FORMAT=DYNAMIC`表选项创建的，则使用动态存储格式。
+- en: Dynamic format is a little more complex than static format because each row
+    has a header that indicates how long it is. A row can become fragmented (stored
+    in noncontiguous pieces) when it is made longer as a result of an update.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 动态格式比静态格式稍微复杂，因为每行都有一个标头，指示其长度。当由于更新而使行变长时，行可能会变得碎片化（存储在非连续的片段中）。
+- en: You can use [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE
+    Statement") or [**myisamchk -r**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") to defragment a table. If you have fixed-length columns that you access
+    or change frequently in a table that also contains some variable-length columns,
+    it might be a good idea to move the variable-length columns to other tables just
+    to avoid fragmentation.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")或[**myisamchk
+    -r**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")来对表进行碎片整理。如果您在一个表中频繁访问或更改固定长度列，并且该表还包含一些可变长度列，那么将可变长度列移动到其他表中以避免碎片化可能是一个好主意。
+- en: 'Dynamic-format tables have these characteristics:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 动态格式表具有以下特点：
+- en: All string columns are dynamic except those with a length less than four.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有字符串列都是动态的，除了长度小于四的列。
+- en: Each row is preceded by a bitmap that indicates which columns contain the empty
+    string (for string columns) or zero (for numeric columns). This does not include
+    columns that contain `NULL` values. If a string column has a length of zero after
+    trailing space removal, or a numeric column has a value of zero, it is marked
+    in the bitmap and not saved to disk. Nonempty strings are saved as a length byte
+    plus the string contents.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每行前面都有一个位图，指示哪些列包含空字符串（对于字符串列）或零（对于数值列）。这不包括包含`NULL`值的列。如果字符串列在去除尾随空格后长度为零，或者数值列的值为零，则在位图中标记并不保存到磁盘。非空字符串保存为长度字节加上字符串内容。
+- en: '`NULL` columns require additional space in the row to record whether their
+    values are `NULL`. Each `NULL` column takes one bit extra, rounded up to the nearest
+    byte.'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NULL`列需要额外的空间来记录它们的值是否为`NULL`。每个`NULL`列额外占用一位，向上取整到最近的字节。'
+- en: Much less disk space usually is required than for fixed-length tables.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 比固定长度表通常需要更少的磁盘空间。
+- en: Each row uses only as much space as is required. However, if a row becomes larger,
+    it is split into as many pieces as are required, resulting in row fragmentation.
+    For example, if you update a row with information that extends the row length,
+    the row becomes fragmented. In this case, you may have to run [`OPTIMIZE TABLE`](optimize-table.html
+    "15.7.3.4 OPTIMIZE TABLE Statement") or [**myisamchk -r**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") from time to time to improve performance.
+    Use [**myisamchk -ei**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") to obtain table statistics.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每行只使用所需的空间。但是，如果一行变得更大，它将被分成所需的碎片，导致行碎片化。例如，如果更新了一行的信息，使行长度增加，那么该行将变得碎片化。在这种情况下，您可能需要定期运行[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")或[**myisamchk
+    -r**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")来提高性能。使用[**myisamchk
+    -ei**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")获取表统计信息。
+- en: More difficult than static-format tables to reconstruct after a crash, because
+    rows may be fragmented into many pieces and links (fragments) may be missing.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在崩溃后更难重建比静态格式表，因为行可能会分成许多片段，而且链接（片段）可能丢失。
+- en: 'The expected row length for dynamic-sized rows is calculated using the following
+    expression:'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 动态大小行的预期行长度使用以下表达式计算：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: There is a penalty of 6 bytes for each link. A dynamic row is linked whenever
+    an update causes an enlargement of the row. Each new link is at least 20 bytes,
+    so the next enlargement probably goes in the same link. If not, another link is
+    created. You can find the number of links using [**myisamchk -ed**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility"). All links may be removed
+    with [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")
+    or [**myisamchk -r**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility").
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个链接都会有6个字节的惩罚。每当更新导致行的扩大时，就会链接一个动态行。每个新链接至少有20个字节，所以下一个扩大可能会放在同一个链接中。如果不是，就会创建另一个链接。你可以使用[**myisamchk
+    -ed**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")来查找链接的数量。所有链接可以通过[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")或[**myisamchk
+    -r**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")来移除。

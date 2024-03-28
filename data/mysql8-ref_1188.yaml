@@ -1,0 +1,199 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-consistent-read.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-consistent-read.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-consistent-read.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-consistent-read.html)
+- en: 17.7.2.3 Consistent Nonlocking Reads
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.7.2.3 一致性非锁定读取
+- en: 'A [consistent read](glossary.html#glos_consistent_read "consistent read") means
+    that `InnoDB` uses multi-versioning to present to a query a snapshot of the database
+    at a point in time. The query sees the changes made by transactions that committed
+    before that point in time, and no changes made by later or uncommitted transactions.
+    The exception to this rule is that the query sees the changes made by earlier
+    statements within the same transaction. This exception causes the following anomaly:
+    If you update some rows in a table, a [`SELECT`](select.html "15.2.13 SELECT Statement")
+    sees the latest version of the updated rows, but it might also see older versions
+    of any rows. If other sessions simultaneously update the same table, the anomaly
+    means that you might see the table in a state that never existed in the database.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一致性读取意味着`InnoDB`使用多版本控制向查询展示数据库在某个时间点的快照。查询看到在该时间点之前提交的事务所做的更改，而不会看到稍后或未提交事务所做的更改。这个规则的例外是查询看到同一事务中较早语句所做的更改。这个例外导致以下异常：如果您更新表中的某些行，[`SELECT`](select.html
+    "15.2.13 SELECT Statement")会看到更新行的最新版本，但也可能看到任何行的旧版本。如果其他会话同时更新同一表，这种异常意味着您可能看到数据库中从未存在的表状态。
+- en: If the transaction [isolation level](glossary.html#glos_isolation_level "isolation
+    level") is [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    (the default level), all consistent reads within the same transaction read the
+    snapshot established by the first such read in that transaction. You can get a
+    fresher snapshot for your queries by committing the current transaction and after
+    that issuing new queries.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果事务的[隔离级别](glossary.html#glos_isolation_level "隔离级别")是[`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)（默认级别），同一事务内的所有一致性读取都读取该事务中第一个这样的读取建立的快照。您可以通过提交当前事务，然后发出新查询来为您的查询获取更新的快照。
+- en: With [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    isolation level, each consistent read within a transaction sets and reads its
+    own fresh snapshot.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)隔离级别时，事务内的每个一致性读取都会设置并读取自己的新快照。
+- en: Consistent read is the default mode in which `InnoDB` processes [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statements in [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    and [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    isolation levels. A consistent read does not set any locks on the tables it accesses,
+    and therefore other sessions are free to modify those tables at the same time
+    a consistent read is being performed on the table.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一致性读取是`InnoDB`在[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)和[`REPEATABLE
+    READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)隔离级别下处理[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句的默认模式。一致性读取不会在访问的表上设置任何锁定，因此其他会话可以在执行一致性读取的同时自由修改这些表。
+- en: Suppose that you are running in the default [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    isolation level. When you issue a consistent read (that is, an ordinary [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statement), `InnoDB` gives your transaction a timepoint
+    according to which your query sees the database. If another transaction deletes
+    a row and commits after your timepoint was assigned, you do not see the row as
+    having been deleted. Inserts and updates are treated similarly.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您正在使用默认的[`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)隔离级别。当您发出一致性读取（即普通的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句）时，`InnoDB`根据您的查询看到数据库的时间点为您的事务分配一个时间点。如果另一个事务删除一行并在分配您的时间点后提交，则您不会看到该行已被删除。插入和更新的处理方式类似。
+- en: Note
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The snapshot of the database state applies to [`SELECT`](select.html "15.2.13 SELECT
+    Statement") statements within a transaction, not necessarily to [DML](glossary.html#glos_dml
+    "DML") statements. If you insert or modify some rows and then commit that transaction,
+    a [`DELETE`](delete.html "15.2.2 DELETE Statement") or [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") statement issued from another concurrent `REPEATABLE
+    READ` transaction could affect those just-committed rows, even though the session
+    could not query them. If a transaction does update or delete rows committed by
+    a different transaction, those changes do become visible to the current transaction.
+    For example, you might encounter a situation like the following:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数据库状态的快照适用于事务内的[`SELECT`](select.html "15.2.13 SELECT Statement")语句，而不一定适用于[DML](glossary.html#glos_dml
+    "DML")语句。如果你插入或修改了一些行然后提交该事务，另一个并发的`REPEATABLE READ`事务发出的[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")或[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句可能会影响那些刚刚提交的行，尽管该会话无法查询它们。如果一个事务更新或删除了另一个事务提交的行，那些更改将对当前事务可见。例如，你可能会遇到以下情况：
+- en: '[PRE0]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: You can advance your timepoint by committing your transaction and then doing
+    another [`SELECT`](select.html "15.2.13 SELECT Statement") or [`START TRANSACTION
+    WITH CONSISTENT SNAPSHOT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and
+    ROLLBACK Statements").
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以通过提交事务然后执行另一个[`SELECT`](select.html "15.2.13 SELECT Statement")或[`START TRANSACTION
+    WITH CONSISTENT SNAPSHOT`](commit.html "15.3.1 START TRANSACTION, COMMIT, and
+    ROLLBACK Statements")来推进时间点。
+- en: This is called multi-versioned concurrency control.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这被称为多版本并发控制。
+- en: In the following example, session A sees the row inserted by B only when B has
+    committed the insert and A has committed as well, so that the timepoint is advanced
+    past the commit of B.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在下面的例子中，会话A只有在B提交插入并且A也提交后才能看到B插入的行，这样时间点就会超过B的提交。
+- en: '[PRE1]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'If you want to see the “freshest” state of the database, use either the [`READ
+    COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    isolation level or a [locking read](glossary.html#glos_locking_read "locking read"):'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果你想查看数据库的“最新”状态，请使用[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)隔离级别或者[锁定读取](glossary.html#glos_locking_read
+    "locking read")。
+- en: '[PRE2]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'With [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    isolation level, each consistent read within a transaction sets and reads its
+    own fresh snapshot. With `FOR SHARE`, a locking read occurs instead: A `SELECT`
+    blocks until the transaction containing the freshest rows ends (see [Section 17.7.2.4,
+    “Locking Reads”](innodb-locking-reads.html "17.7.2.4 Locking Reads")).'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)隔离级别时，事务内的每个一致性读取都设置并读取自己的新快照。使用`FOR
+    SHARE`时，会发生锁定读取：`SELECT`会阻塞，直到包含最新行的事务结束（参见[第17.7.2.4节，“锁定读取”](innodb-locking-reads.html
+    "17.7.2.4 Locking Reads")）。
+- en: 'Consistent read does not work over certain DDL statements:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一致性读取在某些DDL语句上不起作用：
+- en: Consistent read does not work over [`DROP TABLE`](drop-table.html "15.1.32 DROP
+    TABLE Statement"), because MySQL cannot use a table that has been dropped and
+    `InnoDB` destroys the table.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一致性读取在[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")上不起作用，因为MySQL无法使用已删除的表，而`InnoDB`会销毁该表。
+- en: 'Consistent read does not work over [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") operations that make a temporary copy of the original table
+    and delete the original table when the temporary copy is built. When you reissue
+    a consistent read within a transaction, rows in the new table are not visible
+    because those rows did not exist when the transaction''s snapshot was taken. In
+    this case, the transaction returns an error: [`ER_TABLE_DEF_CHANGED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_table_def_changed),
+    “Table definition has changed, please retry transaction”.'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一致性读取在进行使原始表的临时副本并在构建临时副本时删除原始表的[`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")操作上不起作用。当在事务内重新发出一致性读取时，新表中的行不可见，因为这些行在事务的快照被拍摄时不存在。在这种情况下，事务会返回一个错误：[`ER_TABLE_DEF_CHANGED`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_table_def_changed)，“表定义已更改，请重试事务”。
+- en: 'The type of read varies for selects in clauses like [`INSERT INTO ... SELECT`](insert.html
+    "15.2.7 INSERT Statement"), [`UPDATE ... (SELECT)`](update.html "15.2.17 UPDATE
+    Statement"), and [`CREATE TABLE ... SELECT`](create-table.html "15.1.20 CREATE
+    TABLE Statement") that do not specify `FOR UPDATE` or `FOR SHARE`:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于像[`INSERT INTO ... SELECT`](insert.html "15.2.7 INSERT Statement")，[`UPDATE
+    ... (SELECT)`](update.html "15.2.17 UPDATE Statement")和[`CREATE TABLE ... SELECT`](create-table.html
+    "15.1.20 CREATE TABLE Statement")等子句中的选择，如果没有指定`FOR UPDATE`或`FOR SHARE`，则读取类型会有所不同：
+- en: By default, `InnoDB` uses stronger locks for those statements and the [`SELECT`](select.html
+    "15.2.13 SELECT Statement") part acts like [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed),
+    where each consistent read, even within the same transaction, sets and reads its
+    own fresh snapshot.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认情况下，`InnoDB`对这些语句使用更强的锁，并且[`SELECT`](select.html "15.2.13 SELECT Statement")部分的行为类似于[`READ
+    COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)，即每个一致性读取，即使在同一事务中，也会设置并读取自己的新快照。
+- en: To perform a nonlocking read in such cases, set the isolation level of the transaction
+    to [`READ UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted)
+    or [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    to avoid setting locks on rows read from the selected table.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要在这种情况下执行非锁定读取，将事务的隔离级别设置为[`READ UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted)或[`READ
+    COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)，以避免对从所选表中读取的行设置锁。

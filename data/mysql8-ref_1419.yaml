@@ -1,0 +1,175 @@
+- en: 19.4.9 Switching Sources and Replicas with Asynchronous Connection Failover
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.4.9 利用异步连接故障转移切换源和副本
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover.html](https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover.html](https://dev.mysql.com/doc/refman/8.0/en/replication-asynchronous-connection-failover.html)
+- en: '[19.4.9.1 Asynchronous Connection Failover for Sources](replication-asynchronous-connection-failover-source.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.4.9.1 源的异步连接故障转移](replication-asynchronous-connection-failover-source.html)'
+- en: '[19.4.9.2 Asynchronous Connection Failover for Replicas](replication-asynchronous-connection-failover-replica.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.4.9.2 副本的异步连接故障转移](replication-asynchronous-connection-failover-replica.html)'
+- en: Beginning with MySQL 8.0.22, you can use the asynchronous connection failover
+    mechanism to automatically establish an asynchronous (source to replica) replication
+    connection to a new source after the existing connection from a replica to its
+    source fails. The asynchronous connection failover mechanism can be used to keep
+    a replica synchronized with multiple MySQL servers or groups of servers that share
+    data. The list of potential source servers is stored on the replica, and in the
+    event of a connection failure, a new source is selected from the list based on
+    a weighted priority that you set.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.22开始，您可以使用异步连接故障转移机制在现有副本到源的连接失败后自动建立与新源的异步（源到副本）复制连接。异步连接故障转移机制可用于使副本与共享数据的多个MySQL服务器或服务器组保持同步。潜在源服务器列表存储在副本上，在连接失败时，根据您设置的加权优先级从列表中选择新源。
+- en: From MySQL 8.0.23, the asynchronous connection failover mechanism also supports
+    Group Replication topologies, by automatically monitoring changes to group membership
+    and distinguishing between primary and secondary servers. When you add a group
+    member to the source list and define it as part of a managed group, the asynchronous
+    connection failover mechanism updates the source list to keep it in line with
+    membership changes, adding and removing group members automatically as they join
+    or leave. Only online group members that are in the majority are used for connections
+    and obtaining status. The last remaining member of a managed group is not removed
+    automatically even if it leaves the group, so that the configuration of the managed
+    group is kept. However, you can delete a managed group manually if it is no longer
+    needed.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.23开始，异步连接故障转移机制还支持组复制拓扑结构，通过自动监视组成员变化并区分主服务器和次要服务器。当您将组成员添加到源列表并将其定义为受控组的一部分时，异步连接故障转移机制会更新源列表以使其与成员变化保持一致，随着成员加入或离开自动添加和删除组成员。仅使用在线占多数的组成员进行连接和获取状态。即使最后剩下的受控组成员离开组，也不会自动删除，以保持受控组的配置。但是，如果不再需要，可以手动删除受控组。
+- en: From MySQL 8.0.27, the asynchronous connection failover mechanism also enables
+    a replica that is part of a managed replication group to automatically reconnect
+    to the sender if the current receiver (the primary of the group) fails. This feature
+    works with Group Replication, on a group configured in single-primary mode, where
+    the group’s primary is a replica that has a replication channel using the mechanism.
+    The feature is designed for a group of senders and a group of receivers to keep
+    synchronized with each other even when some members are temporarily unavailable.
+    It also synchronizes a group of receivers with one or more senders that are not
+    part of a managed group. A replica that is not part of a replication group cannot
+    use this feature.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.27开始，异步连接故障转移机制还可以使作为受控复制组一部分的副本在当前接收者（组的主节点）失败时自动重新连接到发送者。此功能与组复制一起使用，在配置为单主模式的组上工作，其中组的主节点是使用该机制的副本的复制通道。该功能旨在使一组发送者和一组接收者即使某些成员暂时不可用也保持同步。它还将一组接收者与一个或多个不属于受控组的发送者同步。不属于复制组的副本无法使用此功能。
+- en: 'The requirements for using the asynchronous connection failover mechanism are
+    as follows:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用异步连接故障转移机制的要求如下：
+- en: GTIDs must be in use on the source and the replica ([`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)),
+    and the `SOURCE_AUTO_POSITION` | `MASTER_AUTO_POSITION` option of the [`CHANGE
+    REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE
+    MASTER TO Statement") statement must be enabled on the replica, so that GTID auto-positioning
+    is used for the connection to the source.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: GTIDs 必须在源端和副本端使用 ([`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode))，并且必须在副本端启用
+    [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") 语句的 `SOURCE_AUTO_POSITION` | `MASTER_AUTO_POSITION`
+    选项，以便使用 GTID 自动定位连接到源端。
+- en: The same replication user account and password must exist on all the source
+    servers in the source list for the channel. This account is used for the connection
+    to each of the sources. You can set up different accounts for different channels.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在通道的源列表中，所有源服务器上必须存在相同的复制用户帐户和密码。此帐户用于连接到每个源端。您可以为不同的通道设置不同的帐户。
+- en: The replication user account must be given `SELECT` permissions on the Performance
+    Schema tables, for example, by issuing `GRANT SELECT ON performance_schema.* TO
+    '*`repl_user`*';`
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 复制用户帐户必须在 Performance Schema 表上具有 `SELECT` 权限，例如，通过发出 `GRANT SELECT ON performance_schema.*
+    TO '*`repl_user`*';`。
+- en: The replication user account and password cannot be specified on the statement
+    used to start replication, because they need to be available on the automatic
+    restart for the connection to the alternative source. They must be set for the
+    channel using the [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") statement on the replica, and recorded
+    in the replication metadata repositories.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由于需要在备用源端的自动重启中使用，因此不能在用于启动复制的语句中指定复制用户帐户和密码。必须在副本端使用 [`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement") | [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER
+    TO Statement") 语句为通道设置这些信息，并记录在复制元数据存储库中。
+- en: If the channel where the asynchronous connection failover mechanism is in use
+    is on the primary of a Group Replication single-primary mode group, from MySQL
+    8.0.27, asynchronous connection failover between replicas is also active by default.
+    In this situation, the replication channel and the replication user account and
+    password for the channel must be set up on all the secondary servers in the replication
+    group, and on any new joining members. If the new servers are provisioned using
+    MySQL’s clone functionality, this all happens automatically.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果异步连接故障转移机制正在使用的通道位于 Group Replication 单主模式组的主服务器上，在 MySQL 8.0.27 中，默认情况下也会激活副本之间的异步连接故障转移。在这种情况下，必须在复制组中的所有次要服务器以及任何新加入的成员上设置复制通道和复制用户帐户和密码。如果使用
+    MySQL 的克隆功能提供新服务器，则所有这些都会自动发生。
+- en: Important
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要
+- en: If you do not want asynchronous connection failover to take place between replicas
+    in this situation, disable it by disabling the member action `mysql_start_failover_channels_if_primary`
+    for the group, using the [`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)
+    function. When the feature is disabled, you do not need to configure the replication
+    channel on the secondary group members, but if the primary goes offline or into
+    an error state, replication stops for the channel.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您不希望在这种情况下副本之间发生异步连接故障转移，请通过使用 [`group_replication_disable_member_action`](group-replication-functions-for-member-actions.html#function_group-replication-disable-member-action)
+    函数为组禁用成员操作 `mysql_start_failover_channels_if_primary` 来禁用它。当禁用该功能时，您无需在次要组成员上配置复制通道，但如果主服务器下线或进入错误状态，则通道的复制将停止。
+- en: From MySQL Shell 8.0.27 and MySQL 8.0.27, MySQL InnoDB ClusterSet is available
+    to provide disaster tolerance for InnoDB Cluster deployments by linking a primary
+    InnoDB Cluster with one or more replicas of itself in alternate locations, such
+    as different datacenters. Consider using this solution instead to simplify the
+    setup of a new multi-group deployment for replication, failover, and disaster
+    recovery. You can adopt an existing Group Replication deployment as an InnoDB
+    Cluster.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL Shell 8.0.27 和 MySQL 8.0.27 开始，MySQL InnoDB ClusterSet 可用于为 InnoDB Cluster
+    部署提供灾难容忍性，方法是将主 InnoDB Cluster 与其在不同位置（如不同数据中心）的一个或多个副本链接起来。考虑使用这种解决方案来简化新的多组部署的设置，用于复制、故障切换和灾难恢复。您可以将现有的
+    Group Replication 部署作为 InnoDB Cluster 采用。
+- en: InnoDB ClusterSet and InnoDB Cluster are designed to abstract and simplify the
+    procedures for setting up, managing, monitoring, recovering, and repairing replication
+    groups. InnoDB ClusterSet automatically manages replication from a primary cluster
+    to replica clusters using a dedicated ClusterSet replication channel. You can
+    use administrator commands to trigger a controlled switchover or emergency failover
+    between groups if the primary cluster is not functioning normally. Servers and
+    groups can easily be added to or removed from the InnoDB ClusterSet deployment
+    after the initial setup when demand changes. For more information, see [MySQL
+    InnoDB ClusterSet](/doc/mysql-shell/8.0/en/innodb-clusterset.html).
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: InnoDB ClusterSet 和 InnoDB Cluster 旨在抽象和简化设置、管理、监控、恢复和修复复制组的过程。InnoDB ClusterSet
+    自动管理从主集群到副本集群的复制，使用专用的 ClusterSet 复制通道。您可以使用管理员命令在主集群不正常运行时触发受控切换或紧急故障转移。在需求发生变化时，可以在初始设置后轻松地向
+    InnoDB ClusterSet 部署添加或删除服务器和组。有关更多信息，请参阅[MySQL InnoDB ClusterSet](/doc/mysql-shell/8.0/en/innodb-clusterset.html)。

@@ -1,0 +1,169 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/window-function-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/window-function-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/window-function-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/window-function-optimization.html)
+- en: 10.2.1.21 Window Function Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.21 窗口函数优化
+- en: 'Window functions affect the strategies the optimizer considers:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 窗口函数会影响优化器考虑的策略：
+- en: Derived table merging for a subquery is disabled if the subquery has window
+    functions. The subquery is always materialized.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果子查询具有窗口函数，则禁用对子查询的派生表合并。子查询总是被实体化。
+- en: Semijoins are not applicable to window function optimization because semijoins
+    apply to subqueries in `WHERE` and `JOIN ... ON`, which cannot contain window
+    functions.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 半连接不适用于窗口函数优化，因为半连接适用于`WHERE`和`JOIN ... ON`中的子查询，这些子查询不能包含窗口函数。
+- en: The optimizer processes multiple windows that have the same ordering requirements
+    in sequence, so sorting can be skipped for windows following the first one.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化器按顺序处理具有相同排序要求的多个窗口，因此对于第一个窗口之后的窗口，可以跳过排序。
+- en: The optimizer makes no attempt to merge windows that could be evaluated in a
+    single step (for example, when multiple `OVER` clauses contain identical window
+    definitions). The workaround is to define the window in a `WINDOW` clause and
+    refer to the window name in the `OVER` clauses.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化器不会尝试合并可以在单个步骤中评估的窗口（例如，当多个`OVER`子句包含相同的窗口定义时）。解决方法是在`WINDOW`子句中定义窗口，并在`OVER`子句中引用窗口名称。
+- en: 'An aggregate function not used as a window function is aggregated in the outermost
+    possible query. For example, in this query, MySQL sees that `COUNT(t1.b)` is something
+    that cannot exist in the outer query because of its placement in the `WHERE` clause:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 未作为窗口函数使用的聚合函数在可能的最外层查询中进行聚合。例如，在这个查询中，MySQL看到`COUNT(t1.b)`是一个不能存在于外部查询中的东西，因为它在`WHERE`子句中的位置：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Consequently, MySQL aggregates inside the subquery, treating `t1.b` as a constant
+    and returning the count of rows of `t2`.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，MySQL在子查询中进行聚合，将`t1.b`视为常量，并返回`t2`行的计数。
+- en: 'Replacing `WHERE` with `HAVING` results in an error:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将`WHERE`替换为`HAVING`会导致错误：
+- en: '[PRE1]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The error occurs because `COUNT(t1.b)` can exist in the `HAVING`, and so makes
+    the outer query aggregated.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 错误发生是因为`COUNT(t1.b)`可能存在于`HAVING`中，因此使外部查询聚合。
+- en: Window functions (including aggregate functions used as window functions) do
+    not have the preceding complexity. They always aggregate in the subquery where
+    they are written, never in the outer query.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 窗口函数（包括作为窗口函数使用的聚合函数）没有前面的复杂性。它们总是在写入它们的子查询中进行聚合，而不是在外部查询中进行。
+- en: Window function evaluation may be affected by the value of the [`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)
+    system variable, which determines whether to compute window operations without
+    loss of precision. By default, [`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)
+    is enabled.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 窗口函数的评估可能会受到[`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)系统变量值的影响，该变量确定是否计算窗口操作时不损失精度。默认情况下，[`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)是启用的。
+- en: For some moving frame aggregates, the inverse aggregate function can be applied
+    to remove values from the aggregate. This can improve performance but possibly
+    with a loss of precision. For example, adding a very small floating-point value
+    to a very large value causes the very small value to be “hidden” by the large
+    value. When inverting the large value later, the effect of the small value is
+    lost.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于一些移动框架聚合，可以应用逆聚合函数来从聚合中移除值。这可以提高性能，但可能会损失精度。例如，将一个非常小的浮点值加到一个非常大的值上会导致这个非常小的值被这个大值“隐藏”。当稍后对大值进行反转时，小值的效果就会丢失。
+- en: Loss of precision due to inverse aggregation is a factor only for operations
+    on floating-point (approximate-value) data types. For other types, inverse aggregation
+    is safe; this includes [`DECIMAL`](fixed-point-types.html "13.1.3 Fixed-Point
+    Types (Exact Value) - DECIMAL, NUMERIC"), which permits a fractional part but
+    is an exact-value type.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于逆聚合而导致精度丢失仅适用于浮点（近似值）数据类型的操作。对于其他类型，逆聚合是安全的；这包括允许有小数部分但是精确值类型的[`DECIMAL`](fixed-point-types.html
+    "13.1.3 固定点类型（精确值） - DECIMAL, NUMERIC")。
+- en: 'For faster execution, MySQL always uses inverse aggregation when it is safe:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了更快地执行，MySQL总是在安全的情况下使用逆聚合：
+- en: For floating-point values, inverse aggregation is not always safe and might
+    result in loss of precision. The default is to avoid inverse aggregation, which
+    is slower but preserves precision. If it is permissible to sacrifice safety for
+    speed, [`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)
+    can be disabled to permit inverse aggregation.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于浮点值，逆聚合并不总是安全的，可能会导致精度丢失。默认情况下是避免逆聚合，这样会更慢但保留精度。如果可以为了速度而牺牲安全性，可以禁用[`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)以允许逆聚合。
+- en: For nonfloating-point data types, inverse aggregation is always safe and is
+    used regardless of the [`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)
+    value.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于非浮点数据类型，逆聚合始终是安全的，并且无论[`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)的值如何都会使用。
+- en: '[`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)
+    has no effect on [`MIN()`](aggregate-functions.html#function_min) and [`MAX()`](aggregate-functions.html#function_max),
+    which do not use inverse aggregation in any case.'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)对于[`MIN()`](aggregate-functions.html#function_min)和[`MAX()`](aggregate-functions.html#function_max)没有影响，在任何情况下都不使用逆聚合。'
+- en: For evaluation of the variance functions [`STDDEV_POP()`](aggregate-functions.html#function_stddev-pop),
+    [`STDDEV_SAMP()`](aggregate-functions.html#function_stddev-samp), [`VAR_POP()`](aggregate-functions.html#function_var-pop),
+    [`VAR_SAMP()`](aggregate-functions.html#function_var-samp), and their synonyms,
+    evaluation can occur in optimized mode or default mode. Optimized mode may produce
+    slightly different results in the last significant digits. If such differences
+    are permissible, [`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)
+    can be disabled to permit optimized mode.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于方差函数[`STDDEV_POP()`](aggregate-functions.html#function_stddev-pop), [`STDDEV_SAMP()`](aggregate-functions.html#function_stddev-samp),
+    [`VAR_POP()`](aggregate-functions.html#function_var-pop), [`VAR_SAMP()`](aggregate-functions.html#function_var-samp)及其同义词的评估，评估可以在优化模式或默认模式下进行。优化模式可能在最后几位有效数字上产生略有不同的结果。如果这种差异是可以接受的，可以禁用[`windowing_use_high_precision`](server-system-variables.html#sysvar_windowing_use_high_precision)以允许优化模式。
+- en: For [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement"), windowing execution
+    plan information is too extensive to display in traditional output format. To
+    see windowing information, use [`EXPLAIN FORMAT=JSON`](explain.html "15.8.2 EXPLAIN
+    Statement") and look for the `windowing` element.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")，窗口执行计划信息在传统输出格式中显示的内容太多。要查看窗口信息，请使用[`EXPLAIN
+    FORMAT=JSON`](explain.html "15.8.2 EXPLAIN Statement")并查找`windowing`元素。

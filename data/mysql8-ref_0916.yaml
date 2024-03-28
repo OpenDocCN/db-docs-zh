@@ -1,0 +1,431 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/invisible-columns.html](https://dev.mysql.com/doc/refman/8.0/en/invisible-columns.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/invisible-columns.html](https://dev.mysql.com/doc/refman/8.0/en/invisible-columns.html)
+- en: 15.1.20.10 Invisible Columns
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.1.20.10 不可见列
+- en: MySQL supports invisible columns as of MySQL 8.0.23\. An invisible column is
+    normally hidden to queries, but can be accessed if explicitly referenced. Prior
+    to MySQL 8.0.23, all columns are visible.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL从MySQL 8.0.23开始支持不可见列。不可见列通常对查询隐藏，但如果显式引用，则可以访问。在MySQL 8.0.23之前，所有列都是可见的。
+- en: As an illustration of when invisible columns may be useful, suppose that an
+    application uses `SELECT *` queries to access a table, and must continue to work
+    without modification even if the table is altered to add a new column that the
+    application does not expect to be there. In a `SELECT *` query, the `*` evaluates
+    to all table columns, except those that are invisible, so the solution is to add
+    the new column as an invisible column. The column remains “hidden” from `SELECT
+    *` queries, and the application continues to work as previously. A newer version
+    of the application can refer to the invisible column if necessary by explicitly
+    referencing it.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 作为不可见列可能有用的示例，假设一个应用程序使用`SELECT *`查询来访问表，并且必须继续工作而无需修改，即使表被修改以添加一个应用程序不希望存在的新列。在`SELECT
+    *`查询中，`*`会计算所有表列，除了那些不可见的列，因此解决方案是将新列添加为不可见列。该列仍然对`SELECT *`查询“隐藏”，应用程序继续像以前一样工作。如果必要，新版本的应用程序可以通过显式引用来引用不可见列。
+- en: The following sections detail how MySQL treats invisible columns.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节详细介绍了MySQL如何处理不可见列。
+- en: '[DDL Statements and Invisible Columns](invisible-columns.html#invisible-column-ddl-statements
+    "DDL Statements and Invisible Columns")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[DDL语句和不可见列](invisible-columns.html#invisible-column-ddl-statements "DDL语句和不可见列")'
+- en: '[DML Statements and Invisible Columns](invisible-columns.html#invisible-column-dml-statements
+    "DML Statements and Invisible Columns")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[DML语句和不可见列](invisible-columns.html#invisible-column-dml-statements "DML语句和不可见列")'
+- en: '[Invisible Column Metadata](invisible-columns.html#invisible-column-metadata
+    "Invisible Column Metadata")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[不可见列元数据](invisible-columns.html#invisible-column-metadata "不可见列元数据")'
+- en: '[The Binary Log and Invisible Columns](invisible-columns.html#invisible-column-binary-logging
+    "The Binary Log and Invisible Columns")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[二进制日志和不可见列](invisible-columns.html#invisible-column-binary-logging "二进制日志和不可见列")'
+- en: DDL Statements and Invisible Columns
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: DDL语句和不可见列
+- en: 'Columns are visible by default. To explicitly specify visibility for a new
+    column, use a `VISIBLE` or `INVISIBLE` keyword as part of the column definition
+    for [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") or [`ALTER
+    TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement"):'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 列默认为可见。要为新列明确指定可见性，请在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE
+    Statement")或[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")的列定义中使用`VISIBLE`或`INVISIBLE`关键字：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To alter the visibility of an existing column, use a `VISIBLE` or `INVISIBLE`
+    keyword with one of the `ALTER TABLE` column-modification clauses:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要更改现有列的可见性，请在`ALTER TABLE`列修改子句中使用`VISIBLE`或`INVISIBLE`关键字之一：
+- en: '[PRE1]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: A table must have at least one visible column. Attempting to make all columns
+    invisible produces an error.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表必须至少有一个可见列。尝试使所有列不可见会产生错误。
+- en: 'Invisible columns support the usual column attributes: `NULL`, `NOT NULL`,
+    `AUTO_INCREMENT`, and so forth.'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不可见列支持通常的列属性：`NULL`、`NOT NULL`、`AUTO_INCREMENT`等。
+- en: Generated columns can be invisible.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成列可以是不可见的。
+- en: Index definitions can name invisible columns, including definitions for `PRIMARY
+    KEY` and `UNIQUE` indexes. Although a table must have at least one visible column,
+    an index definition need not have any visible columns.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引定义可以命名不可见列，包括`PRIMARY KEY`和`UNIQUE`索引的定义。虽然表必须至少有一个可见列，但索引定义不需要有任何可见列。
+- en: An invisible column dropped from a table is dropped in the usual way from any
+    index definition that names the column.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从表中删除的不可见列会像通常一样从命名该列的任何索引定义中删除。
+- en: Foreign key constraints can be defined on invisible columns, and foreign key
+    constraints can reference invisible columns.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 外键约束可以定义在不可见列上，并且外键约束可以引用不可见列。
+- en: '`CHECK` constraints can be defined on invisible columns. For new or modified
+    rows, violation of a `CHECK` constraint on an invisible column produces an error.'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`CHECK`约束可以定义在不可见列上。对于新的或修改的行，违反不可见列上的`CHECK`约束会产生错误。'
+- en: '[`CREATE TABLE ... LIKE`](create-table-like.html "15.1.20.3 CREATE TABLE ...
+    LIKE Statement") includes invisible columns, and they are invisible in the new
+    table.'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE TABLE ... LIKE`](create-table-like.html "15.1.20.3 CREATE TABLE ...
+    LIKE Statement") 包含不可见列，并且在新表中也是不可见的。'
+- en: '[`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE
+    ... SELECT Statement") does not include invisible columns, unless they are explicitly
+    referenced in the [`SELECT`](select.html "15.2.13 SELECT Statement") part. However,
+    even if explicitly referenced, a column that is invisible in the existing table
+    is visible in the new table:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE
+    ... SELECT Statement") 不包括不可见列，除非它们在[`SELECT`](select.html "15.2.13 SELECT Statement")部分中被明确引用。然而，即使被明确引用，现有表中不可见的列在新表中也是可见的：'
+- en: '[PRE2]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'If invisibility should be preserved, provide a definition for the invisible
+    column in the [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    part of the [`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE
+    TABLE ... SELECT Statement") statement:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果要保留不可见性，请在[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")部分的[`CREATE
+    TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE ... SELECT
+    Statement")语句中为不可见列提供定义：
+- en: '[PRE3]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Views can refer to invisible columns by explicitly referencing them in the `SELECT`
+    statement that defines the view. Changing a column's visibility subsequent to
+    defining a view that references the column does not change view behavior.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图可以通过在定义视图的`SELECT`语句中明确引用它们来引用不可见列。在定义引用该列的视图之后更改列的可见性不会改变视图行为。
+- en: DML Statements and Invisible Columns
+  id: totrans-27
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: DML语句和不可见列
+- en: For [`SELECT`](select.html "15.2.13 SELECT Statement") statements, an invisible
+    column is not part of the result set unless explicitly referenced in the select
+    list. In a select list, the `*` and `*`tbl_name`*.*` shorthands do not include
+    invisible columns. Natural joins do not include invisible columns.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`SELECT`](select.html "15.2.13 SELECT Statement")语句，除非在选择列表中明确引用，否则不可见列不会成为结果集的一部分。在选择列表中，`*`和`*`tbl_name`*.*`的简写不包括不可见列。自然连接不包括不可见列。
+- en: 'Consider the following statement sequence:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下语句序列：
+- en: '[PRE4]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The first `SELECT` does not reference the invisible column `col2` in the select
+    list (because `*` does not include invisible columns), so `col2` does not appear
+    in the statement result. The second `SELECT` explicitly references `col2`, so
+    the column appears in the result.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一个`SELECT`在选择列表中不引用不可见列`col2`（因为`*`不包括不可见列），所以`col2`不会出现在语句结果中。第二个`SELECT`明确引用`col2`，因此该列会出现在结果中。
+- en: The statement [`TABLE t1`](table.html "15.2.16 TABLE Statement") produces the
+    same output as the first `SELECT` statement. Since there is no way to specify
+    columns in a `TABLE` statement, `TABLE` never displays invisible columns.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 语句[`TABLE t1`](table.html "15.2.16 TABLE Statement") 产生与第一个`SELECT`语句相同的输出。由于在`TABLE`语句中无法指定列，因此`TABLE`永远不会显示不可见列。
+- en: For statements that create new rows, an invisible column is assigned its implicit
+    default value unless explicitly referenced and assigned a value. For information
+    about implicit defaults, see [Implicit Default Handling](data-type-defaults.html#data-type-defaults-implicit
+    "Implicit Default Handling").
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于创建新行的语句，除非显式引用并赋值，否则不可见列将被分配其隐式默认值。有关隐式默认值的信息，请参阅[隐式默认值处理](data-type-defaults.html#data-type-defaults-implicit
+    "隐式默认值处理")。
+- en: 'For [`INSERT`](insert.html "15.2.7 INSERT Statement") (and [`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement"), for non-replaced rows), implicit default assignment
+    occurs with a missing column list, an empty column list, or a nonempty column
+    list that does not include the invisible column:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`INSERT`](insert.html "15.2.7 INSERT Statement")（和[`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement")，对于未替换的行），当缺少列列表、空列列表或不包括不可见列的非空列列表时，隐式默认赋值会发生：
+- en: '[PRE5]'
+  id: totrans-35
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: For the first two [`INSERT`](insert.html "15.2.7 INSERT Statement") statements,
+    the `VALUES()` list must provide a value for each visible column and no invisible
+    column. For the third [`INSERT`](insert.html "15.2.7 INSERT Statement") statement,
+    the `VALUES()` list must provide the same number of values as the number of named
+    columns; the same is true when you use [`VALUES ROW()`](values.html "15.2.19 VALUES
+    Statement") rather than `VALUES()`.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于前两个[`INSERT`](insert.html "15.2.7 INSERT Statement")语句，`VALUES()`列表必须为每个可见列提供一个值，而不包括不可见列。对于第三个[`INSERT`](insert.html
+    "15.2.7 INSERT Statement")语句，`VALUES()`列表必须提供与命名列数相同的值；当您使用[`VALUES ROW()`](values.html
+    "15.2.19 VALUES Statement")而不是`VALUES()`时也是如此。
+- en: For [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement") and [`LOAD XML`](load-xml.html
+    "15.2.10 LOAD XML Statement"), implicit default assignment occurs with a missing
+    column list or a nonempty column list that does not include the invisible column.
+    Input rows should not include a value for the invisible column.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement")和[`LOAD XML`](load-xml.html
+    "15.2.10 LOAD XML Statement")，如果缺少列列表或非空列列表不包括不可见列，则会发生隐式默认赋值。输入行不应包含不可见列的值。
+- en: To assign a value other than the implicit default for the preceding statements,
+    explicitly name the invisible column in the column list and provide a value for
+    it.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于前述语句，如果要为不可见列分配除隐式默认值之外的值，请在列列表中明确命名不可见列并为其提供值。
+- en: '[`INSERT INTO ... SELECT *`](insert-select.html "15.2.7.1 INSERT ... SELECT
+    Statement") and [`REPLACE INTO ... SELECT *`](replace.html "15.2.12 REPLACE Statement")
+    do not include invisible columns because `*` does not include invisible columns.
+    Implicit default assignment occurs as described previously.'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`INSERT INTO ... SELECT *`](insert-select.html "15.2.7.1 INSERT ... SELECT
+    Statement")和[`REPLACE INTO ... SELECT *`](replace.html "15.2.12 REPLACE Statement")不包括不可见列，因为`*`不包括不可见列。隐式默认赋值如前所述发生。'
+- en: 'For statements that insert or ignore new rows, or that replace or modify existing
+    rows, based on values in a `PRIMARY KEY` or `UNIQUE` index, MySQL treats invisible
+    columns the same as visible columns: Invisible columns participate in key value
+    comparisons. Specifically, if a new row has the same value as an existing row
+    for a unique key value, these behaviors occur whether the index columns are visible
+    or invisible:'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于根据`PRIMARY KEY`或`UNIQUE`索引中的值插入或忽略新行，或替换或修改现有行的语句，MySQL将不可见列视为可见列的相同方式处理：不可见列参与键值比较。具体来说，如果新行与唯一键值的现有行具有相同的值，则无论索引列是可见还是不可见，这些行为都会发生：
+- en: With the `IGNORE` modifier, [`INSERT`](insert.html "15.2.7 INSERT Statement"),
+    [`LOAD DATA`](load-data.html "15.2.9 LOAD DATA Statement"), and [`LOAD XML`](load-xml.html
+    "15.2.10 LOAD XML Statement") ignore the new row.
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用`IGNORE`修饰符，[`INSERT`](insert.html "15.2.7 INSERT Statement")、[`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement")和[`LOAD XML`](load-xml.html "15.2.10 LOAD XML Statement")会忽略新行。
+- en: '[`REPLACE`](replace.html "15.2.12 REPLACE Statement") replaces the existing
+    row with the new row. With the `REPLACE` modifier, [`LOAD DATA`](load-data.html
+    "15.2.9 LOAD DATA Statement") and [`LOAD XML`](load-xml.html "15.2.10 LOAD XML
+    Statement") do the same.'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`REPLACE`](replace.html "15.2.12 REPLACE Statement")用新行替换现有行。使用`REPLACE`修饰符，[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement")和[`LOAD XML`](load-xml.html
+    "15.2.10 LOAD XML Statement")也是如此。'
+- en: '[`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html "15.2.7.2 INSERT
+    ... ON DUPLICATE KEY UPDATE Statement") updates the existing row.'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html "15.2.7.2 INSERT
+    ... ON DUPLICATE KEY UPDATE Statement")更新现有行。'
+- en: To update invisible columns for [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    statements, name them and assign a value, just as for visible columns.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句更新不可见列，与可见列一样，需要命名并分配值。
+- en: Invisible Column Metadata
+  id: totrans-45
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 不可见列元数据
+- en: 'Information about whether a column is visible or invisible is available from
+    the `EXTRA` column of the Information Schema [`COLUMNS`](information-schema-columns-table.html
+    "28.3.8 The INFORMATION_SCHEMA COLUMNS Table") table or [`SHOW COLUMNS`](show-columns.html
+    "15.7.7.5 SHOW COLUMNS Statement") output. For example:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 列是否可见的信息可以从信息模式[`COLUMNS`](information-schema-columns-table.html "28.3.8 The
+    INFORMATION_SCHEMA COLUMNS Table")表的`EXTRA`列或[`SHOW COLUMNS`](show-columns.html
+    "15.7.7.5 SHOW COLUMNS Statement")输出中获取。例如：
+- en: '[PRE6]'
+  id: totrans-47
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: Columns are visible by default, so in that case, `EXTRA` displays no visibility
+    information. For invisible columns, `EXTRA` displays `INVISIBLE`.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 列默认可见，因此在这种情况下，`EXTRA`不显示可见性信息。对于不可见列，`EXTRA`显示`INVISIBLE`。
+- en: '`SHOW CREATE TABLE` displays invisible columns in the table definition, with
+    the `INVISIBLE` keyword in a version-specific comment:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`SHOW CREATE TABLE`在表定义中显示不可见列，版本特定注释中包含`INVISIBLE`关键字：'
+- en: '[PRE7]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    and `mysqlpump` use `SHOW CREATE TABLE`, so they include invisible columns in
+    dumped table definitions. They also include invisible column values in dumped
+    data.'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")和`mysqlpump`使用`SHOW
+    CREATE TABLE`，因此它们在转储表定义时包括不可见列。它们还在转储数据时包括不可见列值。'
+- en: Reloading a dump file into an older version of MySQL that does not support invisible
+    columns causes the version-specific comment to be ignored, which creates any invisible
+    columns as visible.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将转储文件重新加载到不支持不可见列的旧版本的MySQL中会忽略特定于版本的注释，从而将任何不可见列创建为可见列。
+- en: The Binary Log and Invisible Columns
+  id: totrans-53
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 二进制日志和不可见列
+- en: 'MySQL treats invisible columns as follows with respect to events in the binary
+    log:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL在二进制日志中处理不可见列如下：
+- en: Table-creation events include the `INVISIBLE` attribute for invisible columns.
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 表创建事件为不可见列包括`INVISIBLE`属性。
+- en: Invisible columns are treated like visible columns in row events. They are included
+    if needed according to the [`binlog_row_image`](replication-options-binary-log.html#sysvar_binlog_row_image)
+    system variable setting.
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不可见列在行事件中被视为可见列。根据[`binlog_row_image`](replication-options-binary-log.html#sysvar_binlog_row_image)系统变量设置，如果需要，则包括它们。
+- en: When row events are applied, invisible columns are treated like visible columns
+    in row events. In particular, the algorithm and index to use are chosen according
+    to the [`slave_rows_search_algorithms`](replication-options-replica.html#sysvar_slave_rows_search_algorithms)
+    system variable setting.
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 应用行事件时，不可见列在行事件中被视为可见列。特别是，根据[`slave_rows_search_algorithms`](replication-options-replica.html#sysvar_slave_rows_search_algorithms)系统变量设置选择要使用的算法和索引。
+- en: Invisible columns are treated like visible columns when computing writesets.
+    In particular, writesets include indexes defined on invisible columns.
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不可见列在计算写入集时被视为可见列。特别是，写入集包括在不可见列上定义的索引。
+- en: The [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") command includes visibility in column metadata.
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")
+    命令在列元数据中包含可见性。'

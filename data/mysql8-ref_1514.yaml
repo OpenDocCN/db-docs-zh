@@ -1,0 +1,220 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-understanding-consistency-guarantees.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-understanding-consistency-guarantees.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-understanding-consistency-guarantees.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-understanding-consistency-guarantees.html)
+- en: 20.5.3.1 Understanding Transaction Consistency Guarantees
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.5.3.1 理解事务一致性保证
+- en: In terms of distributed consistency guarantees, either in normal or failure
+    repair operations, Group Replication has always been an eventual consistency system.
+    This means that as soon as the incoming traffic slows down or stops, all group
+    members have the same data content. The events that relate to the consistency
+    of a system can be split into control operations, either manual or automatically
+    triggered by failures; and data flow operations.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 就分布式一致性保证而言，无论是在正常操作还是故障修复操作中，Group Replication 一直是一个最终一致性系统。这意味着一旦传入流量减慢或停止，所有组成员都具有相同的数据内容。与系统一致性相关的事件可以分为控制操作，无论是手动操作还是由故障自动触发；和数据流操作。
+- en: 'For Group Replication, the control operations that can be evaluated in terms
+    of consistency are:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于 Group Replication，可以根据一致性评估的控制操作包括：
+- en: a member joining or leaving, which is covered by Group Replication's [Section 20.5.4,
+    “Distributed Recovery”](group-replication-distributed-recovery.html "20.5.4 Distributed
+    Recovery") and write protection.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 成员加入或离开，这在 Group Replication 的 [Section 20.5.4, “分布式恢复”](group-replication-distributed-recovery.html
+    "20.5.4 分布式恢复") 和写保护中有所涵盖。
+- en: network failures, which are covered by the fencing modes.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 网络故障，这由围栏模式涵盖。
+- en: in single-primary groups, primary failover, which can also be an operation triggered
+    by [`group_replication_set_as_primary()`](group-replication-functions-for-new-primary.html#function_group-replication-set-as-primary).
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在单主组中，主故障切换，也可以是由 [`group_replication_set_as_primary()`](group-replication-functions-for-new-primary.html#function_group-replication-set-as-primary)
+    触发的操作。
+- en: Consistency Guarantees and Primary Failover
+  id: totrans-7
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 一致性保证和主故障切换
+- en: In a single-primary group, in the event of a primary failover when a secondary
+    is promoted to primary, the new primary can either be made available to application
+    traffic immediately, regardless of how large the replication backlog is, or alternatively
+    access to it can be restricted until the backlog has been applied.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在单主组中，在次级节点被提升为主节点的主故障切换事件中，新的主节点可以立即对应用流量开放，无论复制积压数据有多大，或者可以限制访问直到积压数据被应用。
+- en: With the first approach, the group takes the minimum time possible to secure
+    a stable group membership after a primary failure by electing a new primary and
+    then allowing data access immediately while it is still applying any possible
+    backlog from the old primary. Write consistency is ensured, but reads can temporarily
+    retrieve stale data while the new primary applies the backlog. For example, if
+    client C1 wrote `A=2 WHERE A=1` on the old primary just before its failure, when
+    client C1 is reconnected to the new primary it could potentially read `A=1` until
+    the new primary applies its backlog and catches up with the state of the old primary
+    before it left the group.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一种方法是，在主故障后，组尽可能快地确保稳定的组成员资格，通过选举新的主节点，然后立即允许数据访问，同时仍在应用旧主节点的任何可能的积压数据。确保了写一致性，但在新的主节点应用积压数据时，读取可能暂时检索到陈旧数据。例如，如果客户端
+    C1 在旧主节点故障前刚写入 `A=2 WHERE A=1`，当客户端 C1 重新连接到新的主节点时，它可能读取到 `A=1`，直到新的主节点应用其积压数据并赶上旧主节点离开组的状态。
+- en: With the second alternative, the system secures a stable group membership after
+    the primary failure and elects a new primary in the same way as the first alternative,
+    but in this case the group then waits until the new primary applies all backlog
+    and only then does it permit data access. This ensures that in a situation as
+    described previously, when client C1 is reconnected to the new primary it reads
+    `A=2`. However, the trade-off is that the time required to failover is then proportional
+    to the size of the backlog, which on a correctly configured group should be small
+    .
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第二种选择是，在主故障后，系统确保稳定的组成员资格，并像第一种选择一样选举新的主节点，但在这种情况下，组等待新的主节点应用所有积压数据，然后才允许数据访问。这确保了在先前描述的情况下，当客户端
+    C1 重新连接到新的主节点时，它读取 `A=2`。然而，这样做的代价是，故障切换所需的时间与积压数据的大小成正比，在正确配置的组上应该很小。
+- en: Prior to MySQL 8.0.14 there was no way to configure the failover policy, by
+    default availability was maximized as described in the first approach. In a group
+    with members running MySQL 8.0.14 and higher, you can configure the level of transaction
+    consistency guarantees provided by members during primary failover using the [`group_replication_consistency`](group-replication-system-variables.html#sysvar_group_replication_consistency)
+    variable. See [Impact of Consistency on Primary Election](group-replication-configuring-consistency-guarantees.html#group-replication-consistency-level-impact-election
+    "Impact of Consistency on Primary Election").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.14之前，没有办法配置故障切换策略，默认情况下可用性最大化，如第一种方法所述。在运行MySQL 8.0.14及更高版本的成员组中，您可以使用[`group_replication_consistency`](group-replication-system-variables.html#sysvar_group_replication_consistency)变量配置主故障切换期间成员提供的事务一致性保证级别。请参阅[一致性对主选举的影响](group-replication-configuring-consistency-guarantees.html#group-replication-consistency-level-impact-election
+    "一致性对主选举的影响")。
+- en: Data Flow Operations
+  id: totrans-12
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 数据流操作
+- en: 'Data flow is relevant to group consistency guarantees due to the reads and
+    writes executed against a group, especially when these operations are distributed
+    across all members. Data flow operations apply to both modes of Group Replication:
+    single-primary and multi-primary, however to make this explanation clearer it
+    is restricted to single-primary mode. The usual way to split incoming read or
+    write transactions across a single-primary group''s members is to route writes
+    to the primary and evenly distribute reads to the secondaries. Since the group
+    should behave as a single entity, it is reasonable to expect that writes on the
+    primary are instantaneously available on the secondaries. Although Group Replication
+    is written using Group Communication System (GCS) protocols that implement the
+    Paxos algorithm, some parts of Group Replication are asynchronous, which implies
+    that data is asynchronously applied to secondaries. This means that a client C2
+    can write `B=2 WHERE B=1` on the primary, immediately connect to a secondary and
+    read `B=1`. This is because the secondary is still applying backlog, and has not
+    applied the transaction which was applied by the primary.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数据流与组一致性保证相关，因为读取和写入操作在组中执行，特别是当这些操作分布在所有成员之间时。数据流操作适用于组复制的两种模式：单主和多主，但为了更清晰地解释，本文仅限于单主模式。将传入的读取或写入事务分割到单主组成员的常规方式是将写入路由到主节点，并将读取均匀分布到从节点。由于组应该表现为单个实体，因此可以合理地期望主节点上的写入立即在从节点上可用。虽然组复制是使用实现Paxos算法的组通信系统（GCS）协议编写的，但组复制的某些部分是异步的，这意味着数据会异步应用到从节点。这意味着客户端C2可以在主节点上写入`B=2
+    WHERE B=1`，立即连接到从节点并读取`B=1`。这是因为从节点仍在应用积压数据，并且尚未应用主节点应用的事务。
+- en: Transaction Synchronization Points
+  id: totrans-14
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 事务同步点
+- en: You configure a group's consistency guarantee based on the point at which you
+    want to synchronize transactions across the group. To help you understand the
+    concept, this section simplifies the points of synchronizing transactions across
+    a group to be at the time of a read operation or at the time of a write operation.
+    If data is synchronized at the time of a read, the current client session waits
+    until a given point, which is the point in time that all preceding update transactions
+    have been applied, before it can start executing. With this approach, only this
+    session is affected, all other concurrent data operations are not affected.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以根据希望在组中同步事务的时间点配置组的一致性保证。为了帮助您理解概念，本节将简化跨组同步事务的时间点为读取操作时或写入操作时。如果在读取时同步数据，则当前客户端会等待直到给定时间点，即所有先前的更新事务都已应用，然后才能开始执行。使用这种方法，只有此会话受到影响，所有其他并发数据操作不受影响。
+- en: If data is synchronized at the time of write, the writing session waits until
+    all secondaries have written their data. Group Replication uses a total order
+    on writes, and therefore this implies waiting for this and all preceding writes
+    that are in secondaries’ queues to be applied. Therefore when using this synchronization
+    point, the writing session waits for all secondaries queues to be applied.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在写入时同步数据，则写入会话会等待直到所有从节点写入其数据。组复制使用写入的总顺序，因此这意味着等待这个和所有在从节点队列中的先前写入被应用。因此，当使用此同步点时，写入会话等待所有从节点队列被应用。
+- en: Any alternative ensures that in the situation described for client C2 would
+    always read `B=2` even if immediately connected to a secondary. Each alternative
+    has its advantages and disadvantages, which are directly related to your system
+    workload. The following examples describe different types of workloads and advise
+    which point of synchronization is appropriate.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 任何替代方案都确保在描述的客户端C2的情况下，即使立即连接到辅助服务器，也始终读取`B=2`。每种替代方案都有其优点和缺点，这些直接与你的系统工作负载相关。以下示例描述了不同类型的工作负载，并建议哪种同步点是适当的。
+- en: 'Imagine the following situations:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 想象以下情况：
+- en: you want to load balance your reads without deploying additional restrictions
+    on which server you read from to avoid reading stale data, group writes are much
+    less common than group reads.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你希望负载均衡你的读取操作，而不需要在从哪个服务器读取时部署额外的限制，以避免读取过时数据，组写入比组读取要少得多。
+- en: you have a group that has a predominantly read-only data, you want read-write
+    transactions to be applied everywhere once they commit, so that subsequent reads
+    are done on up-to-date data that includes the latest write. This ensures that
+    you do not pay the synchronization cost for every RO transaction, but only on
+    RW ones.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果你有一个主要是只读数据的组，你希望读写事务在提交后到处都被应用，这样后续的读取都是在包含最新写入的最新数据上进行的。这确保你不必为每个只读事务支付同步成本，而只需为读写事务支付。
+- en: In these cases, you should choose to synchronize on writes.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这些情况下，你应该选择在写入时进行同步。
+- en: 'Imagine the following situations:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 想象以下情况：
+- en: You want to load balance your reads without deploying additional restrictions
+    on which server you read from to avoid reading stale data, group writes are much
+    more common than group reads.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你希望负载均衡你的读取操作，而不需要在从哪个服务器读取时部署额外的限制，以避免读取过时数据，组写入比组读取要常见得多。
+- en: You want specific transactions in your workload to always read up-to-date data
+    from the group, for example whenever sensitive data is updated (such as credentials
+    for a file or similar data) and you want to enforce that reads retrieve the most
+    up to date value.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你希望你的工作负载中的特定事务始终从组中读取最新数据，例如每当敏感数据更新时（例如文件的凭据或类似数据），你希望强制读取检索到最新值。
+- en: In these cases, you should choose to synchronize on reads.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这些情况下，你应该选择在读取时进行同步。

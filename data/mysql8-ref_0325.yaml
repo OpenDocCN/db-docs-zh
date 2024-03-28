@@ -1,0 +1,389 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/keyring-service.html](https://dev.mysql.com/doc/refman/8.0/en/keyring-service.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/keyring-service.html](https://dev.mysql.com/doc/refman/8.0/en/keyring-service.html)
+- en: 7.6.9.2 The Keyring Service
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.6.9.2 密钥环服务
+- en: 'MySQL Server supports a keyring service that enables internal components and
+    plugins to securely store sensitive information for later retrieval. MySQL distributions
+    provide a keyring interface that is accessible at two levels:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL Server 支持一个密钥环服务，使内部组件和插件能够安全地存储敏感信息以供以后检索。MySQL 发行版提供了一个可在两个级别访问的密钥环接口：
+- en: At the SQL level, as a set of loadable functions that each map onto calls to
+    the service routines.
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 SQL 级别，作为一组可加载函数，每个函数映射到对服务例程的调用。
+- en: As a C language interface, callable as a plugin service from server plugins
+    or loadable functions.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为 C 语言接口，可作为服务器插件或可加载函数的插件服务调用。
+- en: This section describes how to use the keyring service functions to store, retrieve,
+    and remove keys in the MySQL keyring keystore. For information about the SQL interface
+    that uses functions, [Section 8.4.4.15, “General-Purpose Keyring Key-Management
+    Functions”](keyring-functions-general-purpose.html "8.4.4.15 General-Purpose Keyring
+    Key-Management Functions"). For general keyring information, see [Section 8.4.4,
+    “The MySQL Keyring”](keyring.html "8.4.4 The MySQL Keyring").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述如何使用密钥环服务函数在 MySQL 密钥环中存储、检索和删除密钥。有关使用函数的 SQL 接口的信息，请参阅 [Section 8.4.4.15,
+    “通用密钥环密钥管理函数”](keyring-functions-general-purpose.html "8.4.4.15 通用密钥环密钥管理函数")。有关一般密钥环信息，请参阅
+    [Section 8.4.4, “MySQL 密钥环”](keyring.html "8.4.4 MySQL 密钥环")。
+- en: The keyring service uses whatever underlying keyring plugin is enabled, if any.
+    If no keyring plugin is enabled, keyring service calls fail.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 密钥环服务使用启用的底层密钥环插件，如果有的话。如果没有启用密钥环插件，密钥环服务调用将失败。
+- en: 'A “record” in the keystore consists of data (the key itself) and a unique identifier
+    through which the key is accessed. The identifier has two parts:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 密钥库中的“记录”由数据（密钥本身）和通过该标识符访问密钥的唯一标识符组成。标识符有两部分：
+- en: '`key_id`: The key ID or name. `key_id` values that begin with `mysql_` are
+    reserved by MySQL Server.'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_id`：密钥 ID 或名称。以 `mysql_` 开头的 `key_id` 值由 MySQL Server 保留。'
+- en: '`user_id`: The session effective user ID. If there is no user context, this
+    value can be `NULL`. The value need not actually be a “user”; the meaning depends
+    on the application.'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`user_id`：会话有效用户 ID。如果没有用户上下文，此值可以为 `NULL`。该值实际上不必是“用户”；其含义取决于应用程序。'
+- en: Functions that implement the keyring function interface pass the value of [`CURRENT_USER()`](information-functions.html#function_current-user)
+    as the `user_id` value to keyring service functions.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 实现密钥环函数接口的函数将 [`CURRENT_USER()`](information-functions.html#function_current-user)
+    的值作为 `user_id` 值传递给密钥环服务函数。
+- en: 'The keyring service functions have these characteristics in common:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 密钥环服务功能具有以下共同特点：
+- en: Each function returns 0 for success, 1 for failure.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个函数成功返回 0，失败返回 1。
+- en: The `key_id` and `user_id` arguments form a unique combination indicating which
+    key in the keyring to use.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_id` 和 `user_id` 参数形成一个唯一组合，指示密钥环中要使用的密钥。'
+- en: The `key_type` argument provides additional information about the key, such
+    as its encryption method or intended use.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_type` 参数提供有关密钥的附加信息，例如其加密方法或预期用途。'
+- en: Keyring service functions treat key IDs, user names, types, and values as binary
+    strings, so comparisons are case-sensitive. For example, IDs of `MyKey` and `mykey`
+    refer to different keys.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 密钥环服务函数将密钥 ID、用户名、类型和值视为二进制字符串，因此比较区分大小写。例如，`MyKey` 和 `mykey` 的 ID 指的是不同的密钥。
+- en: 'These keyring service functions are available:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些密钥环服务函数可用：
+- en: '`my_key_fetch()`'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`my_key_fetch()`'
+- en: Deobfuscates and retrieves a key from the keyring, along with its type. The
+    function allocates the memory for the buffers used to store the returned key and
+    key type. The caller should zero or obfuscate the memory when it is no longer
+    needed, then free it.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从密钥环中解密并检索密钥，以及其类型。该函数为用于存储返回的密钥和密钥类型的缓冲区分配内存。当不再需要时，调用者应将内存清零或混淆，然后释放它。
+- en: 'Syntax:'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语法：
+- en: '[PRE0]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Arguments:'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参数：
+- en: '`key_id`, `user_id`: Null-terminated strings that as a pair form a unique identifier
+    indicating which key to fetch.'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_id`、`user_id`：作为一对的以空字符结尾的字符串，形成一个唯一标识符，指示要获取哪个密钥。'
+- en: '`key_type`: The address of a buffer pointer. The function stores into it a
+    pointer to a null-terminated string that provides additional information about
+    the key (stored when the key was added).'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_type`：缓冲区指针的地址。函数将一个指向提供有关密钥的附加信息的以空字符结尾的字符串的指针存储到其中（在添加密钥时存储）。'
+- en: '`key`: The address of a buffer pointer. The function stores into it a pointer
+    to the buffer containing the fetched key data.'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key`：缓冲区指针的地址。函数将一个指向包含获取的密钥数据的缓冲区的指针存储到其中。'
+- en: '`key_len`: The address of a variable into which the function stores the size
+    in bytes of the `*key` buffer.'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_len`：函数将`*key`缓冲区的字节大小存储到一个变量的地址中。'
+- en: 'Return value:'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回值：
+- en: Returns 0 for success, 1 for failure.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回0表示成功，返回1表示失败。
+- en: '`my_key_generate()`'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`my_key_generate()`'
+- en: Generates a new random key of a given type and length and stores it in the keyring.
+    The key has a length of `key_len` and is associated with the identifier formed
+    from `key_id` and `user_id`. The type and length values must be consistent with
+    the values supported by the underlying keyring plugin. See [Section 8.4.4.13,
+    “Supported Keyring Key Types and Lengths”](keyring-key-types.html "8.4.4.13 Supported
+    Keyring Key Types and Lengths").
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 生成给定类型和长度的新随机密钥，并将其存储在密钥环中。密钥的长度为`key_len`，与从`key_id`和`user_id`形成的标识符相关联。类型和长度值必须与底层密钥环插件支持的值一致。请参阅[第8.4.4.13节，“支持的密钥环密钥类型和长度”](keyring-key-types.html
+    "8.4.4.13 支持的密钥环密钥类型和长度")。
+- en: 'Syntax:'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语法：
+- en: '[PRE1]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Arguments:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参数：
+- en: '`key_id`, `user_id`: Null-terminated strings that as a pair form a unique identifier
+    for the key to be generated.'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_id`，`user_id`：作为一对形成密钥的唯一标识符的以空字符结尾的字符串。'
+- en: '`key_type`: A null-terminated string that provides additional information about
+    the key.'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_type`：一个以空字符结尾的字符串，提供有关密钥的附加信息。'
+- en: '`key_len`: The size in bytes of the key to be generated.'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_len`：要生成的密钥的字节大小。'
+- en: 'Return value:'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回值：
+- en: Returns 0 for success, 1 for failure.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回0表示成功，返回1表示失败。
+- en: '`my_key_remove()`'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`my_key_remove()`'
+- en: Removes a key from the keyring.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从密钥环中移除一个密钥。
+- en: 'Syntax:'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语法：
+- en: '[PRE2]'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Arguments:'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参数：
+- en: '`key_id`, `user_id`: Null-terminated strings that as a pair form a unique identifier
+    for the key to be removed.'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_id`，`user_id`：作为一对形成要移除的密钥的唯一标识符的以空字符结尾的字符串。'
+- en: 'Return value:'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回值：
+- en: Returns 0 for success, 1 for failure.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回0表示成功，返回1表示失败。
+- en: '`my_key_store()`'
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`my_key_store()`'
+- en: Obfuscates and stores a key in the keyring.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对密钥进行混淆并存储在密钥环中。
+- en: 'Syntax:'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 语法：
+- en: '[PRE3]'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Arguments:'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 参数：
+- en: '`key_id`, `user_id`: Null-terminated strings that as a pair form a unique identifier
+    for the key to be stored.'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_id`，`user_id`：作为一对形成要存储的密钥的唯一标识符的以空字符结尾的字符串。'
+- en: '`key_type`: A null-terminated string that provides additional information about
+    the key.'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_type`：一个以空字符结尾的字符串，提供有关密钥的附加信息。'
+- en: '`key`: The buffer containing the key data to be stored.'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key`：包含要存储的密钥数据的缓冲区。'
+- en: '`key_len`: The size in bytes of the `key` buffer.'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`key_len`：`key`缓冲区的字节大小。'
+- en: 'Return value:'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回值：
+- en: Returns 0 for success, 1 for failure.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 返回0表示成功，返回1表示失败。

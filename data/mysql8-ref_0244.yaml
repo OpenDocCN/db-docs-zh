@@ -1,0 +1,486 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/host-cache.html](https://dev.mysql.com/doc/refman/8.0/en/host-cache.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/host-cache.html](https://dev.mysql.com/doc/refman/8.0/en/host-cache.html)
+- en: 7.1.12.3 DNS Lookups and the Host Cache
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 7.1.12.3 DNS查找和主机缓存
+- en: 'The MySQL server maintains an in-memory host cache that contains information
+    about clients: IP address, host name, and error information. The Performance Schema
+    [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The host_cache
+    Table") table exposes the contents of the host cache so that it can be examined
+    using [`SELECT`](select.html "15.2.13 SELECT Statement") statements. This may
+    help you diagnose the causes of connection problems. See [Section 29.12.21.3,
+    “The host_cache Table”](performance-schema-host-cache-table.html "29.12.21.3 The
+    host_cache Table").'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器维护一个内存中的主机缓存，其中包含有关客户端的信息：IP地址、主机名和错误信息。性能模式[`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 主机缓存表")表公开主机缓存的内容，以便可以使用[`SELECT`](select.html "15.2.13 SELECT语句")语句进行检查。这可能有助于诊断连接问题的原因。参见[Section 29.12.21.3，“主机缓存表”](performance-schema-host-cache-table.html
+    "29.12.21.3 主机缓存表")。
+- en: The following sections discuss how the host cache works, as well as other topics
+    such as how to configure and monitor the cache.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节讨论了主机缓存的工作原理，以及如何配置和监视缓存等其他主题。
+- en: '[Host Cache Operation](host-cache.html#host-cache-operation "Host Cache Operation")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[主机缓存操作](host-cache.html#host-cache-operation "主机缓存操作")'
+- en: '[Configuring the Host Cache](host-cache.html#host-cache-configuration "Configuring
+    the Host Cache")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置主机缓存](host-cache.html#host-cache-configuration "配置主机缓存")'
+- en: '[Monitoring the Host Cache](host-cache.html#host-cache-monitoring "Monitoring
+    the Host Cache")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[监视主机缓存](host-cache.html#host-cache-monitoring "监视主机缓存")'
+- en: '[Flushing the Host Cache](host-cache.html#host-cache-flushing "Flushing the
+    Host Cache")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[刷新主机缓存](host-cache.html#host-cache-flushing "刷新主机缓存")'
+- en: '[Dealing with Blocked Hosts](host-cache.html#blocked-host "Dealing with Blocked
+    Hosts")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[处理被阻止的主机](host-cache.html#blocked-host "处理被阻止的主机")'
+- en: Host Cache Operation
+  id: totrans-9
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 主机缓存操作
+- en: The server uses the host cache only for non-localhost TCP connections. It does
+    not use the cache for TCP connections established using a loopback interface address
+    (for example, `127.0.0.1` or `::1`), or for connections established using a Unix
+    socket file, named pipe, or shared memory.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器仅针对非本地主机的TCP连接使用主机缓存。它不会对使用回环接口地址（例如，`127.0.0.1`或`::1`）建立的TCP连接，或者使用Unix套接字文件、命名管道或共享内存建立的连接使用缓存。
+- en: 'The server uses the host cache for several purposes:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用主机缓存有几个目的：
+- en: By caching the results of IP-to-host name lookups, the server avoids doing a
+    Domain Name System (DNS) lookup for each client connection. Instead, for a given
+    host, it needs to perform a lookup only for the first connection from that host.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过缓存IP到主机名查找的结果，服务器避免为每个客户端连接执行域名系统（DNS）查找。相反，对于给定的主机，它只需要在来自该主机的第一个连接时执行查找。
+- en: The cache contains information about errors that occur during the client connection
+    process. Some errors are considered “blocking.” If too many of these occur successively
+    from a given host without a successful connection, the server blocks further connections
+    from that host. The [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    system variable determines the permitted number of successive errors before blocking
+    occurs.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 缓存包含在客户端连接过程中发生的错误信息。一些错误被视为“阻塞”。如果来自给定主机的这些错误过多连续发生而没有成功连接，服务器将阻止该主机的进一步连接。[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)系统变量确定在发生阻塞之前允许的连续错误数量。
+- en: For each applicable new client connection, the server uses the client IP address
+    to check whether the client host name is in the host cache. If so, the server
+    refuses or continues to process the connection request depending on whether or
+    not the host is blocked. If the host is not in the cache, the server attempts
+    to resolve the host name. First, it resolves the IP address to a host name and
+    resolves that host name back to an IP address. Then it compares the result to
+    the original IP address to ensure that they are the same. The server stores information
+    about the result of this operation in the host cache. If the cache is full, the
+    least recently used entry is discarded.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于每个适用的新客户端连接，服务器使用客户端IP地址来检查客户端主机名是否在主机缓存中。如果是，服务器会根据主机是否被阻止来拒绝或继续处理连接请求。如果主机不在缓存中，服务器会尝试解析主机名。首先，它将IP地址解析为主机名，然后将该主机名解析回IP地址。然后将结果与原始IP地址进行比较，以确保它们相同。服务器将此操作的结果信息存储在主机缓存中。如果缓存已满，最近最少使用的条目将被丢弃。
+- en: The server performs host name resolution using the `getaddrinfo()` system call.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用`getaddrinfo()`系统调用执行主机名解析。
+- en: 'The server handles entries in the host cache like this:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器处理主机缓存条目如下：
+- en: When the first TCP client connection reaches the server from a given IP address,
+    a new cache entry is created to record the client IP, host name, and client lookup
+    validation flag. Initially, the host name is set to `NULL` and the flag is false.
+    This entry is also used for subsequent client TCP connections from the same originating
+    IP.
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当来自特定IP地址的第一个TCP客户端连接到达服务器时，将创建一个新的缓存条目来记录客户端IP、主机名和客户端查找验证标志。最初，主机名设置为`NULL`，标志为false。此条目还用于来自相同原始IP的后续客户端TCP连接。
+- en: If the validation flag for the client IP entry is false, the server attempts
+    an IP-to-host name-to-IP DNS resolution. If that is successful, the host name
+    is updated with the resolved host name and the validation flag is set to true.
+    If resolution is unsuccessful, the action taken depends on whether the error is
+    permanent or transient. For permanent failures, the host name remains `NULL` and
+    the validation flag is set to true. For transient failures, the host name and
+    validation flag remain unchanged. (In this case, another DNS resolution attempt
+    occurs the next time a client connects from this IP.)
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果客户端IP条目的验证标志为false，则服务器尝试进行IP到主机名到IP的DNS解析。如果成功，主机名将更新为解析后的主机名，并将验证标志设置为true。如果解析失败，则采取的操作取决于错误是永久的还是暂时的。对于永久性失败，主机名保持为`NULL`，验证标志设置为true。对于暂时性失败，主机名和验证标志保持不变。（在这种情况下，下次有客户端从此IP连接时将再次进行DNS解析尝试。）
+- en: If an error occurs while processing an incoming client connection from a given
+    IP address, the server updates the corresponding error counters in the entry for
+    that IP. For a description of the errors recorded, see [Section 29.12.21.3, “The
+    host_cache Table”](performance-schema-host-cache-table.html "29.12.21.3 The host_cache
+    Table").
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果在处理来自特定IP地址的传入客户端连接时发生错误，服务器会更新该IP对应条目中的错误计数器。有关记录的错误描述，请参见[Section 29.12.21.3，“主机缓存表”](performance-schema-host-cache-table.html
+    "29.12.21.3 主机缓存表")。
+- en: To unblock blocked hosts, flush the host cache; see [Dealing with Blocked Hosts](host-cache.html#blocked-host
+    "Dealing with Blocked Hosts").
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要解除被阻止的主机，清空主机缓存；参见[处理被阻止的主机](host-cache.html#blocked-host "处理被阻止的主机")。
+- en: 'It is possible for a blocked host to become unblocked even without flushing
+    the host cache if activity from other hosts occurs:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使在不清空主机缓存的情况下，也有可能使一个被阻止的主机变为未阻止状态，只要来自其他主机的活动发生：
+- en: If the cache is full when a connection arrives from a client IP not in the cache,
+    the server discards the least recently used cache entry to make room for the new
+    entry.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果连接到服务器的客户端IP不在缓存中且缓存已满，服务器会丢弃最近最少使用的缓存条目，为新条目腾出空间。
+- en: If the discarded entry is for a blocked host, that host becomes unblocked.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果被丢弃的条目是针对一个被阻止的主机，那么该主机将变为未阻止状态。
+- en: Some connection errors are not associated with TCP connections, occur very early
+    in the connection process (even before an IP address is known), or are not specific
+    to any particular IP address (such as out-of-memory conditions). For information
+    about these errors, check the [`Connection_errors_*`xxx`*`](server-status-variables.html#statvar_Connection_errors_xxx)
+    status variables (see [Section 7.1.10, “Server Status Variables”](server-status-variables.html
+    "7.1.10 Server Status Variables")).
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些连接错误与TCP连接无关，出现在连接过程的非常早期（甚至在知道IP地址之前），或者不特定于任何特定的IP地址（例如内存不足条件）。有关这些错误的信息，请查看[`Connection_errors_*`xxx`*`](server-status-variables.html#statvar_Connection_errors_xxx)状态变量（请参阅[第7.1.10节，“服务器状态变量”](server-status-variables.html
+    "7.1.10 服务器状态变量")）。
+- en: Configuring the Host Cache
+  id: totrans-25
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 配置主机缓存
+- en: 'The host cache is enabled by default. The [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)
+    system variable controls its size, as well as the size of the Performance Schema
+    [`host_cache`](performance-schema-host-cache-table.html "29.12.21.3 The host_cache
+    Table") table that exposes the cache contents. The cache size can be set at server
+    startup and changed at runtime. For example, to set the size to 100 at startup,
+    put these lines in the server `my.cnf` file:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 主机缓存默认启用。[`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)系统变量控制其大小，以及暴露缓存内容的性能模式[`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 主机缓存表")表的大小。缓存大小可以在服务器启动时设置并在运行时更改。例如，要在启动时将大小设置为100，请将以下行放入服务器的`my.cnf`文件中：
+- en: '[PRE0]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To change the size to 300 at runtime, do this:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在运行时将大小更改为300，请执行以下操作：
+- en: '[PRE1]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Setting `host_cache_size` to 0, either at server startup or at runtime, disables
+    the host cache. With the cache disabled, the server performs a DNS lookup every
+    time a client connects.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将`host_cache_size`设置为0，无论是在服务器启动时还是在运行时，都会禁用主机缓存。禁用缓存后，服务器在每次客户端连接时执行DNS查找。
+- en: Changing the cache size at runtime causes an implicit host cache flushing operation
+    that clears the host cache, truncates the [`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table") table, and unblocks any blocked hosts; see
+    [Flushing the Host Cache](host-cache.html#host-cache-flushing "Flushing the Host
+    Cache").
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在运行时更改缓存大小会导致隐式主机缓存刷新操作，清除主机缓存，截断[`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 主机缓存表")表，并解除任何被阻止的主机；参见[刷新主机缓存](host-cache.html#host-cache-flushing
+    "刷新主机缓存")。
+- en: Using the [`--skip-host-cache`](server-options.html#option_mysqld_skip-host-cache)
+    option is similar to setting the [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)
+    system variable to 0, but [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)
+    is more flexible because it can also be used to resize, enable, and disable the
+    host cache at runtime, not just at server startup. Starting the server with [`--skip-host-cache`](server-options.html#option_mysqld_skip-host-cache)
+    does not prevent runtime changes to the value of [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size),
+    but such changes have no effect and the cache is not re-enabled even if [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)
+    is set larger than 0.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`--skip-host-cache`](server-options.html#option_mysqld_skip-host-cache)选项类似于将[`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)系统变量设置为0，但[`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)更灵活，因为它还可以用于在运行时调整、启用和禁用主机缓存，而不仅仅是在服务器启动时。使用[`--skip-host-cache`](server-options.html#option_mysqld_skip-host-cache)启动服务器不会阻止对[`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)值的运行时更改，但这些更改没有效果，即使将[`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)设置为大于0，缓存也不会重新启用。
+- en: To disable DNS host name lookups, start the server with the [`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)
+    system variable enabled. In this case, the server uses only IP addresses and not
+    host names to match connecting hosts to rows in the MySQL grant tables. Only accounts
+    specified in those tables using IP addresses can be used. (A client may not be
+    able to connect if no account exists that specifies the client IP address.)
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要禁用DNS主机名查找，请启用[`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)系统变量启动服务器。在这种情况下，服务器仅使用IP地址而不是主机名来将连接主机与MySQL授权表中的行匹配。只能使用在这些表中使用IP地址指定的帐户。
+    （如果没有指定客户端IP地址的帐户，则客户端可能无法连接。）
+- en: If you have a very slow DNS and many hosts, you might be able to improve performance
+    either by enabling [`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)
+    to disable DNS lookups, or by increasing the value of [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)
+    to make the host cache larger.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的 DNS 非常慢且有许多主机，您可以通过启用[`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)来禁用
+    DNS 查找，或者通过增加[`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)的值来使主机缓存更大来提高性能。
+- en: To disallow TCP/IP connections entirely, start the server with the [`skip_networking`](server-system-variables.html#sysvar_skip_networking)
+    system variable enabled.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要完全禁止 TCP/IP 连接，请启动时启用[`skip_networking`](server-system-variables.html#sysvar_skip_networking)系统变量。
+- en: 'To adjust the permitted number of successive connection errors before host
+    blocking occurs, set the [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    system variable. For example, to set the value at startup put these lines in the
+    server `my.cnf` file:'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要调整在主机阻止发生之前允许的连续连接错误数，请设置[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)系统变量。例如，要在启动时设置该值，请将以下行放入服务器的`my.cnf`文件中：
+- en: '[PRE2]'
+  id: totrans-37
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To change the value at runtime, do this:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在运行时更改该值，请执行以下操作：
+- en: '[PRE3]'
+  id: totrans-39
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Monitoring the Host Cache
+  id: totrans-40
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 监控主机缓存
+- en: The Performance Schema [`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table") table exposes the contents of the host cache.
+    This table can be examined using [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statements, which may help you diagnose the causes of connection problems. For
+    information about this table, see [Section 29.12.21.3, “The host_cache Table”](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table").
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema [`host_cache`](performance-schema-host-cache-table.html "29.12.21 The
+    host_cache Table") 表公开了主机缓存的内容。可以使用[`SELECT`](select.html "15.2.13 SELECT Statement")语句检查此表，这可能有助于诊断连接问题的原因。有关此表的信息，请参阅[Section 29.12.21.3,
+    “The host_cache Table”](performance-schema-host-cache-table.html "29.12.21.3 The
+    host_cache Table")。
+- en: Flushing the Host Cache
+  id: totrans-42
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 刷新主机缓存
+- en: 'Flushing the host cache might be advisable or desirable under these conditions:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以下情况下刷新主机缓存可能是明智或可取的：
+- en: Some of your client hosts change IP address.
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您的一些客户端主机更改了 IP 地址。
+- en: The error message `Host '*`host_name`*' is blocked` occurs for connections from
+    legitimate hosts. (See [Dealing with Blocked Hosts](host-cache.html#blocked-host
+    "Dealing with Blocked Hosts").)
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 错误消息`Host '*`host_name`*' is blocked`出现在来自合法主机的连接中。（参见[处理被阻止的主机](host-cache.html#blocked-host
+    "处理被阻止的主机")。）
+- en: 'Flushing the host cache has these effects:'
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 刷新主机缓存会产生以下效果：
+- en: It clears the in-memory host cache.
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它清除内存中的主机缓存。
+- en: It removes all rows from the Performance Schema [`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table") table that exposes the cache contents.
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它会从 Performance Schema [`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21 The host_cache Table") 表中删除所有行，该表公开了缓存内容。
+- en: It unblocks any blocked hosts. This enables further connection attempts from
+    those hosts.
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它解除任何被阻止的主机。这使得这些主机可以进一步尝试连接。
+- en: 'To flush the host cache, use any of these methods:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要刷新主机缓存，请使用以下任一方法：
+- en: Change the value of the [`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)
+    system variable. This requires the [`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege).
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更改[`host_cache_size`](server-system-variables.html#sysvar_host_cache_size)系统变量的值。这需要[`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限）。
+- en: Execute a [`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement")
+    statement that truncates the Performance Schema [`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table") table. This requires the [`DROP`](privileges-provided.html#priv_drop)
+    privilege for the table.
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行一个截断 Performance Schema [`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21 The host_cache Table") 表的[`TRUNCATE TABLE`](truncate-table.html "15.1.37 TRUNCATE
+    TABLE Statement")语句。这需要表的[`DROP`](privileges-provided.html#priv_drop)权限。
+- en: Execute a [`FLUSH HOSTS`](flush.html#flush-hosts) statement. This requires the
+    [`RELOAD`](privileges-provided.html#priv_reload) privilege.
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行一个[`FLUSH HOSTS`](flush.html#flush-hosts)语句。这需要[`RELOAD`](privileges-provided.html#priv_reload)权限。
+- en: Note
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`FLUSH HOSTS` is deprecated as of MySQL 8.0.23, and is scheduled for removal
+    in a future release.'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`FLUSH HOSTS`在 MySQL 8.0.23 中已弃用，并计划在将来的版本中删除。'
+- en: Execute a [**mysqladmin flush-hosts**](mysqladmin.html "6.5.2 mysqladmin — A
+    MySQL Server Administration Program") command. This requires the [`DROP`](privileges-provided.html#priv_drop)
+    privilege for the Performance Schema [`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table") table or the [`RELOAD`](privileges-provided.html#priv_reload)
+    privilege.
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行[**mysqladmin flush-hosts**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server
+    Administration Program")命令。这需要对性能模式[`host_cache`](performance-schema-host-cache-table.html
+    "29.12.21.3 The host_cache Table")表或[`RELOAD`](privileges-provided.html#priv_reload)权限的[`DROP`](privileges-provided.html#priv_drop)权限。
+- en: Dealing with Blocked Hosts
+  id: totrans-57
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 处理被阻止的主机
+- en: 'The server uses the host cache to track errors that occur during the client
+    connection process. If the following error occurs, it means that [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") has received many connection requests from
+    the given host that were interrupted in the middle:'
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器使用主机缓存来跟踪客户端连接过程中发生的错误。如果出现以下错误，意味着[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")从给定主机接收了许多连接请求，但在中途被中断：
+- en: '[PRE4]'
+  id: totrans-59
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: The value of the [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    system variable determines how many successive interrupted connection requests
+    the server permits before blocking a host. After [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    failed requests without a successful connection, the server assumes that something
+    is wrong (for example, that someone is trying to break in), and blocks the host
+    from further connection requests.
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)系统变量的值确定服务器在阻止主机之前允许多少连续中断的连接请求。在连续[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)个失败请求而没有成功连接之后，服务器会认为出现了问题（例如，有人试图入侵），并阻止主机进一步的连接请求。'
+- en: To unblock blocked hosts, flush the host cache; see [Flushing the Host Cache](host-cache.html#host-cache-flushing
+    "Flushing the Host Cache").
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要解除被阻止的主机，刷新主机缓存；参见[刷新主机缓存](host-cache.html#host-cache-flushing "Flushing the
+    Host Cache")。
+- en: Alternatively, to avoid having the error message occur, set [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    as described in [Configuring the Host Cache](host-cache.html#host-cache-configuration
+    "Configuring the Host Cache"). The default value of [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    is 100. Increasing [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    to a large value makes it less likely that a host reaches the threshold and becomes
+    blocked. However, if the `Host '*`host_name`*' is blocked` error message occurs,
+    first verify that there is nothing wrong with TCP/IP connections from the blocked
+    hosts. It does no good to increase the value of [`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)
+    if there are network problems.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，为了避免出现错误消息，按照[配置主机缓存](host-cache.html#host-cache-configuration "Configuring
+    the Host Cache")中描述的方式设置[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)。[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)的默认值为100。将[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)增加到一个较大的值可以减少主机达到阈值并被阻止的可能性。然而，如果出现`主机'*`host_name`*'被阻止`的错误消息，请首先验证被阻止主机的TCP/IP连接是否正常。如果存在网络问题，则增加[`max_connect_errors`](server-system-variables.html#sysvar_max_connect_errors)的值是没有好处的。

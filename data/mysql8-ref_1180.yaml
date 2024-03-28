@@ -1,0 +1,252 @@
+- en: 17.6.4 Doublewrite Buffer
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.6.4 双写缓冲区
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-doublewrite-buffer.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-doublewrite-buffer.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-doublewrite-buffer.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-doublewrite-buffer.html)
+- en: The doublewrite buffer is a storage area where `InnoDB` writes pages flushed
+    from the buffer pool before writing the pages to their proper positions in the
+    `InnoDB` data files. If there is an operating system, storage subsystem, or unexpected
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") process exit in the
+    middle of a page write, `InnoDB` can find a good copy of the page from the doublewrite
+    buffer during crash recovery.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 双写缓冲区是`InnoDB`在将页面写入其在`InnoDB`数据文件中正确位置之前，从缓冲池刷新的页面写入的存储区域。如果在页面写入过程中发生操作系统、存储子系统或意外的[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")进程退出，`InnoDB`可以在崩溃恢复期间从双写缓冲区找到页面的良好副本。
+- en: Although data is written twice, the doublewrite buffer does not require twice
+    as much I/O overhead or twice as many I/O operations. Data is written to the doublewrite
+    buffer in a large sequential chunk, with a single `fsync()` call to the operating
+    system (except in the case that `innodb_flush_method` is set to `O_DIRECT_NO_FSYNC`).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管数据被写入两次，但双写缓冲区并不需要两倍的I/O开销或两倍的I/O操作。数据以大块顺序写入双写缓冲区，通过单个`fsync()`调用到操作系统（除非`innodb_flush_method`设置为`O_DIRECT_NO_FSYNC`）。
+- en: Prior to MySQL 8.0.20, the doublewrite buffer storage area is located in the
+    `InnoDB` system tablespace. As of MySQL 8.0.20, the doublewrite buffer storage
+    area is located in doublewrite files.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.20之前，双写缓冲区存储区域位于`InnoDB`系统表空间中。从MySQL 8.0.20开始，双写缓冲区存储区域位于双写文件中。
+- en: 'The following variables are provided for doublewrite buffer configuration:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 提供以下变量用于双写缓冲区配置：
+- en: '[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)'
+- en: The [`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)
+    variable controls whether the doublewrite buffer is enabled. It is enabled by
+    default in most cases. To disable the doublewrite buffer, set [`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)
+    to `OFF`. Consider disabling the doublewrite buffer if you are more concerned
+    with performance than data integrity, as may be the case when performing benchmarks,
+    for example.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)变量控制双写缓冲区是否启用。在大多数情况下，默认情况下启用双写缓冲区。要禁用双写缓冲区，请将[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)设置为`OFF`。例如，在执行基准测试时，如果您更关注性能而不是数据完整性，则考虑禁用双写缓冲区。'
+- en: From MySQL 8.0.30, [`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)
+    supports `DETECT_AND_RECOVER` and `DETECT_ONLY` settings.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.30开始，[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)支持`DETECT_AND_RECOVER`和`DETECT_ONLY`设置。
+- en: The `DETECT_AND_RECOVER` setting is the same as the `ON` setting. With this
+    setting, the doublewrite buffer is fully enabled, with database page content written
+    to the doublewrite buffer where it is accessed during recovery to fix incomplete
+    page writes.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`DETECT_AND_RECOVER`设置与`ON`设置相同。使用此设置时，双写缓冲区完全启用，数据库页面内容被写入双写缓冲区，在恢复过程中访问以修复不完整的页面写入。'
+- en: With the `DETECT_ONLY` setting, only metadata is written to the doublewrite
+    buffer. Database page content is not written to the doublewrite buffer, and recovery
+    does not use the doublewrite buffer to fix incomplete page writes. This lightweight
+    setting is intended for detecting incomplete page writes only.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用`DETECT_ONLY`设置时，只有元数据被写入双写缓冲区。数据库页面内容不会被写入双写缓冲区，恢复过程也不会使用双写缓冲区来修复不完整的页面写入。这种轻量级设置仅用于检测不完整的页面写入。
+- en: MySQL 8.0.30 onwards supports dynamic changes to the [`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)
+    setting that enables the doublewrite buffer, between `ON`, `DETECT_AND_RECOVER`,
+    and `DETECT_ONLY`. MySQL does not support dynamic changes between a setting that
+    enables the doublewrite buffer and `OFF` or vice versa.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.30及更高版本支持动态更改[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)设置，使双写缓冲区在`ON`、`DETECT_AND_RECOVER`和`DETECT_ONLY`之间切换。MySQL不支持在启用双写缓冲区的设置和`OFF`之间进行动态更改，反之亦然。
+- en: If the doublewrite buffer is located on a Fusion-io device that supports atomic
+    writes, the doublewrite buffer is automatically disabled and data file writes
+    are performed using Fusion-io atomic writes instead. However, be aware that the
+    [`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite) setting
+    is global. When the doublewrite buffer is disabled, it is disabled for all data
+    files including those that do not reside on Fusion-io hardware. This feature is
+    only supported on Fusion-io hardware and is only enabled for Fusion-io NVMFS on
+    Linux. To take full advantage of this feature, an [`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)
+    setting of `O_DIRECT` is recommended.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果双写缓冲区位于支持原子写入的Fusion-io设备上，则双写缓冲区将自动禁用，并且数据文件写入将使用Fusion-io原子写入。但是，请注意[`innodb_doublewrite`](innodb-parameters.html#sysvar_innodb_doublewrite)设置是全局的。当双写缓冲区被禁用时，所有数据文件都被禁用，包括那些不位于Fusion-io硬件上的文件。此功能仅受支持于Fusion-io硬件，并且仅在Linux上为Fusion-io
+    NVMFS启用。为充分利用此功能，建议将[`innodb_flush_method`](innodb-parameters.html#sysvar_innodb_flush_method)设置为`O_DIRECT`。
+- en: '[`innodb_doublewrite_dir`](innodb-parameters.html#sysvar_innodb_doublewrite_dir)'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_dir`](innodb-parameters.html#sysvar_innodb_doublewrite_dir)'
+- en: The [`innodb_doublewrite_dir`](innodb-parameters.html#sysvar_innodb_doublewrite_dir)
+    variable (introduced in MySQL 8.0.20) defines the directory where `InnoDB` creates
+    doublewrite files. If no directory is specified, doublewrite files are created
+    in the [`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)
+    directory, which defaults to the data directory if unspecified.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_dir`](innodb-parameters.html#sysvar_innodb_doublewrite_dir)变量（在MySQL
+    8.0.20中引入）定义了`InnoDB`创建双写文件的目录。如果未指定目录，则双写文件将在[`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)目录中创建，默认情况下为数据目录。'
+- en: A hash symbol '#' is automatically prefixed to the specified directory name
+    to avoid conflicts with schema names. However, if a '.', '#'. or '/' prefix is
+    specified explicitly in the directory name, the hash symbol '#' is not prefixed
+    to the directory name.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 自动在指定目录名称前加上井号'#'，以避免与模式名称冲突。但是，如果在目录名称中明确指定了'.'、'#'或'/'前缀，则不会在目录名称前加上井号'#'。
+- en: Ideally, the doublewrite directory should be placed on the fastest storage media
+    available.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 理想情况下，双写目录应放置在最快的存储介质上。
+- en: '[`innodb_doublewrite_files`](innodb-parameters.html#sysvar_innodb_doublewrite_files)'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_files`](innodb-parameters.html#sysvar_innodb_doublewrite_files)'
+- en: 'The [`innodb_doublewrite_files`](innodb-parameters.html#sysvar_innodb_doublewrite_files)
+    variable defines the number of doublewrite files. By default, two doublewrite
+    files are created for each buffer pool instance: A flush list doublewrite file
+    and an LRU list doublewrite file.'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_files`](innodb-parameters.html#sysvar_innodb_doublewrite_files)变量定义了双写文件的数量。默认情况下，为每个缓冲池实例创建两个双写文件：一个刷新列表双写文件和一个LRU列表双写文件。'
+- en: The flush list doublewrite file is for pages flushed from the buffer pool flush
+    list. The default size of a flush list doublewrite file is the `InnoDB` page size
+    * doublewrite page bytes.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 刷新列表双写文件用于从缓冲池刷新列表刷新的页面。刷新列表双写文件的默认大小为`InnoDB`页面大小*双写页面字节。
+- en: The LRU list doublewrite file is for pages flushed from the buffer pool LRU
+    list. It also contains slots for single page flushes. The default size of an LRU
+    list doublewrite file is the `InnoDB` page size * (doublewrite pages + (512 /
+    the number of buffer pool instances)) where 512 is the total number of slots reserved
+    for single page flushes.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: LRU列表双写文件用于从缓冲池LRU列表刷新的页面。它还包含用于单页刷新的插槽。LRU列表双写文件的默认大小为`InnoDB`页面大小*(双写页面+(512/缓冲池实例数))，其中512是为单页刷新保留的插槽总数。
+- en: At a minimum, there are two doublewrite files. The maximum number of doublewrite
+    files is two times the number of buffer pool instances. (The number of buffer
+    pool instances is controlled by the [`innodb_buffer_pool_instances`](innodb-parameters.html#sysvar_innodb_buffer_pool_instances)
+    variable.)
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 至少有两个双写文件。双写文件的最大数量是缓冲池实例数的两倍。（缓冲池实例数由[`innodb_buffer_pool_instances`](innodb-parameters.html#sysvar_innodb_buffer_pool_instances)变量控制。）
+- en: 'Doublewrite file names have the following format: `#ib_*`page_size`*_*`file_number`*.dblwr`
+    (or `.bdblwr` with the `DETECT_ONLY` setting). For example, the following doublewrite
+    files are created for a MySQL instance with an `InnoDB` pages size of 16KB and
+    a single buffer pool:'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 双写文件的命名格式如下：`#ib_*`page_size`*_*`file_number`*.dblwr`（或者使用`DETECT_ONLY`设置时为`.bdblwr`）。例如，对于一个`InnoDB`页大小为16KB且只有一个缓冲池的MySQL实例，会创建以下双写文件：
+- en: '[PRE0]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The [`innodb_doublewrite_files`](innodb-parameters.html#sysvar_innodb_doublewrite_files)
+    variable is intended for advanced performance tuning. The default setting should
+    be suitable for most users.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_files`](innodb-parameters.html#sysvar_innodb_doublewrite_files)变量旨在用于高级性能调优。默认设置对大多数用户来说应该是合适的。'
+- en: '[`innodb_doublewrite_pages`](innodb-parameters.html#sysvar_innodb_doublewrite_pages)'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_pages`](innodb-parameters.html#sysvar_innodb_doublewrite_pages)'
+- en: The [`innodb_doublewrite_pages`](innodb-parameters.html#sysvar_innodb_doublewrite_pages)
+    variable (introduced in MySQL 8.0.20) controls the maximum number of doublewrite
+    pages per thread. If no value is specified, [`innodb_doublewrite_pages`](innodb-parameters.html#sysvar_innodb_doublewrite_pages)
+    is set to the [`innodb_write_io_threads`](innodb-parameters.html#sysvar_innodb_write_io_threads)
+    value. This variable is intended for advanced performance tuning. The default
+    value should be suitable for most users.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_pages`](innodb-parameters.html#sysvar_innodb_doublewrite_pages)变量（MySQL
+    8.0.20版本引入）控制了每个线程的最大双写页数。如果未指定值，[`innodb_doublewrite_pages`](innodb-parameters.html#sysvar_innodb_doublewrite_pages)将设置为[`innodb_write_io_threads`](innodb-parameters.html#sysvar_innodb_write_io_threads)的值。该变量旨在用于高级性能调优。默认值对大多数用户来说应该是合适的。'
+- en: '[`innodb_doublewrite_batch_size`](innodb-parameters.html#sysvar_innodb_doublewrite_batch_size)'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_batch_size`](innodb-parameters.html#sysvar_innodb_doublewrite_batch_size)'
+- en: The [`innodb_doublewrite_batch_size`](innodb-parameters.html#sysvar_innodb_doublewrite_batch_size)
+    variable (introduced in MySQL 8.0.20) controls the number of doublewrite pages
+    to write in a batch. This variable is intended for advanced performance tuning.
+    The default value should be suitable for most users.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`innodb_doublewrite_batch_size`](innodb-parameters.html#sysvar_innodb_doublewrite_batch_size)变量（MySQL
+    8.0.20版本引入）控制了一批中要写入的双写页的数量。该变量旨在用于高级性能调优。默认值对大多数用户来说应该是合适的。'
+- en: As of MySQL 8.0.23, `InnoDB` automatically encrypts doublewrite file pages that
+    belong to encrypted tablespaces (see [Section 17.13, “InnoDB Data-at-Rest Encryption”](innodb-data-encryption.html
+    "17.13 InnoDB Data-at-Rest Encryption")). Likewise, doublewrite file pages belonging
+    to page-compressed tablespaces are compressed. As a result, doublewrite files
+    can contain different page types including unencrypted and uncompressed pages,
+    encrypted pages, compressed pages, and pages that are both encrypted and compressed.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.23版本，`InnoDB`会自动加密属于加密表空间的双写文件页（参见[第17.13节，“InnoDB数据静态加密”](innodb-data-encryption.html
+    "17.13 InnoDB数据静态加密")）。同样，属于页压缩表空间的双写文件页会被压缩。因此，双写文件可以包含不同类型的页，包括未加密和未压缩的页，加密的页，压缩的页，以及既加密又压缩的页。

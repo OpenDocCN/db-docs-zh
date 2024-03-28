@@ -1,0 +1,109 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-read_ahead.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-read_ahead.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-read_ahead.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-performance-read_ahead.html)
+- en: 17.8.3.4 Configuring InnoDB Buffer Pool Prefetching (Read-Ahead)
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.8.3.4 配置InnoDB缓冲池预取（预读取）
+- en: 'A [read-ahead](glossary.html#glos_read_ahead "read-ahead") request is an I/O
+    request to prefetch multiple pages in the [buffer pool](glossary.html#glos_buffer_pool
+    "buffer pool") asynchronously, in anticipation of impending need for these pages.
+    The requests bring in all the pages in one [extent](glossary.html#glos_extent
+    "extent"). `InnoDB` uses two read-ahead algorithms to improve I/O performance:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个[预读取](glossary.html#glos_read_ahead "read-ahead")请求是一个异步的I/O请求，用于预取缓冲池中多个页面，以期望未来需要这些页面。这些请求一次带入一个[extent](glossary.html#glos_extent
+    "extent")中的所有页面。`InnoDB`使用两种预读取算法来提高I/O性能：
+- en: '**Linear** read-ahead is a technique that predicts what pages might be needed
+    soon based on pages in the buffer pool being accessed sequentially. You control
+    when `InnoDB` performs a read-ahead operation by adjusting the number of sequential
+    page accesses required to trigger an asynchronous read request, using the configuration
+    parameter [`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold).
+    Before this parameter was added, `InnoDB` would only calculate whether to issue
+    an asynchronous prefetch request for the entire next extent when it read the last
+    page of the current extent.'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**线性**预读取是一种技术，根据缓冲池中按顺序访问的页面来预测哪些页面可能很快会被需要。您可以通过调整配置参数[`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold)来控制`InnoDB`何时执行预读取操作，该参数表示触发异步读取请求所需的连续页面访问次数。在添加此参数之前，`InnoDB`只会在读取当前extent的最后一页时计算是否发出整个下一个extent的异步预取请求。'
+- en: The configuration parameter [`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold)
+    controls how sensitive `InnoDB` is in detecting patterns of sequential page access.
+    If the number of pages read sequentially from an extent is greater than or equal
+    to [`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold),
+    `InnoDB` initiates an asynchronous read-ahead operation of the entire following
+    extent. [`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold)
+    can be set to any value from 0-64\. The default value is 56\. The higher the value,
+    the more strict the access pattern check. For example, if you set the value to
+    48, `InnoDB` triggers a linear read-ahead request only when 48 pages in the current
+    extent have been accessed sequentially. If the value is 8, `InnoDB` triggers an
+    asynchronous read-ahead even if as few as 8 pages in the extent are accessed sequentially.
+    You can set the value of this parameter in the MySQL [configuration file](glossary.html#glos_configuration_file
+    "configuration file"), or change it dynamically with the [`SET GLOBAL`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") statement, which requires privileges
+    sufficient to set global system variables. See [Section 7.1.9.1, “System Variable
+    Privileges”](system-variable-privileges.html "7.1.9.1 System Variable Privileges").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 配置参数[`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold)控制`InnoDB`在检测连续页面访问模式时的敏感度。如果从一个extent中连续读取的页面数量大于或等于[`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold)，`InnoDB`会启动整个后续extent的异步预读取操作。[`innodb_read_ahead_threshold`](innodb-parameters.html#sysvar_innodb_read_ahead_threshold)的值可以设置为0-64之间的任何值。默认值为56。值越高，访问模式检查越严格。例如，如果将值设置为48，`InnoDB`仅在当前extent中连续访问了48页时才触发线性预读取请求。如果值为8，即使在extent中连续访问了仅有8页，`InnoDB`也会触发异步预读取。您可以在MySQL的[配置文件](glossary.html#glos_configuration_file
+    "configuration file")中设置此参数的值，或使用[`SET GLOBAL`](set-variable.html "15.7.6.1 SET
+    Syntax for Variable Assignment")语句动态更改该值，这需要足够的权限来设置全局系统变量。参见[Section 7.1.9.1,
+    “System Variable Privileges”](system-variable-privileges.html "7.1.9.1 System
+    Variable Privileges")。
+- en: '**Random** read-ahead is a technique that predicts when pages might be needed
+    soon based on pages already in the buffer pool, regardless of the order in which
+    those pages were read. If 13 consecutive pages from the same extent are found
+    in the buffer pool, `InnoDB` asynchronously issues a request to prefetch the remaining
+    pages of the extent. To enable this feature, set the configuration variable [`innodb_random_read_ahead`](innodb-parameters.html#sysvar_innodb_random_read_ahead)
+    to `ON`.'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**随机**预读是一种技术，根据缓冲池中已经存在的页面，预测哪些页面可能很快就会被需要，而不考虑这些页面的读取顺序。如果在缓冲池中找到来自同一范围的连续13个页面，`InnoDB`会异步发出请求，预取该范围的其余页面。要启用此功能，请将配置变量[`innodb_random_read_ahead`](innodb-parameters.html#sysvar_innodb_random_read_ahead)设置为`ON`。'
+- en: 'The `SHOW ENGINE INNODB STATUS` command displays statistics to help you evaluate
+    the effectiveness of the read-ahead algorithm. Statistics include counter information
+    for the following global status variables:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`SHOW ENGINE INNODB STATUS` 命令显示统计信息，帮助您评估预读算法的有效性。统计信息包括以下全局状态变量的计数器信息：'
+- en: '[`Innodb_buffer_pool_read_ahead`](server-status-variables.html#statvar_Innodb_buffer_pool_read_ahead)'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_buffer_pool_read_ahead`](server-status-variables.html#statvar_Innodb_buffer_pool_read_ahead)'
+- en: '[`Innodb_buffer_pool_read_ahead_evicted`](server-status-variables.html#statvar_Innodb_buffer_pool_read_ahead_evicted)'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_buffer_pool_read_ahead_evicted`](server-status-variables.html#statvar_Innodb_buffer_pool_read_ahead_evicted)'
+- en: '[`Innodb_buffer_pool_read_ahead_rnd`](server-status-variables.html#statvar_Innodb_buffer_pool_read_ahead_rnd)'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_buffer_pool_read_ahead_rnd`](server-status-variables.html#statvar_Innodb_buffer_pool_read_ahead_rnd)'
+- en: This information can be useful when fine-tuning the [`innodb_random_read_ahead`](innodb-parameters.html#sysvar_innodb_random_read_ahead)
+    setting.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当微调[`innodb_random_read_ahead`](innodb-parameters.html#sysvar_innodb_random_read_ahead)设置时，这些信息可能会有用。
+- en: For more information about I/O performance, see [Section 10.5.8, “Optimizing
+    InnoDB Disk I/O”](optimizing-innodb-diskio.html "10.5.8 Optimizing InnoDB Disk
+    I/O") and [Section 10.12.1, “Optimizing Disk I/O”](disk-issues.html "10.12.1 Optimizing
+    Disk I/O").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 I/O 性能的更多信息，请参阅[第 10.5.8 节，“优化 InnoDB 磁盘 I/O”](optimizing-innodb-diskio.html
+    "10.5.8 优化 InnoDB 磁盘 I/O") 和 [第 10.12.1 节，“优化磁盘 I/O”](disk-issues.html "10.12.1
+    优化磁盘 I/O")。

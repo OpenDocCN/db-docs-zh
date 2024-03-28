@@ -1,0 +1,276 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/condition-filtering.html](https://dev.mysql.com/doc/refman/8.0/en/condition-filtering.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/condition-filtering.html](https://dev.mysql.com/doc/refman/8.0/en/condition-filtering.html)
+- en: 10.2.1.13 Condition Filtering
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.13 条件过滤
+- en: In join processing, prefix rows are those rows passed from one table in a join
+    to the next. In general, the optimizer attempts to put tables with low prefix
+    counts early in the join order to keep the number of row combinations from increasing
+    rapidly. To the extent that the optimizer can use information about conditions
+    on rows selected from one table and passed to the next, the more accurately it
+    can compute row estimates and choose the best execution plan.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在连接处理中，前缀行是从一个连接中传递到下一个连接的行。 一般来说，优化器尝试尽早将前缀计数较低的表放在连接顺序中，以避免行组合数量迅速增加。 在优化器可以使用有关从一个表中选择并传递到下一个表的行的条件的信息的程度上，它可以更准确地计算行估计并选择最佳执行计划。
+- en: Without condition filtering, the prefix row count for a table is based on the
+    estimated number of rows selected by the `WHERE` clause according to whichever
+    access method the optimizer chooses. Condition filtering enables the optimizer
+    to use other relevant conditions in the `WHERE` clause not taken into account
+    by the access method, and thus improve its prefix row count estimates. For example,
+    even though there might be an index-based access method that can be used to select
+    rows from the current table in a join, there might also be additional conditions
+    for the table in the `WHERE` clause that can filter (further restrict) the estimate
+    for qualifying rows passed to the next table.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 没有条件过滤，表的前缀行数是基于优化器根据选择的访问方法估计的`WHERE`子句选择的行数。 条件过滤使优化器能够使用`WHERE`子句中未被访问方法考虑的其他相关条件，并因此改进其前缀行数估计。
+    例如，即使可能存在可用于从当前表中选择行的基于索引的访问方法，也可能存在`WHERE`子句中对表的其他条件进行过滤（进一步限制）的情况，以过滤传递到下一个表的符合条件的行的估计。
+- en: 'A condition contributes to the filtering estimate only if:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅当条件对过滤估计有贡献时才会计入：
+- en: It refers to the current table.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它指的是当前表。
+- en: It depends on a constant value or values from earlier tables in the join sequence.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它取决于连接序列中较早表的常量值或值。
+- en: It was not already taken into account by the access method.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它在访问方法中尚未考虑。
+- en: In [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output, the `rows` column
+    indicates the row estimate for the chosen access method, and the `filtered` column
+    reflects the effect of condition filtering. `filtered` values are expressed as
+    percentages. The maximum value is 100, which means no filtering of rows occurred.
+    Values decreasing from 100 indicate increasing amounts of filtering.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出中，`rows`列指示所选访问方法的行估计，而`filtered`列反映条件过滤的效果。
+    `filtered`值以百分比表示。 最大值为100，表示未发生任何行过滤。 从100减少的值表示过滤量增加。
+- en: The prefix row count (the number of rows estimated to be passed from the current
+    table in a join to the next) is the product of the `rows` and `filtered` values.
+    That is, the prefix row count is the estimated row count, reduced by the estimated
+    filtering effect. For example, if `rows` is 1000 and `filtered` is 20%, condition
+    filtering reduces the estimated row count of 1000 to a prefix row count of 1000
+    × 20% = 1000 × .2 = 200.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前缀行数（从当前连接中传递到下一个连接的估计行数）是`rows`和`filtered`值的乘积。 也就是说，前缀行数是估计的行数，减去估计的过滤效果。
+    例如，如果`rows`为1000，`filtered`为20％，则条件过滤将1000的估计行数减少为1000 × 20％= 1000 × .2 = 200。
+- en: 'Consider the following query:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下查询：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Suppose that the data set has these characteristics:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设数据集具有以下特征：
+- en: The `employee` table has 1024 rows.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`employee`表有1024行。'
+- en: The `department` table has 12 rows.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`department`表有12行。'
+- en: Both tables have an index on `dept_no`.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 两个表在`dept_no`上都有索引。
+- en: The `employee` table has an index on `first_name`.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`employee`表在`first_name`上有一个索引。'
+- en: '8 rows satisfy this condition on `employee.first_name`:'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 8行满足`employee.first_name`上的这个条件：
+- en: '[PRE1]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '150 rows satisfy this condition on `employee.hire_date`:'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 150行满足`employee.hire_date`上的这个条件：
+- en: '[PRE2]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '1 row satisfies both conditions:'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 1行同时满足这两个条件：
+- en: '[PRE3]'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Without condition filtering, [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")
+    produces output like this:'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 没有条件过滤，[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")会产生如下输出：
+- en: '[PRE4]'
+  id: totrans-24
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'For `employee`, the access method on the `name` index picks up the 8 rows that
+    match a name of `''John''`. No filtering is done (`filtered` is 100%), so all
+    rows are prefix rows for the next table: The prefix row count is `rows` × `filtered`
+    = 8 × 100% = 8.'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`employee`，在`name`索引上的访问方法选择匹配名称为`'John'`的8行。不进行过滤（`filtered`为100%），因此所有行都是下一个表的前缀行：前缀行数为`rows`
+    × `filtered` = 8 × 100% = 8。
+- en: 'With condition filtering, the optimizer additionally takes into account conditions
+    from the `WHERE` clause not taken into account by the access method. In this case,
+    the optimizer uses heuristics to estimate a filtering effect of 16.31% for the
+    [`BETWEEN`](comparison-operators.html#operator_between) condition on `employee.hire_date`.
+    As a result, [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") produces output
+    like this:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用条件过滤，优化器还考虑`WHERE`子句中未考虑的条件。在这种情况下，优化器使用启发式方法估计`employee.hire_date`上`BETWEEN`条件的过滤效果为16.31%。因此，[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")生成类似以下输出：
+- en: '[PRE5]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Now the prefix row count is `rows` × `filtered` = 8 × 16.31% = 1.3, which more
+    closely reflects actual data set.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在前缀行数为`rows` × `filtered` = 8 × 16.31% = 1.3，更接近实际数据集。
+- en: 'Normally, the optimizer does not calculate the condition filtering effect (prefix
+    row count reduction) for the last joined table because there is no next table
+    to pass rows to. An exception occurs for [`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement"): To provide more information, the filtering effect is calculated for
+    all joined tables, including the last one.'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常，优化器不会计算最后一个连接表的条件过滤效果（前缀行数减少），因为没有下一个表可以传递行。一个例外情况是[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")：为了提供更多信息，过滤效果将计算所有连接表，包括最后一个。
+- en: To control whether the optimizer considers additional filtering conditions,
+    use the [`condition_fanout_filter`](switchable-optimizations.html#optflag_condition-fanout-filter)
+    flag of the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable (see [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations")). This flag is enabled by default but can be
+    disabled to suppress condition filtering (for example, if a particular query is
+    found to yield better performance without it).
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要控制优化器是否考虑额外的过滤条件，请使用[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量的[`condition_fanout_filter`](switchable-optimizations.html#optflag_condition-fanout-filter)标志（参见[第10.9.2节，“可切换的优化”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations")）。该标志默认启用，但可以禁用以抑制条件过滤（例如，如果发现特定查询在没有条件过滤的情况下性能更好）。
+- en: 'If the optimizer overestimates the effect of condition filtering, performance
+    may be worse than if condition filtering is not used. In such cases, these techniques
+    may help:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果优化器高估了条件过滤的效果，性能可能会比不使用条件过滤更差。在这种情况下，可以采用以下技巧：
+- en: If a column is not indexed, index it so that the optimizer has some information
+    about the distribution of column values and can improve its row estimates.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果某列没有索引，请为其创建索引，以便优化器了解列值的分布并改进其行估计。
+- en: Similarly, if no column histogram information is available, generate a histogram
+    (see [Section 10.9.6, “Optimizer Statistics”](optimizer-statistics.html "10.9.6 Optimizer
+    Statistics")).
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 类似地，如果没有列直方图信息可用，请生成直方图（参见[第10.9.6节，“优化器统计”](optimizer-statistics.html "10.9.6 Optimizer
+    Statistics")）。
+- en: Change the join order. Ways to accomplish this include join-order optimizer
+    hints (see [Section 10.9.3, “Optimizer Hints”](optimizer-hints.html "10.9.3 Optimizer
+    Hints")), `STRAIGHT_JOIN` immediately following the `SELECT`, and the `STRAIGHT_JOIN`
+    join operator.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更改连接顺序。实现这一点的方法包括连接顺序优化器提示（参见[第10.9.3节，“优化器提示”](optimizer-hints.html "10.9.3 Optimizer
+    Hints")）、`SELECT`后紧跟`STRAIGHT_JOIN`，以及`STRAIGHT_JOIN`连接操作符。
+- en: 'Disable condition filtering for the session:'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 禁用会话的条件过滤：
+- en: '[PRE6]'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Or, for a given query, using an optimizer hint:'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者，对于给定的查询，使用优化器提示：
+- en: '[PRE7]'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'

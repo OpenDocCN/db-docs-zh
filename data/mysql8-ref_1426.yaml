@@ -1,0 +1,321 @@
+- en: 19.4.11 Delayed Replication
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.4.11 延迟复制
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-delayed.html](https://dev.mysql.com/doc/refman/8.0/en/replication-delayed.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-delayed.html](https://dev.mysql.com/doc/refman/8.0/en/replication-delayed.html)
+- en: MySQL supports delayed replication such that a replica server deliberately executes
+    transactions later than the source by at least a specified amount of time. This
+    section describes how to configure a replication delay on a replica, and how to
+    monitor replication delay.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL支持延迟复制，使得副本服务器故意比源服务器晚至少指定的时间执行事务。本节描述了如何在副本上配置复制延迟以及如何监视复制延迟。
+- en: In MySQL 8.0, the method of delaying replication depends on two timestamps,
+    `immediate_commit_timestamp` and `original_commit_timestamp` (see [Replication
+    Delay Timestamps](replication-delayed.html#replication-delayed-timestamps "Replication
+    Delay Timestamps")). If all servers in the replication topology are running MySQL
+    8.0 or above, delayed replication is measured using these timestamps. If either
+    the immediate source or replica is not using these timestamps, the implementation
+    of delayed replication from MySQL 5.7 is used (see [Delayed Replication](/doc/refman/5.7/en/replication-delayed.html)).
+    This section describes delayed replication between servers which are all using
+    these timestamps.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0中，延迟复制的方法取决于两个时间戳，`immediate_commit_timestamp`和`original_commit_timestamp`（参见[Replication
+    Delay Timestamps](replication-delayed.html#replication-delayed-timestamps "Replication
+    Delay Timestamps")）。如果复制拓扑中的所有服务器都运行MySQL 8.0或更高版本，则使用这些时间戳来测量延迟复制。如果即时源或副本中有任何一个不使用这些时间戳，则使用MySQL
+    5.7中的延迟复制实现（参见[Delayed Replication](/doc/refman/5.7/en/replication-delayed.html)）。本节描述了所有使用这些时间戳的服务器之间的延迟复制。
+- en: The default replication delay is 0 seconds. Use a [`CHANGE REPLICATION SOURCE
+    TO SOURCE_DELAY=*`N`*`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION
+    SOURCE TO Statement") statement (from MySQL 8.0.23) or a `CHANGE MASTER TO MASTER_DELAY=*`N`*`
+    statement (before MySQL 8.0.23) to set the delay to *`N`* seconds. A transaction
+    received from the source is not executed until at least *`N`* seconds later than
+    its commit on the immediate source. The delay happens per transaction (not event
+    as in previous MySQL versions) and the actual delay is imposed only on `gtid_log_event`
+    or `anonymous_gtid_log_event`. The other events in the transaction always follow
+    these events without any waiting time imposed on them.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认复制延迟为0秒。使用[`CHANGE REPLICATION SOURCE TO SOURCE_DELAY=*`N`*`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement")语句（从MySQL 8.0.23开始）或`CHANGE
+    MASTER TO MASTER_DELAY=*`N`*`语句（MySQL 8.0.23之前）将延迟设置为*`N`*秒。从源接收的事务直到比其在即时源上提交的时间晚至少*`N`*秒才执行。延迟是按事务发生的（而不是像以前的MySQL版本中那样按事件发生），实际延迟仅对`gtid_log_event`或`anonymous_gtid_log_event`施加。事务中的其他事件总是在这些事件之后立即执行，而不会对它们施加任何等待时间。
+- en: Note
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement") and
+    [`STOP REPLICA`](stop-replica.html "15.4.2.8 STOP REPLICA Statement") take effect
+    immediately and ignore any delay. [`RESET REPLICA`](reset-replica.html "15.4.2.4 RESET
+    REPLICA Statement") resets the delay to 0.'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA Statement")和[`STOP
+    REPLICA`](stop-replica.html "15.4.2.8 STOP REPLICA Statement")立即生效并忽略任何延迟。[`RESET
+    REPLICA`](reset-replica.html "15.4.2.4 RESET REPLICA Statement")将延迟重置为0。'
+- en: The [`replication_applier_configuration`](performance-schema-replication-applier-configuration-table.html
+    "29.12.11.5 The replication_applier_configuration Table") Performance Schema table
+    contains the `DESIRED_DELAY` column which shows the delay configured using the
+    `SOURCE_DELAY` | `MASTER_DELAY` option. The [`replication_applier_status`](performance-schema-replication-applier-status-table.html
+    "29.12.11.6 The replication_applier_status Table") Performance Schema table contains
+    the `REMAINING_DELAY` column which shows the number of delay seconds remaining.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`replication_applier_configuration`](performance-schema-replication-applier-configuration-table.html
+    "29.12.11.5 The replication_applier_configuration Table")性能模式表包含`DESIRED_DELAY`列，显示使用`SOURCE_DELAY`
+    | `MASTER_DELAY`选项配置的延迟。[`replication_applier_status`](performance-schema-replication-applier-status-table.html
+    "29.12.11.6 The replication_applier_status Table")性能模式表包含`REMAINING_DELAY`列，显示剩余的延迟秒数。'
+- en: 'Delayed replication can be used for several purposes:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 延迟复制可用于几个目的：
+- en: To protect against user mistakes on the source. With a delay you can roll back
+    a delayed replica to the time just before the mistake.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用于防止源上用户错误。通过延迟，您可以将延迟副本回滚到错误发生之前的时间。
+- en: To test how the system behaves when there is a lag. For example, in an application,
+    a lag might be caused by a heavy load on the replica. However, it can be difficult
+    to generate this load level. Delayed replication can simulate the lag without
+    having to simulate the load. It can also be used to debug conditions related to
+    a lagging replica.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了测试系统在出现延迟时的行为。例如，在一个应用程序中，延迟可能是由于副本上的大量负载而引起的。然而，很难生成这种负载水平。延迟复制可以模拟延迟，而无需模拟负载。它还可以用于调试与滞后副本相关的条件。
+- en: To inspect what the database looked like in the past, without having to reload
+    a backup. For example, by configuring a replica with a delay of one week, if you
+    then need to see what the database looked like before the last few days' worth
+    of development, the delayed replica can be inspected.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了查看数据库在过去的样子，而无需重新加载备份。例如，通过配置一个延迟一周的副本，如果您需要查看数据库在最近几天开发之前的样子，可以检查延迟副本。
+- en: Replication Delay Timestamps
+  id: totrans-12
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 复制延迟时间戳
+- en: MySQL 8.0 provides a new method for measuring delay (also referred to as replication
+    lag) in replication topologies that depends on the following timestamps associated
+    with the GTID of each transaction (instead of each event) written to the binary
+    log.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0提供了一种新的方法来测量复制拓扑中的延迟（也称为复制滞后），该方法依赖于写入二进制日志的每个事务（而不是每个事件）关联的GTID的以下时间戳。
+- en: '`original_commit_timestamp`: the number of microseconds since epoch when the
+    transaction was written (committed) to the binary log of the original source.'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`original_commit_timestamp`: 事务被写入（提交）到原始来源二进制日志时距离时代的微秒数。'
+- en: '`immediate_commit_timestamp`: the number of microseconds since epoch when the
+    transaction was written (committed) to the binary log of the immediate source.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`immediate_commit_timestamp`: 事务被写入（提交）到直接来源二进制日志时距离时代的微秒数。'
+- en: 'The output of [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") displays these timestamps in two formats, microseconds
+    from epoch and also `TIMESTAMP` format, which is based on the user defined time
+    zone for better readability. For example:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")的输出以两种格式显示这些时间戳，即从时代开始的微秒数和基于用户定义时区的`TIMESTAMP`格式，以便更易读。例如：'
+- en: '[PRE0]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: As a rule, the `original_commit_timestamp` is always the same on all replicas
+    where the transaction is applied. In source-replica replication, the `original_commit_timestamp`
+    of a transaction in the (original) source’s binary log is always the same as its
+    `immediate_commit_timestamp`. In the replica’s relay log, the `original_commit_timestamp`
+    and `immediate_commit_timestamp` of the transaction are the same as in the source’s
+    binary log; whereas in its own binary log, the transaction’s `immediate_commit_timestamp`
+    corresponds to when the replica committed the transaction.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常情况下，事务应用到的所有副本上的`original_commit_timestamp`始终相同。在源-副本复制中，事务在（原始）源二进制日志中的`original_commit_timestamp`始终与其`immediate_commit_timestamp`相同。在副本的中继日志中，事务的`original_commit_timestamp`和`immediate_commit_timestamp`与源二进制日志中的相同；而在其自己的二进制日志中，事务的`immediate_commit_timestamp`对应于副本提交事务的时间。
+- en: In a Group Replication setup, when the original source is a member of a group,
+    the `original_commit_timestamp` is generated when the transaction is ready to
+    be committed. In other words, when it finished executing on the original source
+    and its write set is ready to be sent to all members of the group for certification.
+    When the original source is a server outside the group, the `original_commit_timestamp`
+    is preserved. The same `original_commit_timestamp` for a particular transaction
+    is replicated to all servers in the group, and to any replica outside the group
+    that is replicating from a member. From MySQL 8.0.26, each recipient of the transaction
+    also stores the local commit time in its binary log using `immediate_commit_timestamp`.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在群组复制设置中，当原始来源是群组的成员时，`original_commit_timestamp`在事务准备提交时生成。换句话说，当它在原始来源上执行完毕并且其写入集准备发送到群组的所有成员进行认证时。当原始来源是群组外的服务器时，`original_commit_timestamp`被保留。特定事务的相同`original_commit_timestamp`被复制到群组中的所有服务器，以及从成员复制的群组外的任何副本。从MySQL
+    8.0.26开始，事务的每个接收者还使用`immediate_commit_timestamp`在其二进制日志中存储本地提交时间。
+- en: View change events, which are exclusive to Group Replication, are a special
+    case. Transactions containing these events are generated by each group member
+    but share the same GTID (so, they are not first executed in a source and then
+    replicated to the group, but all members of the group execute and apply the same
+    transaction). Before MySQL 8.0.26, these transactions have their `original_commit_timestamp`
+    set to zero, and they appear this way in viewable output. From MySQL 8.0.26, for
+    improved observability, group members set local timestamp values for transactions
+    associated with view change events.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图更改事件，这是组复制独有的特殊情况。包含这些事件的交易由每个组成员生成，但共享相同的GTID（因此，它们不是首先在源中执行，然后被复制到组中，而是组的所有成员执行并应用相同的交易）。在MySQL
+    8.0.26之前，这些交易的`original_commit_timestamp`设置为零，并且在可查看的输出中以这种方式显示。从MySQL 8.0.26开始，为了提高可观察性，组成员为与视图更改事件相关的交易设置本地时间戳值。
+- en: Monitoring Replication Delay
+  id: totrans-21
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 监视复制延迟
+- en: One of the most common ways to monitor replication delay (lag) in previous MySQL
+    versions was by relying on the `Seconds_Behind_Master` field in the output of
+    `SHOW REPLICA STATUS`. However, this metric is not suitable when using replication
+    topologies more complex than the traditional source-replica setup, such as Group
+    Replication. The addition of `immediate_commit_timestamp` and `original_commit_timestamp`
+    to MySQL 8 provides a much finer degree of information about replication delay.
+    The recommended method to monitor replication delay in a topology that supports
+    these timestamps is using the following Performance Schema tables.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在以前的MySQL版本中监视复制延迟（滞后）最常见的方法之一是依赖于`SHOW REPLICA STATUS`输出中的`Seconds_Behind_Master`字段。然而，在使用比传统源-副本设置更复杂的复制拓扑时，如组复制时，此度量标准并不适用。在MySQL
+    8中添加`immediate_commit_timestamp`和`original_commit_timestamp`提供了关于复制延迟的更精细信息。在支持这些时间戳的拓扑中监视复制延迟的推荐方法是使用以下性能模式表。
+- en: '[`replication_connection_status`](performance-schema-replication-connection-status-table.html
+    "29.12.11.2 The replication_connection_status Table"): current status of the connection
+    to the source, provides information on the last and current transaction the connection
+    thread queued into the relay log.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`replication_connection_status`](performance-schema-replication-connection-status-table.html
+    "29.12.11.2 The replication_connection_status Table")：与源的连接的当前状态，提供连接线程排队到中继日志的最后一个和当前交易的信息。'
+- en: '[`replication_applier_status_by_coordinator`](performance-schema-replication-applier-status-by-coordinator-table.html
+    "29.12.11.7 The replication_applier_status_by_coordinator Table"): current status
+    of the coordinator thread that only displays information when using a multithreaded
+    replica, provides information on the last transaction buffered by the coordinator
+    thread to a worker’s queue, as well as the transaction it is currently buffering.'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`replication_applier_status_by_coordinator`](performance-schema-replication-applier-status-by-coordinator-table.html
+    "29.12.11.7 The replication_applier_status_by_coordinator Table")：仅在使用多线程副本时显示协调器线程的当前状态，提供协调器线程缓冲到工作线程队列的最后一个交易的信息，以及它当前正在缓冲的交易。'
+- en: '[`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table"): current status of
+    the thread(s) applying transactions received from the source, provides information
+    about the transactions applied by the replication SQL thread, or by each worker
+    thread when using a multithreaded replica.'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`replication_applier_status_by_worker`](performance-schema-replication-applier-status-by-worker-table.html
+    "29.12.11.8 The replication_applier_status_by_worker Table")：应用来自源的交易的线程（们）的当前状态，提供由复制SQL线程应用的交易的信息，或者在使用多线程副本时，每个工作线程应用的交易的信息。'
+- en: 'Using these tables you can monitor information about the last transaction the
+    corresponding thread processed and the transaction that thread is currently processing.
+    This information comprises:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用这些表，您可以监视对应线程处理的最后一个交易和该线程当前正在处理的交易的信息。这些信息包括：
+- en: a transaction’s GTID
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个交易的GTID
+- en: a transaction's `original_commit_timestamp` and `immediate_commit_timestamp`,
+    retrieved from the replica’s relay log
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从副本的中继日志中检索的交易的`original_commit_timestamp`和`immediate_commit_timestamp`
+- en: the time a thread started processing a transaction
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 线程开始处理交易的时间
+- en: for the last processed transaction, the time the thread finished processing
+    it
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于最后处理的交易，线程完成处理的时间
+- en: 'In addition to the Performance Schema tables, the output of [`SHOW REPLICA
+    STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement") has
+    three fields that show:'
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了性能模式表之外，[`SHOW REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA
+    STATUS Statement")的输出还有三个字段显示：
+- en: '`SQL_Delay`: A nonnegative integer indicating the replication delay configured
+    using [`CHANGE REPLICATION SOURCE TO SOURCE_DELAY=*`N`*`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") (from MySQL 8.0.23) or `CHANGE
+    MASTER TO MASTER_DELAY=N` (before MySQL 8.0.23), measured in seconds.'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SQL_Delay`: 一个非负整数，表示使用[`CHANGE REPLICATION SOURCE TO SOURCE_DELAY=*`N`*`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement")（从MySQL 8.0.23开始）或`CHANGE MASTER
+    TO MASTER_DELAY=N`（在MySQL 8.0.23之前）配置的复制延迟，以秒为单位。'
+- en: '`SQL_Remaining_Delay`: When `Replica_SQL_Running_State` is `Waiting until MASTER_DELAY
+    seconds after master executed event`, this field contains an integer indicating
+    the number of seconds left of the delay. At other times, this field is `NULL`.'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SQL_Remaining_Delay`: 当`Replica_SQL_Running_State`为`Waiting until MASTER_DELAY
+    seconds after master executed event`时，此字段包含一个整数，表示延迟剩余的秒数。在其他时候，此字段为`NULL`。'
+- en: '`Replica_SQL_Running_State`: A string indicating the state of the SQL thread
+    (analogous to `Replica_IO_State`). The value is identical to the `State` value
+    of the SQL thread as displayed by [`SHOW PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW
+    PROCESSLIST Statement").'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Replica_SQL_Running_State`: 表示SQL线程状态的字符串（类似于`Replica_IO_State`）。该值与由[`SHOW
+    PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW PROCESSLIST Statement")显示的SQL线程的`State`值相同。'
+- en: When the replication SQL thread is waiting for the delay to elapse before executing
+    an event, [`SHOW PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW PROCESSLIST
+    Statement") displays its `State` value as `Waiting until MASTER_DELAY seconds
+    after master executed event`.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当复制SQL线程在执行事件之前等待延迟时间时，[`SHOW PROCESSLIST`](show-processlist.html "15.7.7.29 SHOW
+    PROCESSLIST Statement")将其`State`值显示为`Waiting until MASTER_DELAY seconds after
+    master executed event`。

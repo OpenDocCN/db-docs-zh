@@ -1,0 +1,280 @@
+- en: 27.4.6 The Event Scheduler and MySQL Privileges
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 27.4.6 事件调度程序和MySQL权限
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/events-privileges.html](https://dev.mysql.com/doc/refman/8.0/en/events-privileges.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/events-privileges.html](https://dev.mysql.com/doc/refman/8.0/en/events-privileges.html)
+- en: To enable or disable the execution of scheduled events, it is necessary to set
+    the value of the global [`event_scheduler`](server-system-variables.html#sysvar_event_scheduler)
+    system variable. This requires privileges sufficient to set global system variables.
+    See [Section 7.1.9.1, “System Variable Privileges”](system-variable-privileges.html
+    "7.1.9.1 System Variable Privileges").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要启用或禁用计划事件的执行，需要设置全局[`event_scheduler`](server-system-variables.html#sysvar_event_scheduler)系统变量的值。这需要足够的权限来设置全局系统变量。参见[第7.1.9.1节，“系统变量权限”](system-variable-privileges.html
+    "7.1.9.1 系统变量权限")。
+- en: 'The [`EVENT`](privileges-provided.html#priv_event) privilege governs the creation,
+    modification, and deletion of events. This privilege can be bestowed using [`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement"). For example, this [`GRANT`](grant.html "15.7.1.6 GRANT
+    Statement") statement confers the [`EVENT`](privileges-provided.html#priv_event)
+    privilege for the schema named `myschema` on the user `jon@ghidora`:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`EVENT`](privileges-provided.html#priv_event)权限管理事件的创建、修改和删除。可以使用[`GRANT`](grant.html
+    "15.7.1.6 GRANT语句")授予此权限。例如，此[`GRANT`](grant.html "15.7.1.6 GRANT语句")语句将在用户`jon@ghidora`上为名为`myschema`的模式授予[`EVENT`](privileges-provided.html#priv_event)权限：'
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: (We assume that this user account already exists, and that we wish for it to
+    remain unchanged otherwise.)
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: （我们假设该用户帐户已经存在，并且我们希望其保持不变。）
+- en: 'To grant this same user the [`EVENT`](privileges-provided.html#priv_event)
+    privilege on all schemas, use the following statement:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要授予同一用户在所有模式上的[`EVENT`](privileges-provided.html#priv_event)权限，请使用以下语句：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The [`EVENT`](privileges-provided.html#priv_event) privilege has global or
+    schema-level scope. Therefore, trying to grant it on a single table results in
+    an error as shown:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`EVENT`](privileges-provided.html#priv_event)权限具有全局或模式级别范围。因此，尝试在单个表上授予它会导致错误，如下所示：'
+- en: '[PRE2]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'It is important to understand that an event is executed with the privileges
+    of its definer, and that it cannot perform any actions for which its definer does
+    not have the requisite privileges. For example, suppose that `jon@ghidora` has
+    the [`EVENT`](privileges-provided.html#priv_event) privilege for `myschema`. Suppose
+    also that this user has the [`SELECT`](privileges-provided.html#priv_select) privilege
+    for `myschema`, but no other privileges for this schema. It is possible for `jon@ghidora`
+    to create a new event such as this one:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要的是要理解事件是以其定义者的权限执行的，并且它不能执行其定义者没有所需权限的任何操作。例如，假设`jon@ghidora`对`myschema`具有[`EVENT`](privileges-provided.html#priv_event)权限。还假设该用户对`myschema`具有[`SELECT`](privileges-provided.html#priv_select)权限，但对该模式没有其他权限。`jon@ghidora`可以创建一个新事件，如下所示：
+- en: '[PRE3]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: The user waits for a minute or so, and then performs a `SELECT * FROM mytable;`
+    query, expecting to see several new rows in the table. Instead, the table is empty.
+    Since the user does not have the [`INSERT`](privileges-provided.html#priv_insert)
+    privilege for the table in question, the event has no effect.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用户等待一分钟左右，然后执行`SELECT * FROM mytable;`查询，期望在表中看到几行新数据。然而，表是空的。由于用户没有表的[`INSERT`](privileges-provided.html#priv_insert)权限，因此事件没有效果。
+- en: 'If you inspect the MySQL error log (`*`hostname`*.err`), you can see that the
+    event is executing, but the action it is attempting to perform fails:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果检查MySQL错误日志（`*`hostname`*.err`），您会看到事件正在执行，但它尝试执行的操作失败：
+- en: '[PRE4]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Since this user very likely does not have access to the error log, it is possible
+    to verify whether the event''s action statement is valid by executing it directly:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于这个用户很可能无法访问错误日志，可以通过直接执行事件的操作语句来验证该事件是否有效：
+- en: '[PRE5]'
+  id: totrans-16
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Inspection of the Information Schema [`EVENTS`](information-schema-events-table.html
+    "28.3.14 The INFORMATION_SCHEMA EVENTS Table") table shows that `e_store_ts` exists
+    and is enabled, but its `LAST_EXECUTED` column is `NULL`:'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 检查信息模式[`EVENTS`](information-schema-events-table.html "28.3.14 INFORMATION_SCHEMA
+    EVENTS表")表显示`e_store_ts`存在且已启用，但其`LAST_EXECUTED`列为`NULL`：
+- en: '[PRE6]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'To rescind the [`EVENT`](privileges-provided.html#priv_event) privilege, use
+    the [`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement") statement. In this example,
+    the [`EVENT`](privileges-provided.html#priv_event) privilege on the schema `myschema`
+    is removed from the `jon@ghidora` user account:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要撤销[`EVENT`](privileges-provided.html#priv_event)权限，请使用[`REVOKE`](revoke.html
+    "15.7.1.8 REVOKE Statement")语句。在此示例中，从`jon@ghidora`用户账户中移除了模式`myschema`上的[`EVENT`](privileges-provided.html#priv_event)权限：
+- en: '[PRE7]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: Important
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Revoking the [`EVENT`](privileges-provided.html#priv_event) privilege from a
+    user does not delete or disable any events that may have been created by that
+    user.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从用户那里撤销[`EVENT`](privileges-provided.html#priv_event)权限不会删除或禁用该用户可能创建的任何事件。
+- en: An event is not migrated or dropped as a result of renaming or dropping the
+    user who created it.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事件不会因为创建它的用户被重命名或删除而迁移或删除。
+- en: 'Suppose that the user `jon@ghidora` has been granted the [`EVENT`](privileges-provided.html#priv_event)
+    and [`INSERT`](privileges-provided.html#priv_insert) privileges on the `myschema`
+    schema. This user then creates the following event:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设用户`jon@ghidora`已被授予`myschema`模式上的[`EVENT`](privileges-provided.html#priv_event)和[`INSERT`](privileges-provided.html#priv_insert)权限。然后该用户创建了以下事件：
+- en: '[PRE8]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'After this event has been created, `root` revokes the [`EVENT`](privileges-provided.html#priv_event)
+    privilege for `jon@ghidora`. However, `e_insert` continues to execute, inserting
+    a new row into `mytable` each seven seconds. The same would be true if `root`
+    had issued either of these statements:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建了这个事件后，`root`撤销了`jon@ghidora`的[`EVENT`](privileges-provided.html#priv_event)权限。然而，`e_insert`继续执行，每七秒插入一行到`mytable`中。如果`root`发出了以下任一语句，情况也是如此：
+- en: '`DROP USER jon@ghidora;`'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DROP USER jon@ghidora;`'
+- en: '`RENAME USER jon@ghidora TO someotherguy@ghidora;`'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`RENAME USER jon@ghidora TO someotherguy@ghidora;`'
+- en: You can verify that this is true by examining the Information Schema [`EVENTS`](information-schema-events-table.html
+    "28.3.14 The INFORMATION_SCHEMA EVENTS Table") table before and after issuing
+    a [`DROP USER`](drop-user.html "15.7.1.5 DROP USER Statement") or [`RENAME USER`](rename-user.html
+    "15.7.1.7 RENAME USER Statement") statement.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以通过在发出[`DROP USER`](drop-user.html "15.7.1.5 DROP USER Statement")或[`RENAME
+    USER`](rename-user.html "15.7.1.7 RENAME USER Statement")语句之前和之后检查信息模式[`EVENTS`](information-schema-events-table.html
+    "28.3.14 The INFORMATION_SCHEMA EVENTS Table")表来验证这一点。
+- en: Event definitions are stored in the data dictionary. To drop an event created
+    by another user account, you must be the MySQL `root` user or another user with
+    the necessary privileges.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事件定义存储在数据字典中。要删除由另一个用户账户创建的事件，您必须是MySQL `root`用户或具有必要权限的其他用户。
+- en: Users' [`EVENT`](privileges-provided.html#priv_event) privileges are stored
+    in the `Event_priv` columns of the `mysql.user` and `mysql.db` tables. In both
+    cases, this column holds one of the values '`Y`' or '`N`'. '`N`' is the default.
+    `mysql.user.Event_priv` is set to '`Y`' for a given user only if that user has
+    the global [`EVENT`](privileges-provided.html#priv_event) privilege (that is,
+    if the privilege was bestowed using `GRANT EVENT ON *.*`). For a schema-level
+    [`EVENT`](privileges-provided.html#priv_event) privilege, [`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement") creates a row in `mysql.db` and sets that row's `Db`
+    column to the name of the schema, the `User` column to the name of the user, and
+    the `Event_priv` column to '`Y`'. There should never be any need to manipulate
+    these tables directly, since the [`GRANT EVENT`](grant.html "15.7.1.6 GRANT Statement")
+    and `REVOKE EVENT` statements perform the required operations on them.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用户的[`EVENT`](privileges-provided.html#priv_event)权限存储在`mysql.user`和`mysql.db`表的`Event_priv`列中。在这两种情况下，该列保存值'`Y`'或'`N`'中的一个。'`N`'是默认值。对于给定用户，只有当该用户具有全局[`EVENT`](privileges-provided.html#priv_event)权限（即，如果使用`GRANT
+    EVENT ON *.*`授予了权限）时，`mysql.user.Event_priv`才设置为'`Y`'。对于模式级别的[`EVENT`](privileges-provided.html#priv_event)权限，[`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement")在`mysql.db`中创建一行，并将该行的`Db`列设置为模式名称，`User`列设置为用户名称，`Event_priv`列设置为'`Y`'。永远不应该直接操作这些表，因为[`GRANT
+    EVENT`](grant.html "15.7.1.6 GRANT Statement")和`REVOKE EVENT`语句会在其上执行所需的操作。
+- en: 'Five status variables provide counts of event-related operations (but *not*
+    of statements executed by events; see [Section 27.8, “Restrictions on Stored Programs”](stored-program-restrictions.html
+    "27.8 Restrictions on Stored Programs")). These are:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 五个状态变量提供了与事件相关操作的计数（但*不*包括事件执行的语句；请参阅[第27.8节，“存储程序的限制”](stored-program-restrictions.html
+    "27.8 Restrictions on Stored Programs")）。这些是：
+- en: '`Com_create_event`: The number of [`CREATE EVENT`](create-event.html "15.1.13 CREATE
+    EVENT Statement") statements executed since the last server restart.'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Com_create_event`: 自上次服务器重启以来执行的[`CREATE EVENT`](create-event.html "15.1.13 CREATE
+    EVENT Statement")语句的次数。'
+- en: '`Com_alter_event`: The number of [`ALTER EVENT`](alter-event.html "15.1.3 ALTER
+    EVENT Statement") statements executed since the last server restart.'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Com_alter_event`: 自上次服务器重启以来执行的[`ALTER EVENT`](alter-event.html "15.1.3 ALTER
+    EVENT Statement")语句的次数。'
+- en: '`Com_drop_event`: The number of [`DROP EVENT`](drop-event.html "15.1.25 DROP
+    EVENT Statement") statements executed since the last server restart.'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Com_drop_event`: 自上次服务器重启以来执行的[`DROP EVENT`](drop-event.html "15.1.25 DROP
+    EVENT Statement")语句的次数。'
+- en: '`Com_show_create_event`: The number of [`SHOW CREATE EVENT`](show-create-event.html
+    "15.7.7.7 SHOW CREATE EVENT Statement") statements executed since the last server
+    restart.'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Com_show_create_event`: 自上次服务器重启以来执行的[`SHOW CREATE EVENT`](show-create-event.html
+    "15.7.7.7 SHOW CREATE EVENT Statement")语句的次数。'
+- en: '`Com_show_events`: The number of [`SHOW EVENTS`](show-events.html "15.7.7.18 SHOW
+    EVENTS Statement") statements executed since the last server restart.'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`Com_show_events`: 自上次服务器重启以来执行的[`SHOW EVENTS`](show-events.html "15.7.7.18 SHOW
+    EVENTS Statement")语句的次数。'
+- en: You can view current values for all of these at one time by running the statement
+    `SHOW STATUS LIKE '%event%';`.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过运行语句`SHOW STATUS LIKE '%event%';`，您可以一次查看所有这些的当前值。

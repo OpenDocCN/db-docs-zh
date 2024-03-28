@@ -1,0 +1,238 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-exit.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-exit.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-exit.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure-exit.html)
+- en: 20.7.7.4 Exit Action
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.7.7.4 退出操作
+- en: The [`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action)
+    system variable, which is available from MySQL 8.0.12 and MySQL 5.7.24, specifies
+    what Group Replication does when the member leaves the group unintentionally due
+    to an error or problem, and either fails to auto-rejoin or does not try. Note
+    that in the case of an expelled member, the member does not know that it was expelled
+    until it reconnects to the group, so the specified action is only taken if the
+    member manages to reconnect, or if the member raises a suspicion on itself and
+    expels itself.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action)系统变量，从MySQL
+    8.0.12和MySQL 5.7.24开始提供，指定了当成员由于错误或问题意外离开组时，Group Replication应该执行的操作，以及在自动重新加入失败或不尝试重新加入时的操作。请注意，在被驱逐成员的情况下，成员在重新连接到组之前并不知道自己被驱逐，因此只有在成员成功重新连接或成员对自己产生怀疑并将自己驱逐时，才会执行指定的操作。'
+- en: 'In order of impact, the exit actions are as follows:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 按影响顺序，退出操作如下：
+- en: If `READ_ONLY` is the exit action, the instance switches MySQL to super read
+    only mode by setting the system variable [`super_read_only`](server-system-variables.html#sysvar_super_read_only)
+    to `ON`. When the member is in super read only mode, clients cannot make any updates,
+    even if they have the [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege).
+    However, clients can still read data, and because updates are no longer being
+    made, there is a probability of stale reads which increases over time. With this
+    setting, you therefore need to pro-actively monitor the servers for failures.
+    This exit action is the default from MySQL 8.0.15\. After this exit action is
+    taken, the member's status is displayed as `ERROR` in the view of the group.
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果`READ_ONLY`是退出操作，实例将通过将系统变量[`super_read_only`](server-system-variables.html#sysvar_super_read_only)设置为`ON`，将MySQL切换到超级只读模式。当成员处于超级只读模式时，客户端无法进行任何更新操作，即使他们拥有[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限）。然而，客户端仍然可以读取数据，由于不再进行更新，随着时间的推移，存在过时读取的可能性会增加。因此，您需要主动监视服务器以防止故障。从MySQL
+    8.0.15开始，这是默认的退出操作。在执行此退出操作后，成员的状态将在组的视图中显示为`ERROR`。
+- en: If `OFFLINE_MODE` is the exit action, the instance switches MySQL to offline
+    mode by setting the system variable [`offline_mode`](server-system-variables.html#sysvar_offline_mode)
+    to `ON`. When the member is in offline mode, connected client users are disconnected
+    on their next request and connections are no longer accepted, with the exception
+    of client users that have the [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege).
+    Group Replication also sets the system variable [`super_read_only`](server-system-variables.html#sysvar_super_read_only)
+    to `ON`, so clients cannot make any updates, even if they have connected with
+    the [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin) or [`SUPER`](privileges-provided.html#priv_super)
+    privilege. This exit action prevents both updates and stale reads (with the exception
+    of reads by client users with the stated privileges), and enables proxy tools
+    such as MySQL Router to recognize that the server is unavailable and redirect
+    client connections. It also leaves the instance running so that an administrator
+    can attempt to resolve the issue without shutting down MySQL. This exit action
+    is available from MySQL 8.0.18\. After this exit action is taken, the member's
+    status is displayed as `ERROR` in the view of the group (not `OFFLINE`, which
+    means a member has Group Replication functionality available but does not currently
+    belong to a group).
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果`OFFLINE_MODE`是退出操作，则通过将系统变量[`offline_mode`](server-system-variables.html#sysvar_offline_mode)设置为`ON`，实例将将MySQL切换到离线模式。当成员处于离线模式时，连接的客户端用户在下一次请求时将被断开连接，不再接受连接，但具有[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限）的客户端用户除外。Group
+    Replication还将系统变量[`super_read_only`](server-system-variables.html#sysvar_super_read_only)设置为`ON`，因此客户端无法进行任何更新，即使他们已经使用[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)或[`SUPER`](privileges-provided.html#priv_super)权限连接。此退出操作阻止了更新和过时读取（除了具有上述权限的客户端用户进行读取），并使代理工具（如MySQL
+    Router）能够识别服务器不可用并重定向客户端连接。它还保持实例运行，以便管理员可以尝试解决问题而不关闭MySQL。此退出操作从MySQL 8.0.18版本开始提供。在执行此退出操作后，成员的状态在组的视图中显示为`ERROR`（而不是`OFFLINE`，这意味着成员具有Group
+    Replication功能，但当前不属于任何组）。
+- en: If `ABORT_SERVER` is the exit action, the instance shuts down MySQL. Instructing
+    the member to shut itself down prevents all stale reads and client updates, but
+    it means that the MySQL Server instance is unavailable and must be restarted,
+    even if the issue could have been resolved without that step. This exit action
+    was the default from MySQL 8.0.12, when the system variable was added, to MySQL
+    8.0.15 inclusive. After this exit action is taken, the member is removed from
+    the listing of servers in the view of the group.
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果`ABORT_SERVER`是退出操作，则实例将关闭MySQL。指示成员关闭自身可以防止所有过时读取和客户端更新，但这意味着MySQL Server实例不可用，必须重新启动，即使问题可以在不进行此步骤的情况下解决。此退出操作是从MySQL
+    8.0.12版本（添加系统变量时）到MySQL 8.0.15版本（含）的默认操作。在执行此退出操作后，成员将从组的视图中的服务器列表中删除。
+- en: Bear in mind that operator intervention is required whatever exit action is
+    set, as an ex-member that has exhausted its auto-rejoin attempts (or never had
+    any) and has been expelled from the group is not allowed to rejoin without a restart
+    of Group Replication. The exit action only influences whether or not clients can
+    still read data on the server that was unable to rejoin the group, and whether
+    or not the server stays running.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，无论设置了哪种退出操作，都需要操作员干预，因为已耗尽自动重新加入尝试（或从未有过）并已被组驱逐的前成员不允许重新加入而无需重新启动Group Replication。退出操作仅影响客户端是否仍然可以在无法重新加入组的服务器上读取数据，以及服务器是否保持运行。
+- en: Important
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: If a failure occurs before the member has successfully joined the group, the
+    exit action specified by [`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action)
+    *is not taken*. This is the case if there is a failure during the local configuration
+    check, or a mismatch between the configuration of the joining member and the configuration
+    of the group. In these situations, the [`super_read_only`](server-system-variables.html#sysvar_super_read_only)
+    system variable is left with its original value, and the server does not shut
+    down MySQL. To ensure that the server cannot accept updates when Group Replication
+    did not start, we therefore recommend that [`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only)
+    is set in the server's configuration file at startup, which Group Replication
+    changes to `OFF` on primary members after it has been started successfully. This
+    safeguard is particularly important when the server is configured to start Group
+    Replication on server boot ([`group_replication_start_on_boot=ON`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)),
+    but it is also useful when Group Replication is started manually using a [`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement") command.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在成员成功加入组之前发生故障，则不会执行[`group_replication_exit_state_action`](group-replication-system-variables.html#sysvar_group_replication_exit_state_action)指定的退出操作。这种情况发生在本地配置检查期间发生故障，或者加入成员的配置与组的配置不匹配时。在这些情况下，[`super_read_only`](server-system-variables.html#sysvar_super_read_only)系统变量保持其原始值，服务器不会关闭MySQL。为了确保当
+    Group Replication 未启动时服务器无法接受更新，我们建议在服务器启动时在配置文件中设置[`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only)，Group
+    Replication 在成功启动后将其更改为`OFF`。当服务器配置为在服务器启动时启动 Group Replication（[`group_replication_start_on_boot=ON`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)）时，此保护措施尤为重要，但在使用[`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement")命令手动启动 Group Replication 时也很有用。
+- en: 'If a failure occurs after the member has successfully joined the group, the
+    specified exit action is taken. This is the case in the following situations:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果成员成功加入组后发生故障，则执行指定的退出操作。以下情况会发生：
+- en: '*Applier error* - There is an error in the replication applier. This issue
+    is not recoverable.'
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*应用程序错误* - 复制应用程序中存在错误。此问题无法恢复。'
+- en: '*Distributed recovery not possible* - There is an issue that means Group Replication''s
+    distributed recovery process (which uses remote cloning operations and state transfer
+    from the binary log) cannot be completed. Group Replication retries distributed
+    recovery automatically where this makes sense, but stops if there are no more
+    options to complete the process. For details, see [Section 20.5.4.4, “Fault Tolerance
+    for Distributed Recovery”](group-replication-distributed-recovery-fault.html "20.5.4.4 Fault
+    Tolerance for Distributed Recovery").'
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*无法进行分布式恢复* - 存在问题，导致 Group Replication 的分布式恢复过程（使用远程克隆操作和从二进制日志进行状态传输）无法完成。Group
+    Replication 在适当的情况下会自动重试分布式恢复，但如果没有更多选项来完成该过程，则会停止。有关详细信息，请参见[第20.5.4.4节，“分布式恢复的容错性”](group-replication-distributed-recovery-fault.html
+    "20.5.4.4 分布式恢复的容错性")。'
+- en: '*Group configuration change error* - An error occurred during a group-wide
+    configuration change carried out using a function, as described in [Section 20.5.1,
+    “Configuring an Online Group”](group-replication-configuring-online-group.html
+    "20.5.1 Configuring an Online Group").'
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*组配置更改错误* - 在使用函数进行组范围配置更改时发生错误，如[第20.5.1节，“配置在线组”](group-replication-configuring-online-group.html
+    "20.5.1 配置在线组")中所述。'
+- en: '*Primary election error* - An error occurred during election of a new primary
+    member for a group in single-primary mode, as described in [Section 20.1.3.1,
+    “Single-Primary Mode”](group-replication-single-primary-mode.html "20.1.3.1 Single-Primary
+    Mode").'
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*主选举错误* - 在单主模式下为组选择新主成员时发生错误，如[第20.1.3.1节，“单主模式”](group-replication-single-primary-mode.html
+    "20.1.3.1 单主模式")中所述。'
+- en: '*Unreachable majority timeout* - The member has lost contact with a majority
+    of the group members so is in a minority, and a timeout that was set by the [`group_replication_unreachable_majority_timeout`](group-replication-system-variables.html#sysvar_group_replication_unreachable_majority_timeout)
+    system variable has expired.'
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*无法访问的多数超时* - 成员与大多数组成员失去联系，因此处于少数，并且由 [`group_replication_unreachable_majority_timeout`](group-replication-system-variables.html#sysvar_group_replication_unreachable_majority_timeout)
+    系统变量设置的超时已经过期。'
+- en: '*Member expelled from group* - A suspicion has been raised on the member, and
+    any timeout set by the [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable has expired, and the member has resumed communication with the
+    group and found that it has been expelled.'
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*成员被组驱逐* - 对成员提出了怀疑，并且由 [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    系统变量设置的任何超时已经过期，成员已恢复与组的通信并发现自己已被驱逐。'
+- en: '*Out of auto-rejoin attempts* - The [`group_replication_autorejoin_tries`](group-replication-system-variables.html#sysvar_group_replication_autorejoin_tries)
+    system variable was set to specify a number of auto-rejoin attempts after a loss
+    of majority or expulsion, and the member completed this number of attempts without
+    success.'
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '*超出自动重新加入尝试次数* - [`group_replication_autorejoin_tries`](group-replication-system-variables.html#sysvar_group_replication_autorejoin_tries)
+    系统变量被设置为指定在失去多数或被驱逐后的自动重新加入尝试次数，成员完成了这些尝试次数但未成功。'
+- en: 'The following table summarizes the failure scenarios and actions in each case:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格总结了每种情况下的失败场景和操作：
+- en: '**Table 20.3 Exit actions in Group Replication failure situations**'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 20.3 组复制失败情况下的退出操作**'
+- en: '| Failure situation | Group Replication started with `START GROUP_REPLICATION`
+    | Group Replication started with `group_replication_start_on_boot =ON` |'
+  id: totrans-20
+  prefs: []
+  type: TYPE_TB
+  zh: '| 失败情况 | 使用 `START GROUP_REPLICATION` 启动组复制 | 使用 `group_replication_start_on_boot
+    =ON` 启动组复制 |'
+- en: '| Member fails local configuration checkMismatch between joining member and
+    group configuration | `super_read_only` and `offline_mode` unchangedMySQL continues
+    runningSet `super_read_only=ON` at startup to prevent updates | `super_read_only`
+    and `offline_mode` unchangedMySQL continues runningSet `super_read_only=ON` at
+    startup to prevent updates (Important) |'
+  id: totrans-21
+  prefs: []
+  type: TYPE_TB
+  zh: '| 成员未通过本地配置检查加入成员与组配置不匹配 | `super_read_only` 和 `offline_mode` 未更改MySQL 继续运行在启动时设置
+    `super_read_only=ON` 以防止更新 | `super_read_only` 和 `offline_mode` 未更改MySQL 继续运行在启动时设置
+    `super_read_only=ON` 以防止更新（重要） |'
+- en: '| Applier error on memberDistributed recovery not possibleGroup configuration
+    change errorPrimary election errorUnreachable majority timeoutMember expelled
+    from groupOut of auto-rejoin attempts | `super_read_only` set to `ON`OR`offline_mode`
+    and `super_read_only` set to `ON`ORMySQL shuts down | `super_read_only` set to
+    `ON`OR`offline_mode` and `super_read_only` set to `ON`ORMySQL shuts down |'
+  id: totrans-22
+  prefs: []
+  type: TYPE_TB
+  zh: '| 应用程序错误在成员分布式恢复不可能组配置更改错误主要选举错误无法访问的多数超时成员被组驱逐超出自动重新加入尝试次数 | `super_read_only`
+    设置为 `ON` 或 `offline_mode` 和 `super_read_only` 设置为 `ON` 或 MySQL 关闭 | `super_read_only`
+    设置为 `ON` 或 `offline_mode` 和 `super_read_only` 设置为 `ON` 或 MySQL 关闭 |'

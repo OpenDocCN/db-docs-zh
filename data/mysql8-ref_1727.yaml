@@ -1,0 +1,337 @@
+- en: 25.6.5 Performing a Rolling Restart of an NDB Cluster
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.6.5 执行NDB Cluster的滚动重启
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-rolling-restart.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-rolling-restart.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-rolling-restart.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-rolling-restart.html)
+- en: This section discusses how to perform a rolling restart of an NDB Cluster installation,
+    so called because it involves stopping and starting (or restarting) each node
+    in turn, so that the cluster itself remains operational. This is often done as
+    part of a rolling upgrade or rolling downgrade, where high availability of the
+    cluster is mandatory and no downtime of the cluster as a whole is permissible.
+    Where we refer to upgrades, the information provided here also generally applies
+    to downgrades as well.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论如何执行NDB Cluster安装的滚动重启，因为它涉及逐个停止和启动（或重启）每个节点，以确保集群本身保持运行。这通常作为滚动升级或滚动降级的一部分进行，其中集群的高可用性是必需的，整个集群不允许停机。在我们提到升级时，这里提供的信息通常也适用于降级。
+- en: There are a number of reasons why a rolling restart might be desirable. These
+    are described in the next few paragraphs.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有许多原因可能希望进行滚动重启。这些原因在接下来的几段中描述。
+- en: '**Configuration change. ** To make a change in the cluster''s configuration,
+    such as adding an SQL node to the cluster, or setting a configuration parameter
+    to a new value.'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**配置更改。** 对集群的配置进行更改，例如向集群添加SQL节点，或将配置参数设置为新值。'
+- en: '**NDB Cluster software upgrade or downgrade. ** To upgrade the cluster to a
+    newer version of the NDB Cluster software (or to downgrade it to an older version).
+    This is usually referred to as a “rolling upgrade” (or “rolling downgrade”, when
+    reverting to an older version of NDB Cluster).'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB Cluster软件升级或降级。** 将集群升级到NDB Cluster软件的新版本（或将其降级到旧版本）。这通常被称为“滚动升级”（或“滚动降级”，当恢复到NDB
+    Cluster的旧版本时）。'
+- en: '**Change on node host. ** To make changes in the hardware or operating system
+    on which one or more NDB Cluster node processes are running.'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**节点主机更改。** 对运行一个或多个NDB Cluster节点进程的硬件或操作系统进行更改。'
+- en: '**System reset (cluster reset). ** To reset the cluster because it has reached
+    an undesirable state. In such cases it is often desirable to reload the data and
+    metadata of one or more data nodes. This can be done in any of three ways:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**系统重置（集群重置）。** 重置集群，因为它已经达到一个不良状态。在这种情况下，通常希望重新加载一个或多个数据节点的数据和元数据。这可以通过以下三种方式之一完成：'
+- en: Start each data node process ([**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon") or possibly [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")) with the
+    [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial) option, which
+    forces the data node to clear its file system and to reload all NDB Cluster data
+    and metadata from the other data nodes.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)选项启动每个数据节点进程（[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — NDB Cluster数据节点守护程序")或可能是[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — NDB Cluster数据节点守护程序（多线程）")），该选项强制数据节点清除其文件系统，并从其他数据节点重新加载所有NDB
+    Cluster数据和元数据。
+- en: Beginning with NDB 8.0.21, this also forces the removal of all Disk Data objects
+    and files associated with those objects.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从NDB 8.0.21开始，这还会强制删除与这些对象相关的所有磁盘数据对象和文件。
+- en: Create a backup using the [**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html
+    "25.5.5 ndb_mgm — The NDB Cluster Management Client") client [`START BACKUP`](mysql-cluster-backup-using-management-client.html
+    "25.6.8.2 Using The NDB Cluster Management Client to Create a Backup") command
+    prior to performing the restart. Following the upgrade, restore the node or nodes
+    using [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup").
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm — NDB Cluster管理客户端")客户端的[`START
+    BACKUP`](mysql-cluster-backup-using-management-client.html "25.6.8.2 使用NDB Cluster管理客户端创建备份")命令创建备份，然后执行重启操作。升级后，使用[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复NDB Cluster备份")来恢复节点或节点。
+- en: See [Section 25.6.8, “Online Backup of NDB Cluster”](mysql-cluster-backup.html
+    "25.6.8 Online Backup of NDB Cluster"), and [Section 25.5.23, “ndb_restore — Restore
+    an NDB Cluster Backup”](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup"), for more information.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查看[Section 25.6.8, “Online Backup of NDB Cluster”](mysql-cluster-backup.html
+    "25.6.8 Online Backup of NDB Cluster")和[Section 25.5.23, “ndb_restore — Restore
+    an NDB Cluster Backup”](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup")获取更多信息。
+- en: Use [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    to create a backup prior to the upgrade; afterward, restore the dump using [`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement").
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")在升级之前创建备份；之后，使用[`LOAD
+    DATA`](load-data.html "15.2.9 LOAD DATA Statement")来恢复备份。
+- en: '**Resource Recovery. ** To free memory previously allocated to a table by successive
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") and [`DELETE`](delete.html "15.2.2 DELETE
+    Statement") operations, for re-use by other NDB Cluster tables.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**资源回收。** 通过连续的[`INSERT`](insert.html "15.2.7 INSERT Statement")和[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")操作释放先前分配给表的内存，以便其他NDB Cluster表重复使用。'
+- en: 'The process for performing a rolling restart may be generalized as follows:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行滚动重启的过程可以概括如下：
+- en: Stop all cluster management nodes ([**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon") processes), reconfigure
+    them, then restart them. (See [Rolling restarts with multiple management servers](mysql-cluster-rolling-restart.html#mysql-cluster-rolling-restart-multiple-ndb-mgmd
+    "Rolling restarts with multiple management servers").)
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止所有集群管理节点（[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon")进程），重新配置它们，然后重新启动它们。 （参见[使用多个管理服务器进行滚动重启](mysql-cluster-rolling-restart.html#mysql-cluster-rolling-restart-multiple-ndb-mgmd
+    "Rolling restarts with multiple management servers").）
+- en: Stop, reconfigure, then restart each cluster data node ([**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process) in turn.
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 依次停止、重新配置，然后重新启动每个集群数据节点（[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd
+    — The NDB Cluster Data Node Daemon")进程）。
+- en: Some node configuration parameters can be updated by issuing [`RESTART`](mysql-cluster-mgm-client-commands.html#ndbclient-restart)
+    for each of the data nodes in the [**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html
+    "25.5.5 ndb_mgm — The NDB Cluster Management Client") client following the previous
+    step. Other parameters require that the data node be stopped completely using
+    the management client [`STOP`](mysql-cluster-mgm-client-commands.html#ndbclient-stop)
+    command, then started again from a system shell by invoking the [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") executable
+    as appropriate. (A shell command such as [**kill**](kill.html "15.7.8.4 KILL Statement")
+    can also be used on most Unix systems to stop a data node process, but the `STOP`
+    command is preferred and usually simpler.)
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 通过在前一步骤之后在[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm
+    — The NDB Cluster Management Client")客户端为每个数据节点发出[`RESTART`](mysql-cluster-mgm-client-commands.html#ndbclient-restart)来更新一些节点配置参数。其他参数要求使用管理客户端[`STOP`](mysql-cluster-mgm-client-commands.html#ndbclient-stop)命令完全停止数据节点，然后通过在系统shell中调用适当的[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")或[**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")可执行文件来重新启动。
+    （在大多数Unix系统上，也可以使用类似[**kill**](kill.html "15.7.8.4 KILL Statement")的shell命令来停止数据节点进程，但通常更倾向于使用`STOP`命令，通常更简单。）
+- en: Note
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: On Windows, you can also use **SC STOP** and **SC START** commands, `NET STOP`
+    and `NET START` commands, or the Windows Service Manager to stop and start nodes
+    which have been installed as Windows services (see [Section 25.3.2.4, “Installing
+    NDB Cluster Processes as Windows Services”](mysql-cluster-install-windows-service.html
+    "25.3.2.4 Installing NDB Cluster Processes as Windows Services")).
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在Windows上，您还可以使用**SC STOP**和**SC START**命令，`NET STOP`和`NET START`命令，或Windows服务管理器来停止和启动已安装为Windows服务的节点（参见[Section 25.3.2.4,
+    “Installing NDB Cluster Processes as Windows Services”](mysql-cluster-install-windows-service.html
+    "25.3.2.4 Installing NDB Cluster Processes as Windows Services")）。
+- en: The type of restart required is indicated in the documentation for each node
+    configuration parameter. See [Section 25.4.3, “NDB Cluster Configuration Files”](mysql-cluster-config-file.html
+    "25.4.3 NDB Cluster Configuration Files").
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 所需的重启类型在��个节点配置参数的文档中指示。请参阅[Section 25.4.3, “NDB Cluster Configuration Files”](mysql-cluster-config-file.html
+    "25.4.3 NDB Cluster Configuration Files")。
+- en: Stop, reconfigure, then restart each cluster SQL node ([**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") process) in turn.
+  id: totrans-21
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 依次停止、重新配置，然后重新启动每个集群SQL节点（[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server")进程）。
+- en: 'NDB Cluster supports a somewhat flexible order for upgrading nodes. When upgrading
+    an NDB Cluster, you may upgrade API nodes (including SQL nodes) before upgrading
+    the management nodes, data nodes, or both. In other words, you are permitted to
+    upgrade the API and SQL nodes in any order. This is subject to the following provisions:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster支持一种相对灵活的节点升级顺序。在升级NDB Cluster时，您可以在升级管理节点、数据节点或两者之前先升级API节点（包括SQL节点）。换句话说，您可以按任意顺序升级API和SQL节点。但需遵守以下规定：
+- en: This functionality is intended for use as part of an online upgrade only. A
+    mix of node binaries from different NDB Cluster releases is neither intended nor
+    supported for continuous, long-term use in a production setting.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此功能仅用于在线升级。不打算也不支持在生产环境中连续长期使用来自不同NDB Cluster版本的节点二进制文件的混合。
+- en: You must upgrade all nodes of the same type (management, data, or API node)
+    before upgrading any nodes of a different type. This remains true regardless of
+    the order in which the nodes are upgraded.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须在升级任何不同类型节点（管理、数据或API节点）之前先升级所有相同类型的节点。无论节点升级顺序如何，这一点始终成立。
+- en: You must upgrade all management nodes before upgrading any data nodes. This
+    remains true regardless of the order in which you upgrade the cluster's API and
+    SQL nodes.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须在升级任何数据节点之前升级所有管理节点。无论您以何种顺序升级集群的API和SQL节点，这一点始终成立。
+- en: Features specific to the “new” version must not be used until all management
+    nodes and data nodes have been upgraded.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在升级所有管理节点和数据节点之前，不能使用“新”版本特有的功能。
+- en: This also applies to any MySQL Server version change that may apply, in addition
+    to the NDB engine version change, so do not forget to take this into account when
+    planning the upgrade. (This is true for online upgrades of NDB Cluster in general.)
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这也适用于可能适用的任何MySQL Server版本更改，除了NDB引擎版本更改，因此在规划升级时不要忘记考虑这一点。（这对于一般NDB Cluster的在线升级也是适用的。）
+- en: It is not possible for any API node to perform schema operations (such as data
+    definition statements) during a node restart. Due in part to this limitation,
+    schema operations are also not supported during an online upgrade or downgrade.
+    In addition, it is not possible to perform native backups while an upgrade or
+    downgrade is ongoing.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 任何API节点在节点重新启动期间都无法执行模式操作（如数据定义语句）。部分由于此限制，模式操作在在线升级或降级期间也不受支持。此外，在升级或降级进行时也无法执行本地备份。
+- en: '**Rolling restarts with multiple management servers. ** When performing a rolling
+    restart of an NDB Cluster with multiple management nodes, you should keep in mind
+    that [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd — The
+    NDB Cluster Management Server Daemon") checks to see if any other management node
+    is running, and, if so, tries to use that node''s configuration data. To keep
+    this from occurring, and to force [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon") to re-read its configuration
+    file, perform the following steps:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**使用多个管理服务器进行滚动重启。** 在对具有多个管理节点的NDB Cluster执行滚动重启时，应注意[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon")会检查是否有其他管理节点正在运行，并尝试使用该节点的配置数据。为防止这种情况发生，并强制[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon")重新读取其配置文件，请执行以下步骤：'
+- en: Stop all NDB Cluster [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon") processes.
+  id: totrans-30
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止所有NDB Cluster的[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon")进程。
+- en: Update all `config.ini` files.
+  id: totrans-31
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 更新所有`config.ini`文件。
+- en: Start a single [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon") with [`--reload`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_reload),
+    [`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial), or
+    both options as desired.
+  id: totrans-32
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动一个单独的[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon")，使用所需的[`--reload`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_reload)、[`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial)或两个选项。
+- en: If you started the first [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon") with the [`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial)
+    option, you must also start any remaining [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon") processes using
+    `--initial`.
+  id: totrans-33
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果您使用[`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial)选项启动了第一个[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon")，您还必须使用`--initial`启动任何剩余的[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon")进程。
+- en: Regardless of any other options used when starting the first [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon"), you should not
+    start any remaining [**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon") processes after the first one using
+    [`--reload`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_reload).
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 无论在启动第一个[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html "25.5.4 ndb_mgmd
+    — The NDB Cluster Management Server Daemon")时使用了哪些其他选项，您都不应该在第一个使用[`--reload`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_reload)之后启动任何剩余的[**ndb_mgmd**](mysql-cluster-programs-ndb-mgmd.html
+    "25.5.4 ndb_mgmd — The NDB Cluster Management Server Daemon")进程。
+- en: Complete the rolling restarts of the data nodes and API nodes as normal.
+  id: totrans-35
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 按照正常流程完成数据节点和API节点的滚动重启。
+- en: When performing a rolling restart to update the cluster's configuration, you
+    can use the `config_generation` column of the [`ndbinfo.nodes`](mysql-cluster-ndbinfo-nodes.html
+    "25.6.16.47 The ndbinfo nodes Table") table to keep track of which data nodes
+    have been successfully restarted with the new configuration. See [Section 25.6.16.47,
+    “The ndbinfo nodes Table”](mysql-cluster-ndbinfo-nodes.html "25.6.16.47 The ndbinfo
+    nodes Table").
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在执行滚动重启以更新集群配置时，您可以使用[`ndbinfo.nodes`](mysql-cluster-ndbinfo-nodes.html "25.6.16.47 The
+    ndbinfo nodes Table")表的`config_generation`列来跟踪哪些数据节点已成功使用新配置重新启动。请参阅[Section 25.6.16.47,
+    “The ndbinfo nodes Table”](mysql-cluster-ndbinfo-nodes.html "25.6.16.47 The ndbinfo
+    nodes Table")。

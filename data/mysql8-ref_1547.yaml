@@ -1,0 +1,346 @@
+- en: 20.7.8 Handling a Network Partition and Loss of Quorum
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.7.8 处理网络分区和失去法定人数
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-network-partitioning.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-network-partitioning.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-network-partitioning.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-network-partitioning.html)
+- en: The group needs to achieve consensus whenever a change that needs to be replicated
+    happens. This is the case for regular transactions but is also required for group
+    membership changes and some internal messaging that keeps the group consistent.
+    Consensus requires a majority of group members to agree on a given decision. When
+    a majority of group members is lost, the group is unable to progress and blocks
+    because it cannot secure majority or quorum.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当需要复制发生的更改时，组需要达成共识。这适用于常规事务，但也适用于组成员更改和保持组一致性的某些内部消息。共识要求组成员中的大多数同意给定决定。当组成员的大多数丢失时，组无法继续进行并阻塞，因为它无法获得法定人数或法定人数。
+- en: Quorum may be lost when there are multiple involuntary failures, causing a majority
+    of servers to be removed abruptly from the group. For example, in a group of 5
+    servers, if 3 of them become silent at once, the majority is compromised and thus
+    no quorum can be achieved. In fact, the remaining two are not able to tell if
+    the other 3 servers have crashed or whether a network partition has isolated these
+    2 alone and therefore the group cannot be reconfigured automatically.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当有多个非自愿故障导致大多数服务器突然从组中移除时，可能会丢失法定人数。例如，在 5 台服务器组中，如果其中有 3 台同时变得沉默，那么大多数就会受到影响，因此无法实现法定人数。事实上，剩下的两台无法确定其他
+    3 台服务器是否已崩溃，还是网络分区已将这两台孤立，因此组无法自动重新配置。
+- en: On the other hand, if servers exit the group voluntarily, they instruct the
+    group that it should reconfigure itself. In practice, this means that a server
+    that is leaving tells others that it is going away. This means that other members
+    can reconfigure the group properly, the consistency of the membership is maintained
+    and the majority is recalculated. For example, in the above scenario of 5 servers
+    where 3 leave at once, if the 3 leaving servers warn the group that they are leaving,
+    one by one, then the membership is able to adjust itself from 5 to 2, and at the
+    same time, securing quorum while that happens.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一方面，如果服务器自愿退出组，它们会指示组应重新配置自身。实际上，这意味着要离开的服务器告诉其他人它要离开。这意味着其他成员可以正确地重新配置组，维护成员的一致性并重新计算法定人数。例如，在上述
+    5 台服务器的情况下，如果有 3 台同时离开，如果这 3 台离开的服务器依次警告组它们要离开，那么成员资格就能够从 5 调整到 2，并同时在此过程中确保法定人数。
+- en: Note
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Loss of quorum is by itself a side-effect of bad planning. Plan the group size
+    for the number of expected failures (regardless whether they are consecutive,
+    happen all at once or are sporadic).
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 失去法定人数本身就是规划不良的副作用。根据预期故障数量规划组大小（无论这些故障是连续发生、同时发生还是零星发生）。
+- en: For a group in single-primary mode, the primary might have transactions that
+    are not yet present on other members at the time of the network partition. If
+    you are considering excluding the primary from the new group, be aware that such
+    transactions might be lost. A member with extra transactions cannot rejoin the
+    group, and the attempt results in an error with the message This member has more
+    executed transactions than those present in the group. Set the [`group_replication_unreachable_majority_timeout`](group-replication-system-variables.html#sysvar_group_replication_unreachable_majority_timeout)
+    system variable for the group members to avoid this situation.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于单主模式的组，主服务器可能有一些尚未在网络分区发生时其他成员上出现的事务。如果考虑将主服务器排除在新组之外，请注意这些事务可能会丢失。具有额外事务的成员无法重新加入组，尝试会导致错误消息，内容为此成员的已执行事务多于组中存在的事务。设置[`group_replication_unreachable_majority_timeout`](group-replication-system-variables.html#sysvar_group_replication_unreachable_majority_timeout)系统变量以避免此情况。
+- en: The following sections explain what to do if the system partitions in such a
+    way that no quorum is automatically achieved by the servers in the group.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节解释了如果系统以使组内服务器无法自动实现法定人数的方式分区应该怎么办。
+- en: Detecting Partitions
+  id: totrans-9
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 检测分区
+- en: The [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") performance schema table presents
+    the status of each server in the current view from the perspective of this server.
+    The majority of the time the system does not run into partitioning, and therefore
+    the table shows information that is consistent across all servers in the group.
+    In other words, the status of each server on this table is agreed by all in the
+    current view. However, if there is network partitioning, and quorum is lost, then
+    the table shows the status `UNREACHABLE` for those servers that it cannot contact.
+    This information is exported by the local failure detector built into Group Replication.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") 性能模式表呈现了从该服务器的视角看到的当前视图中每台服务器的状态。大多数情况下，系统不会遇到分区，因此该表显示跨组中所有服务器一致的信息。换句话说，该表上每台服务器的状态在当前视图中得到了所有人的认可。然而，如果存在网络分区，并且丢失了法定人数，那么对于那些无法联系的服务器，该表将显示状态为
+    `UNREACHABLE`。这些信息由 Group Replication 内置的本地故障检测器导出。'
+- en: '**Figure 20.14 Losing Quorum**'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 20.14 失去法定人数**'
+- en: '![Five server instances, S1, S2, S3, S4, and S5, are deployed as an interconnected
+    group, which is a stable group. When three of the servers, S3, S4, and S5, fail,
+    the majority is lost and the group can no longer proceed without intervention.](../Images/12d09bc9880a74224395df57e2a0c4f8.png)'
+  id: totrans-12
+  prefs: []
+  type: TYPE_IMG
+  zh: '![五个服务器实例，S1、S2、S3、S4 和 S5，部署为一个相互连接的稳定组。当其中三台服务器 S3、S4 和 S5 失效时，大多数失去，组无法在没有干预的情况下继续运行。](../Images/12d09bc9880a74224395df57e2a0c4f8.png)'
+- en: To understand this type of network partition the following section describes
+    a scenario where there are initially 5 servers working together correctly, and
+    the changes that then happen to the group once only 2 servers are online. The
+    scenario is depicted in the figure.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要理解这种类型的网络分区，以下部分描述了最初有 5 台服务器正确协作的情景，以及一旦只有 2 台服务器在线后组发生的变化。该情景在图中描述。
+- en: 'As such, lets assume that there is a group with these 5 servers in it:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因此，假设有一个包含这 5 台服务器的组：
+- en: Server s1 with member identifier `199b2df7-4aaf-11e6-bb16-28b2bd168d07`
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器 s1 的成员标识符为 `199b2df7-4aaf-11e6-bb16-28b2bd168d07`
+- en: Server s2 with member identifier `199bb88e-4aaf-11e6-babe-28b2bd168d07`
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器 s2 的成员标识符为 `199bb88e-4aaf-11e6-babe-28b2bd168d07`
+- en: Server s3 with member identifier `1999b9fb-4aaf-11e6-bb54-28b2bd168d07`
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器 s3 的成员标识符为 `1999b9fb-4aaf-11e6-bb54-28b2bd168d07`
+- en: Server s4 with member identifier `19ab72fc-4aaf-11e6-bb51-28b2bd168d07`
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器 s4 的成员标识符为 `19ab72fc-4aaf-11e6-bb51-28b2bd168d07`
+- en: Server s5 with member identifier `19b33846-4aaf-11e6-ba81-28b2bd168d07`
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器 s5 的成员标识符为 `19b33846-4aaf-11e6-ba81-28b2bd168d07`
+- en: 'Initially the group is running fine and the servers are happily communicating
+    with each other. You can verify this by logging into s1 and looking at its [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") performance schema table. For
+    example:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最初，组运行良好，服务器之间愉快地进行通信。您可以通过登录 s1 并查看其 [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") 性能模式表来验证这一点。例如：
+- en: '[PRE0]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: However, moments later there is a catastrophic failure and servers s3, s4 and
+    s5 stop unexpectedly. A few seconds after this, looking again at the [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") table on s1 shows that it is
+    still online, but several others members are not. In fact, as seen below they
+    are marked as `UNREACHABLE`. Moreover, the system could not reconfigure itself
+    to change the membership, because the majority has been lost.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，片刻之后发生了灾难性故障，服务器 s3、s4 和 s5 意外停止运行。几秒钟后，再次查看 s1 上的 [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") 表，显示它仍然在线，但其他几个成员不在线。事实上，如下所示，它们被标记为
+    `UNREACHABLE`。此外，系统无法重新配置自身以更改成员资格，因为大多数成员已经丢失。
+- en: '[PRE1]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The table shows that s1 is now in a group that has no means of progressing without
+    external intervention, because a majority of the servers are unreachable. In this
+    particular case, the group membership list needs to be reset to allow the system
+    to proceed, which is explained in this section. Alternatively, you could also
+    choose to stop Group Replication on s1 and s2 (or stop completely s1 and s2),
+    figure out what happened with s3, s4 and s5 and then restart Group Replication
+    (or the servers).
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表格显示，s1 现在处于一个没有办法继续进行的组中，因为大多数服务器无法访问。在这种特殊情况下，需要重置组成员列表以允许系统继续进行，这在本节中有解释。或者，您也可以选择停止
+    s1 和 s2 上的组复制（或完全停止 s1 和 s2），弄清楚 s3、s4 和 s5 发生了什么，然后重新启动组复制（或服务器）。
+- en: Unblocking a Partition
+  id: totrans-25
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 解除分区阻塞
+- en: Group replication enables you to reset the group membership list by forcing
+    a specific configuration. For instance in the case above, where s1 and s2 are
+    the only servers online, you could choose to force a membership configuration
+    consisting of only s1 and s2\. This requires checking some information about s1
+    and s2 and then using the [`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)
+    variable.
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组复制使您能够通过强制特定配置来重置组成员列表。例如，在上述情况中，只有 s1 和 s2 在线，您可以选择强制执行仅包含 s1 和 s2 的成员配置。这需要检查有关
+    s1 和 s2 的一些信息，然后使用 [`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)
+    变量。
+- en: '**Figure 20.15 Forcing a New Membership**'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 20.15 强制执行新的成员配置**'
+- en: '![Three of the servers in a group, S3, S4, and S5, have failed, so the majority
+    is lost and the group can no longer proceed without intervention. With the intervention
+    described in the following text, S1 and S2 are able to form a stable group by
+    themselves.](../Images/ed9795d64da57a9c05a79babf67785c5.png)'
+  id: totrans-28
+  prefs: []
+  type: TYPE_IMG
+  zh: '![组中的三台服务器 S3、S4 和 S5 失败，因此失去了多数派，组无法继续进行。通过下文描述的干预，S1 和 S2 能够自行形成一个稳定的组。](../Images/ed9795d64da57a9c05a79babf67785c5.png)'
+- en: Suppose that you are back in the situation where s1 and s2 are the only servers
+    left in the group. Servers s3, s4 and s5 have left the group unexpectedly. To
+    make servers s1 and s2 continue, you want to force a membership configuration
+    that contains only s1 and s2.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您回到了只剩下 s1 和 s2 两台服务器的情况。服务器 s3、s4 和 s5 突然离开了组。为了让服务器 s1 和 s2 继续运行，您希望强制执行一个只包含
+    s1 和 s2 的成员配置。
+- en: Warning
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: This procedure uses [`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)
+    and should be considered a last resort remedy. It *must* be used with extreme
+    care and only for overriding loss of quorum. If misused, it could create an artificial
+    split-brain scenario or block the entire system altogether.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此过程使用 [`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)
+    ，应被视为最后的补救措施。它*必须*极度小心使用，仅用于覆盖丧失法定人数的情况。如果被滥用，可能会导致人为的脑裂情况或完全阻塞整个系统。
+- en: When forcing a new membership configuration, make sure that any servers are
+    going to be forced out of the group are indeed stopped. In the scenario depicted
+    above, if s3, s4 and s5 are not really unreachable but instead are online, they
+    may have formed their own functional partition (they are 3 out of 5, hence they
+    have the majority). In that case, forcing a group membership list with s1 and
+    s2 could create an artificial split-brain situation. Therefore it is important
+    before forcing a new membership configuration to ensure that the servers to be
+    excluded are indeed shut down and if they are not, shut them down before proceeding.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在强制执行新的成员配置时，请确保任何要被强制退出组的服务器确实已经停止运行。在上述场景中，如果 s3、s4 和 s5 并非真正无法访问，而是在线的话，它们可能已经形成了自己的功能分区（它们是
+    5 台中的 3 台，因此拥有多数派）。在这种情况下，强制使用只包含 s1 和 s2 的组成员列表可能会导致人为的脑裂情况。因此，在强制执行新的成员配置之前，确保要排除的服务器确实已关闭，如果没有关闭，请在继续之前关闭它们。
+- en: Warning
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: For a group in single-primary mode, the primary might have transactions that
+    are not yet present on other members at the time of the network partition. If
+    you are considering excluding the primary from the new group, be aware that such
+    transactions might be lost. A member with extra transactions cannot rejoin the
+    group, and the attempt results in an error with the message This member has more
+    executed transactions than those present in the group. Set the [`group_replication_unreachable_majority_timeout`](group-replication-system-variables.html#sysvar_group_replication_unreachable_majority_timeout)
+    system variable for the group members to avoid this situation.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于单主模式的组，主服务器可能有一些在网络分区时其他成员尚未存在的事务。如果您考虑将主服务器排除在新组之外，请注意这些事务可能会丢失。具有额外事务的成员无法重新加入组，尝试会导致错误消息为此成员的已执行事务多于组中存在的事务。设置[`group_replication_unreachable_majority_timeout`](group-replication-system-variables.html#sysvar_group_replication_unreachable_majority_timeout)系统变量以避免此情况。
+- en: 'Recall that the system is blocked and the current configuration is the following
+    (as perceived by the local failure detector on s1):'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请记住系统被阻塞，当前配置如下（由`s1`上的本地故障检测器感知）：
+- en: '[PRE2]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The first thing to do is to check what is the local address (group communication
+    identifier) for s1 and s2\. Log in to s1 and s2 and get that information as follows.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先要做的是检查`s1`和`s2`的本地地址（组通信标识符）。登录到`s1`和`s2`，并按以下方式获取该信息。
+- en: '[PRE3]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Once you know the group communication addresses of s1 (`127.0.0.1:10000`) and
+    s2 (`127.0.0.1:10001`), you can use that on one of the two servers to inject a
+    new membership configuration, thus overriding the existing one that has lost quorum.
+    To do that on s1:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦知道`s1`（`127.0.0.1:10000`）和`s2`（`127.0.0.1:10001`）的组通信地址，您可以在两个服务器中的一个上使用它来注入新的成员配置，从而覆盖已失去法定人数的现有配置。在`s1`上执行以下操作：
+- en: '[PRE4]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: This unblocks the group by forcing a different configuration. Check [`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") on both s1 and s2 to verify
+    the group membership after this change. First on s1.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过强制不同配置来解除组的阻塞。在此更改后，检查`s1`和`s2`上的[`replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table")以验证组成员身份。首先在`s1`上。
+- en: '[PRE5]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: And then on s2.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后在`s2`上执行。
+- en: '[PRE6]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: After you have used the [`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)
+    system variable to successfully force a new group membership and unblock the group,
+    ensure that you clear the system variable. [`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)
+    must be empty in order to issue a [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") statement.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在使用[`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)系统变量成功强制新的组成员身份并解除组阻塞后，请确保清除该系统变量。为了发出[`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement")语句，[`group_replication_force_members`](group-replication-system-variables.html#sysvar_group_replication_force_members)必须为空。

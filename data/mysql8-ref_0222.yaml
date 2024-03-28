@@ -1,0 +1,159 @@
+- en: 6.10 Unix Signal Handling in MySQL
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 6.10 MySQL 中的 Unix 信号处理
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/unix-signal-response.html](https://dev.mysql.com/doc/refman/8.0/en/unix-signal-response.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/unix-signal-response.html](https://dev.mysql.com/doc/refman/8.0/en/unix-signal-response.html)
+- en: On Unix and Unix-like systems, a process can be the recipient of signals sent
+    to it by the `root` system account or the system account that owns the process.
+    Signals can be sent using the [**kill**](kill.html "15.7.8.4 KILL Statement")
+    command. Some command interpreters associate certain key sequences with signals,
+    such as **Control+C** to send a `SIGINT` signal. This section describes how the
+    MySQL server and client programs respond to signals.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Unix 和类 Unix 系统上，一个进程可以接收由 `root` 系统帐户或拥有该进程的系统帐户发送的信号。信号可以使用 [**kill**](kill.html
+    "15.7.8.4 KILL Statement") 命令发送。一些命令解释器将某些按键序列与信号关联起来，例如 **Control+C** 发送 `SIGINT`
+    信号。本节描述了 MySQL 服务器和客户端程序对信号的响应。
+- en: '[Server Response to Signals](unix-signal-response.html#server-signal-response
+    "Server Response to Signals")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[服务器对信号的响应](unix-signal-response.html#server-signal-response "服务器对信号的响应")'
+- en: '[Client Response to Signals](unix-signal-response.html#client-signal-response
+    "Client Response to Signals")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[客户端对信号的响应](unix-signal-response.html#client-signal-response "客户端对信号的响应")'
+- en: Server Response to Signals
+  id: totrans-5
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 服务器对信号的响应
+- en: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") responds to signals
+    as follows:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") 对信号的响应如下：'
+- en: '`SIGTERM` causes the server to shut down. This is like executing a [`SHUTDOWN`](shutdown.html
+    "15.7.8.9 SHUTDOWN Statement") statement without having to connect to the server
+    (which for shutdown requires an account that has the [`SHUTDOWN`](privileges-provided.html#priv_shutdown)
+    privilege).'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SIGTERM` 导致服务器关闭。这类似于执行 [`SHUTDOWN`](shutdown.html "15.7.8.9 SHUTDOWN Statement")
+    语句而无需连接到服务器（对于关闭需要具有 [`SHUTDOWN`](privileges-provided.html#priv_shutdown) 权限的帐户）。'
+- en: '`SIGHUP` causes the server to reload the grant tables and to flush tables,
+    logs, the thread cache, and the host cache. These actions are like various forms
+    of the [`FLUSH`](flush.html "15.7.8.3 FLUSH Statement") statement. Sending the
+    signal enables the flush operations to be performed without having to connect
+    to the server, which requires a MySQL account that has privileges sufficient for
+    those operations. Prior to MySQL 8.0.20, the server also writes a status report
+    to the error log that has this format:'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SIGHUP` 导致服务器重新加载授权表并刷新表、日志、线程缓存和主机缓存。这些操作类似于各种形式的 [`FLUSH`](flush.html "15.7.8.3 FLUSH
+    Statement") 语句。发送信号使得刷新操作可以在不连接到服务器的情况下执行，这需要一个具有足够权限的 MySQL 帐户。在 MySQL 8.0.20
+    之前，服务器还会向错误日志写入一个具有以下格式的状态报告：'
+- en: '[PRE0]'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: As of MySQL 8.0.19, `SIGUSR1` causes the server to flush the error log, general
+    query log, and slow query log. One use for `SIGUSR1` is to implement log rotation
+    without having to connect to the server, which requires a MySQL account that has
+    privileges sufficient for those operations. For information about log rotation,
+    see [Section 7.4.6, “Server Log Maintenance”](log-file-maintenance.html "7.4.6 Server
+    Log Maintenance").
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.19 开始，`SIGUSR1` 导致服务器刷新错误日志、一般查询日志和慢查询日志。`SIGUSR1` 的一个用途是实现日志轮换而无需连接到服务器，这需要一个具有足够权限的
+    MySQL 帐户。有关日志轮换的信息，请参见 [Section 7.4.6, “Server Log Maintenance”](log-file-maintenance.html
+    "7.4.6 Server Log Maintenance")。
+- en: The server response to `SIGUSR1` is a subset of the response to `SIGHUP`, enabling
+    `SIGUSR1` to be used as a more “lightweight” signal that flushes certain logs
+    without the other `SIGHUP` effects such as flushing the thread and host caches
+    and writing a status report to the error log.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 服务器对 `SIGUSR1` 的响应是对 `SIGHUP` 的响应的一个子集，使得 `SIGUSR1` 可以被用作一个更“轻量级”的信号，刷新某些日志而不带有其他
+    `SIGHUP` 的效果，比如刷新线程和主机缓存以及向错误日志写入状态报告。
+- en: '`SIGINT` normally is ignored by the server. Starting the server with the [`--gdb`](server-options.html#option_mysqld_gdb)
+    option installs an interrupt handler for `SIGINT` for debugging purposes. See
+    [Section 7.9.1.4, “Debugging mysqld under gdb”](using-gdb-on-mysqld.html "7.9.1.4 Debugging
+    mysqld under gdb").'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SIGINT` 通常被服务器忽略。使用 [`--gdb`](server-options.html#option_mysqld_gdb) 选项启动服务器会为
+    `SIGINT` 安装一个中断处理程序，用于调试目的。参见 [Section 7.9.1.4, “Debugging mysqld under gdb”](using-gdb-on-mysqld.html
+    "7.9.1.4 Debugging mysqld under gdb")。'
+- en: Client Response to Signals
+  id: totrans-13
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 客户端对信号的响应
+- en: 'MySQL client programs respond to signals as follows:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 客户端程序对信号的响应如下：
+- en: The [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client
+    interprets `SIGINT` (typically the result of typing **Control+C**) as instruction
+    to interrupt the current statement if there is one, or to cancel any partial input
+    line otherwise. This behavior can be disabled using the [`--sigint-ignore`](mysql-command-options.html#option_mysql_sigint-ignore)
+    option to ignore `SIGINT` signals.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")客户端将`SIGINT`（通常是键入**Control+C**的结果）解释为中断当前语句的指令（如果有的话），或者取消任何部分输入行。可以使用[`--sigint-ignore`](mysql-command-options.html#option_mysql_sigint-ignore)选项来忽略`SIGINT`信号以禁用此行为。'
+- en: 'Client programs that use the MySQL client library block `SIGPIPE` signals by
+    default. These variations are possible:'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用MySQL客户端库的客户端程序默认会阻止`SIGPIPE`信号。有以下变化可能：
+- en: Client can install their own `SIGPIPE` handler to override the default behavior.
+    See [Writing C API Threaded Client Programs](/doc/c-api/8.0/en/c-api-threaded-clients.html).
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端可以安装自己的`SIGPIPE`处理程序以覆盖默认行为。请参阅[编写C API多线程客户端程序](/doc/c-api/8.0/en/c-api-threaded-clients.html)。
+- en: Clients can prevent installation of `SIGPIPE` handlers by specifying the `CLIENT_IGNORE_SIGPIPE`
+    option to [`mysql_real_connect()`](/doc/c-api/8.0/en/mysql-real-connect.html)
+    at connect time. See [mysql_real_connect()](/doc/c-api/8.0/en/mysql-real-connect.html).
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端可以通过在连接时向[`mysql_real_connect()`](/doc/c-api/8.0/en/mysql-real-connect.html)指定`CLIENT_IGNORE_SIGPIPE`选项来防止安装`SIGPIPE`处理程序。请参阅[mysql_real_connect()](/doc/c-api/8.0/en/mysql-real-connect.html)。

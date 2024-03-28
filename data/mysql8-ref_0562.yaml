@@ -1,0 +1,191 @@
+- en: 10.3.11 Optimizer Use of Generated Column Indexes
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.3.11 优化器对生成列索引的使用
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/generated-column-index-optimizations.html](https://dev.mysql.com/doc/refman/8.0/en/generated-column-index-optimizations.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/generated-column-index-optimizations.html](https://dev.mysql.com/doc/refman/8.0/en/generated-column-index-optimizations.html)
+- en: 'MySQL supports indexes on generated columns. For example:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL支持对生成列创建索引。例如：
+- en: '[PRE0]'
+  id: totrans-3
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The generated column, `gc`, is defined as the expression `f1 + 1`. The column
+    is also indexed and the optimizer can take that index into account during execution
+    plan construction. In the following query, the `WHERE` clause refers to `gc` and
+    the optimizer considers whether the index on that column yields a more efficient
+    plan:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成列`gc`被定义为表达式`f1 + 1`。该列也被索引，优化器在执行计划构建过程中可以考虑该索引。在以下查询中，`WHERE`子句引用了`gc`，优化器会考虑该列上的索引是否产生更有效的计划：
+- en: '[PRE1]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The optimizer can use indexes on generated columns to generate execution plans,
+    even in the absence of direct references in queries to those columns by name.
+    This occurs if the `WHERE`, `ORDER BY`, or `GROUP BY` clause refers to an expression
+    that matches the definition of some indexed generated column. The following query
+    does not refer directly to `gc` but does use an expression that matches the definition
+    of `gc`:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器可以使用生成列上的索引生成执行计划，即使查询中没有直接按名称引用这些列。如果`WHERE`、`ORDER BY`或`GROUP BY`子句引用与某个索引生成列的定义匹配的表达式，则会发生这种情况。以下查询并不直接引用`gc`，但确实使用与`gc`定义匹配的表达式：
+- en: '[PRE2]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The optimizer recognizes that the expression `f1 + 1` matches the definition
+    of `gc` and that `gc` is indexed, so it considers that index during execution
+    plan construction. You can see this using [`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement"):'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器识别到表达式`f1 + 1`与`gc`的定义匹配，并且`gc`被索引，因此在执行计划构建过程中考虑了该索引。您可以使用[`EXPLAIN`](explain.html
+    "15.8.2 EXPLAIN Statement")查看这一点：
+- en: '[PRE3]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'In effect, the optimizer has replaced the expression `f1 + 1` with the name
+    of the generated column that matches the expression. That is also apparent in
+    the rewritten query available in the extended [`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement") information displayed by [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement"):'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 实际上，优化器已经用与表达式匹配的生成列名称替换了表达式`f1 + 1`。这也可以在由[`SHOW WARNINGS`](show-warnings.html
+    "15.7.7.42 SHOW WARNINGS Statement")显示的扩展[`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement")信息中重新编写的查询中看到：
+- en: '[PRE4]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'The following restrictions and conditions apply to the optimizer''s use of
+    generated column indexes:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器对生成列索引的使用受到以下限制和条件的约束：
+- en: For a query expression to match a generated column definition, the expression
+    must be identical and it must have the same result type. For example, if the generated
+    column expression is `f1 + 1`, the optimizer does not recognize a match if the
+    query uses `1 + f1`, or if `f1 + 1` (an integer expression) is compared with a
+    string.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要使查询表达式与生成列定义匹配，表达式必须完全相同，并且必须具有相同的结果类型。例如，如果生成列表达式是`f1 + 1`，则如果查询使用`1 + f1`，或者如果将`f1
+    + 1`（整数表达式）与字符串进行比较，则优化器不会识别匹配。
+- en: 'The optimization applies to these operators: [`=`](comparison-operators.html#operator_equal),
+    [`<`](comparison-operators.html#operator_less-than), [`<=`](comparison-operators.html#operator_less-than-or-equal),
+    [`>`](comparison-operators.html#operator_greater-than), [`>=`](comparison-operators.html#operator_greater-than-or-equal),
+    [`BETWEEN`](comparison-operators.html#operator_between), and [`IN()`](comparison-operators.html#operator_in).'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化适用于这些运算符：[`=`](comparison-operators.html#operator_equal), [`<`](comparison-operators.html#operator_less-than),
+    [`<=`](comparison-operators.html#operator_less-than-or-equal), [`>`](comparison-operators.html#operator_greater-than),
+    [`>=`](comparison-operators.html#operator_greater-than-or-equal), [`BETWEEN`](comparison-operators.html#operator_between)和[`IN()`](comparison-operators.html#operator_in)。
+- en: For operators other than [`BETWEEN`](comparison-operators.html#operator_between)
+    and [`IN()`](comparison-operators.html#operator_in), either operand can be replaced
+    by a matching generated column. For [`BETWEEN`](comparison-operators.html#operator_between)
+    and [`IN()`](comparison-operators.html#operator_in), only the first argument can
+    be replaced by a matching generated column, and the other arguments must have
+    the same result type. [`BETWEEN`](comparison-operators.html#operator_between)
+    and [`IN()`](comparison-operators.html#operator_in) are not yet supported for
+    comparisons involving JSON values.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于除了[`BETWEEN`](comparison-operators.html#operator_between)和[`IN()`](comparison-operators.html#operator_in)之外的运算符，任一操作数都可以被匹配的生成列替换。对于[`BETWEEN`](comparison-operators.html#operator_between)和[`IN()`](comparison-operators.html#operator_in)，只有第一个参数可以被匹配的生成列替换，其他参数必须具有相同的结果类型。目前不支持涉及
+    JSON 值的比较的[`BETWEEN`](comparison-operators.html#operator_between)和[`IN()`](comparison-operators.html#operator_in)。
+- en: The generated column must be defined as an expression that contains at least
+    a function call or one of the operators mentioned in the preceding item. The expression
+    cannot consist of a simple reference to another column. For example, `gc INT AS
+    (f1) STORED` consists only of a column reference, so indexes on `gc` are not considered.
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 生成列必须定义为包含至少一个函数调用或前一项提到的运算符之一的表达式。表达式不能仅由对另一列的简单引用组成。例如，`gc INT AS (f1) STORED`
+    仅由列引用组成，因此对 `gc` 的索引不会被考虑。
+- en: 'For comparisons of strings to indexed generated columns that compute a value
+    from a JSON function that returns a quoted string, [`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)
+    is needed in the column definition to remove the extra quotes from the function
+    value. (For direct comparison of a string to the function result, the JSON comparator
+    handles quote removal, but this does not occur for index lookups.) For example,
+    instead of writing a column definition like this:'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于将字符串与从返回带引号的字符串的 JSON 函数计算值的索引生成列进行比较，需要在列定义中使用[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)来去除函数值中的额外引号。（对于直接将字符串与函数结果进行比较，JSON
+    比较器会处理引号的移除，但这不适用于索引查找。）例如，不要像这样编写列定义：
+- en: '[PRE5]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Write it like this:'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要像这样编写：
+- en: '[PRE6]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'With the latter definition, the optimizer can detect a match for both of these
+    comparisons:'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用后一种定义，优化器可以检测到这两个比较的匹配：
+- en: '[PRE7]'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: Without [`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)
+    in the column definition, the optimizer detects a match only for the first of
+    those comparisons.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在列定义中没有[`JSON_UNQUOTE()`](json-modification-functions.html#function_json-unquote)，优化器只会检测到这些比较中的第一个匹配。
+- en: If the optimizer picks the wrong index, an index hint can be used to disable
+    it and force the optimizer to make a different choice.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果优化器选择了错误的索引，可以使用索引提示来禁用它，并强制优化器做出不同的选择。

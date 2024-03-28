@@ -1,0 +1,552 @@
+- en: 14.9.9 MeCab Full-Text Parser Plugin
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 14.9.9 MeCab全文解析器插件
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/fulltext-search-mecab.html](https://dev.mysql.com/doc/refman/8.0/en/fulltext-search-mecab.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/fulltext-search-mecab.html](https://dev.mysql.com/doc/refman/8.0/en/fulltext-search-mecab.html)
+- en: The built-in MySQL full-text parser uses the white space between words as a
+    delimiter to determine where words begin and end, which is a limitation when working
+    with ideographic languages that do not use word delimiters. To address this limitation
+    for Japanese, MySQL provides a MeCab full-text parser plugin. The MeCab full-text
+    parser plugin is supported for use with [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") and [`MyISAM`](myisam-storage-engine.html
+    "18.2 The MyISAM Storage Engine").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL内置的全文解析器使用单词之间的空格作为分隔符来确定单词的起始和结束位置，这在处理不使用单词分隔符的表意语言时存在限制。为了解决这个问题，MySQL为日语提供了MeCab全文解析器插件。MeCab全文解析器插件支持与[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")和[`MyISAM`](myisam-storage-engine.html "18.2 MyISAM存储引擎")一起使用。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: MySQL also provides an ngram full-text parser plugin that supports Japanese.
+    For more information, see [Section 14.9.8, “ngram Full-Text Parser”](fulltext-search-ngram.html
+    "14.9.8 ngram Full-Text Parser").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL还提供了支持日语的ngram全文解析器插件。有关更多信息，请参见[第14.9.8节“ngram全文解析器”](fulltext-search-ngram.html
+    "14.9.8 ngram全文解析器")。
+- en: The MeCab full-text parser plugin is a full-text parser plugin for Japanese
+    that tokenizes a sequence of text into meaningful words. For example, MeCab tokenizes
+    “データベース管理” (“Database Management”) into “データベース” (“Database”) and “管理” (“Management”).
+    By comparison, the [ngram](fulltext-search-ngram.html "14.9.8 ngram Full-Text
+    Parser") full-text parser tokenizes text into a contiguous sequence of *`n`* characters,
+    where *`n`* represents a number between 1 and 10.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MeCab全文解析器插件是用于日语的全文解析器插件，将文本序列标记为有意义的单词。例如，MeCab将“データベース管理”（“数据库管理”）标记为“データベース”（“数据库”）和“管理”（“管理”）。相比之下，[ngram](fulltext-search-ngram.html
+    "14.9.8 ngram全文解析器")全文解析器将文本标记为连续的*`n`*个字符序列，其中*`n`*表示1到10之间的数字。
+- en: In addition to tokenizing text into meaningful words, MeCab indexes are typically
+    smaller than ngram indexes, and MeCab full-text searches are generally faster.
+    One drawback is that it may take longer for the MeCab full-text parser to tokenize
+    documents, compared to the ngram full-text parser.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了将文本标记为有意义的单词外，MeCab索引通常比ngram索引小，并且MeCab全文搜索通常更快。一个缺点是与ngram全文解析器相比，MeCab全文解析器可能需要更长的时间来标记文档。
+- en: The full-text search syntax described in [Section 14.9, “Full-Text Search Functions”](fulltext-search.html
+    "14.9 Full-Text Search Functions") applies to the MeCab parser plugin. Differences
+    in parsing behavior are described in this section. Full-text related configuration
+    options are also applicable.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[第14.9节“全文搜索函数”](fulltext-search.html "14.9 全文搜索函数")中描述的全文搜索语法适用于MeCab解析器插件。本节描述了解析行为的差异。全文搜索相关的配置选项也适用。'
+- en: 'For additional information about the MeCab parser, refer to the [MeCab: Yet
+    Another Part-of-Speech and Morphological Analyzer](http://taku910.github.io/mecab/)
+    project on Github.'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '有关MeCab解析器的更多信息，请参考Github上的[MeCab: Yet Another Part-of-Speech and Morphological
+    Analyzer](http://taku910.github.io/mecab/)项目。'
+- en: Installing the MeCab Parser Plugin
+  id: totrans-9
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 安装MeCab解析器插件
+- en: The MeCab parser plugin requires `mecab` and `mecab-ipadic`.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MeCab解析器插件需要`mecab`和`mecab-ipadic`。
+- en: On supported Fedora, Debian and Ubuntu platforms (except Ubuntu 12.04 where
+    the system `mecab` version is too old), MySQL dynamically links to the system
+    `mecab` installation if it is installed to the default location. On other supported
+    Unix-like platforms, `libmecab.so` is statically linked in `libpluginmecab.so`,
+    which is located in the MySQL plugin directory. `mecab-ipadic` is included in
+    MySQL binaries and is located in `*`MYSQL_HOME`*\lib\mecab`.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在支持的Fedora、Debian和Ubuntu平台上（除了Ubuntu 12.04，系统中的`mecab`版本太旧），如果`mecab`安装在默认位置，则MySQL会动态链接到系统的`mecab`安装。在其他支持的类Unix平台上，`libmecab.so`静态链接在`libpluginmecab.so`中，该文件位于MySQL插件目录中。`mecab-ipadic`包含在MySQL二进制文件中，位于`*`MYSQL_HOME`*\lib\mecab`中。
+- en: You can install `mecab` and `mecab-ipadic` using a native package management
+    utility (on Fedora, Debian, and Ubuntu), or you can build `mecab` and `mecab-ipadic`
+    from source. For information about installing `mecab` and `mecab-ipadic` using
+    a native package management utility, see [Installing MeCab From a Binary Distribution
+    (Optional)](fulltext-search-mecab.html#install-mecab-binary "Installing MeCab
+    From a Binary Distribution (Optional)"). If you want to build `mecab` and `mecab-ipadic`
+    from source, see [Building MeCab From Source (Optional)](fulltext-search-mecab.html#build-mecab-from-source
+    "Installing MeCab From Source (Optional)").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以使用本机包管理工具（在 Fedora、Debian 和 Ubuntu 上）安装`mecab`和`mecab-ipadic`，也可以从源代码构建`mecab`和`mecab-ipadic`。有关使用本机包管理工具安装`mecab`和`mecab-ipadic`的信息，请参见[从二进制发行版安装
+    MeCab（可选）](fulltext-search-mecab.html#install-mecab-binary "从二进制发行版安装 MeCab（可选）")。如果你想从源代码构建`mecab`和`mecab-ipadic`，请参见[从源代码构建
+    MeCab（可选）](fulltext-search-mecab.html#build-mecab-from-source "从源代码安装 MeCab（可选）")。
+- en: On Windows, `libmecab.dll` is found in the MySQL `bin` directory. `mecab-ipadic`
+    is located in `*`MYSQL_HOME`*/lib/mecab`.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Windows 上，`libmecab.dll`位于 MySQL 的`bin`目录中。`mecab-ipadic`位于`*`MYSQL_HOME`*/lib/mecab`中。
+- en: 'To install and configure the MeCab parser plugin, perform the following steps:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要安装和配置 MeCab 解析器插件，请执行以下步骤：
+- en: In the MySQL configuration file, set the [`mecab_rc_file`](server-system-variables.html#sysvar_mecab_rc_file)
+    configuration option to the location of the `mecabrc` configuration file, which
+    is the configuration file for MeCab. If you are using the MeCab package distributed
+    with MySQL, the `mecabrc` file is located in `MYSQL_HOME/lib/mecab/etc/`.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在 MySQL 配置文件中，将[`mecab_rc_file`](server-system-variables.html#sysvar_mecab_rc_file)配置选项设置为`mecabrc`配置文件的位置，该文件是
+    MeCab 的配置文件。如果你使用 MySQL 分发的 MeCab 包，`mecabrc` 文件位于`MYSQL_HOME/lib/mecab/etc/`。
+- en: '[PRE0]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The `loose` prefix is an [option modifier](option-modifiers.html "6.2.2.4 Program
+    Option Modifiers"). The [`mecab_rc_file`](server-system-variables.html#sysvar_mecab_rc_file)
+    option is not recognized by MySQL until the MeCaB parser plugin is installed but
+    it must be set before attempting to install the MeCaB parser plugin. The `loose`
+    prefix allows you restart MySQL without encountering an error due to an unrecognized
+    variable.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`loose`前缀是一个[选项修饰符](option-modifiers.html "6.2.2.4 程序选项修饰符")。在安装 MeCab 解析器插件之前，MySQL
+    不会识别[`mecab_rc_file`](server-system-variables.html#sysvar_mecab_rc_file)选项，但必须在尝试安装
+    MeCab 解析器插件之前设置它。`loose`前缀允许你重新启动 MySQL，而不会因为无法识别的变量而遇到错误。'
+- en: If you use your own MeCab installation, or build MeCab from source, the location
+    of the `mecabrc` configuration file may differ.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果你使用自己的 MeCab 安装，或者从源代码构建 MeCab，`mecabrc`配置文件的位置可能会有所不同。
+- en: For information about the MySQL configuration file and its location, see [Section 6.2.2.2,
+    “Using Option Files”](option-files.html "6.2.2.2 Using Option Files").
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关 MySQL 配置文件及其位置的信息，请参见[Section 6.2.2.2，“使用选项文件”](option-files.html "6.2.2.2 使用选项文件")。
+- en: Also in the MySQL configuration file, set the minimum token size to 1 or 2,
+    which are the values recommended for use with the MeCab parser. For `InnoDB` tables,
+    minimum token size is defined by the [`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size)
+    configuration option, which has a default value of 3\. For `MyISAM` tables, minimum
+    token size is defined by [`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len),
+    which has a default value of 4.
+  id: totrans-20
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 同样在 MySQL 配置文件中，将最小标记大小设置为 1 或 2，这是与 MeCab 解析器一起使用时推荐的值。对于`InnoDB`表，最小标记大小由[`innodb_ft_min_token_size`](innodb-parameters.html#sysvar_innodb_ft_min_token_size)配置选项定义，默认值为
+    3。对于`MyISAM`表，最小标记大小由[`ft_min_word_len`](server-system-variables.html#sysvar_ft_min_word_len)定义，默认值为
+    4。
+- en: '[PRE1]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Modify the `mecabrc` configuration file to specify the dictionary you want
+    to use. The `mecab-ipadic` package distributed with MySQL binaries includes three
+    dictionaries (`ipadic_euc-jp`, `ipadic_sjis`, and `ipadic_utf-8`). The `mecabrc`
+    configuration file packaged with MySQL contains and entry similar to the following:'
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 修改`mecabrc`配置文件以指定你想使用的字典。MySQL 二进制文件中分发的`mecab-ipadic`包含三个字典（`ipadic_euc-jp`、`ipadic_sjis`和`ipadic_utf-8`）。MySQL
+    打包的`mecabrc`配置文件包含类似以下条目：
+- en: '[PRE2]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To use the `ipadic_utf-8` dictionary, for example, modify the entry as follows:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要使用`ipadic_utf-8`字典，例如，修改条目如下：
+- en: '[PRE3]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: If you are using your own MeCab installation or have built MeCab from source,
+    the default `dicdir` entry in the `mecabrc` file is likely to differ, as are the
+    dictionaries and their location.
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您正在使用自己的MeCab安装或已经从源代码构建了MeCab，那么`mecabrc`文件中的默认`dicdir`条目可能会有所不同，字典及其位置也会不同。
+- en: Note
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: After the MeCab parser plugin is installed, you can use the [`mecab_charset`](server-status-variables.html#statvar_mecab_charset)
+    status variable to view the character set used with MeCab. The three MeCab dictionaries
+    provided with the MySQL binary support the following character sets.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 安装完MeCab解析器插件后，您可以使用[`mecab_charset`](server-status-variables.html#statvar_mecab_charset)状态变量查看与MeCab一起使用的字符集。MySQL二进制文件提供的三个MeCab字典支持以下字符集。
+- en: The `ipadic_euc-jp` dictionary supports the `ujis` and `eucjpms` character sets.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ipadic_euc-jp`字典支持`ujis`和`eucjpms`字符集。'
+- en: The `ipadic_sjis` dictionary supports the `sjis` and `cp932` character sets.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ipadic_sjis`字典支持`sjis`和`cp932`字符集。'
+- en: The `ipadic_utf-8` dictionary supports the `utf8mb3` and `utf8mb4` character
+    sets.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ipadic_utf-8`字典支持`utf8mb3`和`utf8mb4`字符集。'
+- en: '[`mecab_charset`](server-status-variables.html#statvar_mecab_charset) only
+    reports the first supported character set. For example, the `ipadic_utf-8` dictionary
+    supports both `utf8mb3` and `utf8mb4`. [`mecab_charset`](server-status-variables.html#statvar_mecab_charset)
+    always reports `utf8` when this dictionary is in use.'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`mecab_charset`](server-status-variables.html#statvar_mecab_charset)仅报告第一个支持的字符集。例如，`ipadic_utf-8`字典支持`utf8mb3`和`utf8mb4`。当使用此字典时，[`mecab_charset`](server-status-variables.html#statvar_mecab_charset)总是报告`utf8`。'
+- en: Restart MySQL.
+  id: totrans-33
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 重新启动MySQL。
+- en: 'Install the MeCab parser plugin:'
+  id: totrans-34
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 安装MeCab解析器插件：
+- en: The MeCab parser plugin is installed using [`INSTALL PLUGIN`](install-plugin.html
+    "15.7.4.4 INSTALL PLUGIN Statement"). The plugin name is `mecab`, and the shared
+    library name is `libpluginmecab.so`. For additional information about installing
+    plugins, see [Section 7.6.1, “Installing and Uninstalling Plugins”](plugin-loading.html
+    "7.6.1 Installing and Uninstalling Plugins").
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")安装MeCab解析器插件。插件名称为`mecab`，共享库名称为`libpluginmecab.so`。有关安装插件的其他信息，请参见[Section 7.6.1,
+    “Installing and Uninstalling Plugins”](plugin-loading.html "7.6.1 Installing and
+    Uninstalling Plugins")。
+- en: '[PRE4]'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Once installed, the MeCab parser plugin loads at every normal MySQL restart.
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 安装完成后，MeCab解析器插件会在每次正常MySQL重启时加载。
+- en: Verify that the MeCab parser plugin is loaded using the [`SHOW PLUGINS`](show-plugins.html
+    "15.7.7.25 SHOW PLUGINS Statement") statement.
+  id: totrans-38
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`SHOW PLUGINS`](show-plugins.html "15.7.7.25 SHOW PLUGINS Statement")语句验证MeCab解析器插件是否已加载。
+- en: '[PRE5]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: A `mecab` plugin should appear in the list of plugins.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`mecab`插件应该出现在插件列表中。'
+- en: Creating a FULLTEXT Index that uses the MeCab Parser
+  id: totrans-41
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 创建使用MeCab解析器的FULLTEXT索引
+- en: To create a `FULLTEXT` index that uses the mecab parser, specify `WITH PARSER
+    ngram` with [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement"),
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement"), or [`CREATE
+    INDEX`](create-index.html "15.1.15 CREATE INDEX Statement").
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要创建一个使用mecab解析器的`FULLTEXT`索引，请在[`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement")、[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")或[`CREATE
+    INDEX`](create-index.html "15.1.15 CREATE INDEX Statement")中指定`WITH PARSER ngram`。
+- en: 'This example demonstrates creating a table with a `mecab` `FULLTEXT` index,
+    inserting sample data, and viewing tokenized data in the Information Schema [`INNODB_FT_INDEX_CACHE`](information-schema-innodb-ft-index-cache-table.html
+    "28.4.18 The INFORMATION_SCHEMA INNODB_FT_INDEX_CACHE Table") table:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此示例演示了创建带有`mecab` `FULLTEXT`索引的表，插入示例数据，并在Information Schema [`INNODB_FT_INDEX_CACHE`](information-schema-innodb-ft-index-cache-table.html
+    "28.4.18 The INFORMATION_SCHEMA INNODB_FT_INDEX_CACHE Table")表中查看标记化数据：
+- en: '[PRE6]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'To add a `FULLTEXT` index to an existing table, you can use [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") or [`CREATE INDEX`](create-index.html "15.1.15 CREATE
+    INDEX Statement"). For example:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要向现有表添加`FULLTEXT`索引，可以使用[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement")或[`CREATE INDEX`](create-index.html "15.1.15 CREATE INDEX Statement")。例如：
+- en: '[PRE7]'
+  id: totrans-46
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: MeCab Parser Space Handling
+  id: totrans-47
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MeCab解析器空格处理
+- en: The MeCab parser uses spaces as separators in query strings. For example, the
+    MeCab parser tokenizes データベース管理 as データベース and 管理.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MeCab解析器在查询字符串中使用空格作为分隔符。例如，MeCab解析器将データベース管理标记为データベース和管理。
+- en: MeCab Parser Stopword Handling
+  id: totrans-49
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MeCab解析器停用词处理
+- en: By default, the MeCab parser uses the default stopword list, which contains
+    a short list of English stopwords. For a stopword list applicable to Japanese,
+    you must create your own. For information about creating stopword lists, see [Section 14.9.4,
+    “Full-Text Stopwords”](fulltext-stopwords.html "14.9.4 Full-Text Stopwords").
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，MeCab 解析器使用默认的停用词列表，其中包含一小部分英文停用词。要使用适用于日语的停用词列表，您必须创建自己的停用词列表。有关创建停用词列表的信息，请参见
+    [第 14.9.4 节，“全文停用词”](fulltext-stopwords.html "14.9.4 全文停用词")。
+- en: MeCab Parser Term Search
+  id: totrans-51
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MeCab 解析器术语搜索
+- en: For natural language mode search, the search term is converted to a union of
+    tokens. For example, データベース管理 is converted to データベース 管理.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于自然语言模式搜索，搜索词被转换为标记的并集。例如，データベース管理 被转换为 データベース 管理。
+- en: '[PRE8]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: For boolean mode search, the search term is converted to a search phrase. For
+    example, データベース管理 is converted to データベース 管理.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于布尔模式搜索，搜索词被转换为搜索短语。例如，データベース管理 被转换为 データベース 管理。
+- en: '[PRE9]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: MeCab Parser Wildcard Search
+  id: totrans-56
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MeCab 解析器通配符搜索
+- en: Wildcard search terms are not tokenized. A search on データベース管理* is performed
+    on the prefix, データベース管理.
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通配符搜索词不被标记。对前缀 データベース管理* 进行搜索时，会在前缀 データベース管理 上执行搜索。
+- en: '[PRE10]'
+  id: totrans-58
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: MeCab Parser Phrase Search
+  id: totrans-59
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: MeCab 解析器短语搜索
+- en: Phrases are tokenized. For example, データベース管理 is tokenized as データベース 管理.
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 短语被标记。例如，データベース管理 被标记为 データベース 管理。
+- en: '[PRE11]'
+  id: totrans-61
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: Installing MeCab From a Binary Distribution (Optional)
+  id: totrans-62
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 从二进制发行版安装 MeCab（可选）
+- en: 'This section describes how to install `mecab` and `mecab-ipadic` from a binary
+    distribution using a native package management utility. For example, on Fedora,
+    you can use Yum to perform the installation:'
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何使用本机软件包管理工具从二进制发行版安装 `mecab` 和 `mecab-ipadic`。例如，在 Fedora 上，您可以使用 Yum
+    执行安装：
+- en: '[PRE12]'
+  id: totrans-64
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'On Debian or Ubuntu, you can perform an APT installation:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Debian 或 Ubuntu 上，您可以执行 APT 安装：
+- en: '[PRE13]'
+  id: totrans-66
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Installing MeCab From Source (Optional)
+  id: totrans-67
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 从源代码安装 MeCab（可选）
+- en: If you want to build `mecab` and `mecab-ipadic` from source, basic installation
+    steps are provided below. For additional information, refer to the MeCab documentation.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您想要从源代码构建 `mecab` 和 `mecab-ipadic`，以下是基本的安装步骤。有关更多信息，请参考 MeCab 文档。
+- en: Download the tar.gz packages for `mecab` and `mecab-ipadic` from [http://taku910.github.io/mecab/#download](http://taku910.github.io/mecab/#download).
+    As of February, 2016, the latest available packages are `mecab-0.996.tar.gz` and
+    `mecab-ipadic-2.7.0-20070801.tar.gz`.
+  id: totrans-69
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从 [http://taku910.github.io/mecab/#download](http://taku910.github.io/mecab/#download)
+    下载 `mecab` 和 `mecab-ipadic` 的 tar.gz 软件包。截至 2016 年 2 月，最新可用的软件包是 `mecab-0.996.tar.gz`
+    和 `mecab-ipadic-2.7.0-20070801.tar.gz`。
+- en: 'Install `mecab`:'
+  id: totrans-70
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 安装 `mecab`：
+- en: '[PRE14]'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'Install `mecab-ipadic`:'
+  id: totrans-72
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 安装 `mecab-ipadic`：
+- en: '[PRE15]'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Compile MySQL using the [`WITH_MECAB`](source-configuration-options.html#option_cmake_with_mecab)
+    CMake option. Set the [`WITH_MECAB`](source-configuration-options.html#option_cmake_with_mecab)
+    option to `system` if you have installed `mecab` and `mecab-ipadic` to the default
+    location.
+  id: totrans-74
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用 [`WITH_MECAB`](source-configuration-options.html#option_cmake_with_mecab)
+    CMake 选项编译 MySQL。如果您已将 `mecab` 和 `mecab-ipadic` 安装到默认位置，请将 [`WITH_MECAB`](source-configuration-options.html#option_cmake_with_mecab)
+    选项设置为 `system`。
+- en: '[PRE16]'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'If you defined a custom installation directory, set [`WITH_MECAB`](source-configuration-options.html#option_cmake_with_mecab)
+    to the custom directory. For example:'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您定义了自定义安装目录，请将 [`WITH_MECAB`](source-configuration-options.html#option_cmake_with_mecab)
+    设置为自定义目录。例如：
+- en: '[PRE17]'
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'

@@ -1,0 +1,75 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-understanding-innodb-locking.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-understanding-innodb-locking.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-understanding-innodb-locking.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-understanding-innodb-locking.html)
+- en: 17.15.2.2 InnoDB Lock and Lock-Wait Information
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.15.2.2 InnoDB 锁和锁等待信息
+- en: Note
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: This section describes locking information as exposed by the Performance Schema
+    [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The data_locks
+    Table") and [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") tables, which supersede the `INFORMATION_SCHEMA`
+    `INNODB_LOCKS` and `INNODB_LOCK_WAITS` tables in MySQL 8.0\. For similar discussion
+    written in terms of the older `INFORMATION_SCHEMA` tables, see [InnoDB Lock and
+    Lock-Wait Information](/doc/refman/5.7/en/innodb-information-schema-understanding-innodb-locking.html),
+    in [MySQL 5.7 Reference Manual](/doc/refman/5.7/en/).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了由Performance Schema [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table") 和 [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") 表公开的锁信息，它们在MySQL 8.0中取代了`INFORMATION_SCHEMA`
+    `INNODB_LOCKS` 和 `INNODB_LOCK_WAITS` 表。对于以旧的`INFORMATION_SCHEMA`表为基础编写的类似讨论，请参阅[InnoDB
+    锁和锁等待信息](/doc/refman/5.7/en/innodb-information-schema-understanding-innodb-locking.html)，在[MySQL
+    5.7 参考手册](/doc/refman/5.7/en/)中。
+- en: When a transaction updates a row in a table, or locks it with `SELECT FOR UPDATE`,
+    `InnoDB` establishes a list or queue of locks on that row. Similarly, `InnoDB`
+    maintains a list of locks on a table for table-level locks. If a second transaction
+    wants to update a row or lock a table already locked by a prior transaction in
+    an incompatible mode, `InnoDB` adds a lock request for the row to the corresponding
+    queue. For a lock to be acquired by a transaction, all incompatible lock requests
+    previously entered into the lock queue for that row or table must be removed (which
+    occurs when the transactions holding or requesting those locks either commit or
+    roll back).
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当一个事务更新表中的一行，或者用`SELECT FOR UPDATE`锁定它时，`InnoDB`会为该行建立一个锁的列表或队列。同样，`InnoDB`为表级锁维护一个锁的列表。如果第二个事务想要更新一个已被先前事务以不兼容模式锁定的行，或者锁定一个已被先前事务锁定的表，`InnoDB`会为该行添加一个锁请求到相应的队列中。为了让一个事务获取锁，所有之前为该行或表输入的不兼容锁请求必须被移除（这发生在持有或请求这些锁的事务提交或回滚时）。
+- en: A transaction may have any number of lock requests for different rows or tables.
+    At any given time, a transaction may request a lock that is held by another transaction,
+    in which case it is blocked by that other transaction. The requesting transaction
+    must wait for the transaction that holds the blocking lock to commit or roll back.
+    If a transaction is not waiting for a lock, it is in a `RUNNING` state. If a transaction
+    is waiting for a lock, it is in a `LOCK WAIT` state. (The `INFORMATION_SCHEMA`
+    [`INNODB_TRX`](information-schema-innodb-trx-table.html "28.4.28 The INFORMATION_SCHEMA
+    INNODB_TRX Table") table indicates transaction state values.)
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个事务可能对不同的行或表发出任意数量的锁请求。在任何给定时间，一个事务可能请求另一个事务持有的锁，此时它会被那个事务阻塞。请求锁的事务必须等待持有阻塞锁的事务提交或回滚。如果一个事务没有在等待锁，它处于`RUNNING`状态。如果一个事务在等待锁，它处于`LOCK
+    WAIT`状态。（`INFORMATION_SCHEMA` [`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table") 表显示事务状态值。）
+- en: The Performance Schema [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table") table holds one or more rows for each `LOCK
+    WAIT` transaction, indicating any lock requests that prevent its progress. This
+    table also contains one row describing each lock in a queue of locks pending for
+    a given row or table. The Performance Schema [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") table shows which locks already held by
+    a transaction are blocking locks requested by other transactions.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Performance Schema [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The
+    data_locks Table") 表为每个`LOCK WAIT`事务保存一行或多行，指示阻止其进展的任何锁请求。该表还包含描述每个锁的一行，该锁在等待给定行或表的锁队列中。Performance
+    Schema [`data_lock_waits`](performance-schema-data-lock-waits-table.html "29.12.13.2 The
+    data_lock_waits Table") 表显示事务已持有的锁阻塞了其他事务请求的锁。

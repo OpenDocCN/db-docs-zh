@@ -1,0 +1,109 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-summary.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-summary.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-summary.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-summary.html)
+- en: 20.1.1.2 Group Replication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.1.1.2 Group Replication
+- en: Group Replication is a technique that can be used to implement fault-tolerant
+    systems. The replication group is a set of servers that each have their own entire
+    copy of the data (a shared-nothing replication scheme), and interact with each
+    other through message passing. The communication layer provides a set of guarantees
+    such as atomic message and total order message delivery. These are very powerful
+    properties that translate into very useful abstractions that one can resort to
+    build more advanced database replication solutions.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication是一种可用于实现容错系统的技术。复制组是一组每个服务器都拥有自己完整数据副本的服务器（共享无内容复制方案），并通过消息传递相互交互。通信层提供了一组保证，如原子消息和总顺消息传递。这些是非常强大的属性，可以转化为非常有用的抽象，可以用来构建更高级的数据库复制解决方案。
+- en: MySQL Group Replication builds on top of such properties and abstractions and
+    implements a multi-source update everywhere replication protocol. A replication
+    group is formed by multiple servers and each server in the group may execute transactions
+    independently at any time. However, all read-write transactions commit only after
+    they have been approved by the group. In other words, for any read-write transaction
+    the group needs to decide whether it commits or not, so the commit operation is
+    not a unilateral decision from the originating server. Read-only transactions
+    need no coordination within the group and commit immediately.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL Group Replication建立在这些属性和抽象之上，并实现了一个多源更新的复制协议。一个复制组由多个服务器组成，组中的每个服务器可以随时独立执行事务。然而，所有读写事务只有在组批准后才提交。换句话说，对于任何读写事务，组都需要决定是否提交，因此提交操作不是来自原始服务器的单方面决定。只读事务在组内不需要协调，立即提交。
+- en: When a read-write transaction is ready to commit at the originating server,
+    the server atomically broadcasts the write values (the rows that were changed)
+    and the corresponding write set (the unique identifiers of the rows that were
+    updated). Because the transaction is sent through an atomic broadcast, either
+    all servers in the group receive the transaction or none do. If they receive it,
+    then they all receive it in the same order with respect to other transactions
+    that were sent before. All servers therefore receive the same set of transactions
+    in the same order, and a global total order is established for the transactions.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当一个读写事务在原始服务器准备提交时，服务器会原子地广播写入值（已更改的行）和相应的写入集（已更新行的唯一标识符）。由于事务通过原子广播发送，组中的所有服务器都会接收到事务，或者都不会接收到。如果它们接收到了，那么它们都会按照与之前发送的其他事务相同的顺序接收它。因此，所有服务器以相同的顺序接收相同的事务集，并为事务建立了全局总顺序。
+- en: 'However, there may be conflicts between transactions that execute concurrently
+    on different servers. Such conflicts are detected by inspecting and comparing
+    the write sets of two different and concurrent transactions, in a process called
+    *certification*. During certification, conflict detection is carried out at row
+    level: if two concurrent transactions, that executed on different servers, update
+    the same row, then there is a conflict. The conflict resolution procedure states
+    that the transaction that was ordered first commits on all servers, and the transaction
+    ordered second aborts, and is therefore rolled back on the originating server
+    and dropped by the other servers in the group. For example, if t1 and t2 execute
+    concurrently at different sites, both changing the same row, and t2 is ordered
+    before t1, then t2 wins the conflict and t1 is rolled back. This is in fact a
+    distributed first commit wins rule. Note that if two transactions are bound to
+    conflict more often than not, then it is a good practice to start them on the
+    same server, where they have a chance to synchronize on the local lock manager
+    instead of being rolled back as a result of certification.'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，在不同服务器上并发执行的事务之间可能存在冲突。这种冲突是通过检查和比较两个不同且并发事务的写入集来检测的，在一个称为*认证*的过程中。在认证过程中，冲突检测是在行级别进行的：如果两个并发事务，在不同服务器上执行，更新了相同的行，则存在冲突。冲突解决程序规定，首先被排序的事务在所有服务器上提交，而第二个被排序的事务中止，因此在原始服务器上回滚，并被组中的其他服务器丢弃。例如，如果t1和t2在不同站点并发执行，都更改了相同的行，并且t2在t1之前被排序，那么t2赢得冲突，t1被回滚。实际上，这是一个分布式的“先提交者获胜”规则。请注意，如果两个事务往往会发生冲突，那么将它们放在同一服务器上开始是一个好的做法，这样它们有机会在本地锁管理器上同步，而不是由于认证的结果而被回滚。
+- en: For applying and externalizing the certified transactions, Group Replication
+    permits servers to deviate from the agreed order of the transactions if this does
+    not break consistency and validity. Group Replication is an eventual consistency
+    system, meaning that as soon as the incoming traffic slows down or stops, all
+    group members have the same data content. While traffic is flowing, transactions
+    can be externalized in a slightly different order, or externalized on some members
+    before the others. For example, in multi-primary mode, a local transaction might
+    be externalized immediately following certification, although a remote transaction
+    that is earlier in the global order has not yet been applied. This is permitted
+    when the certification process has established that there is no conflict between
+    the transactions. In single-primary mode, on the primary server, there is a small
+    chance that concurrent, non-conflicting local transactions might be committed
+    and externalized in a different order from the global order agreed by Group Replication.
+    On the secondaries, which do not accept writes from clients, transactions are
+    always committed and externalized in the agreed order.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了应用和外部化经过认证的事务，集群复制允许服务器偏离事务的约定顺序，如果这不会破坏一致性和有效性。集群复制是一个最终一致性系统，意味着一旦传入流量减少或停止，所有组成员都具有相同的数据内容。在流量流动时，事务可以以稍微不同的顺序外部化，或者在某些成员之前外部化。例如，在多主模式下，一个本地事务可能会在认证后立即外部化，尽管一个在全局顺序中较早的远程事务尚未被应用。当认证过程已经确定事务之间没有冲突时，这是允许的。在单主模式下，在主服务器上，存在一个小概率，即并发的、非冲突的本地事务可能会按照与集群复制约定的全局顺序不同的顺序提交和外部化。在不接受来自客户端的写入的从属服务器上，事务总是按照约定的顺序提交和外部化。
+- en: The following figure depicts the MySQL Group Replication protocol and by comparing
+    it to MySQL Replication (or even MySQL semisynchronous replication) you can see
+    some differences. Some underlying consensus and Paxos related messages are missing
+    from this picture for the sake of clarity.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下图描述了MySQL集群复制协议，并通过将其与MySQL复制（甚至MySQL半同步复制）进行比较，您可以看到一些差异。为了清晰起见，这张图片中省略了一些底层共识和Paxos相关的消息。
+- en: '**Figure 20.3 MySQL Group Replication Protocol**'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图20.3 MySQL集群复制协议**'
+- en: '![A transaction received by Source 1 is executed. Source 1 then sends a message
+    to the replication group, consisting of itself, Source 2, and Source 3\. When
+    all three members have reached consensus, they certify the transaction. Source
+    1 then writes the transaction to its binary log, commits it, and sends a response
+    to the client application. Sources 2 and 3 write the transaction to their relay
+    logs, then apply it, write it to the binary log, and commit it.](../Images/3a65753898781371911e733bef7030d0.png)'
+  id: totrans-9
+  prefs: []
+  type: TYPE_IMG
+  zh: '![Source 1 收到的交易被执行。然后，Source 1 向复制组发送消息，该组由自身、Source 2 和 Source 3 组成。当三个成员达成共识时，它们认证交易。Source
+    1 然后将交易写入其二进制日志，提交它，并向客户端应用程序发送响应。Source 2 和 Source 3 将交易写入其中继日志，然后应用它，写入二进制日志，并提交它。](../Images/3a65753898781371911e733bef7030d0.png)'

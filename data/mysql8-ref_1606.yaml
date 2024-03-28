@@ -1,0 +1,486 @@
+- en: 22.5.5 Connection Compression with X Plugin
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 22.5.5 X 插件的连接压缩
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/x-plugin-connection-compression.html](https://dev.mysql.com/doc/refman/8.0/en/x-plugin-connection-compression.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/x-plugin-connection-compression.html](https://dev.mysql.com/doc/refman/8.0/en/x-plugin-connection-compression.html)
+- en: From MySQL 8.0.19, X Plugin supports compression of messages sent over X Protocol
+    connections. Connections can be compressed if the server and the client agree
+    on a mutually supported compression algorithm. Enabling compression reduces the
+    number of bytes sent over the network, but adds to the server and client an additional
+    CPU cost for compression and decompression operations. The benefits of compression
+    therefore occur primarily when there is low network bandwidth, network transfer
+    time dominates the cost of compression and decompression operations, and result
+    sets are large.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.19 开始，X 插件支持在 X 协议连接上发送消息时进行压缩。如果服务器和客户端就一个相互支持的压缩算法达成一致，连接可以进行压缩。启用压缩会减少通过网络发送的字节数，但会增加服务器和客户端进行压缩和解压缩操作的额外
+    CPU 成本。因此，压缩的好处主要在网络带宽较低、网络传输时间主导压缩和解压缩操作成本、结果集较大时才会发生。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Different MySQL clients implement support for connection compression differently;
+    consult your client documentation for details. For example, for classic MySQL
+    protocol connections, see [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 Connection Compression Control").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不同的 MySQL 客户端以不同方式实现对连接压缩的支持；请查阅您的客户端文档以获取详细信息。例如，对于经典 MySQL 协议连接，请参阅 [6.2.8
+    节，“连接压缩控制”](connection-compression-control.html "6.2.8 连接压缩控制")。
+- en: '[Configuring Connection Compression for X Plugin](x-plugin-connection-compression.html#x-plugin-connection-compression-configuration
+    "Configuring Connection Compression for X Plugin")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置 X 插件的连接压缩](x-plugin-connection-compression.html#x-plugin-connection-compression-configuration
+    "配置 X 插件的连接压缩")'
+- en: '[Compressed Connection Characteristics for X Plugin](x-plugin-connection-compression.html#x-plugin-connection-compression-characteristics
+    "Compressed Connection Characteristics for X Plugin")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[X 插件的压缩连接特性](x-plugin-connection-compression.html#x-plugin-connection-compression-characteristics
+    "X 插件的压缩连接特性")'
+- en: '[Monitoring Connection Compression for X Plugin](x-plugin-connection-compression.html#x-plugin-connection-compression-monitoring
+    "Monitoring Connection Compression for X Plugin")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[监控 X 插件连接压缩](x-plugin-connection-compression.html#x-plugin-connection-compression-monitoring
+    "监控 X 插件连接压缩")'
+- en: Configuring Connection Compression for X Plugin
+  id: totrans-8
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置 X 插件的连接压缩
+- en: By default, X Plugin supports the zstd, LZ4, and Deflate compression algorithms.
+    Compression with the Deflate algorithm is carried out using the zlib software
+    library, so the `deflate_stream` compression algorithm setting for X Protocol
+    connections is equivalent to the `zlib` setting for classic MySQL protocol connections.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，X 插件支持 zstd、LZ4 和 Deflate 压缩算法。使用 Deflate 算法进行压缩时，使用 zlib 软件库，因此 X 协议连接的
+    `deflate_stream` 压缩算法设置等效于经典 MySQL 协议连接的 `zlib` 设置。
+- en: On the server side, you can disallow any of the compression algorithms by setting
+    the [`mysqlx_compression_algorithms`](x-plugin-options-system-variables.html#sysvar_mysqlx_compression_algorithms)
+    system variable to include only those permitted. The algorithm names `zstd_stream`,
+    `lz4_message`, and `deflate_stream` can be specified in any combination, and the
+    order and lettercase are not important. If the system variable value is the empty
+    string, no compression algorithms are permitted and connections are uncompressed.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器端，您可以通过将 [`mysqlx_compression_algorithms`](x-plugin-options-system-variables.html#sysvar_mysqlx_compression_algorithms)
+    系统变量设置为仅包含允许的压缩算法来禁止任何压缩算法。算法名称 `zstd_stream`、`lz4_message` 和 `deflate_stream`
+    可以以任何组合指定，顺序和大小写不重要。如果系统变量值为空字符串，则不允许任何压缩算法，连接将不被压缩。
+- en: The following table compares the characteristics of the different compression
+    algorithms and shows their assigned priorities. By default, the server chooses
+    the highest-priority algorithm permitted in common by the server and the client;
+    clients may change the priorities as described later. The short form alias for
+    the algorithms can be used by clients when specifying them.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表格比较了不同压缩算法的特性，并显示了它们的分配优先级。默认情况下，服务器选择服务器和客户端共同允许的最高优先级算法；客户端可以按后文所述更改优先级。在指定时，客户端可以使用算法的简短别名。
+- en: '**Table 22.1 X Protocol Compression Algorithm Characteristics**'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 22.1 X 协议压缩算法特性**'
+- en: '| Algorithm | Alias | Compression Ratio | Throughput | CPU Cost | Default Priority
+    |'
+  id: totrans-13
+  prefs: []
+  type: TYPE_TB
+  zh: '| 算法 | 别名 | 压缩比 | 吞吐量 | CPU 成本 | 默认优先级 |'
+- en: '| `zsth_stream` | `zstd` | High | High | Medium | First |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| `zsth_stream` | `zstd` | 高 | 高 | 中 | 第一 |'
+- en: '| `lz4_message` | `lz4` | Low | High | Lowest | Second |'
+  id: totrans-15
+  prefs: []
+  type: TYPE_TB
+  zh: '| `lz4_message` | `lz4` | 低 | 高 | 最低 | 第二 |'
+- en: '| `deflate_stream` | `deflate` | High | Low | Highest | Third |'
+  id: totrans-16
+  prefs: []
+  type: TYPE_TB
+  zh: '| `deflate_stream` | `deflate` | 高 | 低 | 最高 | 第三 |'
+- en: The X Protocol set of permitted compression algorithms (whether user-specified
+    or default) is independent of the set of compression algorithms permitted by MySQL
+    Server for classic MySQL protocol connections, which is specified by the [`protocol_compression_algorithms`](server-system-variables.html#sysvar_protocol_compression_algorithms)
+    server system variable. If you do not specify the [`mysqlx_compression_algorithms`](x-plugin-options-system-variables.html#sysvar_mysqlx_compression_algorithms)
+    system variable, X Plugin does not fall back to using compression settings for
+    classic MySQL protocol connections. Instead, its default is to permit all algorithms
+    shown in [Table 22.1, “X Protocol Compression Algorithm Characteristics”](x-plugin-connection-compression.html#x-plugin-connection-compression-algorithms
+    "Table 22.1 X Protocol Compression Algorithm Characteristics"). This is unlike
+    the situation for the TLS context, where MySQL Server settings are used if the
+    X Plugin system variables are not set, as described in [Section 22.5.3, “Using
+    Encrypted Connections with X Plugin”](x-plugin-encrypted-connections.html "22.5.3 Using
+    Encrypted Connections with X Plugin"). For information about compression for classic
+    MySQL protocol connections, see [Section 6.2.8, “Connection Compression Control”](connection-compression-control.html
+    "6.2.8 Connection Compression Control").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: X 协议允许的压缩算法集（无论是用户指定的还是默认的）与 MySQL 服务器允许经典 MySQL 协议连接的压缩算法集是独立的，后者由[`protocol_compression_algorithms`](server-system-variables.html#sysvar_protocol_compression_algorithms)服务器系统变量指定。如果您没有指定[`mysqlx_compression_algorithms`](x-plugin-options-system-variables.html#sysvar_mysqlx_compression_algorithms)系统变量，X
+    插件不会回退到使用经典 MySQL 协议连接的压缩设置。相反，默认情况下，它允许[表 22.1，“X 协议压缩算法特性”](x-plugin-connection-compression.html#x-plugin-connection-compression-algorithms
+    "表 22.1 X 协议压缩算法特性")中显示的所有算法。这与 TLS 上下文的情况不同，如果未设置 X 插件系统变量，则使用 MySQL 服务器设置，如[第
+    22.5.3 节，“使用 X 插件进行加密连接”](x-plugin-encrypted-connections.html "22.5.3 使用 X 插件进行加密连接")中所述。有关经典
+    MySQL 协议连接的压缩信息，请参阅[第 6.2.8 节，“连接压缩控制”](connection-compression-control.html "6.2.8
+    连接压缩控制")。
+- en: 'On the client side, an X Protocol connection request can specify several parameters
+    for compression control:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在客户端端，X 协议连接请求可以为压缩控制指定几个参数：
+- en: The compression mode.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 压缩模式。
+- en: The compression level (from MySQL 8.0.20).
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 压缩级别（从 MySQL 8.0.20 开始）。
+- en: The list of permitted compression algorithms in priority order (from MySQL 8.0.22).
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 按优先顺序列出的允许的压缩算法列表（从 MySQL 8.0.22 开始）。
+- en: Note
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Some clients or Connectors might not support a given compression-control feature.
+    For example, specifying compression level for X Protocol connections is supported
+    only by MySQL Shell, not by other MySQL clients or Connectors. See the documentation
+    for specific products for details about supported features and how to use them.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些客户端或连接器可能不支持特定的压缩控制功能。例如，仅 MySQL Shell 支持为 X 协议连接指定压缩级别，而其他 MySQL 客户端或连接器不支持。有关支持的功能及如何使用它们的详细信息，请参阅特定产品的文档。
+- en: 'The connection mode has these permitted values:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 连接模式具有以下允许的值：
+- en: '`disabled`: The connection is uncompressed.'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`disabled`：连接未经压缩。'
+- en: '`preferred`: The server and client negotiate to find a compression algorithm
+    they both permit. If no common algorithm is available, the connection is uncompressed.
+    This is the default mode if not specified explicitly.'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`preferred`：服务器和客户端协商以找到双方都允许的压缩算法。如果没有可用的公共算法，则连接未经压缩。如果未明确指定，则这是默认模式。'
+- en: '`required`: Compression algorithm negotiation occurs as for `preferred` mode,
+    but if no common algorithm is available, the connection request terminates with
+    an error.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`required`：压缩算法协商与`preferred`模式相同，但如果没有可用的公共算法，则连接请求将以错误终止。'
+- en: In addition to agreeing on a compression algorithm for each connection, the
+    server and client can agree on a compression level from the numeric range that
+    applies to the agreed algorithm. As the compression level for an algorithm increases,
+    the data compression ratio increases, which reduces the network bandwidth and
+    transfer time needed to send the message to the client. However, the effort required
+    for data compression also increases, taking up time and CPU and memory resources
+    on the server. Increases in the compression effort do not have a linear relationship
+    to increases in the compression ratio.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了为每个连接协商压缩算法外，服务器和客户端还可以就适用于约定算法的数字范围内的压缩级别达成一致。随着算法的压缩级别的增加，数据压缩比例增加，从而减少了发送消息到客户端所需的网络带宽和传输时间。然而，数据压缩所需的工作量也增加，占用了服务器上的时间、CPU和内存资源。压缩工作量的增加与压缩比例的增加之间没有线性关系。
+- en: In MySQL 8.0.19, X Plugin always uses the library default compression level
+    for each algorithm (3 for zstd, 0 for LZ4, and 6 for Deflate), and the client
+    cannot negotiate this. From MySQL 8.0.20, the client can request a specific compression
+    level during capability negotiations with the server for an X Protocol connection.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.19中，X Plugin始终使用每种算法的库默认压缩级别（zstd为3，LZ4为0，Deflate为6），客户端无法协商此设置。从MySQL
+    8.0.20开始，客户端可以在与服务器进行X协议连接的能力协商期间请求特定的压缩级别。
+- en: The default compression levels used by X Plugin from MySQL 8.0.20 have been
+    selected through performance testing as being a good trade-off between compression
+    time and network transit time. These defaults are not necessarily the same as
+    the library default for each algorithm. They apply if the client does not request
+    a compression level for the algorithm. The default compression levels are initially
+    set to 3 for zstd, 2 for LZ4, and 3 for Deflate. You can adjust these settings
+    using the [`mysqlx_zstd_default_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_zstd_default_compression_level),
+    [`mysqlx_lz4_default_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_lz4_default_compression_level),
+    and [`mysqlx_deflate_default_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_deflate_default_compression_level)
+    system variables.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.20中X Plugin使用的默认压缩级别是通过性能测试选择的，是在压缩时间和网络传输时间之间的良好折衷。这些默认值不一定与每种算法的库默认值相同。如果客户端没有为算法请求压缩级别，则会应用这些默认压缩级别。默认压缩级别最初设置为zstd的3，LZ4的2，以及Deflate的3。您可以使用[`mysqlx_zstd_default_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_zstd_default_compression_level)，[`mysqlx_lz4_default_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_lz4_default_compression_level)，和[`mysqlx_deflate_default_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_deflate_default_compression_level)系统变量来调整这些设置。
+- en: To prevent excessive resource consumption on the server, X Plugin sets a maximum
+    compression level that the server permits for each algorithm. If a client requests
+    a compression level that exceeds this setting, the server uses its maximum permitted
+    compression level (compression level requests by a client are supported only by
+    MySQL Shell). The maximum compression levels are initially set to 11 for zstd,
+    8 for LZ4, and 5 for Deflate. You can adjust these settings using the [`mysqlx_zstd_max_client_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_zstd_max_client_compression_level),
+    [`mysqlx_lz4_max_client_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_lz4_max_client_compression_level),
+    and [`mysqlx_deflate_max_client_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_deflate_max_client_compression_level)
+    system variables.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为防止服务器上的资源消耗过多，X Plugin为每种算法设置了服务器允许的最大压缩级别。如果客户端请求的压缩级别超过此设置，服务器将使用其允许的最大压缩级别（客户端请求的压缩级别仅由MySQL
+    Shell支持）。最大压缩级别最初设置为zstd的11，LZ4的8，以及Deflate的5。您可以使用[`mysqlx_zstd_max_client_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_zstd_max_client_compression_level)，[`mysqlx_lz4_max_client_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_lz4_max_client_compression_level)，和[`mysqlx_deflate_max_client_compression_level`](x-plugin-options-system-variables.html#sysvar_mysqlx_deflate_max_client_compression_level)系统变量来调整这些设置。
+- en: 'If the server and client permit more than one algorithm in common, the default
+    priority order for choosing an algorithm during negotiation is shown in [Table 22.1,
+    “X Protocol Compression Algorithm Characteristics”](x-plugin-connection-compression.html#x-plugin-connection-compression-algorithms
+    "Table 22.1 X Protocol Compression Algorithm Characteristics"). From MySQL 8.0.22,
+    for clients that support specifying compression algorithms, the connection request
+    can include a list of algorithms permitted by the client, specified using the
+    algorithm name or its alias. The order of these algorithms in the list is taken
+    as a priority order by the server. The algorithm used in this case is the first
+    of those in the client list that is also permitted on the server side. However,
+    the option for compression algorithms is subject to the compression mode:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果服务器和客户端共同允许多个算法，则在协商期间选择算法的默认优先顺序如[表22.1，“X协议压缩算法特性”](x-plugin-connection-compression.html#x-plugin-connection-compression-algorithms
+    "Table 22.1 X Protocol Compression Algorithm Characteristics")中所示。从MySQL 8.0.22开始，对于支持指定压缩算法的客户端，连接请求可以包含客户端允许的算法列表，使用算法名称或其别名指定。列表中这些算法的顺序被服务器视为优先顺序。在这种情况下使用的算法是客户端列表中第一个在服务器端也允许的算法。然而，压缩算法选项取决于压缩模式：
+- en: If the compression mode is `disabled`, the compression algorithms option is
+    ignored.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果压缩模式为`disabled`，则忽略压缩算法选项。
+- en: If the compression mode is `preferred` but no algorithm permitted on the client
+    side is permitted on the server side, the connection is uncompressed.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果压缩模式为`preferred`，但客户端端和服务器端上没有允许的算法，则连接未经压缩。
+- en: If the compression mode is `required` but no algorithm permitted on the client
+    side is permitted on the server side, an error occurs.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果压缩模式为`required`，但客户端端和服务器端上没有允许的算法，则会发生错误。
+- en: To monitor the effects of message compression, use the X Plugin status variables
+    described in [Monitoring Connection Compression for X Plugin](x-plugin-connection-compression.html#x-plugin-connection-compression-monitoring
+    "Monitoring Connection Compression for X Plugin"). You can use these status variables
+    to calculate the benefit of message compression with your current settings, and
+    use that information to tune your settings.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要监视消息压缩的效果，请使用[X Plugin监视连接压缩](x-plugin-connection-compression.html#x-plugin-connection-compression-monitoring
+    "Monitoring Connection Compression for X Plugin")中描述的X Plugin状态变量。您可以使用这些状态变量来计算使用当前设置的消息压缩的好处，并使用该信息来调整您的设置。
+- en: Compressed Connection Characteristics for X Plugin
+  id: totrans-37
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: X Plugin的压缩连接特性
+- en: 'X Protocol connection compression operates with the following behaviors and
+    boundaries:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: X协议连接压缩具有以下行为和边界：
+- en: 'The `_stream` and `_message` suffixes in algorithm names refer to two different
+    operational modes: In stream mode, all X Protocol messages in a single connection
+    are compressed into a continuous stream and must be decompressed in the same manner—following
+    the order they were compressed and without skipping any messages. In message mode,
+    each message is compressed individually and independently, and need not be decompressed
+    in the order in which they were compressed. Also, message mode does not require
+    all compressed messages to be decompressed.'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 算法名称中的`_stream`和`_message`后缀指的是两种不同的操作模式：在流模式中，单个连接中的所有X协议消息被压缩成连续的流，并且必须以相同的方式解压缩——按照它们被压缩的顺序进行，而且不能跳过任何消息。在消息模式中，每个消息都被单独和独立地压缩，不需要按照它们被压缩的顺序进行解压缩。此外，消息模式不要求所有压缩的消息都必须被解压缩。
+- en: Compression is not applied to any messages that are sent before authentication
+    succeeds.
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不适用于在身份验证成功之前发送的任何消息的压缩。
+- en: Compression is not applied to control flow messages such as `Mysqlx.Ok`, `Mysqlx.Error`,
+    and `Mysqlx.Sql.StmtExecuteOk` messages.
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 压缩不适用于诸如`Mysqlx.Ok`、`Mysqlx.Error`和`Mysqlx.Sql.StmtExecuteOk`等控制流消息。
+- en: All other X Protocol messages can be compressed if the server and client agree
+    on a mutually permitted compression algorithm during capability negotiation. If
+    the client does not request compression at that stage, neither the client nor
+    the server applies compression to messages.
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果服务器和客户端在能力协商期间就共同允许的压缩算法达成一致，那么所有其他X协议消息都可以进行压缩。如果客户端在该阶段不请求压缩，则客户端和服务器都不会对消息应用压缩。
+- en: When messages sent over X Protocol connections are compressed, the limit specified
+    by the [`mysqlx_max_allowed_packet`](x-plugin-options-system-variables.html#sysvar_mysqlx_max_allowed_packet)
+    system variable still applies. The network packet must be smaller than this limit
+    after the message payload has been decompressed. If the limit is exceeded, X Plugin
+    returns a decompression error and closes the connection.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当通过X协议连接发送的消息被压缩时，[`mysqlx_max_allowed_packet`](x-plugin-options-system-variables.html#sysvar_mysqlx_max_allowed_packet)系统变量指定的限制仍然适用。消息负载解压缩后的网络数据包必须小于此限制。如果超过限制，X插件将返回解压缩错误并关闭连接。
+- en: 'The following points pertain to compression level requests by clients, which
+    is supported only by MySQL Shell:'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端的压缩级别请求仅由MySQL Shell支持，以下是相关要点：
+- en: Compression levels must be specified by the client as an integer. If any other
+    type of value is supplied, the connection closes with an error.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端必须将压缩级别指定为整数。如果提供了其他类型的值，则连接将以错误关闭。
+- en: If a client specifies an algorithm but not a compression level, the server uses
+    its default compression level for the algorithm.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果客户端指定算法但未指定压缩级别，则服务器将使用该算法的默认压缩级别。
+- en: If a client requests an algorithm compression level that exceeds the server
+    maximum permitted level, the server uses the maximum permitted level.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果客户端请求的算法压缩级别超过服务器允许的最大级别，则服务器使用最大允许级别。
+- en: If a client requests an algorithm compression level that is less than the server
+    minimum permitted level, the server uses the minimum permitted level.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果客户端请求的算法压缩级别低于服务器允许的最小级别，则服务器使用最小允许级别。
+- en: Monitoring Connection Compression for X Plugin
+  id: totrans-49
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 监控X插件的连接压缩效果
+- en: You can monitor the effects of message compression using the X Plugin status
+    variables. When message compression is in use, the session [`Mysqlx_compression_algorithm`](x-plugin-status-variables.html#statvar_Mysqlx_compression_algorithm)
+    status variable shows which compression algorithm is in use for the current X
+    Protocol connection, and [`Mysqlx_compression_level`](x-plugin-status-variables.html#statvar_Mysqlx_compression_level)
+    shows the compression level that was selected. These session status variables
+    are available from MySQL 8.0.20.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用X插件状态变量监视消息压缩的效果。当使用消息压缩时，会话[`Mysqlx_compression_algorithm`](x-plugin-status-variables.html#statvar_Mysqlx_compression_algorithm)状态变量显示当前X协议连接中使用的压缩算法，[`Mysqlx_compression_level`](x-plugin-status-variables.html#statvar_Mysqlx_compression_level)显示所选的压缩级别。这些会话状态变量从MySQL
+    8.0.20开始可用。
+- en: From MySQL 8.0.19, X Plugin status variables can be used to calculate the efficiency
+    of the compression algorithms that are selected (the data compression ratio),
+    and the overall effect of using message compression. Use the session value of
+    the status variables in the following calculations to see what the benefit of
+    message compression was for a specific session with a known compression algorithm.
+    Or use the global value of the status variables to check the overall benefit of
+    message compression for your server across all sessions using X Protocol connections,
+    including all the compression algorithms that have been used for those sessions,
+    and all sessions that did not use message compression. You can then tune message
+    compression by adjusting the permitted compression algorithms, maximum compression
+    level, and default compression level, as described in [Configuring Connection
+    Compression for X Plugin](x-plugin-connection-compression.html#x-plugin-connection-compression-configuration
+    "Configuring Connection Compression for X Plugin").
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.19开始，X插件状态变量可用于计算所选的压缩算法的效率（数据压缩比），以及使用消息压缩的整体效果。在以下计算中使用状态变量的会话值，以查看已知压缩算法的特定会话的消息压缩带来的好处。或者使用状态变量的全局值，检查使用X协议连接的服务器的整体消息压缩效益，包括为这些会话使用的所有压缩算法，以及未使用消息压缩的所有会话。然后，可以通过调整允许的压缩算法、最大压缩级别和默认压缩级别来调整消息压缩，如[为X插件配置连接压缩](x-plugin-connection-compression.html#x-plugin-connection-compression-configuration
+    "为X插件配置连接压缩")中所述。
+- en: 'When message compression is in use, the [`Mysqlx_bytes_sent`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_sent)
+    status variable shows the total number of bytes sent out from the server, including
+    compressed message payloads measured after compression, any items in compressed
+    messages that were not compressed such as X Protocol headers, and any uncompressed
+    messages. The [`Mysqlx_bytes_sent_compressed_payload`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_sent_compressed_payload)
+    status variable shows the total number of bytes sent as compressed message payloads,
+    measured after compression, and the [`Mysqlx_bytes_sent_uncompressed_frame`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_sent_uncompressed_frame)
+    status variable shows the total number of bytes for those same message payloads
+    but measured before compression. The compression ratio, which shows the efficiency
+    of the compression algorithm, can therefore be calculated using the following
+    expression:'
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当消息压缩被使用时，[`Mysqlx_bytes_sent`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_sent)
+    状态变量显示从服务器发送的总字节数，包括压缩后测量的压缩消息有效载荷、未压缩的压缩消息中未压缩的项目（如 X 协议头）以及任何未压缩的消息。[`Mysqlx_bytes_sent_compressed_payload`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_sent_compressed_payload)
+    状态变量显示作为压缩消息有效载荷发送的总字节数，压缩后测量，而 [`Mysqlx_bytes_sent_uncompressed_frame`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_sent_uncompressed_frame)
+    状态变量显示相同消息有效载荷的总字节数，但在压缩之前测量。因此，压缩算法的效率可以通过以下表达式计算：
+- en: '[PRE0]'
+  id: totrans-53
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The effectiveness of compression for X Protocol messages sent by the server
+    can be calculated using the following expression:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器发送的 X 协议消息的压缩效果可以通过以下表达式计算：
+- en: '[PRE1]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: For messages received by the server from clients, the [`Mysqlx_bytes_received_compressed_payload`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_received_compressed_payload)
+    status variable shows the total number of bytes received as compressed message
+    payloads, measured before decompression, and the [`Mysqlx_bytes_received_uncompressed_frame`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_received_uncompressed_frame)
+    status variable shows the total number of bytes for those same message payloads
+    but measured after decompression. The [`Mysqlx_bytes_received`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_received)
+    status variable includes compressed message payloads measured before decompression,
+    any uncompressed items in compressed messages, and any uncompressed messages.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于服务器从客户端接收的消息，[`Mysqlx_bytes_received_compressed_payload`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_received_compressed_payload)
+    状态变量显示作为压缩消息有效载荷接收的总字节数，解压缩前测量，而 [`Mysqlx_bytes_received_uncompressed_frame`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_received_uncompressed_frame)
+    状态变量显示相同消息有效载荷的总字节数，但在解压缩后测量。[`Mysqlx_bytes_received`](x-plugin-status-variables.html#statvar_Mysqlx_bytes_received)
+    状态变量包括解压缩前测量的压缩消息有效载荷、压缩消息中的任何未压缩项目以及任何未压缩消息。

@@ -1,0 +1,806 @@
+- en: 27.7 Stored Program Binary Logging
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 27.7 存储程序二进制日志记录
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/stored-programs-logging.html](https://dev.mysql.com/doc/refman/8.0/en/stored-programs-logging.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/stored-programs-logging.html](https://dev.mysql.com/doc/refman/8.0/en/stored-programs-logging.html)
+- en: 'The binary log contains information about SQL statements that modify database
+    contents. This information is stored in the form of “events” that describe the
+    modifications. (Binary log events differ from scheduled event stored objects.)
+    The binary log has two important purposes:'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志包含有关修改数据库内容的SQL语句的信息。这些信息以描述修改的“事件”形式存储。（二进制日志事件与计划事件存储对象不同。）二进制日志有两个重要目的：
+- en: For replication, the binary log is used on source replication servers as a record
+    of the statements to be sent to replica servers. The source sends the events contained
+    in its binary log to its replicas, which execute those events to make the same
+    data changes that were made on the source. See [Section 19.2, “Replication Implementation”](replication-implementation.html
+    "19.2 Replication Implementation").
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于复制，二进制日志在源复制服务器上用作要发送到副本服务器的语句记录。源服务器将其二进制日志中包含的事件发送到其副本，副本执行这些事件以进行与源上进行的相同数据更改。请参阅[Section 19.2,
+    “Replication Implementation”](replication-implementation.html "19.2 Replication
+    Implementation")。
+- en: Certain data recovery operations require use of the binary log. After a backup
+    file has been restored, the events in the binary log that were recorded after
+    the backup was made are re-executed. These events bring databases up to date from
+    the point of the backup. See [Section 9.3.2, “Using Backups for Recovery”](recovery-from-backups.html
+    "9.3.2 Using Backups for Recovery").
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 某些数据恢复操作需要使用二进制日志。在恢复备份文件后，将重新执行在备份文件生成后记录的二进制日志中的事件。这些事件将数据库从备份点更新到最新。请参阅[Section 9.3.2,
+    “Using Backups for Recovery”](recovery-from-backups.html "9.3.2 Using Backups
+    for Recovery")。
+- en: 'However, if logging occurs at the statement level, there are certain binary
+    logging issues with respect to stored programs (stored procedures and functions,
+    triggers, and events):'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，如果日志记录发生在语句级别，那么关于存储程序（存储过程和函数、触发器和事件）的二进制日志记录存在某些问题：
+- en: In some cases, a statement might affect different sets of rows on source and
+    replica.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在某些情况下，一条语句可能会影响源和副本上的不同行集。
+- en: Replicated statements executed on a replica are processed by the replica's applier
+    thread. Unless you implement replication privilege checks, which are available
+    from MySQL 8.0.18 (see [Section 19.3.3, “Replication Privilege Checks”](replication-privilege-checks.html
+    "19.3.3 Replication Privilege Checks")), the applier thread has full privileges.
+    In this situation, it is possible for a procedure to follow different execution
+    paths on source and replica servers, so a user could write a routine containing
+    a dangerous statement that executes only on the replica.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在副本上执行的复制语句由副本的应用程序线程处理。除非您实现了复制权限检查，这些权限从MySQL 8.0.18开始提供（请参阅[Section 19.3.3,
+    “Replication Privilege Checks”](replication-privilege-checks.html "19.3.3 Replication
+    Privilege Checks")），否则应用程序线程具有完全权限。在这种情况下，一个过程可能会在源服务器和副本服务器上遵循不同的执行路径，因此用户可以编写一个包含仅在副本上执行的危险语句的例程。
+- en: If a stored program that modifies data is nondeterministic, it is not repeatable.
+    This can result in different data on source and replica, or cause restored data
+    to differ from the original data.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果修改数据的存储程序是不确定性的，那么它就不可重复。这可能导致源和副本上的数据不同，或导致恢复的数据与原始数据不同。
+- en: This section describes how MySQL handles binary logging for stored programs.
+    It states the current conditions that the implementation places on the use of
+    stored programs, and what you can do to avoid logging problems. It also provides
+    additional information about the reasons for these conditions.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了MySQL如何处理存储程序的二进制日志记录。它说明了实现对存储程序使用的当前条件，以及您可以采取什么措施避免日志记录问题。它还提供了关于这些条件原因的额外信息。
+- en: Unless noted otherwise, the remarks here assume that binary logging is enabled
+    on the server (see [Section 7.4.4, “The Binary Log”](binary-log.html "7.4.4 The
+    Binary Log").) If the binary log is not enabled, replication is not possible,
+    nor is the binary log available for data recovery. From MySQL 8.0, binary logging
+    is enabled by default, and is only disabled if you specify the [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    or [`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option at startup.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除非另有说明，这里的备注假定服务器上已启用二进制日志记录（参见[第 7.4.4 节，“二进制日志”](binary-log.html "7.4.4 二进制日志")）。如果未启用二进制日志，则无法进行复制，也无法使用二进制日志进行数据恢复。从
+    MySQL 8.0 开始，默认启用二进制日志记录，只有在启动时指定 [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    或 [`--disable-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    选项时才会禁用。
+- en: In general, the issues described here result when binary logging occurs at the
+    SQL statement level (statement-based binary logging). If you use row-based binary
+    logging, the log contains changes made to individual rows as a result of executing
+    SQL statements. When routines or triggers execute, row changes are logged, not
+    the statements that make the changes. For stored procedures, this means that the
+    [`CALL`](call.html "15.2.1 CALL Statement") statement is not logged. For stored
+    functions, row changes made within the function are logged, not the function invocation.
+    For triggers, row changes made by the trigger are logged. On the replica side,
+    only the row changes are seen, not the stored program invocation.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常，描述的问题是在 SQL 语句级别发生二进制日志记录时（基于语句的二进制日志记录）产生的。如果使用基于行的二进制日志记录，日志将包含执行 SQL 语句导致的单个行的更改。当例程或触发器执行时，将记录行更改，而不是进行更改的语句。对于存储过程，这意味着
+    [`CALL`](call.html "15.2.1 CALL 语句") 语句不会被记录。对于存储函数，将记录函数内部进行的行更改，而不是函数调用。对于触发器，将记录触发器进行的行更改。在副本端，只能看到行更改，而看不到存储程序调用。
+- en: Mixed format binary logging ([`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format))
+    uses statement-based binary logging, except for cases where only row-based binary
+    logging is guaranteed to lead to proper results. With mixed format, when a stored
+    function, stored procedure, trigger, event, or prepared statement contains anything
+    that is not safe for statement-based binary logging, the entire statement is marked
+    as unsafe and logged in row format. The statements used to create and drop procedures,
+    functions, triggers, and events are always safe, and are logged in statement format.
+    For more information about row-based, mixed, and statement-based logging, and
+    how safe and unsafe statements are determined, see [Section 19.2.1, “Replication
+    Formats”](replication-formats.html "19.2.1 Replication Formats").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 混合格式二进制日志记录（[`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)）使用基于语句的二进制日志记录，除非只有基于行的二进制日志记录才能确保产生正确结果的情况。使用混合格式时，当存储函数、存储过程、触发器、事件或准备语句包含任何不适合基于语句的二进制日志记录的内容时，整个语句将被标记为不安全，并以行格式记录。用于创建和删除过程、函数、触发器和事件的语句始终是安全的，并以语句格式记录。有关基于行、混合和基于语句的日志记录以及如何确定安全和不安全语句的更多信息，请参见[第
+    19.2.1 节，“复制格式”](replication-formats.html "19.2.1 复制格式")。
+- en: The conditions on the use of stored functions in MySQL can be summarized as
+    follows. These conditions do not apply to stored procedures or Event Scheduler
+    events and they do not apply unless binary logging is enabled.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 中对存储函数使用的条件可以总结如下。这些条件不适用于存储过程或事件调度器事件，也不适用于未启用二进制日志记录的情况。
+- en: To create or alter a stored function, you must have the [`SET_USER_ID`](privileges-provided.html#priv_set-user-id)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege),
+    in addition to the [`CREATE ROUTINE`](privileges-provided.html#priv_create-routine)
+    or [`ALTER ROUTINE`](privileges-provided.html#priv_alter-routine) privilege that
+    is normally required. (Depending on the `DEFINER` value in the function definition,
+    [`SET_USER_ID`](privileges-provided.html#priv_set-user-id) or [`SUPER`](privileges-provided.html#priv_super)
+    might be required regardless of whether binary logging is enabled. See [Section 15.1.17,
+    “CREATE PROCEDURE and CREATE FUNCTION Statements”](create-procedure.html "15.1.17 CREATE
+    PROCEDURE and CREATE FUNCTION Statements").)
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要创建或更改存储函数，您必须具有[`SET_USER_ID`](privileges-provided.html#priv_set-user-id)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限），除了通常所需的[`CREATE
+    ROUTINE`](privileges-provided.html#priv_create-routine)或[`ALTER ROUTINE`](privileges-provided.html#priv_alter-routine)权限。
+    （根据函数定义中的`DEFINER`值，无论是否启用了二进制日志记录，可能需要[`SET_USER_ID`](privileges-provided.html#priv_set-user-id)或[`SUPER`](privileges-provided.html#priv_super)。请参阅[第15.1.17节，“CREATE
+    PROCEDURE and CREATE FUNCTION Statements”](create-procedure.html "15.1.17 CREATE
+    PROCEDURE and CREATE FUNCTION Statements").）
+- en: When you create a stored function, you must declare either that it is deterministic
+    or that it does not modify data. Otherwise, it may be unsafe for data recovery
+    or replication.
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 创建存储函数时，必须声明其是确定性的或不修改数据。否则，可能对数据恢复或复制不安全。
+- en: 'By default, for a [`CREATE FUNCTION`](create-function.html "15.1.14 CREATE
+    FUNCTION Statement") statement to be accepted, at least one of `DETERMINISTIC`,
+    `NO SQL`, or `READS SQL DATA` must be specified explicitly. Otherwise an error
+    occurs:'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认情况下，要接受[`CREATE FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION Statement")语句，必须明确指定`DETERMINISTIC`、`NO
+    SQL`或`READS SQL DATA`中的至少一个。否则会出现错误：
+- en: '[PRE0]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'This function is deterministic (and does not modify data), so it is safe:'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此函数是确定性的（且不修改数据），因此是安全的：
+- en: '[PRE1]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'This function uses [`UUID()`](miscellaneous-functions.html#function_uuid),
+    which is not deterministic, so the function also is not deterministic and is not
+    safe:'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此函数使用[`UUID()`](miscellaneous-functions.html#function_uuid)，这是不确定性的，因此该函数也是不确定性的且不安全的：
+- en: '[PRE2]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'This function modifies data, so it may not be safe:'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此函数修改数据，因此可能不安全：
+- en: '[PRE3]'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Assessment of the nature of a function is based on the “honesty” of the creator.
+    MySQL does not check that a function declared `DETERMINISTIC` is free of statements
+    that produce nondeterministic results.
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对函数性质的评估基于创建者的“诚实”。MySQL不会检查声明为`DETERMINISTIC`的函数是否不包含产生非确定性结果的语句。
+- en: When you attempt to execute a stored function, if [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, the `DETERMINISTIC` keyword must be specified in the function definition.
+    If this is not the case, an error is generated and the function does not run,
+    unless [`log_bin_trust_function_creators=1`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    is specified to override this check (see below). For recursive function calls,
+    the `DETERMINISTIC` keyword is required on the outermost call only. If row-based
+    or mixed binary logging is in use, the statement is accepted and replicated even
+    if the function was defined without the `DETERMINISTIC` keyword.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当您尝试执行存储函数时，如果设置了[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)，则必须在函数定义中指定`DETERMINISTIC`关键字。如果没有这样做，将生成错误并且函数不会运行，除非指定[`log_bin_trust_function_creators=1`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)以覆盖此检查（见下文）。对于递归函数调用，只有在最外层调用上才需要`DETERMINISTIC`关键字。如果使用基于行或混合二进制日志记录，则即使函数在没有`DETERMINISTIC`关键字的情况下定义，该语句也会被接受和复制。
+- en: Because MySQL does not check if a function really is deterministic at creation
+    time, the invocation of a stored function with the `DETERMINISTIC` keyword might
+    carry out an action that is unsafe for statement-based logging, or invoke a function
+    or procedure containing unsafe statements. If this occurs when [`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)
+    is set, a warning message is issued. If row-based or mixed binary logging is in
+    use, no warning is issued, and the statement is replicated in row-based format.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 因为MySQL在创建时不会检查函数是否真的是确定性的，所以带有`DETERMINISTIC`关键字的存储函数的调用可能执行对基于语句的日志记录不安全的操作，或调用包含不安全语句的函数或过程。如果在设置了[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)时发生这种情况，则会发出警告消息。如果使用基于行或混合二进制日志记录，则不会发出警告，并且该语句以基于行的格式被复制。
+- en: 'To relax the preceding conditions on function creation (that you must have
+    the [`SUPER`](privileges-provided.html#priv_super) privilege and that a function
+    must be declared deterministic or to not modify data), set the global [`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    system variable to 1\. By default, this variable has a value of 0, but you can
+    change it like this:'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 放宽函数创建的先决条件（必须具有[`SUPER`](privileges-provided.html#priv_super)权限，并且函数必须声明为确定性或不修改数据），将全局[`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)系统变量设置为1。默认情况下，此变量的值为0，但您可以像这样更改它：
+- en: '[PRE4]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: You can also set this variable at server startup.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您也可以在服务器启动时设置此变量。
+- en: If binary logging is not enabled, [`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    does not apply. [`SUPER`](privileges-provided.html#priv_super) is not required
+    for function creation unless, as described previously, the `DEFINER` value in
+    the function definition requires it.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果未启用二进制日志记录，则[`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)不适用。除非如前所述，函数定义中的`DEFINER`值要求，否则不需要[`SUPER`](privileges-provided.html#priv_super)权限来创建函数。
+- en: For information about built-in functions that may be unsafe for replication
+    (and thus cause stored functions that use them to be unsafe as well), see [Section 19.5.1,
+    “Replication Features and Issues”](replication-features.html "19.5.1 Replication
+    Features and Issues").
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 有关内置函数可能不安全用于复制（因此导致使用它们的存储函数也不安全）的信息，请参阅[Section 19.5.1, “Replication Features
+    and Issues”](replication-features.html "19.5.1 Replication Features and Issues")。
+- en: 'Triggers are similar to stored functions, so the preceding remarks regarding
+    functions also apply to triggers with the following exception: [`CREATE TRIGGER`](create-trigger.html
+    "15.1.22 CREATE TRIGGER Statement") does not have an optional `DETERMINISTIC`
+    characteristic, so triggers are assumed to be always deterministic. However, this
+    assumption might be invalid in some cases. For example, the [`UUID()`](miscellaneous-functions.html#function_uuid)
+    function is nondeterministic (and does not replicate). Be careful about using
+    such functions in triggers.'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 触发器类似于存储函数，因此关于函数的先前备注也适用于触发器，唯一的例外是：[`CREATE TRIGGER`](create-trigger.html
+    "15.1.22 CREATE TRIGGER Statement")没有可选的`DETERMINISTIC`特征，因此假定触发器始终是确定性的。但是，在某些情况下，这种假设可能是无效的。例如，[`UUID()`](miscellaneous-functions.html#function_uuid)函数是不确定性的（且不会复制）。在触发器中使用此类函数时要小心。
+- en: Triggers can update tables, so error messages similar to those for stored functions
+    occur with [`CREATE TRIGGER`](create-trigger.html "15.1.22 CREATE TRIGGER Statement")
+    if you do not have the required privileges. On the replica side, the replica uses
+    the trigger `DEFINER` attribute to determine which user is considered to be the
+    creator of the trigger.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 触发器可以更新表，因此如果没有所需权限，与存储函数类似的错误消息将在[`CREATE TRIGGER`](create-trigger.html "15.1.22 CREATE
+    TRIGGER Statement")时出现。在副本端，副本使用触发器的`DEFINER`属性来确定哪个用户被视为触发器的创建者。
+- en: 'The rest of this section provides additional detail about the logging implementation
+    and its implications. You need not read it unless you are interested in the background
+    on the rationale for the current logging-related conditions on stored routine
+    use. This discussion applies only for statement-based logging, and not for row-based
+    logging, with the exception of the first item: `CREATE` and `DROP` statements
+    are logged as statements regardless of the logging mode.'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节的其余部分提供了有关日志记录实现及其影响的额外细节。除非您对当前与存储例程使用相关的日志记录条件的背景感兴趣，否则无需阅读。此讨论仅适用于基于语句的日志记录，不适用于基于行的日志记录，除了第一项：`CREATE`和`DROP`语句无论日志记录模式如何都将作为语句记录。
+- en: The server writes [`CREATE EVENT`](create-event.html "15.1.13 CREATE EVENT Statement"),
+    [`CREATE PROCEDURE`](create-procedure.html "15.1.17 CREATE PROCEDURE and CREATE
+    FUNCTION Statements"), [`CREATE FUNCTION`](create-function.html "15.1.14 CREATE
+    FUNCTION Statement"), [`ALTER EVENT`](alter-event.html "15.1.3 ALTER EVENT Statement"),
+    [`ALTER PROCEDURE`](alter-procedure.html "15.1.7 ALTER PROCEDURE Statement"),
+    [`ALTER FUNCTION`](alter-function.html "15.1.4 ALTER FUNCTION Statement"), [`DROP
+    EVENT`](drop-event.html "15.1.25 DROP EVENT Statement"), [`DROP PROCEDURE`](drop-procedure.html
+    "15.1.29 DROP PROCEDURE and DROP FUNCTION Statements"), and [`DROP FUNCTION`](drop-function.html
+    "15.1.26 DROP FUNCTION Statement") statements to the binary log.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器将[`CREATE EVENT`](create-event.html "15.1.13 CREATE EVENT Statement")、[`CREATE
+    PROCEDURE`](create-procedure.html "15.1.17 CREATE PROCEDURE and CREATE FUNCTION
+    Statements")、[`CREATE FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION
+    Statement")、[`ALTER EVENT`](alter-event.html "15.1.3 ALTER EVENT Statement")、[`ALTER
+    PROCEDURE`](alter-procedure.html "15.1.7 ALTER PROCEDURE Statement")、[`ALTER FUNCTION`](alter-function.html
+    "15.1.4 ALTER FUNCTION Statement")、[`DROP EVENT`](drop-event.html "15.1.25 DROP
+    EVENT Statement")、[`DROP PROCEDURE`](drop-procedure.html "15.1.29 DROP PROCEDURE
+    and DROP FUNCTION Statements")和[`DROP FUNCTION`](drop-function.html "15.1.26 DROP
+    FUNCTION Statement")语句写入二进制日志。
+- en: 'A stored function invocation is logged as a [`SELECT`](select.html "15.2.13 SELECT
+    Statement") statement if the function changes data and occurs within a statement
+    that would not otherwise be logged. This prevents nonreplication of data changes
+    that result from use of stored functions in nonlogged statements. For example,
+    [`SELECT`](select.html "15.2.13 SELECT Statement") statements are not written
+    to the binary log, but a [`SELECT`](select.html "15.2.13 SELECT Statement") might
+    invoke a stored function that makes changes. To handle this, a `SELECT *`func_name`*()`
+    statement is written to the binary log when the given function makes a change.
+    Suppose that the following statements are executed on the source server:'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果函数更改数据并且出现在否则不会被记录的语句中，则存储函数调用将被记录为[`SELECT`](select.html "15.2.13 SELECT
+    Statement")语句。这可以防止由于在非记录语句中使用存储函数而导致的数据更改不被复制。例如，[`SELECT`](select.html "15.2.13 SELECT
+    Statement")语句不会被写入二进制日志，但是[`SELECT`](select.html "15.2.13 SELECT Statement")可能调用一个进行更改的存储函数。为了处理这种情况，当给定函数进行更改时，将`SELECT
+    *`func_name`*()`语句写入二进制日志。假设以下语句在源服务器上执行：
+- en: '[PRE5]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'When the [`SELECT`](select.html "15.2.13 SELECT Statement") statement executes,
+    the function `f1()` is invoked three times. Two of those invocations insert a
+    row, and MySQL logs a [`SELECT`](select.html "15.2.13 SELECT Statement") statement
+    for each of them. That is, MySQL writes the following statements to the binary
+    log:'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`SELECT`](select.html "15.2.13 SELECT Statement")语句执行时，函数`f1()`被调用三次。其中两次调用插入一行，并且MySQL为每次插入都记录了一个[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句。也就是说，MySQL将以下语句写入二进制日志：
+- en: '[PRE6]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The server also logs a [`SELECT`](select.html "15.2.13 SELECT Statement") statement
+    for a stored function invocation when the function invokes a stored procedure
+    that causes an error. In this case, the server writes the [`SELECT`](select.html
+    "15.2.13 SELECT Statement") statement to the log along with the expected error
+    code. On the replica, if the same error occurs, that is the expected result and
+    replication continues. Otherwise, replication stops.
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当函数调用存储过程导致错误时，服务器还会记录一个[`SELECT`](select.html "15.2.13 SELECT Statement")语句。在这种情况下，服务器将[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句与预期的错误代码一起写入日志。在副本中，如果发生相同的错误，那就是预期的结果，复制将继续。否则，复制将停止。
+- en: 'Logging stored function invocations rather than the statements executed by
+    a function has a security implication for replication, which arises from two factors:'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 记录存储函数调用而不是函数执行的语句对复制有安全影响，这是由两个因素引起的：
+- en: It is possible for a function to follow different execution paths on source
+    and replica servers.
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 函数可能在源服务器和副本服务器上遵循不同的执行路径。
+- en: Statements executed on a replica are processed by the replica's applier thread.
+    Unless you implement replication privilege checks, which are available from MySQL
+    8.0.18 (see [Section 19.3.3, “Replication Privilege Checks”](replication-privilege-checks.html
+    "19.3.3 Replication Privilege Checks")), the applier thread has full privileges.
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在副本上执行的语句由副本的应用程序线程处理。除非您实现了复制权限检查，这在MySQL 8.0.18中可用（参见[Section 19.3.3, “Replication
+    Privilege Checks”](replication-privilege-checks.html "19.3.3 Replication Privilege
+    Checks")），否则应用程序线程具有完全权限。
+- en: 'The implication is that although a user must have the [`CREATE ROUTINE`](privileges-provided.html#priv_create-routine)
+    privilege to create a function, the user can write a function containing a dangerous
+    statement that executes only on the replica where it is processed by a thread
+    that has full privileges. For example, if the source and replica servers have
+    server ID values of 1 and 2, respectively, a user on the source server could create
+    and invoke an unsafe function `unsafe_func()` as follows:'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这意味着，尽管用户必须拥有 [`CREATE ROUTINE`](privileges-provided.html#priv_create-routine)
+    权限才能创建函数，但用户可以编写一个包含危险语句的函数，只在复制品上执行，由具有完全权限的线程处理。例如，如果源服务器和复制品服务器的服务器 ID 值分别为
+    1 和 2，则源服务器上的用户可以创建并调用一个不安全的函数 `unsafe_func()` 如下：
+- en: '[PRE7]'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: The [`CREATE FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION Statement")
+    and [`INSERT`](insert.html "15.2.7 INSERT Statement") statements are written to
+    the binary log, so the replica executes them. Because the replica's applier thread
+    has full privileges, it executes the dangerous statement. Thus, the function invocation
+    has different effects on the source and replica and is not replication-safe.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`CREATE FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION Statement")
+    和 [`INSERT`](insert.html "15.2.7 INSERT Statement") 语句被写入二进制日志，因此复制品会执行它们。由于复制品的应用程序线程拥有完全权限，它会执行危险的语句。因此，函数调用对源和复制品有不同的影响，不是复制安全的。'
+- en: 'To guard against this danger for servers that have binary logging enabled,
+    stored function creators must have the [`SUPER`](privileges-provided.html#priv_super)
+    privilege, in addition to the usual [`CREATE ROUTINE`](privileges-provided.html#priv_create-routine)
+    privilege that is required. Similarly, to use [`ALTER FUNCTION`](alter-function.html
+    "15.1.4 ALTER FUNCTION Statement"), you must have the [`SUPER`](privileges-provided.html#priv_super)
+    privilege in addition to the [`ALTER ROUTINE`](privileges-provided.html#priv_alter-routine)
+    privilege. Without the [`SUPER`](privileges-provided.html#priv_super) privilege,
+    an error occurs:'
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了防范启用了二进制日志记录的服务器的这种危险，存储函数创建者必须拥有 [`SUPER`](privileges-provided.html#priv_super)
+    权限，除了通常需要的 [`CREATE ROUTINE`](privileges-provided.html#priv_create-routine) 权限。同样，要使用
+    [`ALTER FUNCTION`](alter-function.html "15.1.4 ALTER FUNCTION Statement")，除了 [`ALTER
+    ROUTINE`](privileges-provided.html#priv_alter-routine) 权限外，还必须拥有 [`SUPER`](privileges-provided.html#priv_super)
+    权限。如果没有 [`SUPER`](privileges-provided.html#priv_super) 权限，会出现错误：
+- en: '[PRE8]'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: If you do not want to require function creators to have the [`SUPER`](privileges-provided.html#priv_super)
+    privilege (for example, if all users with the [`CREATE ROUTINE`](privileges-provided.html#priv_create-routine)
+    privilege on your system are experienced application developers), set the global
+    [`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    system variable to 1\. You can also set this variable at server startup. If binary
+    logging is not enabled, [`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    does not apply. [`SUPER`](privileges-provided.html#priv_super) is not required
+    for function creation unless, as described previously, the `DEFINER` value in
+    the function definition requires it.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果不希望要求函数创建者拥有 [`SUPER`](privileges-provided.html#priv_super) 权限（例如，如果系统上所有具有
+    [`CREATE ROUTINE`](privileges-provided.html#priv_create-routine) 权限的用户都是经验丰富的应用程序开发人员），请将全局
+    [`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    系统变量设置为 1\. 您也可以在服务器启动时设置此变量。如果未启用二进制日志记录，则 [`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    不适用。除非如前所述，函数定义中的 `DEFINER` 值要求，否则不需要 [`SUPER`](privileges-provided.html#priv_super)
+    权限来创建函数。
+- en: The use of replication privilege checks where available (from MySQL 8.0.18)
+    is recommended whatever choice you make about privileges for function creators.
+    Replication privilege checks can be set up to ensure that only expected and relevant
+    operations are authorized for the replication channel. For instructions to do
+    this, see [Section 19.3.3, “Replication Privilege Checks”](replication-privilege-checks.html
+    "19.3.3 Replication Privilege Checks").
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 建议无论您对函数创建者的权限做出何种选择，都使用可用的复制权限检查（从 MySQL 8.0.18 开始）。可以设置复制权限检查以确保仅授权复制通道的预期和相关操作。有关如何执行此操作的说明，请参见
+    [Section 19.3.3, “Replication Privilege Checks”](replication-privilege-checks.html
+    "19.3.3 Replication Privilege Checks")。
+- en: 'If a function that performs updates is nondeterministic, it is not repeatable.
+    This can have two undesirable effects:'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果执行更新的函数是非确定性的，则不可重复。这可能会产生两个不良影响：
+- en: It causes a replica to differ from the source.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它导致复制品与源不同。
+- en: Restored data does not match the original data.
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 恢复的数据与原始数据不匹配。
+- en: 'To deal with these problems, MySQL enforces the following requirement: On a
+    source server, creation and alteration of a function is refused unless you declare
+    the function to be deterministic or to not modify data. Two sets of function characteristics
+    apply here:'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了解决这些问题，MySQL 强制执行以下要求：在源服务器上，除非声明函数是确定性的或不修改数据，否则拒绝创建和修改函数。这里有两组函数特性：
+- en: The `DETERMINISTIC` and `NOT DETERMINISTIC` characteristics indicate whether
+    a function always produces the same result for given inputs. The default is `NOT
+    DETERMINISTIC` if neither characteristic is given. To declare that a function
+    is deterministic, you must specify `DETERMINISTIC` explicitly.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DETERMINISTIC` 和 `NOT DETERMINISTIC` 特性指示函数是否对给定输入始终产生相同的结果。如果没有给出任何特性，则默认为
+    `NOT DETERMINISTIC`。要声明函数是确定性的，必须明确指定 `DETERMINISTIC`。'
+- en: The `CONTAINS SQL`, `NO SQL`, `READS SQL DATA`, and `MODIFIES SQL DATA` characteristics
+    provide information about whether the function reads or writes data. Either `NO
+    SQL` or `READS SQL DATA` indicates that a function does not change data, but you
+    must specify one of these explicitly because the default is `CONTAINS SQL` if
+    no characteristic is given.
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CONTAINS SQL`、`NO SQL`、`READS SQL DATA` 和 `MODIFIES SQL DATA` 特性提供了关于函数是否读取或写入数据的信息。`NO
+    SQL` 或 `READS SQL DATA` 表明函数不会改变数据，但如果没有明确指定特性，则默认为 `CONTAINS SQL`。'
+- en: 'By default, for a [`CREATE FUNCTION`](create-function.html "15.1.14 CREATE
+    FUNCTION Statement") statement to be accepted, at least one of `DETERMINISTIC`,
+    `NO SQL`, or `READS SQL DATA` must be specified explicitly. Otherwise an error
+    occurs:'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 默认情况下，要接受[`CREATE FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION Statement")语句，必须明确指定至少一个
+    `DETERMINISTIC`、`NO SQL` 或 `READS SQL DATA`。否则会出现错误：
+- en: '[PRE9]'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: If you set [`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)
+    to 1, the requirement that functions be deterministic or not modify data is dropped.
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果将[`log_bin_trust_function_creators`](replication-options-binary-log.html#sysvar_log_bin_trust_function_creators)设置为1，则不再需要函数是确定性的或不修改数据的要求。
+- en: Stored procedure calls are logged at the statement level rather than at the
+    [`CALL`](call.html "15.2.1 CALL Statement") level. That is, the server does not
+    log the [`CALL`](call.html "15.2.1 CALL Statement") statement, it logs those statements
+    within the procedure that actually execute. As a result, the same changes that
+    occur on the source server also occur on replicas. This prevents problems that
+    could result from a procedure having different execution paths on different machines.
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储过程调用在语句级别而不是[`CALL`](call.html "15.2.1 CALL Statement")级别记录。也就是说，服务器不会记录[`CALL`](call.html
+    "15.2.1 CALL Statement")语句，而是记录实际执行的过程中的语句。因此，在源服务器上发生的更改也会在副本上发生。这可以防止由于过程在不同机器上具有不同的执行路径而导致的问题。
+- en: 'In general, statements executed within a stored procedure are written to the
+    binary log using the same rules that would apply were the statements to be executed
+    in standalone fashion. Some special care is taken when logging procedure statements
+    because statement execution within procedures is not quite the same as in nonprocedure
+    context:'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一般来说，在存储过程中执行的语句会按照在独立方式执行时应用的相同规则写入二进制日志。在记录过程语句时需要特别注意，因为过程内的语句执行与非过程上下文中的执行不完全相同：
+- en: 'A statement to be logged might contain references to local procedure variables.
+    These variables do not exist outside of stored procedure context, so a statement
+    that refers to such a variable cannot be logged literally. Instead, each reference
+    to a local variable is replaced by this construct for logging purposes:'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要记录的语句可能包含对本地过程变量的引用。这些变量在存储过程上下文之外不存在，因此引用这样一个变量的语句不能直接记录。而是为了记录目的，将每个对本地变量的引用替换为以下构造：
+- en: '[PRE10]'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: '*`var_name`* is the local variable name, and *`var_value`* is a constant indicating
+    the value that the variable has at the time the statement is logged. [`NAME_CONST()`](miscellaneous-functions.html#function_name-const)
+    has a value of *`var_value`*, and a “name” of *`var_name`*. Thus, if you invoke
+    this function directly, you get a result like this:'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*`var_name`* 是本地变量名称，*`var_value`* 是指示变量在记录语句时的值的常量。[`NAME_CONST()`](miscellaneous-functions.html#function_name-const)
+    的值为 *`var_value`*，“名称”为 *`var_name`*。因此，如果直接调用此函数，将获得如下结果：'
+- en: '[PRE11]'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: '[`NAME_CONST()`](miscellaneous-functions.html#function_name-const) enables
+    a logged standalone statement to be executed on a replica with the same effect
+    as the original statement that was executed on the source within a stored procedure.'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`NAME_CONST()`](miscellaneous-functions.html#function_name-const)使得可以在副本上执行一个已记录的独立语句，其效果与在源上执行的原始语句相同，而原始语句是在存储过程中执行的。'
+- en: 'The use of [`NAME_CONST()`](miscellaneous-functions.html#function_name-const)
+    can result in a problem for [`CREATE TABLE ... SELECT`](create-table.html "15.1.20 CREATE
+    TABLE Statement") statements when the source column expressions refer to local
+    variables. Converting these references to [`NAME_CONST()`](miscellaneous-functions.html#function_name-const)
+    expressions can result in column names that are different on the source and replica
+    servers, or names that are too long to be legal column identifiers. A workaround
+    is to supply aliases for columns that refer to local variables. Consider this
+    statement when `myvar` has a value of 1:'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用[`NAME_CONST()`](miscellaneous-functions.html#function_name-const)可能会导致在[`CREATE
+    TABLE ... SELECT`](create-table.html "15.1.20 CREATE TABLE Statement")语句中出现问题，当源列表达式引用本地变量时。将这些引用转换为[`NAME_CONST()`](miscellaneous-functions.html#function_name-const)表达式可能导致源服务器和副本服务器上的列名不同，或者列名过长而无法成为合法的列标识符。一个解决方法是为引用本地变量的列提供别名。考虑当`myvar`的值为1时的语句：
+- en: '[PRE12]'
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'This is rewritten as follows:'
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重写如下：
+- en: '[PRE13]'
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'To ensure that the source and replica tables have the same column names, write
+    the statement like this:'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为确保源和副本表具有相同的列名，应该这样写语句：
+- en: '[PRE14]'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'The rewritten statement becomes:'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重写后的语句如下：
+- en: '[PRE15]'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'A statement to be logged might contain references to user-defined variables.
+    To handle this, MySQL writes a [`SET`](set-variable.html "15.7.6.1 SET Syntax
+    for Variable Assignment") statement to the binary log to make sure that the variable
+    exists on the replica with the same value as on the source. For example, if a
+    statement refers to a variable `@my_var`, that statement is preceded in the binary
+    log by the following statement, where *`value`* is the value of `@my_var` on the
+    source:'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要记录的语句可能包含对用户定义变量的引用。为了处理这个问题，MySQL在二进制日志中写入一个[`SET`](set-variable.html "15.7.6.1 SET
+    Syntax for Variable Assignment")语句，以确保变量在副本上存在，并且具有与源相同的值。例如，如果一个语句引用变量`@my_var`，那么该语句在二进制日志中的前面会有以下语句，其中*`value`*是源上`@my_var`的值：
+- en: '[PRE16]'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'Procedure calls can occur within a committed or rolled-back transaction. Transactional
+    context is accounted for so that the transactional aspects of procedure execution
+    are replicated correctly. That is, the server logs those statements within the
+    procedure that actually execute and modify data, and also logs [`BEGIN`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements"), [`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements"), and [`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements") statements as necessary.
+    For example, if a procedure updates only transactional tables and is executed
+    within a transaction that is rolled back, those updates are not logged. If the
+    procedure occurs within a committed transaction, [`BEGIN`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements") and [`COMMIT`](commit.html "15.3.1 START
+    TRANSACTION, COMMIT, and ROLLBACK Statements") statements are logged with the
+    updates. For a procedure that executes within a rolled-back transaction, its statements
+    are logged using the same rules that would apply if the statements were executed
+    in standalone fashion:'
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 过程调用可以发生在已提交或已回滚的事务中。事务上下文被考虑，以便正确复制过程执行的事务方面。也就是说，服务器记录那些在过程中实际执行和修改数据的语句，并根据需要记录[`BEGIN`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")、[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")和[`ROLLBACK`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")语句。例如，如果一个过程只更新事务表，并在回滚的事务中执行，那些更新不会被记录。如果过程发生在已提交的事务中，[`BEGIN`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")和[`COMMIT`](commit.html
+    "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")语句将与更新一起记录。对于在已回滚事务中执行的过程，其语句将使用与在独立方式下执行时相同的规则进行记录：
+- en: Updates to transactional tables are not logged.
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对事务表的更新不会被记录。
+- en: Updates to nontransactional tables are logged because rollback does not cancel
+    them.
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对非事务表的更新是被记录的，因为回滚不会取消它们。
+- en: Updates to a mix of transactional and nontransactional tables are logged surrounded
+    by [`BEGIN`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")
+    and [`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT, and ROLLBACK Statements")
+    so that replicas make the same changes and rollbacks as on the source.
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更新混合事务和非事务表的操作被记录在[`BEGIN`](commit.html "15.3.1 START TRANSACTION, COMMIT, and
+    ROLLBACK Statements")和[`ROLLBACK`](commit.html "15.3.1 START TRANSACTION, COMMIT,
+    and ROLLBACK Statements")之间，以便副本执行与源相同的更改和回滚。
+- en: A stored procedure call is *not* written to the binary log at the statement
+    level if the procedure is invoked from within a stored function. In that case,
+    the only thing logged is the statement that invokes the function (if it occurs
+    within a statement that is logged) or a [`DO`](do.html "15.2.3 DO Statement")
+    statement (if it occurs within a statement that is not logged). For this reason,
+    care should be exercised in the use of stored functions that invoke a procedure,
+    even if the procedure is otherwise safe in itself.
+  id: totrans-81
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果存储过程是在存储函数内部调用的，则存储过程调用*不会*以语句级别写入二进制日志。在这种情况下，记录的仅是调用函数的语句（如果它出现在被记录的语句内部）或一个[`DO`](do.html
+    "15.2.3 DO Statement")语句（如果它出现在未记录的语句内部）。因此，即使存储过程本身是安全的，也应谨慎使用调用存储过程的存储函数。

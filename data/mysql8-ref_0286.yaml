@@ -1,0 +1,131 @@
+- en: 7.5.5 Scheduler Component
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.5.5 调度程序组件
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/scheduler-component.html](https://dev.mysql.com/doc/refman/8.0/en/scheduler-component.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/scheduler-component.html](https://dev.mysql.com/doc/refman/8.0/en/scheduler-component.html)
+- en: Note
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `scheduler` component is included in MySQL Enterprise Edition, a commercial
+    product. To learn more about commercial products, see [https://www.mysql.com/products/](https://www.mysql.com/products/).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`scheduler`组件包含在MySQL企业版中，这是一款商业产品。要了解更多关于商业产品的信息，请参见[https://www.mysql.com/products/](https://www.mysql.com/products/)。'
+- en: As of MySQL 8.0.34, the `scheduler` component provides an implementation of
+    the `mysql_scheduler` service that enables applications, components, or plugins
+    to configure, run, and unconfigure tasks every *`N`* seconds. For example, the
+    `audit_log` server plugin calls the `scheduler` component at its initialization
+    and configures a regular, recurring flush of its memory cache (see [Enabling the
+    Audit Log Flush Task](audit-log-logging-configuration.html#audit-log-flush-task
+    "Enabling the Audit Log Flush Task")).
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.34，`scheduler`组件提供了`mysql_scheduler`服务的实现，使应用程序、组件或插件可以每隔*N*秒配置、运行和取消配置任务。例如，`audit_log`服务器插件在初始化时调用`scheduler`组件，并配置定期刷新其内存缓存（参见[启用审计日志刷新任务](audit-log-logging-configuration.html#audit-log-flush-task
+    "启用审计日志刷新任务")）。
+- en: 'Purpose: Implements the [`component_scheduler.enabled`](server-system-variables.html#sysvar_component_scheduler.enabled)
+    system variable that controls whether the scheduler is actively executing tasks.
+    At startup, the `scheduler` component registers the `performance_schema.component_scheduler_tasks`
+    table, which lists the currently scheduled tasks and some runtime data about each
+    one.'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 目的：实现[`component_scheduler.enabled`](server-system-variables.html#sysvar_component_scheduler.enabled)系统变量，控制调度程序是否正在执行任务。在启动时，`scheduler`组件注册`performance_schema.component_scheduler_tasks`表，列出当前计划任务以及关于每个任务的一些运行时数据。
+- en: 'URN: `file://component_sheduler`'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: URN：`file://component_sheduler`
+- en: For installation instructions, see [Section 7.5.1, “Installing and Uninstalling
+    Components”](component-loading.html "7.5.1 Installing and Uninstalling Components").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 安装说明，请参见[第7.5.1节，“安装和卸载组件”](component-loading.html "7.5.1 安装和卸载组件")。
+- en: 'The `scheduler` component implements the service using these elements:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`scheduler`组件使用以下元素实现服务：'
+- en: A priority queue of the registered, inactive scheduled tasks sorted by the next
+    time to run (in ascending order).
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个按照下次运行时间（升序）排序的注册的非活动计划任务的优先级队列。
+- en: A list of the registered, active tasks.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个注册的活动任务列表。
+- en: 'A background thread that:'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一个后台线程：
+- en: Sleeps if there are no tasks or if the top task needs more time to run. It wakes
+    periodically to check whether it is time to end.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果没有任务或者顶部任务需要更多时间来运行，则休眠。它会定期唤醒以检查是否到达结束时间。
+- en: Compiles a list of the tasks that need to run, moves them from the inactive
+    queue, adds them to the active queue, and executes each task individually.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 编译需要运行的任务列表，将其从非活动队列移动到活动队列，并逐个执行每个任务。
+- en: After executing the task list, removes the tasks from the active list, adds
+    them to the inactive list, and calculates the next time they need to run.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行任务列表后，将任务从活动列表中移除，添加到非活动列表，并计算它们下次需要运行的时间。
+- en: When a caller invokes the `mysql_scheduler.create()` service, it creates a new
+    scheduled task instance to add to the queue, which signals the semaphore of the
+    background thread. A handle to the new task is returned to the caller. The calling
+    code should keep this handle and the service reference to the scheduling service
+    until after calling the `mysql_scheduler.destroy()` service. When the caller invokes
+    `destroy()` and passes in the handle it received from `create()`, the service
+    waits for the task to become inactive (if running) and then removes it from the
+    inactive queue.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当调用者调用`mysql_scheduler.create()`服务时，它会创建一个新的计划任务实例添加到队列中，这会向后台线程的信号量发送信号。将新任务的句柄返回给调用者。调用代码应保留此句柄和调度服务的引用，直到调用`mysql_scheduler.destroy()`服务后。当调用者调用`destroy()`并传入从`create()`接收的句柄时，服务会等待任务变为非活动状态（如果正在运行），然后将其从非活动队列中移除。
+- en: The component service calls each application-provided callback (function pointer)
+    into the same scheduler thread, one at a time and in ascending order, based on
+    the time each requires to run.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组件服务调用每个应用程序提供的回调（函数指针）到同一调度线程中，依次按照每个需要运行的时间的顺序。
+- en: Developers who wish to incorporate scheduler-queueing capabilities into an application,
+    component, or plugin should consult the `mysql_scheduler.h` file in a MySQL source
+    distribution.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 希望将调度队列功能整合到应用程序、组件或插件中的开发人员应查阅 MySQL 源代码分发中的 `mysql_scheduler.h` 文件。

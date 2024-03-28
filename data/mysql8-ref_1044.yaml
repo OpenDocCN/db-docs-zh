@@ -1,0 +1,1742 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-user.html](https://dev.mysql.com/doc/refman/8.0/en/create-user.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-user.html](https://dev.mysql.com/doc/refman/8.0/en/create-user.html)
+- en: 15.7.1.3 CREATE USER Statement
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.7.1.3 CREATE USER Statement
+- en: '[PRE0]'
+  id: totrans-2
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement
+    creates new MySQL accounts. It enables authentication, role, SSL/TLS, resource-limit,
+    password-management, comment, and attribute properties to be established for new
+    accounts. It also controls whether accounts are initially locked or unlocked.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句创建新的 MySQL
+    账户。它使得可以为新账户建立认证、角色、SSL/TLS、资源限制、密码管理、注释和属性属性。它还控制了账户最初是锁定还是解锁的状态。'
+- en: To use [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement"), you
+    must have the global [`CREATE USER`](privileges-provided.html#priv_create-user)
+    privilege, or the [`INSERT`](privileges-provided.html#priv_insert) privilege for
+    the `mysql` system schema. When the [`read_only`](server-system-variables.html#sysvar_read_only)
+    system variable is enabled, [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") additionally requires the [`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege).
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")，您必须具有全局[`CREATE
+    USER`](privileges-provided.html#priv_create-user)权限，或者对`mysql`系统模式具有[`INSERT`](privileges-provided.html#priv_insert)权限。当启用[`read_only`](server-system-variables.html#sysvar_read_only)系统变量时，[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")还需要[`CONNECTION_ADMIN`](privileges-provided.html#priv_connection-admin)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限）。
+- en: 'As of MySQL 8.0.27, these additional privilege considerations apply:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至 MySQL 8.0.27，以下附加特权考虑因素适用：
+- en: The [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    system variable places certain constraints on how the authentication-related clauses
+    of [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statements
+    may be used; for details, see the description of that variable. These constraints
+    do not apply if you have the [`AUTHENTICATION_POLICY_ADMIN`](privileges-provided.html#priv_authentication-policy-admin)
+    privilege.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    系统变量对[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句中与认证相关的子句的使用施加了一定的约束；详情请参阅该变量的描述。如果具有[`AUTHENTICATION_POLICY_ADMIN`](privileges-provided.html#priv_authentication-policy-admin)权限，则这些约束不适用。'
+- en: To create an account that uses passwordless authentication, you must have the
+    [`PASSWORDLESS_USER_ADMIN`](privileges-provided.html#priv_passwordless-user-admin)
+    privilege.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要创建一个使用无密码认证的账户，您必须具有[`PASSWORDLESS_USER_ADMIN`](privileges-provided.html#priv_passwordless-user-admin)权限。
+- en: As of MySQL 8.0.22, [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    fails with an error if any account to be created is named as the `DEFINER` attribute
+    for any stored object. (That is, the statement fails if creating an account would
+    cause the account to adopt a currently orphaned stored object.) To perform the
+    operation anyway, you must have the [`SET_USER_ID`](privileges-provided.html#priv_set-user-id)
+    privilege; in this case, the statement succeeds with a warning rather than failing
+    with an error. Without [`SET_USER_ID`](privileges-provided.html#priv_set-user-id),
+    to perform the user-creation operation, drop the orphan objects, create the account
+    and grant its privileges, and then re-create the dropped objects. For additional
+    information, including how to identify which objects name a given account as the
+    `DEFINER` attribute, see [Orphan Stored Objects](stored-objects-security.html#stored-objects-security-orphan-objects
+    "Orphan Stored Objects").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至 MySQL 8.0.22，如果要创建的任何账户被命名为任何存储对象的`DEFINER`属性，则[`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement")将失败并显示错误。（也就是说，如果创建账户会导致该账户接管当前孤立的存储对象，则该语句将失败。）要执行该操作，您必须具有[`SET_USER_ID`](privileges-provided.html#priv_set-user-id)权限；在这种情况下，该语句将以警告成功而不是错误失败。如果没有[`SET_USER_ID`](privileges-provided.html#priv_set-user-id)，要执行用户创建操作，请删除孤立对象，创建账户并授予其权限，然后重新创建已删除的对象。有关更多信息，包括如何识别哪些对象将给定账户命名为`DEFINER`属性，请参阅[孤立存储对象](stored-objects-security.html#stored-objects-security-orphan-objects
+    "孤立存储对象")。
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") either succeeds
+    for all named users or rolls back and has no effect if any error occurs. By default,
+    an error occurs if you try to create a user that already exists. If the `IF NOT
+    EXISTS` clause is given, the statement produces a warning for each named user
+    that already exists, rather than an error.'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 对所有命名用户都成功，或者如果发生任何错误则回滚并不起作用。默认情况下，如果尝试创建已存在的用户，则会发生错误。如果给出了
+    `IF NOT EXISTS` 子句，则该语句会对每个已存在的命名用户产生警告，而不是错误。'
+- en: Important
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Under some circumstances, [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") may be recorded in server logs or on the client side in a history
+    file such as `~/.mysql_history`, which means that cleartext passwords may be read
+    by anyone having read access to that information. For information about the conditions
+    under which this occurs for the server logs and how to control it, see [Section 8.1.2.3,
+    “Passwords and Logging”](password-logging.html "8.1.2.3 Passwords and Logging").
+    For similar information about client-side logging, see [Section 6.5.1.3, “mysql
+    Client Logging”](mysql-logging.html "6.5.1.3 mysql Client Logging").
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些情况下，[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 可能会记录在服务器日志中或客户端的历史文件中，例如
+    `~/.mysql_history`，这意味着明文密码可能被任何具有读取权限的人读取。有关在服务器日志中发生这种情况的条件以及如何控制它的信息，请参见 [第 8.1.2.3
+    节，“密码和日志记录”](password-logging.html "8.1.2.3 密码和日志记录")。有关客户端日志记录的类似信息，请参见 [第 6.5.1.3
+    节，“mysql 客户端日志记录”](mysql-logging.html "6.5.1.3 mysql 客户端日志记录")。
+- en: 'There are several aspects to the [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") statement, described under the following topics:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 语句有几个方面，描述如下主题：'
+- en: '[CREATE USER Overview](create-user.html#create-user-overview "CREATE USER Overview")'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户概述](create-user.html#create-user-overview "创建用户概述")'
+- en: '[CREATE USER Authentication Options](create-user.html#create-user-authentication
+    "CREATE USER Authentication Options")'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户认证选项](create-user.html#create-user-authentication "创建用户认证选项")'
+- en: '[CREATE USER Multifactor Authentication Options](create-user.html#create-user-multifactor-authentication
+    "CREATE USER Multifactor Authentication Options")'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户多因素认证选项](create-user.html#create-user-multifactor-authentication "���建用户多因素认证选项")'
+- en: '[CREATE USER Role Options](create-user.html#create-user-role "CREATE USER Role
+    Options")'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户角色选项](create-user.html#create-user-role "创建用户角色选项")'
+- en: '[CREATE USER SSL/TLS Options](create-user.html#create-user-tls "CREATE USER
+    SSL/TLS Options")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户 SSL/TLS 选项](create-user.html#create-user-tls "创建用户 SSL/TLS 选项")'
+- en: '[CREATE USER Resource-Limit Options](create-user.html#create-user-resource-limits
+    "CREATE USER Resource-Limit Options")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户资源限制选项](create-user.html#create-user-resource-limits "创建用户资源限制选项")'
+- en: '[CREATE USER Password-Management Options](create-user.html#create-user-password-management
+    "CREATE USER Password-Management Options")'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户密码管理选项](create-user.html#create-user-password-management "创建用户密码管理选项")'
+- en: '[CREATE USER Comment and Attribute Options](create-user.html#create-user-comments-attributes
+    "CREATE USER Comment and Attribute Options")'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户注释和属性选项](create-user.html#create-user-comments-attributes "创建用户注释和属性选项")'
+- en: '[CREATE USER Account-Locking Options](create-user.html#create-user-account-locking
+    "CREATE USER Account-Locking Options")'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户账户锁定选项](create-user.html#create-user-account-locking "创建用户账户锁定选项")'
+- en: '[CREATE USER Binary Logging](create-user.html#create-user-binary-logging "CREATE
+    USER Binary Logging")'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建用户二进制日志记录](create-user.html#create-user-binary-logging "创建用户二进制日志记录")'
+- en: CREATE USER Overview
+  id: totrans-23
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户概述
+- en: 'For each account, [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    creates a new row in the `mysql.user` system table. The account row reflects the
+    properties specified in the statement. Unspecified properties are set to their
+    default values:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于每个账户，[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 在
+    `mysql.user` 系统表中创建一行新记录。账户行反映了语句中指定的属性。未指定的属性将设置为它们的默认值：
+- en: 'Authentication: The default authentication plugin (determined as described
+    in [The Default Authentication Plugin](pluggable-authentication.html#pluggable-authentication-default-plugin
+    "The Default Authentication Plugin")), and empty credentials'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 认证：默认认证插件（如 [默认认证插件](pluggable-authentication.html#pluggable-authentication-default-plugin
+    "默认认证插件") 中所述确定的），以及空凭据
+- en: 'Default role: `NONE`'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 默认角色：`NONE`
+- en: 'SSL/TLS: `NONE`'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: SSL/TLS：`NONE`
+- en: 'Resource limits: Unlimited'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 资源限制：无限制
+- en: 'Password management: `PASSWORD EXPIRE DEFAULT PASSWORD HISTORY DEFAULT PASSWORD
+    REUSE INTERVAL DEFAULT PASSWORD REQUIRE CURRENT DEFAULT`; failed-login tracking
+    and temporary account locking are disabled'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 密码管理：`PASSWORD EXPIRE DEFAULT PASSWORD HISTORY DEFAULT PASSWORD REUSE INTERVAL
+    DEFAULT PASSWORD REQUIRE CURRENT DEFAULT`；禁用了失败登录跟踪和临时帐户锁定
+- en: 'Account locking: `ACCOUNT UNLOCK`'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 帐户锁定：`ACCOUNT UNLOCK`
+- en: An account when first created has no privileges and the default role `NONE`.
+    To assign privileges or roles to this account, use one or more [`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement") statements.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 创建时，帐户没有任何权限和默认角色`NONE`。要为此帐户分配权限或角色，请使用一个或多个[`GRANT`](grant.html "15.7.1.6 GRANT
+    Statement")语句。
+- en: 'Each account name uses the format described in [Section 8.2.4, “Specifying
+    Account Names”](account-names.html "8.2.4 Specifying Account Names"). For example:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个帐户名称都采用[第8.2.4节，“指定帐户名称”](account-names.html "8.2.4 Specifying Account Names")中描述的格式。例如：
+- en: '[PRE1]'
+  id: totrans-33
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The host name part of the account name, if omitted, defaults to `'%'`. You should
+    be aware that, while MySQL 8.0 treats grants made to such a user as though they
+    had been granted to `'*`user`*'@'localhost'`, this behavior is deprecated as of
+    MySQL 8.0.35, and thus subject to removal in a future version of MySQL.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果帐户名称的主机名部分被省略，则默认为`'%'`。您应该知道，虽然MySQL 8.0将授予此类用户的授权视为已授予`'*`user`*'@'localhost'`，但此行为已在MySQL
+    8.0.35中被弃用，并因此可能在将来的MySQL版本中被移除。
+- en: Each *`user`* value naming an account may be followed by an optional *`auth_option`*
+    value that indicates how the account authenticates. These values enable account
+    authentication plugins and credentials (for example, a password) to be specified.
+    Each *`auth_option`* value applies *only* to the account named immediately preceding
+    it.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个命名帐户的*`user`*值后面可以跟一个可选的*`auth_option`*值，表示帐户的认证方式。这些值可以指定帐户认证插件和凭据（例如密码）。每个*`auth_option`*值仅适用于紧随其后的帐户。
+- en: Following the *`user`* specifications, the statement may include options for
+    SSL/TLS, resource-limit, password-management, and locking properties. All such
+    options are *global* to the statement and apply to *all* accounts named in the
+    statement.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 根据*`user`*规范，语句可以包括SSL/TLS、资源限制、密码管理和锁定属性的选项。所有这些选项都是语句的*全局*属性，并适用于语句中命名的*所有*帐户。
+- en: 'Example: Create an account that uses the default authentication plugin and
+    the given password. Mark the password expired so that the user must choose a new
+    one at the first connection to the server:'
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：创建一个使用默认认证插件和给定密码的帐户。标记密码已过期，以便用户必须在首次连接到服务器时选择新密码：
+- en: '[PRE2]'
+  id: totrans-38
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'Example: Create an account that uses the `caching_sha2_password` authentication
+    plugin and the given password. Require that a new password be chosen every 180
+    days, and enable failed-login tracking, such that three consecutive incorrect
+    passwords cause temporary account locking for two days:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：创建一个使用`caching_sha2_password`认证插件和给定密码的帐户。要求每180天选择一个新密码，并启用失败登录跟踪，以便三次连续输入错误密码导致帐户被临时锁定两天：
+- en: '[PRE3]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Example: Create multiple accounts, specifying some per-account properties and
+    some global properties:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：创建多个帐户，指定一些每个帐户的属性和一些全局属性：
+- en: '[PRE4]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Each *`auth_option`* value (`IDENTIFIED WITH ... BY` in this case) applies only
+    to the account named immediately preceding it, so each account uses the immediately
+    following authentication plugin and password.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个*`auth_option`*值（在本例中为`IDENTIFIED WITH ... BY`）仅适用于紧随其后的帐户，因此每个帐户使用紧随其后的认证插件和密码。
+- en: 'The remaining properties apply globally to all accounts named in the statement,
+    so for both accounts:'
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 剩余的属性全局适用于语句中命名的所有帐户，因此对于两个帐户：
+- en: Connections must be made using a valid X.509 certificate.
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须使用有效的X.509证书进行连接。
+- en: Up to 60 queries per hour are permitted.
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每小时最多允许60个查询。
+- en: Password changes cannot reuse any of the five most recent passwords.
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 密码更改不能重复使用最近的五个密码。
+- en: The account is locked initially, so effectively it is a placeholder and cannot
+    be used until an administrator unlocks it.
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 帐户最初被锁定，因此实际上它是一个占位符，直到管理员解锁它才能使用。
+- en: CREATE USER Authentication Options
+  id: totrans-49
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户认证选项
+- en: An account name may be followed by an *`auth_option`* authentication option
+    that specifies the account authentication plugin, credentials, or both.
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 帐户名称后面可以跟一个*`auth_option`*认证选项，指定帐户认证插件、凭据或两者。
+- en: Note
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Prior to MySQL 8.0.27, *`auth_option`* defines the sole method by which an account
+    authenticates. That is, all accounts use one-factor/single-factor authentication
+    (1FA/SFA). MySQL 8.0.27 and higher supports multifactor authentication (MFA),
+    such that accounts can have up to three authentication methods. That is, accounts
+    can use two-factor authentication (2FA) or three-factor authentication (3FA).
+    The syntax and semantics of *`auth_option`* remain unchanged, but *`auth_option`*
+    may be followed by specifications for additional authentication methods. This
+    section describes *`auth_option`*. For details about the optional MFA-related
+    following clauses, see [CREATE USER Multifactor Authentication Options](create-user.html#create-user-multifactor-authentication
+    "CREATE USER Multifactor Authentication Options").
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.27 之前，*`auth_option`* 定义了账户进行身份验证的唯一方法。也就是说，所有账户都使用单因素/单因素身份验证（1FA/SFA）。MySQL
+    8.0.27 及更高版本支持多因素身份验证（MFA），因此账户可以使用最多三种身份验证方法。也就是说，账户可以使用双因素身份验证（2FA）或三因素身份验证（3FA）。*`auth_option`*
+    的语法和语义保持不变，但*`auth_option`* 可以后跟额外身份验证方法的规范。本节描述了*`auth_option`*。有关可选 MFA 相关后续子句的详细信息，请参阅
+    [CREATE USER 多因素身份验证选项](create-user.html#create-user-multifactor-authentication
+    "CREATE USER Multifactor Authentication Options")。
+- en: Note
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Clauses for random password generation apply only to accounts that use an authentication
+    plugin that stores credentials internally to MySQL. For accounts that use a plugin
+    that performs authentication against a credentials system that is external to
+    MySQL, password management must be handled externally against that system as well.
+    For more information about internal credentials storage, see [Section 8.2.15,
+    “Password Management”](password-management.html "8.2.15 Password Management").
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅适用于使用将凭据存储在 MySQL 内部的身份验证插件的账户的随机密码生成子句。对于使用针对 MySQL 外部凭据系统执行身份验证的插件的账户，密码管理也必须在该系统外部处理。有关内部凭据存储的更多信息，请参阅
+    [第 8.2.15 节，“密码管理”](password-management.html "8.2.15 Password Management")。
+- en: '*`auth_plugin`* names an authentication plugin. The plugin name can be a quoted
+    string literal or an unquoted name. Plugin names are stored in the `plugin` column
+    of the `mysql.user` system table.'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`auth_plugin`* 指定了一个身份验证插件。插件名称可以是带引号的字符串文字或未带引号的名称。插件名称存储在 `mysql.user` 系统表的
+    `plugin` 列中。'
+- en: For *`auth_option`* syntax that does not specify an authentication plugin, the
+    server assigns the default plugin, determined as described in [The Default Authentication
+    Plugin](pluggable-authentication.html#pluggable-authentication-default-plugin
+    "The Default Authentication Plugin"). For descriptions of each plugin, see [Section 8.4.1,
+    “Authentication Plugins”](authentication-plugins.html "8.4.1 Authentication Plugins").
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于未指定身份验证插件的*`auth_option`* 语法，服务器会分配默认插件，具体确定方法请参见 [默认身份验证插件](pluggable-authentication.html#pluggable-authentication-default-plugin
+    "The Default Authentication Plugin")。有关每个插件的描述，请参见 [第 8.4.1 节，“身份验证插件”](authentication-plugins.html
+    "8.4.1 Authentication Plugins")。
+- en: 'Credentials that are stored internally are stored in the `mysql.user` system
+    table. An `''*`auth_string`*''` value or `RANDOM PASSWORD` specifies account credentials,
+    either as a cleartext (unencrypted) string or hashed in the format expected by
+    the authentication plugin associated with the account, respectively:'
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储在内部的凭据存储在 `mysql.user` 系统表中。`'*`auth_string`*'` 值或 `RANDOM PASSWORD` 指定账户凭据，可以是明文（未加密）字符串或以与账户关联的身份验证插件期望的格式进行哈希处理：
+- en: For syntax that uses `BY '*`auth_string`*'`, the string is cleartext and is
+    passed to the authentication plugin for possible hashing. The result returned
+    by the plugin is stored in the `mysql.user` table. A plugin may use the value
+    as specified, in which case no hashing occurs.
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用 `BY '*`auth_string`*'` 语法的情况，字符串是明文的，并传递给身份验证插件进行可能的哈希处理。插件返回的结果存储在 `mysql.user`
+    表中。插件可以按照指定的值使用该值，这种情况下不会发生哈希处理。
+- en: For syntax that uses `BY RANDOM PASSWORD`, MySQL generates a random password
+    and as cleartext and passes it to the authentication plugin for possible hashing.
+    The result returned by the plugin is stored in the `mysql.user` table. A plugin
+    may use the value as specified, in which case no hashing occurs.
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用 `BY RANDOM PASSWORD` 语法的情况，MySQL 生成一个随机密码并以明文形式传递给身份验证插件进行可能的哈希处理。插件返回的结果存储在
+    `mysql.user` 表中。插件可以按照指定的值使用该值，这种情况下不会发生哈希处理。
+- en: Randomly generated passwords are available as of MySQL 8.0.18 and have the characteristics
+    described in [Random Password Generation](password-management.html#random-password-generation
+    "Random Password Generation").
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 随机生成的密码可在MySQL 8.0.18中使用，并具有[随机密码生成](password-management.html#random-password-generation
+    "随机密码生成")中描述的特性。
+- en: For syntax that uses `AS '*`auth_string`*'`, the string is assumed to be already
+    in the format the authentication plugin requires, and is stored as is in the `mysql.user`
+    table. If a plugin requires a hashed value, the value must be already hashed in
+    a format appropriate for the plugin; otherwise, the value cannot be used by the
+    plugin and correct authentication of client connections does not occur.
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于使用`AS '*`auth_string`*'`语法的语法，假定字符串已经是认证插件所需的格式，并按原样存储在`mysql.user`表中。如果插件需要哈希值，则该值必须已经以适合插件的格式进行哈希处理；否则，插件无法使用该值，客户端连接的正确认证也不会发生。
+- en: As of MySQL 8.0.17, a hashed string can be either a string literal or a hexadecimal
+    value. The latter corresponds to the type of value displayed by [`SHOW CREATE
+    USER`](show-create-user.html "15.7.7.12 SHOW CREATE USER Statement") for password
+    hashes containing unprintable characters when the [`print_identified_with_as_hex`](server-system-variables.html#sysvar_print_identified_with_as_hex)
+    system variable is enabled.
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.17，哈希字符串可以是字符串文字或十六进制值。当启用[`print_identified_with_as_hex`](server-system-variables.html#sysvar_print_identified_with_as_hex)系统变量时，后者对应于包含不可打印字符的密码哈希的值类型，该变量由[`SHOW
+    CREATE USER`](show-create-user.html "15.7.7.12 SHOW CREATE USER Statement")显示。
+- en: 'If an authentication plugin performs no hashing of the authentication string,
+    the `BY ''*`auth_string`*''` and `AS ''*`auth_string`*''` clauses have the same
+    effect: The authentication string is stored as is in the `mysql.user` system table.'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果认证插件不对认证字符串进行哈希处理，则`BY '*`auth_string`*'`和`AS '*`auth_string`*'`子句具有相同的效果：认证字符串按原样存储在`mysql.user`系统表中。
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") permits
+    these *`auth_option`* syntaxes:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")允许这些*`auth_option`*语法：'
+- en: '`IDENTIFIED BY ''*`auth_string`*''`'
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IDENTIFIED BY ''*`auth_string`*''`'
+- en: Sets the account authentication plugin to the default plugin, passes the cleartext
+    `'*`auth_string`*'` value to the plugin for possible hashing, and stores the result
+    in the account row in the `mysql.user` system table.
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将帐户认证插件设置为默认插件，将明文`'*`auth_string`*'`值传递给插件进行可能的哈希处理，并将结果存储在`mysql.user`系统表中的帐户行中。
+- en: '`IDENTIFIED BY RANDOM PASSWORD`'
+  id: totrans-67
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IDENTIFIED BY RANDOM PASSWORD`'
+- en: Sets the account authentication plugin to the default plugin, generates a random
+    password, passes the cleartext password value to the plugin for possible hashing,
+    and stores the result in the account row in the `mysql.user` system table. The
+    statement also returns the cleartext password in a result set to make it available
+    to the user or application executing the statement. For details about the result
+    set and characteristics of randomly generated passwords, see [Random Password
+    Generation](password-management.html#random-password-generation "Random Password
+    Generation").
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将帐户认证插件设置为默认插件，生成随机密码，将明文密码值传递给插件进行可能的哈希处理，并将结果存储在`mysql.user`系统表中的帐户行中。该语句还将明文密码作为结果集返回，以便用户或执行该语句的应用程序可以使用。有关结果集和随机生成密码的特性的详细信息，请参见[随机密码生成](password-management.html#random-password-generation
+    "随机密码生成")。
+- en: '`IDENTIFIED WITH *`auth_plugin`*`'
+  id: totrans-69
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IDENTIFIED WITH *`auth_plugin`*`'
+- en: Sets the account authentication plugin to *`auth_plugin`*, clears the credentials
+    to the empty string, and stores the result in the account row in the `mysql.user`
+    system table.
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将帐户认证插件设置为*`auth_plugin`*，将凭据清除为空字符串，并将结果存储在`mysql.user`系统表中的帐户行中。
+- en: '`IDENTIFIED WITH *`auth_plugin`* BY ''*`auth_string`*''`'
+  id: totrans-71
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IDENTIFIED WITH *`auth_plugin`* BY ''*`auth_string`*''`'
+- en: Sets the account authentication plugin to *`auth_plugin`*, passes the cleartext
+    `'*`auth_string`*'` value to the plugin for possible hashing, and stores the result
+    in the account row in the `mysql.user` system table.
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将帐户认证插件设置为*`auth_plugin`*，将明文`'*`auth_string`*'`值传递给插件进行可能的哈希处理，并将结果存储在`mysql.user`系统表中的帐户行中。
+- en: '`IDENTIFIED WITH *`auth_plugin`* BY RANDOM PASSWORD`'
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IDENTIFIED WITH *`auth_plugin`* BY RANDOM PASSWORD`'
+- en: Sets the account authentication plugin to *`auth_plugin`*, generates a random
+    password, passes the cleartext password value to the plugin for possible hashing,
+    and stores the result in the account row in the `mysql.user` system table. The
+    statement also returns the cleartext password in a result set to make it available
+    to the user or application executing the statement. For details about the result
+    set and characteristics of randomly generated passwords, see [Random Password
+    Generation](password-management.html#random-password-generation "Random Password
+    Generation").
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将账户认证插件设置为 *`auth_plugin`*，生成一个随机密码，将明文密码值传递给插件进行可能的哈希处理，并将结果存储在 `mysql.user`
+    系统表中的账户行中。该语句还将明文密码作为结果集返回，以便用户或执行该语句的应用程序可以访问。有关结果集和随机生成密码的特性的详细信息，请参阅 [随机密码生成](password-management.html#random-password-generation
+    "随机密码生成")。
+- en: '`IDENTIFIED WITH *`auth_plugin`* AS ''*`auth_string`*''`'
+  id: totrans-75
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IDENTIFIED WITH *`auth_plugin`* AS ''*`auth_string`*''`'
+- en: Sets the account authentication plugin to *`auth_plugin`* and stores the `'*`auth_string`*'`
+    value as is in the `mysql.user` account row. If the plugin requires a hashed string,
+    the string is assumed to be already hashed in the format the plugin requires.
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将账户认证插件设置为 *`auth_plugin`*，并将 `'*`auth_string`*'` 值原样存储在 `mysql.user` 账户行中。如果插件需要哈希字符串，则假定字符串已经以插件所需的格式进行了哈希处理。
+- en: 'Example: Specify the password as cleartext; the default plugin is used:'
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：将密码指定为明文；使用默认插件：
+- en: '[PRE5]'
+  id: totrans-78
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'Example: Specify the authentication plugin, along with a cleartext password
+    value:'
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：指定认证插件，以及明文密码值：
+- en: '[PRE6]'
+  id: totrans-80
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: In each case, the password value stored in the account row is the cleartext
+    value `'*`password`*'` after it has been hashed by the authentication plugin associated
+    with the account.
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在每种情况下，存储在账户行中的密码值是与账户关联的认证插件对其进行哈希后的明文值 `'*`password`*'`。
+- en: For additional information about setting passwords and authentication plugins,
+    see [Section 8.2.14, “Assigning Account Passwords”](assigning-passwords.html "8.2.14 Assigning
+    Account Passwords"), and [Section 8.2.17, “Pluggable Authentication”](pluggable-authentication.html
+    "8.2.17 Pluggable Authentication").
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关设置密码和认证插件的其他信息，请参阅 [第 8.2.14 节，“分配账户密码”](assigning-passwords.html "8.2.14 Assigning
+    Account Passwords") 和 [第 8.2.17 节，“可插拔认证”](pluggable-authentication.html "8.2.17 Pluggable
+    Authentication")。
+- en: CREATE USER Multifactor Authentication Options
+  id: totrans-83
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户多因素认证选项
+- en: The *`auth_option`* part of [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") defines an authentication method for one-factor/single-factor
+    authentication (1FA/SFA). As of MySQL 8.0.27, [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement") has clauses that support multifactor authentication
+    (MFA), such that accounts can have up to three authentication methods. That is,
+    accounts can use two-factor authentication (2FA) or three-factor authentication
+    (3FA).
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 中的 *`auth_option`*
+    部分定义了一种用于单因素认证（1FA/SFA）的认证方法。从 MySQL 8.0.27 开始，[`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement") 具有支持多因素认证（MFA）的子句，因此账户可以拥有最多三种认证方法。也就是说，账户可以使用双因素认证（2FA）或三因素认证（3FA）。'
+- en: The [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    system variable defines constraints for [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") statements with multifactor authentication (MFA) clauses. For
+    example, the [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    setting controls the number of authentication factors that accounts may have,
+    and for each factor, which authentication methods are permitted. See [Configuring
+    the Multifactor Authentication Policy](multifactor-authentication.html#multifactor-authentication-policy
+    "Configuring the Multifactor Authentication Policy").
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    系统变量定义了带有多因素认证（MFA）子句的 [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER
+    Statement") 语句的约束条件。例如，[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    设置控制了账户可以拥有的认证因素数量，以及对于每个因素，允许使用的认证方法。请参阅 [配置多因素认证策略](multifactor-authentication.html#multifactor-authentication-policy
+    "配置多因素认证策略")。'
+- en: For information about factor-specific rules that determine the default authentication
+    plugin for authentication clauses that name no plugin, see [The Default Authentication
+    Plugin](pluggable-authentication.html#pluggable-authentication-default-plugin
+    "The Default Authentication Plugin").
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 关于确定未指定插件名称的认证子句的默认认证插件的特定规则的信息，请参见[默认认证插件](pluggable-authentication.html#pluggable-authentication-default-plugin
+    "默认认证插件")。
+- en: 'Following *`auth_option`*, there may appear different optional MFA clauses:'
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在*`auth_option`*之后，可能会出现不同的可选 MFA 子句：
+- en: '*`2fa_auth_option`*: Specifies a factor 2 authentication method. The following
+    example defines `caching_sha2_password` as the factor 1 authentication method,
+    and `authentication_ldap_sasl` as the factor 2 authentication method.'
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`2fa_auth_option`*：指定二要素认证方法。以下示例将`caching_sha2_password`定义为第一要素认证方法，将`authentication_ldap_sasl`定义为第二要素认证方法。'
+- en: '[PRE7]'
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: '*`3fa_auth_option`*: Following *`2fa_auth_option`*, there may appear a *`3fa_auth_option`*
+    clause to specify a factor 3 authentication method. The following example defines
+    `caching_sha2_password` as the factor 1 authentication method, `authentication_ldap_sasl`
+    as the factor 2 authentication method, and `authentication_fido` as the factor
+    3 authentication method'
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`3fa_auth_option`*：在*`2fa_auth_option`*之后，可能会出现一个*`3fa_auth_option`*子句，用于指定第三要素认证方法。以下示例将`caching_sha2_password`定义为第一要素认证方法，将`authentication_ldap_sasl`定义为第二要素认证方法，将`authentication_fido`定义为第三要素认证方法。'
+- en: '[PRE8]'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: '*`initial_auth_option`*: Specifies an initial authentication method for configuring
+    FIDO passwordless authentication. As shown in the following, temporary authentication
+    using either a generated random password or a user-specified *`auth-string`* is
+    required to enable FIDO passwordless authentication.'
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*`initial_auth_option`*：指定用于配置 FIDO 无密码认证的初始认证方法。如下所示，需要使用生成的随机密码或用户指定的*`auth-string`*进行临时认证，以启用
+    FIDO 无密码认证。'
+- en: '[PRE9]'
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: For information about configuring passwordless authentication using FIDO pluggable
+    authentication, See [FIDO Passwordless Authentication](fido-pluggable-authentication.html#fido-pluggable-authentication-passwordless
+    "FIDO Passwordless Authentication").
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关使用 FIDO 可插拔认证配置无密码认证的信息，请参见[FIDO 无密码认证](fido-pluggable-authentication.html#fido-pluggable-authentication-passwordless
+    "FIDO 无密码认证")。
+- en: CREATE USER Role Options
+  id: totrans-95
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户角色选项
+- en: The `DEFAULT ROLE` clause defines which roles become active when the user connects
+    to the server and authenticates, or when the user executes the [`SET ROLE DEFAULT`](set-role.html
+    "15.7.1.11 SET ROLE Statement") statement during a session.
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`DEFAULT ROLE`子句定义了用户连接到服务器并进行身份验证时或用户在会话期间执行[`SET ROLE DEFAULT`](set-role.html
+    "15.7.1.11 SET ROLE Statement")语句时激活的角色。'
+- en: 'Each role name uses the format described in [Section 8.2.5, “Specifying Role
+    Names”](role-names.html "8.2.5 Specifying Role Names"). For example:'
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个角色名称使用[第 8.2.5 节，“指定角色名称”](role-names.html "8.2.5 指定角色名称")中描述的格式。例如：
+- en: '[PRE10]'
+  id: totrans-98
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: The host name part of the role name, if omitted, defaults to `'%'`.
+  id: totrans-99
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果省略角色名称的主机名部分，默认为`'%'`。
+- en: The `DEFAULT ROLE` clause permits a list of one or more comma-separated role
+    names. These roles must exist at the time [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") is executed; otherwise the statement raises an error ([`ER_USER_DOES_NOT_EXIST`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_user_does_not_exist)),
+    and the user is not created.
+  id: totrans-100
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`DEFAULT ROLE`子句允许一个或多个逗号分隔的角色名称列表。这些角色必须在执行[`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement")时存在；否则语句会引发错误([`ER_USER_DOES_NOT_EXIST`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_user_does_not_exist))，并且用户不会被创建。'
+- en: CREATE USER SSL/TLS Options
+  id: totrans-101
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户 SSL/TLS 选项
+- en: MySQL can check X.509 certificate attributes in addition to the usual authentication
+    that is based on the user name and credentials. For background information on
+    the use of SSL/TLS with MySQL, see [Section 8.3, “Using Encrypted Connections”](encrypted-connections.html
+    "8.3 Using Encrypted Connections").
+  id: totrans-102
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 可以检查 X.509 证书属性，除了基于用户名和凭据的通常认证外。有关在 MySQL 中使用 SSL/TLS 的背景信息，请参见[第 8.3
+    节，“使用加密连接”](encrypted-connections.html "8.3 使用加密连接")。
+- en: To specify SSL/TLS-related options for a MySQL account, use a `REQUIRE` clause
+    that specifies one or more *`tls_option`* values.
+  id: totrans-103
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为 MySQL 账户指定与 SSL/TLS 相关的选项，请使用指定一个或多个*`tls_option`*值的`REQUIRE`子句。
+- en: Order of `REQUIRE` options does not matter, but no option can be specified twice.
+    The `AND` keyword is optional between `REQUIRE` options.
+  id: totrans-104
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`REQUIRE`选项的顺序不重要，但不能指定两次选项。`REQUIRE`选项之间的`AND`关键字是可选的。'
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") permits
+    these *`tls_option`* values:'
+  id: totrans-105
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 允许这些 *`tls_option`*
+    值：'
+- en: '`NONE`'
+  id: totrans-106
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NONE`'
+- en: Indicates that all accounts named by the statement have no SSL or X.509 requirements.
+    Unencrypted connections are permitted if the user name and password are valid.
+    Encrypted connections can be used, at the client's option, if the client has the
+    proper certificate and key files.
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 表示语句指定的所有帐户没有 SSL 或 X.509 要求。如果用户名和密码有效，则允许未加密连接。如果客户端具有正确的证书和密钥文件，则客户端可以选择使用加密连接。
+- en: '[PRE11]'
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: Clients attempt to establish a secure connection by default. For clients that
+    have `REQUIRE NONE`, the connection attempt falls back to an unencrypted connection
+    if a secure connection cannot be established. To require an encrypted connection,
+    a client need specify only the [`--ssl-mode=REQUIRED`](connection-options.html#option_general_ssl-mode)
+    option; the connection attempt fails if a secure connection cannot be established.
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端默认尝试建立安全连接。对于具有 `REQUIRE NONE` 的客户端，如果无法建立安全连接，则连接尝试回退到未加密连接。要求加密连接，客户端只需指定
+    [`--ssl-mode=REQUIRED`](connection-options.html#option_general_ssl-mode) 选项；如果无法建立安全连接，则连接尝试失败。
+- en: '`NONE` is the default if no SSL-related `REQUIRE` options are specified.'
+  id: totrans-110
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果未指定任何与 SSL 相关的 `REQUIRE` 选项，则 `NONE` 是默认值。
+- en: '`SSL`'
+  id: totrans-111
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SSL`'
+- en: Tells the server to permit only encrypted connections for all accounts named
+    by the statement.
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 通知服务器只允许通过语句指定的所有帐户进行加密连接。
+- en: '[PRE12]'
+  id: totrans-113
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: Clients attempt to establish a secure connection by default. For accounts that
+    have `REQUIRE SSL`, the connection attempt fails if a secure connection cannot
+    be established.
+  id: totrans-114
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端默认尝试建立安全连接。对于具有 `REQUIRE SSL` 的帐户，如果无法建立安全连接，则连接尝试失败。
+- en: '`X509`'
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`X509`'
+- en: For all accounts named by the statement, requires that clients present a valid
+    certificate, but the exact certificate, issuer, and subject do not matter. The
+    only requirement is that it should be possible to verify its signature with one
+    of the CA certificates. Use of X.509 certificates always implies encryption, so
+    the `SSL` option is unnecessary in this case.
+  id: totrans-116
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于语句指定的所有帐户，要求客户端提供有效证书，但确切的证书、颁发者和主题并不重要。唯一的要求是应该能够使用其中一个 CA 证书验证其签名。使用 X.509
+    证书始终意味着加密，因此在这种情况下 `SSL` 选项是不必要的。
+- en: '[PRE13]'
+  id: totrans-117
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: For accounts with `REQUIRE X509`, clients must specify the [`--ssl-key`](connection-options.html#option_general_ssl-key)
+    and [`--ssl-cert`](connection-options.html#option_general_ssl-cert) options to
+    connect. (It is recommended but not required that [`--ssl-ca`](connection-options.html#option_general_ssl-ca)
+    also be specified so that the public certificate provided by the server can be
+    verified.) This is true for `ISSUER` and `SUBJECT` as well because those `REQUIRE`
+    options imply the requirements of `X509`.
+  id: totrans-118
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于具有 `REQUIRE X509` 的帐户，客户端必须指定 [`--ssl-key`](connection-options.html#option_general_ssl-key)
+    和 [`--ssl-cert`](connection-options.html#option_general_ssl-cert) 选项进行连接。（建议但不是必须还指定
+    [`--ssl-ca`](connection-options.html#option_general_ssl-ca)，以便验证服务器提供的公共证书。）对于
+    `ISSUER` 和 `SUBJECT` 也是如此，因为这些 `REQUIRE` 选项暗示了 `X509` 的要求。
+- en: '`ISSUER ''*`issuer`*''`'
+  id: totrans-119
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ISSUER ''*`issuer`*''`'
+- en: For all accounts named by the statement, requires that clients present a valid
+    X.509 certificate issued by CA `'*`issuer`*'`. If a client presents a certificate
+    that is valid but has a different issuer, the server rejects the connection. Use
+    of X.509 certificates always implies encryption, so the `SSL` option is unnecessary
+    in this case.
+  id: totrans-120
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于语句指定的所有帐户，要求客户端提供由 CA `'*`issuer`*'` 颁发的有效 X.509 证书。如果客户端提供的证书有效但颁发者不同，则服务器拒绝连接。使用
+    X.509 证书始终意味着加密，因此在这种情况下 `SSL` 选项是不必要的。
+- en: '[PRE14]'
+  id: totrans-121
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: Because `ISSUER` implies the requirements of `X509`, clients must specify the
+    [`--ssl-key`](connection-options.html#option_general_ssl-key) and [`--ssl-cert`](connection-options.html#option_general_ssl-cert)
+    options to connect. (It is recommended but not required that [`--ssl-ca`](connection-options.html#option_general_ssl-ca)
+    also be specified so that the public certificate provided by the server can be
+    verified.)
+  id: totrans-122
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为 `ISSUER` 暗示了 `X509` 的要求，客户端必须指定 [`--ssl-key`](connection-options.html#option_general_ssl-key)
+    和 [`--ssl-cert`](connection-options.html#option_general_ssl-cert) 选项进行连接。（建议但不是必须还指定
+    [`--ssl-ca`](connection-options.html#option_general_ssl-ca)，以便验证服务器提供的公共证书。）
+- en: '`SUBJECT ''*`subject`*''`'
+  id: totrans-123
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUBJECT ''*`subject`*''`'
+- en: For all accounts named by the statement, requires that clients present a valid
+    X.509 certificate containing the subject *`subject`*. If a client presents a certificate
+    that is valid but has a different subject, the server rejects the connection.
+    Use of X.509 certificates always implies encryption, so the `SSL` option is unnecessary
+    in this case.
+  id: totrans-124
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于陈述中命名的所有帐户，要求客户端提供包含主题*`subject`*的有效X.509证书。如果客户端提供了一个有效但主题不同的证书，服务器将拒绝连接。使用X.509证书总是意味着加密，因此在这种情况下`SSL`选项是不必要的。
+- en: '[PRE15]'
+  id: totrans-125
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: MySQL does a simple string comparison of the `'*`subject`*'` value to the value
+    in the certificate, so lettercase and component ordering must be given exactly
+    as present in the certificate.
+  id: totrans-126
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL对`'*`subject`*'`值与证书中的值进行简单的字符串比较，因此字母大小写和组件顺序必须与证书中的完全一致。
+- en: Because `SUBJECT` implies the requirements of `X509`, clients must specify the
+    [`--ssl-key`](connection-options.html#option_general_ssl-key) and [`--ssl-cert`](connection-options.html#option_general_ssl-cert)
+    options to connect. (It is recommended but not required that [`--ssl-ca`](connection-options.html#option_general_ssl-ca)
+    also be specified so that the public certificate provided by the server can be
+    verified.)
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 因为`SUBJECT`暗示了`X509`的要求，客户端必须指定[`--ssl-key`](connection-options.html#option_general_ssl-key)和[`--ssl-cert`](connection-options.html#option_general_ssl-cert)选项进行连接。（建议但不是必须还指定[`--ssl-ca`](connection-options.html#option_general_ssl-ca)，以便验证服务器提供的公共证书。）
+- en: '`CIPHER ''*`cipher`*''`'
+  id: totrans-128
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CIPHER ''*`cipher`*''`'
+- en: For all accounts named by the statement, requires a specific cipher method for
+    encrypting connections. This option is needed to ensure that ciphers and key lengths
+    of sufficient strength are used. Encryption can be weak if old algorithms using
+    short encryption keys are used.
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于陈述中命名的所有帐户，需要为加密连接指定特定的密码方法。这个选项是必需的，以确保使用足够强度的密码和密钥长度。如果使用旧算法和短加密密钥，加密可能会很弱。
+- en: '[PRE16]'
+  id: totrans-130
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'The `SUBJECT`, `ISSUER`, and `CIPHER` options can be combined in the `REQUIRE`
+    clause:'
+  id: totrans-131
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`SUBJECT`、`ISSUER`和`CIPHER`选项可以在`REQUIRE`子句中组合使用：'
+- en: '[PRE17]'
+  id: totrans-132
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: CREATE USER Resource-Limit Options
+  id: totrans-133
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户资源限制选项
+- en: It is possible to place limits on use of server resources by an account, as
+    discussed in [Section 8.2.21, “Setting Account Resource Limits”](user-resources.html
+    "8.2.21 Setting Account Resource Limits"). To do so, use a `WITH` clause that
+    specifies one or more *`resource_option`* values.
+  id: totrans-134
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以通过讨论中提到的[第8.2.21节，“设置帐户资源限制”](user-resources.html "8.2.21 设置帐户资源限制")来限制帐户对服务器资源的使用。为此，请使用指定一个或多个*`resource_option`*值的`WITH`子句。
+- en: Order of `WITH` options does not matter, except that if a given resource limit
+    is specified multiple times, the last instance takes precedence.
+  id: totrans-135
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`WITH`选项的顺序无关紧要，除非给定资源限制被多次指定，最后一次实例优先。'
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") permits
+    these *`resource_option`* values:'
+  id: totrans-136
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")允许这些*`resource_option`*值：'
+- en: '`MAX_QUERIES_PER_HOUR *`count`*`, `MAX_UPDATES_PER_HOUR *`count`*`, `MAX_CONNECTIONS_PER_HOUR
+    *`count`*`'
+  id: totrans-137
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MAX_QUERIES_PER_HOUR *`count`*`，`MAX_UPDATES_PER_HOUR *`count`*`，`MAX_CONNECTIONS_PER_HOUR
+    *`count`*`'
+- en: For all accounts named by the statement, these options restrict how many queries,
+    updates, and connections to the server are permitted to each account during any
+    given one-hour period. If *`count`* is `0` (the default), this means that there
+    is no limitation for the account.
+  id: totrans-138
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于陈述中命名的所有帐户，这些选项限制了每个帐户在任何给定的一个小时内对服务器的查询、更新和连接的次数。如果*`count`*是`0`（默认值），这意味着该帐户没有限制。
+- en: '`MAX_USER_CONNECTIONS *`count`*`'
+  id: totrans-139
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MAX_USER_CONNECTIONS *`count`*`'
+- en: For all accounts named by the statement, restricts the maximum number of simultaneous
+    connections to the server by each account. A nonzero *`count`* specifies the limit
+    for the account explicitly. If *`count`* is `0` (the default), the server determines
+    the number of simultaneous connections for the account from the global value of
+    the [`max_user_connections`](server-system-variables.html#sysvar_max_user_connections)
+    system variable. If [`max_user_connections`](server-system-variables.html#sysvar_max_user_connections)
+    is also zero, there is no limit for the account.
+  id: totrans-140
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于陈述中命名的所有帐户，限制了每个帐户对服务器的最大同时连接数。非零的*`count`*明确指定了该帐户的限制。如果*`count`*是`0`（默认值），服务器从[`max_user_connections`](server-system-variables.html#sysvar_max_user_connections)系统变量的全局值确定该帐户的同时连接数。如果[`max_user_connections`](server-system-variables.html#sysvar_max_user_connections)也是零，则该帐户没有限制。
+- en: 'Example:'
+  id: totrans-141
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: '[PRE18]'
+  id: totrans-142
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: CREATE USER Password-Management Options
+  id: totrans-143
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户密码管理选项
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") supports
+    several *`password_option`* values for password management:'
+  id: totrans-144
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`创建用户`](create-user.html "15.7.1.3 CREATE USER Statement") 支持几个*`password_option`*值用于密码管理：'
+- en: 'Password expiration options: You can expire an account password manually and
+    establish its password expiration policy. Policy options do not expire the password.
+    Instead, they determine how the server applies automatic expiration to the account
+    based on password age, which is assessed from the date and time of the most recent
+    account password change.'
+  id: totrans-145
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 密码过期选项：您可以手动使账户密码过期并建立其密码过期策略。策略选项不会使密码过期。相反，它们确定服务器如何根据密码年龄自动使账户过期，密码年龄是从最近一次账户密码更改的日期和时间开始评估的。
+- en: 'Password reuse options: You can restrict password reuse based on number of
+    password changes, time elapsed, or both.'
+  id: totrans-146
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 密码重用选项：您可以基于密码更改次数、经过的时间或两者限制密码重用。
+- en: 'Password verification-required options: You can indicate whether attempts to
+    change an account password must specify the current password, as verification
+    that the user attempting to make the change actually knows the current password.'
+  id: totrans-147
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 需要密码验证的选项：您可以指示尝试更改账户密码是否必须指定当前密码，以验证试图进行更改的用户实际上知道当前密码。
+- en: 'Incorrect-password failed-login tracking options: You can cause the server
+    to track failed login attempts and temporarily lock accounts for which too many
+    consecutive incorrect passwords are given. The required number of failures and
+    the lock time are configurable.'
+  id: totrans-148
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不正确密码失败登录跟踪选项：您可以导致服务器跟踪失败的登录尝试，并临时锁定给出太多连续不正确密码的账户。失败次数和锁定时间可配置。
+- en: This section describes the syntax for password-management options. For information
+    about establishing policy for password management, see [Section 8.2.15, “Password
+    Management”](password-management.html "8.2.15 Password Management").
+  id: totrans-149
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了密码管理选项的语法。有关建立密码管理策略的信息，请参阅[第8.2.15节，“密码管理”](password-management.html "8.2.15 密码管理")。
+- en: If multiple password-management options of a given type are specified, the last
+    one takes precedence. For example, `PASSWORD EXPIRE DEFAULT PASSWORD EXPIRE NEVER`
+    is the same as `PASSWORD EXPIRE NEVER`.
+  id: totrans-150
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果指定了给定类型的多个密码管理选项，则最后一个优先。例如，`密码过期默认 密码过期从不`等同于`密码过期从不`。
+- en: Note
+  id: totrans-151
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Except for the options that pertain to failed-login tracking, password-management
+    options apply only to accounts that use an authentication plugin that stores credentials
+    internally to MySQL. For accounts that use a plugin that performs authentication
+    against a credentials system that is external to MySQL, password management must
+    be handled externally against that system as well. For more information about
+    internal credentials storage, see [Section 8.2.15, “Password Management”](password-management.html
+    "8.2.15 Password Management").
+  id: totrans-152
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了与失败登录跟踪相关的选项外，密码管理选项仅适用于使用将凭据存储在MySQL内部的身份验证插件的账户。对于使用针对MySQL外部凭据系统执行身份验证的插件的账户，密码管理也必须在该系统外部处理。有关内部凭据存储的更多信息，请参阅[第8.2.15节，“密码管理”](password-management.html
+    "8.2.15 密码管理")。
+- en: A client has an expired password if the account password was expired manually
+    or the password age is considered greater than its permitted lifetime per the
+    automatic expiration policy. In this case, the server either disconnects the client
+    or restricts the operations permitted to it (see [Section 8.2.16, “Server Handling
+    of Expired Passwords”](expired-password-handling.html "8.2.16 Server Handling
+    of Expired Passwords")). Operations performed by a restricted client result in
+    an error until the user establishes a new account password.
+  id: totrans-153
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果账户密码已被手动过期或密码年龄被认为大于其允许的生命周期根据自动过期策略。在这种情况下，服务器要么断开客户端连接，要么限制其允许的操作（请参阅[第8.2.16节，“过期密码的服务器处理”](expired-password-handling.html
+    "8.2.16 过期密码的服务器处理")）。受限客户端执行的操作会导致错误，直到用户建立新的账户密码。
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") permits
+    these *`password_option`* values for controlling password expiration:'
+  id: totrans-154
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`创建用户`](create-user.html "15.7.1.3 CREATE USER Statement") 允许这些*`password_option`*值来控制密码过期：'
+- en: '`PASSWORD EXPIRE`'
+  id: totrans-155
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`密码过期`'
+- en: Immediately marks the password expired for all accounts named by the statement.
+  id: totrans-156
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 立即标记语句命名的所有账户的密码过期。
+- en: '[PRE19]'
+  id: totrans-157
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: '`PASSWORD EXPIRE DEFAULT`'
+  id: totrans-158
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`密码过期默认`'
+- en: Sets all accounts named by the statement so that the global expiration policy
+    applies, as specified by the [`default_password_lifetime`](server-system-variables.html#sysvar_default_password_lifetime)
+    system variable.
+  id: totrans-159
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置所有语句中命名的帐户，使全局过期策略适用，如[`default_password_lifetime`](server-system-variables.html#sysvar_default_password_lifetime)系统变量指定的那样。
+- en: '[PRE20]'
+  id: totrans-160
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: '`PASSWORD EXPIRE NEVER`'
+  id: totrans-161
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD EXPIRE NEVER`'
+- en: This expiration option overrides the global policy for all accounts named by
+    the statement. For each, it disables password expiration so that the password
+    never expires.
+  id: totrans-162
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此过期选项覆盖了语句中命名的所有帐户的全局策略。对于每个帐户，它禁用密码过期，使密码永不过期。
+- en: '[PRE21]'
+  id: totrans-163
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: '`PASSWORD EXPIRE INTERVAL *`N`* DAY`'
+  id: totrans-164
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD EXPIRE INTERVAL *`N`* DAY`'
+- en: 'This expiration option overrides the global policy for all accounts named by
+    the statement. For each, it sets the password lifetime to *`N`* days. The following
+    statement requires the password to be changed every 180 days:'
+  id: totrans-165
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此过期选项覆盖了语句中命名的所有帐户的全局策略。对于每个帐户，它将密码寿命设置为*`N`*天。以下语句要求每180天更改一次密码：
+- en: '[PRE22]'
+  id: totrans-166
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") permits
+    these *`password_option`* values for controlling reuse of previous passwords based
+    on required minimum number of password changes:'
+  id: totrans-167
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")允许这些*`password_option`*值来控制基于所需最小密码更改次数的先前密码重用：'
+- en: '`PASSWORD HISTORY DEFAULT`'
+  id: totrans-168
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD HISTORY DEFAULT`'
+- en: Sets all accounts named by the statement so that the global policy about password
+    history length applies, to prohibit reuse of passwords before the number of changes
+    specified by the [`password_history`](server-system-variables.html#sysvar_password_history)
+    system variable.
+  id: totrans-169
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置所有语句中命名的帐户，使全局关于密码历史长度的策略适用，以禁止在[`password_history`](server-system-variables.html#sysvar_password_history)系统变量指定的更改次数之前重用密码。
+- en: '[PRE23]'
+  id: totrans-170
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: '`PASSWORD HISTORY *`N`*`'
+  id: totrans-171
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD HISTORY *`N`*`'
+- en: 'This history-length option overrides the global policy for all accounts named
+    by the statement. For each, it sets the password history length to *`N`* passwords,
+    to prohibit reusing any of the *`N`* most recently chosen passwords. The following
+    statement prohibits reuse of any of the previous 6 passwords:'
+  id: totrans-172
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此历史长度选项覆盖了语句中命名的所有帐户的全局策略。对于每个帐户，它将密码历史长度设置为*`N`*个密码，以禁止重用最近选择的*`N`*个密码中的任何一个。以下语句禁止重用之前的6个密码中的任何一个：
+- en: '[PRE24]'
+  id: totrans-173
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") permits
+    these *`password_option`* values for controlling reuse of previous passwords based
+    on time elapsed:'
+  id: totrans-174
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")允许这些*`password_option`*值来控制基于经过时间的先前密码重用：'
+- en: '`PASSWORD REUSE INTERVAL DEFAULT`'
+  id: totrans-175
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD REUSE INTERVAL DEFAULT`'
+- en: Sets all statements named by the account so that the global policy about time
+    elapsed applies, to prohibit reuse of passwords newer than the number of days
+    specified by the [`password_reuse_interval`](server-system-variables.html#sysvar_password_reuse_interval)
+    system variable.
+  id: totrans-176
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置所有帐户中命名的语句，使全局关于经过时间的策略适用，以禁止重用新于[`password_reuse_interval`](server-system-variables.html#sysvar_password_reuse_interval)系统变量指定的天数的密码。
+- en: '[PRE25]'
+  id: totrans-177
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: '`PASSWORD REUSE INTERVAL *`N`* DAY`'
+  id: totrans-178
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD REUSE INTERVAL *`N`* DAY`'
+- en: 'This time-elapsed option overrides the global policy for all accounts named
+    by the statement. For each, it sets the password reuse interval to *`N`* days,
+    to prohibit reuse of passwords newer than that many days. The following statement
+    prohibits password reuse for 360 days:'
+  id: totrans-179
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此经过时间选项覆盖了语句中命名的所有帐户的全局策略。对于每个帐户，它将密码重用间隔设置为*`N`*天，以禁止重用新于该天数的密码。以下语句禁止密码在360天内重用：
+- en: '[PRE26]'
+  id: totrans-180
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") permits
+    these *`password_option`* values for controlling whether attempts to change an
+    account password must specify the current password, as verification that the user
+    attempting to make the change actually knows the current password:'
+  id: totrans-181
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")允许这些*`password_option`*值来控制是否尝试更改帐户密码必须指定当前密码，以验证尝试进行更改的用户实际上知道当前密码：'
+- en: '`PASSWORD REQUIRE CURRENT`'
+  id: totrans-182
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD REQUIRE CURRENT`'
+- en: This verification option overrides the global policy for all accounts named
+    by the statement. For each, it requires that password changes specify the current
+    password.
+  id: totrans-183
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此验证选项覆盖了语句中命名的所有帐户的全局策略。对于每个帐户，它要求密码更改时指定当前密码。
+- en: '[PRE27]'
+  id: totrans-184
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: '`PASSWORD REQUIRE CURRENT OPTIONAL`'
+  id: totrans-185
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD REQUIRE CURRENT OPTIONAL`'
+- en: This verification option overrides the global policy for all accounts named
+    by the statement. For each, it does not require that password changes specify
+    the current password. (The current password may but need not be given.)
+  id: totrans-186
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 此验证选项会覆盖语句指定的所有帐户的全局策略。对于每个帐户，不需要密码更改指定当前密码。（当前密码可以给出，但不是必需的。）
+- en: '[PRE28]'
+  id: totrans-187
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE28]'
+- en: '`PASSWORD REQUIRE CURRENT DEFAULT`'
+  id: totrans-188
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD REQUIRE CURRENT DEFAULT`'
+- en: Sets all statements named by the account so that the global policy about password
+    verification applies, as specified by the [`password_require_current`](server-system-variables.html#sysvar_password_require_current)
+    system variable.
+  id: totrans-189
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 设置所有由帐户命名的语句，以便全局关于密码验证的策略适用，如[`password_require_current`](server-system-variables.html#sysvar_password_require_current)
+    系统变量所指定的那样。
+- en: '[PRE29]'
+  id: totrans-190
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE29]'
+- en: 'As of MySQL 8.0.19, [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER
+    Statement") permits these *`password_option`* values for controlling failed-login
+    tracking:'
+  id: totrans-191
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.19 开始，[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    允许这些 *`password_option`* 值来控制登录失败跟踪：
+- en: '`FAILED_LOGIN_ATTEMPTS *`N`*`'
+  id: totrans-192
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FAILED_LOGIN_ATTEMPTS *`N`*`'
+- en: Whether to track account login attempts that specify an incorrect password.
+    *`N`* must be a number from 0 to 32767\. A value of 0 disables failed-login tracking.
+    Values greater than 0 indicate how many consecutive password failures cause temporary
+    account locking (if `PASSWORD_LOCK_TIME` is also nonzero).
+  id: totrans-193
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 是否跟踪指定错误密码的帐户登录尝试。*`N`* 必须是从 0 到 32767 的数字。值为 0 会禁用登录失败跟踪。大于 0 的值表示多少连续密码失败会导致临时帐户锁定（如果
+    `PASSWORD_LOCK_TIME` 也是非零）。
+- en: '`PASSWORD_LOCK_TIME {*`N`* | UNBOUNDED}`'
+  id: totrans-194
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`PASSWORD_LOCK_TIME {*`N`* | UNBOUNDED}`'
+- en: How long to lock the account after too many consecutive login attempts provide
+    an incorrect password. *`N`* must be a number from 0 to 32767, or `UNBOUNDED`.
+    A value of 0 disables temporary account locking. Values greater than 0 indicate
+    how long to lock the account in days. A value of `UNBOUNDED` causes the account
+    locking duration to be unbounded; once locked, the account remains in a locked
+    state until unlocked. For information about the conditions under which unlocking
+    occurs, see [Failed-Login Tracking and Temporary Account Locking](password-management.html#failed-login-tracking
+    "Failed-Login Tracking and Temporary Account Locking").
+  id: totrans-195
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 连续登录尝试提供错误密码后锁定帐户的时间。*`N`* 必须是从 0 到 32767 的数字，或者 `UNBOUNDED`。值为 0 会禁用临时帐户锁定。大于
+    0 的值表示锁定帐户的天数。值为 `UNBOUNDED` 会导致帐户锁定持续时间无限制；一旦锁定，帐户将保持锁定状态直到解锁。有关解锁发生的条件的信息，请参阅[登录失败跟踪和临时帐户锁定](password-management.html#failed-login-tracking
+    "Failed-Login Tracking and Temporary Account Locking")。
+- en: 'For failed-login tracking and temporary locking to occur, an account''s `FAILED_LOGIN_ATTEMPTS`
+    and `PASSWORD_LOCK_TIME` options both must be nonzero. The following statement
+    creates an account that remains locked for two days after four consecutive password
+    failures:'
+  id: totrans-196
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要进行登录失败跟踪和临时锁定，帐户的 `FAILED_LOGIN_ATTEMPTS` 和 `PASSWORD_LOCK_TIME` 选项都必须非零。以下语句创建一个帐户，在连续四次密码失败后保持锁定两天：
+- en: '[PRE30]'
+  id: totrans-197
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE30]'
+- en: CREATE USER Comment and Attribute Options
+  id: totrans-198
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户注释和属性选项
+- en: 'As of MySQL 8.0.21, you can create an account with an optional comment or attribute,
+    as described here:'
+  id: totrans-199
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.21 开始，您可以创建一个带有可选注释或属性的帐户，如下所述：
+- en: '**User comment**'
+  id: totrans-200
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**用户注释**'
+- en: To set a user comment, add `COMMENT '*`user_comment`*'` to the `CREATE USER`
+    statement, where *`user_comment`* is the text of the user comment.
+  id: totrans-201
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要设置用户注释，请在 `CREATE USER` 语句中添加 `COMMENT '*`user_comment`*'`，其中 *`user_comment`*
+    是用户注释的文本。
+- en: 'Example (omitting any other options):'
+  id: totrans-202
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例（省略其他选项）：
+- en: '[PRE31]'
+  id: totrans-203
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE31]'
+- en: '**User attribute**'
+  id: totrans-204
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**用户属性**'
+- en: A user attribute is a JSON object made up of one or more key-value pairs, and
+    is set by including `ATTRIBUTE '*`json_object`*'` as part of `CREATE USER`. *`json_object`*
+    must be a valid JSON object.
+  id: totrans-205
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 用户属性是由一个或多个键值对组成的 JSON 对象，并通过在 `CREATE USER` 中包含 `ATTRIBUTE '*`json_object`*'`
+    来设置。*`json_object`* 必须是一个有效的 JSON 对象。
+- en: 'Example (omitting any other options):'
+  id: totrans-206
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 示例（省略其他选项）：
+- en: '[PRE32]'
+  id: totrans-207
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE32]'
+- en: 'User comments and user attributes are stored together in the `ATTRIBUTE` column
+    of the Information Schema [`USER_ATTRIBUTES`](information-schema-user-attributes-table.html
+    "28.3.46 The INFORMATION_SCHEMA USER_ATTRIBUTES Table") table. This query displays
+    the row in this table inserted by the statement just shown for creating the user
+    `jim@localhost`:'
+  id: totrans-208
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用户注释和用户属性一起存储在信息模式 [`USER_ATTRIBUTES`](information-schema-user-attributes-table.html
+    "28.3.46 The INFORMATION_SCHEMA USER_ATTRIBUTES Table") 表的 `ATTRIBUTE` 列中。此查询显示了刚刚用于创建用户
+    `jim@localhost` 的语句插入的此表中的行：
+- en: '[PRE33]'
+  id: totrans-209
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE33]'
+- en: 'The `COMMENT` option in actuality provides a shortcut for setting a user attribute
+    whose only element has `comment` as its key and whose value is the argument supplied
+    for the option. You can see this by executing the statement `CREATE USER ''jon''@''localhost''
+    COMMENT ''Some information about Jon''`, and observing the row which it inserts
+    into the [`USER_ATTRIBUTES`](information-schema-user-attributes-table.html "28.3.46 The
+    INFORMATION_SCHEMA USER_ATTRIBUTES Table") table:'
+  id: totrans-210
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 实际上，`COMMENT`选项提供了一个快捷方式，用于设置一个只有`comment`作为其键且其值为选项提供的参数的用户属性。通过执行语句`CREATE
+    USER 'jon'@'localhost' COMMENT 'Some information about Jon'`，并观察它插入到[`USER_ATTRIBUTES`](information-schema-user-attributes-table.html
+    "28.3.46 INFORMATION_SCHEMA USER_ATTRIBUTES 表")表中的行，您可以看到这一点：
+- en: '[PRE34]'
+  id: totrans-211
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE34]'
+- en: 'You cannot use `COMMENT` and `ATTRIBUTE` together in the same `CREATE USER`
+    statement; attempting to do so causes a syntax error. To set a user comment concurrently
+    with setting a user attribute, use `ATTRIBUTE` and include in its argument a value
+    with a `comment` key, like this:'
+  id: totrans-212
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不能在同一`CREATE USER`语句中同时使用`COMMENT`和`ATTRIBUTE`；尝试这样做会导致语法错误。要同时设置用户评论和用户属性，使用`ATTRIBUTE`并在其参数中包含具有`comment`键的值，如下所示：
+- en: '[PRE35]'
+  id: totrans-213
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE35]'
+- en: 'Since the content of the `ATTRIBUTE` row is a JSON object, you can employ any
+    appropriate MySQL JSON functions or operators to manipulate it, as shown here:'
+  id: totrans-214
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于`ATTRIBUTE`行的内容是一个JSON对象，您可以使用任何适当的MySQL JSON函数或运算符来操作它，如下所示：
+- en: '[PRE36]'
+  id: totrans-215
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE36]'
+- en: To set or to make changes in the user comment or user attribute for an existing
+    user, you can use a `COMMENT` or `ATTRIBUTE` option with an [`ALTER USER`](alter-user.html
+    "15.7.1.1 ALTER USER Statement") statement.
+  id: totrans-216
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要为现有用户设置或更改用户评论或用户属性，可以使用带有[`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER
+    语句")语句的`COMMENT`或`ATTRIBUTE`选项。
+- en: Because the user comment and user attribute are stored together internally in
+    a single [`JSON`](json.html "13.5 The JSON Data Type") column, this sets an upper
+    limit on their maximum combined size; see [JSON Storage Requirements](storage-requirements.html#data-types-storage-reqs-json
+    "JSON Storage Requirements"), for more information.
+  id: totrans-217
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为用户评论和用户属性在单个[`JSON`](json.html "13.5 JSON 数据类型")列中内部存储在一起，这为它们的最大组合大小设置了一个上限；有关更多信息，请参阅[JSON
+    存储要求](storage-requirements.html#data-types-storage-reqs-json "JSON 存储要求")。
+- en: See also the description of the Information Schema [`USER_ATTRIBUTES`](information-schema-user-attributes-table.html
+    "28.3.46 The INFORMATION_SCHEMA USER_ATTRIBUTES Table") table for more information
+    and examples.
+  id: totrans-218
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关更多信息和示例，请参阅信息模式[`USER_ATTRIBUTES`](information-schema-user-attributes-table.html
+    "28.3.46 INFORMATION_SCHEMA USER_ATTRIBUTES 表")表的描述。
+- en: CREATE USER Account-Locking Options
+  id: totrans-219
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户帐户锁定选项
+- en: MySQL supports account locking and unlocking using the `ACCOUNT LOCK` and `ACCOUNT
+    UNLOCK` options, which specify the locking state for an account. For additional
+    discussion, see [Section 8.2.20, “Account Locking”](account-locking.html "8.2.20 Account
+    Locking").
+  id: totrans-220
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL支持使用`ACCOUNT LOCK`和`ACCOUNT UNLOCK`选项对帐户进行锁定和解锁，这些选项指定帐户的锁定状态。有关更多讨论，请参阅[Section 8.2.20，“帐户锁定”](account-locking.html
+    "8.2.20 帐户锁定")。
+- en: If multiple account-locking options are specified, the last one takes precedence.
+  id: totrans-221
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果指定了多个帐户锁定选项，则最后一个优先。
+- en: CREATE USER Binary Logging
+  id: totrans-222
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 创建用户二进制日志
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") is written
+    to the binary log if it succeeds, but not if it fails; in that case, rollback
+    occurs and no changes are made. A statement written to the binary log includes
+    all named users. If the `IF NOT EXISTS` clause is given, this includes even users
+    that already exist and were not created.'
+  id: totrans-223
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`CREATE USER`成功，则写入二进制日志，但如果失败则不写入；在这种情况下，将发生回滚并且不会进行任何更改。写入二进制日志的语句包括所有命名用户。如果给出了`IF
+    NOT EXISTS`子句，这甚至包括已经存在且未创建的用户。
+- en: 'The statement written to the binary log specifies an authentication plugin
+    for each user, determined as follows:'
+  id: totrans-224
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 写入二进制日志的语句为每个用户指定一个身份验证插件，确定如下：
+- en: The plugin named in the original statement, if one was specified.
+  id: totrans-225
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 原始语句中指定的插件。
+- en: Otherwise, the default authentication plugin. In particular, if a user `u1`
+    already exists and uses a nondefault authentication plugin, the statement written
+    to the binary log for `CREATE USER IF NOT EXISTS u1` names the default authentication
+    plugin. (If the statement written to the binary log must specify a nondefault
+    authentication plugin for a user, include it in the original statement.)
+  id: totrans-226
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 否则，默认的身份验证插件。特别是，如果用户`u1`已经存在并使用非默认身份验证插件，则为`CREATE USER IF NOT EXISTS u1`写入二进制日志的语句将列出默认身份验证插件。（如果必须为用户指定非默认身份验证插件，请在原始语句中包含它。）
+- en: If the server adds the default authentication plugin for any nonexisting users
+    in the statement written to the binary log, it writes a warning to the error log
+    naming those users.
+  id: totrans-227
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果服务器为二进制日志中写入的任何不存在的用户添加默认身份验证插件，则会在错误日志中写入警告，列出这些用户的名称。
+- en: If the original statement specifies the `FAILED_LOGIN_ATTEMPTS` or `PASSWORD_LOCK_TIME`
+    option, the statement written to the binary log includes the option.
+  id: totrans-228
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果原始语句指定了`FAILED_LOGIN_ATTEMPTS`或`PASSWORD_LOCK_TIME`选项，则写入二进制日志的语句将包括该选项。
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statements
+    with clauses that support multifactor authentication (MFA) are written to the
+    binary log.'
+  id: totrans-229
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 支持多因素认证（MFA）的子句的[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句将写入二进制日志。
+- en: '`CREATE USER ... IDENTIFIED WITH .. INITIAL AUTHENTICATION IDENTIFIED WITH
+    ...` statements are written to the binary log as `CREATE USER .. IDENTIFIED WITH
+    .. INITIAL AUTHENTICATION IDENTIFIED WITH .. AS ''*`password-hash`*''`, where
+    the *`password-hash`* is the user-specified *`auth-string`* or the random password
+    generated by server when the `RANDOM PASSWORD` clause is specified.'
+  id: totrans-230
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CREATE USER ... IDENTIFIED WITH .. INITIAL AUTHENTICATION IDENTIFIED WITH
+    ...`语句将作为`CREATE USER .. IDENTIFIED WITH .. INITIAL AUTHENTICATION IDENTIFIED
+    WITH .. AS ''*`password-hash`*''`写入二进制日志，其中*`password-hash`*是用户指定的*`auth-string`*或服务器在指定`RANDOM
+    PASSWORD`子句时生成的随机密码。'

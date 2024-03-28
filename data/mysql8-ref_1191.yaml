@@ -1,0 +1,88 @@
+- en: 17.7.4 Phantom Rows
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.7.4 幻影行
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-next-key-locking.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-next-key-locking.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-next-key-locking.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-next-key-locking.html)
+- en: The so-called phantom problem occurs within a transaction when the same query
+    produces different sets of rows at different times. For example, if a [`SELECT`](select.html
+    "15.2.13 SELECT Statement") is executed twice, but returns a row the second time
+    that was not returned the first time, the row is a “phantom” row.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所谓的幻影问题发生在事务中，当同一查询在不同时间产生不同的行集时。例如，如果[`SELECT`](select.html "15.2.13 SELECT
+    Statement")执行两次，但第二次返回了第一次没有返回的行，则该行是一个“幻影”行。
+- en: 'Suppose that there is an index on the `id` column of the `child` table and
+    that you want to read and lock all rows from the table having an identifier value
+    larger than 100, with the intention of updating some column in the selected rows
+    later:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设`child`表的`id`列上有一个索引，并且您希望从具有大于100的标识符值的表中读取并锁定所有行，以便稍后更新所选行中的某些列：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The query scans the index starting from the first record where `id` is bigger
+    than 100\. Let the table contain rows having `id` values of 90 and 102\. If the
+    locks set on the index records in the scanned range do not lock out inserts made
+    in the gaps (in this case, the gap between 90 and 102), another session can insert
+    a new row into the table with an `id` of 101\. If you were to execute the same
+    [`SELECT`](select.html "15.2.13 SELECT Statement") within the same transaction,
+    you would see a new row with an `id` of 101 (a “phantom”) in the result set returned
+    by the query. If we regard a set of rows as a data item, the new phantom child
+    would violate the isolation principle of transactions that a transaction should
+    be able to run so that the data it has read does not change during the transaction.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查询从`id`大于100的第一条记录开始扫描索引。假设表中包含`id`值为90和102的行。如果在扫描范围内设置的索引记录上的锁不锁定插入到间隙中的内容（在本例中，90和102之间的间隙），则另一个会话可以在表中插入一个`id`为101的新行。如果在同一事务中执行相同的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")，则您会在查询返回的结果集中看到一个`id`为101的新行（“幻影”）。如果我们将一组行视为一个数据项，新的幻影子行将违反事务的隔离原则，即事务在执行期间读取的数据不应在事务期间发生更改。
+- en: To prevent phantoms, `InnoDB` uses an algorithm called next-key locking that
+    combines index-row locking with gap locking. `InnoDB` performs row-level locking
+    in such a way that when it searches or scans a table index, it sets shared or
+    exclusive locks on the index records it encounters. Thus, the row-level locks
+    are actually index-record locks. In addition, a next-key lock on an index record
+    also affects the “gap” before the index record. That is, a next-key lock is an
+    index-record lock plus a gap lock on the gap preceding the index record. If one
+    session has a shared or exclusive lock on record `R` in an index, another session
+    cannot insert a new index record in the gap immediately before `R` in the index
+    order.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了防止幻影，`InnoDB`使用一种称为next-key锁定的算法，将索引行锁定与间隙锁定结合在一起。`InnoDB`以一种方式执行行级锁定，即当搜索或扫描表索引时，它会在遇到的索引记录上设置共享或排他锁。因此，行级锁实际上是索引记录锁。此外，对索引记录的next-key锁定也会影响索引记录之前的“间隙”。也就是说，next-key锁定是索引记录锁加上索引记录之前的间隙锁。如果一个会话在索引中的记录`R`上有共享或排他锁，则另一个会话不能在索引顺序中的`R`之前的间隙中插入新的索引记录。
+- en: 'When `InnoDB` scans an index, it can also lock the gap after the last record
+    in the index. Just that happens in the preceding example: To prevent any insert
+    into the table where `id` would be bigger than 100, the locks set by `InnoDB`
+    include a lock on the gap following `id` value 102.'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当`InnoDB`扫描索引时，也可以锁定索引中最后一条记录之后的间隙。就像在前面的例子中发生的那样：为了防止在`id`大于100的表中插入任何内容，`InnoDB`设置的锁包括对`id`值为102之后的间隙的锁。
+- en: 'You can use next-key locking to implement a uniqueness check in your application:
+    If you read your data in share mode and do not see a duplicate for a row you are
+    going to insert, then you can safely insert your row and know that the next-key
+    lock set on the successor of your row during the read prevents anyone meanwhile
+    inserting a duplicate for your row. Thus, the next-key locking enables you to
+    “lock” the nonexistence of something in your table.'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用next-key锁定在应用程序中实现唯一性检查：如果以共享模式读取数据，并且在要插入的行中没有看到重复项，则可以安全地插入行，并且知道在读取期间对您行的后继者设置的next-key锁定会阻止任何人同时插入一个重复项。因此，next-key锁定使您能够在表中“锁定”某些内容的不存在。
+- en: Gap locking can be disabled as discussed in [Section 17.7.1, “InnoDB Locking”](innodb-locking.html
+    "17.7.1 InnoDB Locking"). This may cause phantom problems because other sessions
+    can insert new rows into the gaps when gap locking is disabled.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以按照[第17.7.1节，“InnoDB锁定”](innodb-locking.html "17.7.1 InnoDB Locking")中讨论的方法禁用间隙锁定。这可能会导致幻影问题，因为在禁用间隙锁定时，其他会话可以在间隙中插入新行。

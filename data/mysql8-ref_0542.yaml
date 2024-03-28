@@ -1,0 +1,258 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/derived-condition-pushdown-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/derived-condition-pushdown-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/derived-condition-pushdown-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/derived-condition-pushdown-optimization.html)
+- en: 10.2.2.5 Derived Condition Pushdown Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.2.5 派生条件下推优化
+- en: MySQL 8.0.22 and later supports derived condition pushdown for eligible subqueries.
+    For a query such as `SELECT * FROM (SELECT i, j FROM t1) AS dt WHERE i > *`constant`*`,
+    it is possible in many cases to push the outer `WHERE` condition down to the derived
+    table, in this case resulting in `SELECT * FROM (SELECT i, j FROM t1 WHERE i >
+    *`constant`*) AS dt`. When a derived table cannot be merged into the outer query
+    (for example, if the derived table uses aggregation), pushing the outer `WHERE`
+    condition down to the derived table should decrease the number of rows that need
+    to be processed and thus speed up execution of the query.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.22 及更高版本支持对符合条件的子查询进行派生条件下推。对于诸如`SELECT * FROM (SELECT i, j FROM t1)
+    AS dt WHERE i > *`constant`*`这样的查询，在许多情况下可以将外部`WHERE`条件下推到派生表，从而得到`SELECT * FROM
+    (SELECT i, j FROM t1 WHERE i > *`constant`*) AS dt`。当无法将派生表合并到外部查询中（例如，如果派生表使用聚合），将外部`WHERE`条件下推到派生表应该减少需要处理的行数，从而加快查询的执行速度。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Prior to MySQL 8.0.22, if a derived table was materialized but not merged, MySQL
+    materialized the entire table, then qualified all of the resulting rows with the
+    `WHERE` condition. This is still the case if derived condition pushdown is not
+    enabled, or cannot be employed for some other reason.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.22 之前，如果派生表被实体化但未合并，MySQL 会实体化整个表，然后使用`WHERE`条件限定所有结果行。如果未启用派生条件下推或由于其他原因无法使用，则仍然如此。
+- en: 'Outer `WHERE` conditions can be pushed down to derived materialized tables
+    under the following circumstances:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 外部`WHERE`条件可以在以下情况下下推到派生实体化表：
+- en: When the derived table uses no aggregate or window functions, the outer `WHERE`
+    condition can be pushed down to it directly. This includes `WHERE` conditions
+    having multiple predicates joined with `AND`, `OR`, or both.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当派生表不使用聚合或窗口函数时，外部`WHERE`条件可以直接下推到它。这包括具有多个谓词用`AND`、`OR`或两者连接的`WHERE`条件。
+- en: For example, the query `SELECT * FROM (SELECT f1, f2 FROM t1) AS dt WHERE f1
+    < 3 AND f2 > 11` is rewritten as `SELECT f1, f2 FROM (SELECT f1, f2 FROM t1 WHERE
+    f1 < 3 AND f2 > 11) AS dt`.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，查询`SELECT * FROM (SELECT f1, f2 FROM t1) AS dt WHERE f1 < 3 AND f2 > 11`被重写为`SELECT
+    f1, f2 FROM (SELECT f1, f2 FROM t1 WHERE f1 < 3 AND f2 > 11) AS dt`。
+- en: When the derived table has a `GROUP BY` and uses no window functions, an outer
+    `WHERE` condition referencing one or more columns which are not part of the `GROUP
+    BY` can be pushed down to the derived table as a `HAVING` condition.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当派生表具有`GROUP BY`且不使用窗口函数时，引用不属于`GROUP BY`的一个或多个列的外部`WHERE`条件可以作为`HAVING`条件下推到派生表。
+- en: For example, `SELECT * FROM (SELECT i, j, SUM(k) AS sum FROM t1 GROUP BY i,
+    j) AS dt WHERE sum > 100` is rewritten following derived condition pushdown as
+    `SELECT * FROM (SELECT i, j, SUM(k) AS sum FROM t1 GROUP BY i, j HAVING sum >
+    100) AS dt`.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，`SELECT * FROM (SELECT i, j, SUM(k) AS sum FROM t1 GROUP BY i, j) AS dt WHERE
+    sum > 100`在派生条件下推后被重写为`SELECT * FROM (SELECT i, j, SUM(k) AS sum FROM t1 GROUP
+    BY i, j HAVING sum > 100) AS dt`。
+- en: When the derived table uses a `GROUP BY` and the columns in the outer `WHERE`
+    condition are `GROUP BY` columns, the `WHERE` conditions referencing those columns
+    can be pushed down directly to the derived table.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当派生表使用`GROUP BY`且外部`WHERE`条件中的列是`GROUP BY`列时，引用这些列的`WHERE`条件可以直接下推到派生表。
+- en: For example, the query `SELECT * FROM (SELECT i,j, SUM(k) AS sum FROM t1 GROUP
+    BY i,j) AS dt WHERE i > 10` is rewritten as `SELECT * FROM (SELECT i,j, SUM(k)
+    AS sum FROM t1 WHERE i > 10 GROUP BY i,j) AS dt`.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，查询`SELECT * FROM (SELECT i,j, SUM(k) AS sum FROM t1 GROUP BY i,j) AS dt WHERE
+    i > 10`被重写为`SELECT * FROM (SELECT i,j, SUM(k) AS sum FROM t1 WHERE i > 10 GROUP
+    BY i,j) AS dt`。
+- en: 'In the event that the outer `WHERE` condition has predicates referencing columns
+    which are part of the `GROUP BY` as well as predicates referencing columns which
+    are not, predicates of the former sort are pushed down as `WHERE` conditions,
+    while those of the latter type are pushed down as `HAVING` conditions. For example,
+    in the query `SELECT * FROM (SELECT i, j, SUM(k) AS sum FROM t1 GROUP BY i,j)
+    AS dt WHERE i > 10 AND sum > 100`, the predicate `i > 10` in the outer `WHERE`
+    clause references a `GROUP BY` column, whereas the predicate `sum > 100` does
+    not reference any `GROUP BY` column. Thus the derived table pushdown optimization
+    causes the query to be rewritten in a manner similar to what is shown here:'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果外部`WHERE`条件中有引用`GROUP BY`列的谓词以及引用不是`GROUP BY`列的谓词，前一种类型的谓词被推送为`WHERE`条件，而后一种类型的谓词被推送为`HAVING`条件。例如，在查询`SELECT
+    * FROM (SELECT i, j, SUM(k) AS sum FROM t1 GROUP BY i,j) AS dt WHERE i > 10 AND
+    sum > 100`中，外部`WHERE`子句中的谓词`i > 10`引用了一个`GROUP BY`列，而谓词`sum > 100`则不引用任何`GROUP
+    BY`列。因此，派生表推送优化导致查询被重写为类似于下面所示的方式：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: To enable derived condition pushdown, the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable's [`derived_condition_pushdown`](switchable-optimizations.html#optflag_derived-condition-pushdown)
+    flag (added in this release) must be set to `on`, which is the default setting.
+    If this optimization is disabled by `optimizer_switch`, you can enable it for
+    a specific query using the [`DERIVED_CONDITION_PUSHDOWN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") optimizer hint. To disable the optimization for
+    a given query, use the [`NO_DERIVED_CONDITION_PUSHDOWN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints") optimizer hint.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要启用派生条件推送，必须将[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量的[`derived_condition_pushdown`](switchable-optimizations.html#optflag_derived-condition-pushdown)标志（在此版本中添加）设置为`on`，这是默认设置。如果`optimizer_switch`禁用了这个优化，可以使用[`DERIVED_CONDITION_PUSHDOWN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints")优化提示为特定查询启用它。要禁用给定查询的优化，使用[`NO_DERIVED_CONDITION_PUSHDOWN`](optimizer-hints.html#optimizer-hints-table-level
+    "Table-Level Optimizer Hints")优化提示。
+- en: 'The following restrictions and limitations apply to the derived table condition
+    pushdown optimization:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 派生表条件推送优化受到以下限制和限制：
+- en: 'The optimization cannot be used if the derived table contains [`UNION`](union.html
+    "15.2.18 UNION Clause"). This restriction is lifted in MySQL 8.0.29\. Consider
+    two tables `t1` and `t2`, and a view `v` containing their union, created as shown
+    here:'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 优化不能在派生表包含[`UNION`](union.html "15.2.18 UNION Clause")的情况下使用。这个限制在MySQL 8.0.29中被取消。考虑两个表`t1`和`t2`，以及一个包含它们联合的视图`v`，如下所示创建：
+- en: '[PRE1]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'As be seen in the output of [`EXPLAIN`](explain.html#explain-execution-plan
+    "Obtaining Execution Plan Information"), a condition present in the top level
+    of a query such as `SELECT * FROM v WHERE c1 = 12` can now be pushed down to both
+    query blocks in the derived table:'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如[`EXPLAIN`](explain.html#explain-execution-plan "Obtaining Execution Plan Information")的输出所示，查询顶层中存在的条件，例如`SELECT
+    * FROM v WHERE c1 = 12`现在可以被推送到派生表中的两个查询块：
+- en: '[PRE2]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'In MySQL 8.0.29 and later, the derived table condition pushdown optimization
+    can be employed with `UNION` queries, with the following exceptions:'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.29及更高版本中，可以在`UNION`查询中使用派生表条件推送优化，但有以下例外：
+- en: Condition pushdown cannot be used with a `UNION` query if any materialized derived
+    table that is part of the `UNION` is a recursive common table expression (see
+    [Recursive Common Table Expressions](with.html#common-table-expressions-recursive
+    "Recursive Common Table Expressions")).
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果`UNION`查询中的任何实现的派生表是递归公共表达式（参见[递归公共表达式](with.html#common-table-expressions-recursive
+    "Recursive Common Table Expressions")），则不能使用条件推送。
+- en: Conditions containing nondeterministic expressions cannot be pushed down to
+    a derived table.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 包含非确定性表达式的条件不能被推送到派生表。
+- en: The derived table cannot use a `LIMIT` clause.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 派生表不能使用`LIMIT`子句。
+- en: Conditions containing subqueries cannot be pushed down.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 包含子查询的条件不能被推送。
+- en: The optimization cannot be used if the derived table is an inner table of an
+    outer join.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果派生表是外连接的内部表，则不能使用优化。
+- en: If a materialized derived table is a common table expression, conditions are
+    not pushed down to it if it is referenced multiple times.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果一个实现的派生表是一个公共表达式，如果它被多次引用，则条件不会被推送到它。
+- en: Conditions using parameters can be pushed down if the condition is of the form
+    `*`derived_column`* > ?`. If a derived column in an outer `WHERE` condition is
+    an expression having a `?` in the underlying derived table, this condition cannot
+    be pushed down.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果条件使用参数，并且条件形式为`*`derived_column`* > ?`，则条件可以被下推。如果外部`WHERE`条件中的派生列是在基础派生表中具有`?`的表达式，则此条件无法被下推。
+- en: For a query in which the condition is on the tables of a view created using
+    `ALGORITHM=TEMPTABLE` instead of on the view itself, the multiple equality is
+    not recognized at resolution, and thus the condition cannot be not pushed down.
+    This because, when optimizing a query, condition pushdown takes place during resolution
+    phase while multiple equality propagation occurs during optimization.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于在使用`ALGORITHM=TEMPTABLE`创建的视图的表上而不是在视图本身上的条件查询，多重相等性在解析时不被识别，因此条件无法被下推。这是因为，在优化查询时，条件下推发生在解析阶段，而多重相等性传播发生在优化阶段。
+- en: This is not an issue in such cases for a view using `ALGORITHM=MERGE`, where
+    the equality can be propagated and the condition pushed down.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于使用`ALGORITHM=MERGE`的视图，这种情况并不是问题，其中相等性可以被传播，条件可以被下推。
+- en: 'Beginning with MySQL 8.0.28, a condition cannot be pushed down if the derived
+    table''s `SELECT` list contain any assignments to user variables. (Bug #104918)'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '从MySQL 8.0.28开始，如果派生表的`SELECT`列表包含对用户变量的任何赋值，则条件无法被下推。（Bug #104918）'

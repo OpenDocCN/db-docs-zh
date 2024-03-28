@@ -1,0 +1,105 @@
+- en: 20.7.3 Single Consensus Leader
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.7.3 单一共识领导者
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-consensus-leader.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-consensus-leader.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-consensus-leader.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-consensus-leader.html)
+- en: By default, the group communication engine for Group Replication (XCom, a Paxos
+    variant) operates using every member of the replication group as a leader. From
+    MySQL 8.0.27, the group communication engine can use a single leader to drive
+    consensus when the group is in single-primary mode. Operating with a single consensus
+    leader improves performance and resilience in single-primary mode, particularly
+    when some of the group’s secondary members are currently unreachable.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，Group Replication 的组通信引擎（XCom，一种 Paxos 变体）使用复制组的每个成员作为领导者。从 MySQL 8.0.27
+    开始，当组处于单主模式时，组通信引擎可以使用单个领导者来驱动共识。在单主模式下使用单一共识领导者可以提高性能和韧性，特别是当组的某些次要成员当前无法访问时。
+- en: 'To use a single consensus leader, the group must be configured as follows:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用单一共识领导者，组必须按以下方式配置：
+- en: The group must be in single-primary mode.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 组必须处于单主模式。
+- en: The [`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)
+    system variable must be set to `ON`. With the default setting `OFF`, the behavior
+    is disabled. You must carry out a full reboot of the replication group (bootstrap)
+    for Group Replication to pick up a change to this setting.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)
+    系统变量必须设置为 `ON`。默认设置为 `OFF` 时，该行为被禁用。您必须对复制组进行完全重启（引导）以使 Group Replication 生效对此设置的更改。'
+- en: The Group Replication communication protocol version must be set to 8.0.27 or
+    above. Use the [`group_replication_get_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-get-communication-protocol)
+    function to view the group's communication protocol version. If a lower version
+    is in use, the group cannot use this behavior. You can use the [`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)
+    function to set the group's communication protocol to a higher version if all
+    group members support it. MySQL InnoDB Cluster manages the communication protocol
+    version automatically. For more information, see [Section 20.5.1.4, “Setting a
+    Group's Communication Protocol Version”](group-replication-communication-protocol.html
+    "20.5.1.4 Setting a Group's Communication Protocol Version").
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Group Replication 通信协议版本必须设置为 8.0.27 或更高。使用 [`group_replication_get_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-get-communication-protocol)
+    函数查看组的通信协议版本。如果使用较低版本，则组无法使用此行为。如果所有组成员都支持，您可以使用 [`group_replication_set_communication_protocol()`](group-replication-functions-for-communication-protocol.html#function_group-replication-set-communication-protocol)
+    函数将组的通信协议设置为更高版本。MySQL InnoDB Cluster 会自动管理通信协议版本。有关更多信息，请参见 [Section 20.5.1.4,
+    “Setting a Group's Communication Protocol Version”](group-replication-communication-protocol.html
+    "20.5.1.4 Setting a Group's Communication Protocol Version")。
+- en: When this configuration is in place, Group Replication instructs the group communication
+    engine to use the group’s primary as the single leader to drive consensus. When
+    a new primary is elected, Group Replication tells the group communication engine
+    to use it instead. If the primary is currently unhealthy, the group communication
+    engine uses an alternative member as the consensus leader. The Performance Schema
+    table [`replication_group_communication_information`](performance-schema-replication-group-communication-information-table.html
+    "29.12.11.15 The replication_group_communication_information Table") shows the
+    current preferred and actual consensus leader, with the preferred leader being
+    Group Replication’s choice, and the actual leader being the one selected by the
+    group communication engine.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当配置完成后，Group Replication 指示组通信引擎使用组的主节点作为单一领导者来驱动共识。当选举出新的主节点时，Group Replication
+    会告知组通信引擎使用新的主节点。如果主节点当前不健康，组通信引擎会使用其他成员作为共识领导者。性能模式表 [`replication_group_communication_information`](performance-schema-replication-group-communication-information-table.html
+    "29.12.11.15 The replication_group_communication_information Table") 显示当前首选和实际共识领导者，首选领导者是
+    Group Replication 的选择，实际领导者是组通信引擎选择的领导者。
+- en: If the group is in multi-primary mode, has a lower communication protocol version,
+    or the behavior is disabled by the [`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)
+    setting, all members are used as leaders to drive consensus. In this situation,
+    the Performance Schema table [`replication_group_communication_information`](performance-schema-replication-group-communication-information-table.html
+    "29.12.11.15 The replication_group_communication_information Table") shows all
+    of the members as both the preferred and actual leaders.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果组处于多主模式，具有较低的通信协议版本，或者行为被[`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)设置禁用，则所有成员都被用作领导者来推动共识。在这种情况下，性能模式表[`replication_group_communication_information`](performance-schema-replication-group-communication-information-table.html
+    "29.12.11.15 复制组通信信息表")显示所有成员都是首选和实际领导者。
+- en: The field `WRITE_CONSENSUS_SINGLE_LEADER_CAPABLE` in the Performance Schema
+    table [`replication_group_communication_information`](performance-schema-replication-group-communication-information-table.html
+    "29.12.11.15 The replication_group_communication_information Table") shows whether
+    the group supports the use of a single leader, even if [`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)
+    is currently set to `OFF` on the queried member. The field is set to 1 if the
+    group was started with [`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)
+    set to `ON`, and its communication protocol version is MySQL 8.0.27 or above.
+    This information is only returned for group members in `ONLINE` or `RECOVERING`
+    state.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在性能模式表[`replication_group_communication_information`](performance-schema-replication-group-communication-information-table.html
+    "29.12.11.15 复制组通信信息表")中的字段`WRITE_CONSENSUS_SINGLE_LEADER_CAPABLE`显示组是否支持使用单个领导者，即使在查询的成员上当前设置为`OFF`的[`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)。如果组是在启动时使用[`group_replication_paxos_single_leader`](group-replication-system-variables.html#sysvar_group_replication_paxos_single_leader)设置为`ON`，并且其通信协议版本为MySQL
+    8.0.27或更高版本，则该字段设置为1。此信息仅对处于`ONLINE`或`RECOVERING`状态的组成员返回。

@@ -1,0 +1,115 @@
+- en: 10.3.3 SPATIAL Index Optimization
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 10.3.3 空间索引优化
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/spatial-index-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/spatial-index-optimization.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/spatial-index-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/spatial-index-optimization.html)
+- en: MySQL permits creation of `SPATIAL` indexes on `NOT NULL` geometry-valued columns
+    (see [Section 13.4.10, “Creating Spatial Indexes”](creating-spatial-indexes.html
+    "13.4.10 Creating Spatial Indexes")). The optimizer checks the `SRID` attribute
+    for indexed columns to determine which spatial reference system (SRS) to use for
+    comparisons, and uses calculations appropriate to the SRS. (Prior to MySQL 8.0,
+    the optimizer performs comparisons of `SPATIAL` index values using Cartesian calculations;
+    the results of such operations are undefined if the column contains values with
+    non-Cartesian SRIDs.)
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL允许在`NOT NULL`几何值列上创建`SPATIAL`索引（参见[第13.4.10节，“创建空间索引”](creating-spatial-indexes.html
+    "13.4.10 Creating Spatial Indexes")）。优化器检查索引列的`SRID`属性，以确定用于比较的空间参考系统（SRS），并使用适合SRS的计算。
+    （在MySQL 8.0之前，优化器使用笛卡尔计算对`SPATIAL`索引值进行比较；如果列包含具有非笛卡尔`SRID`的值，则此类操作的结果是未定义的。）
+- en: For comparisons to work properly, each column in a `SPATIAL` index must be SRID-restricted.
+    That is, the column definition must include an explicit `SRID` attribute, and
+    all column values must have the same SRID.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了使比较正常工作，`SPATIAL`索引中的每一列必须受到`SRID`限制。也就是说，列定义必须包含显式的`SRID`属性，并且所有列值必须具有相同的`SRID`。
+- en: 'The optimizer considers `SPATIAL` indexes only for SRID-restricted columns:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器仅考虑具有`SRID`限制的列的`SPATIAL`索引：
+- en: Indexes on columns restricted to a Cartesian SRID enable Cartesian bounding
+    box computations.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于受笛卡尔`SRID`限制的列上的索引，使笛卡尔边界框计算成为可能。
+- en: Indexes on columns restricted to a geographic SRID enable geographic bounding
+    box computations.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于受地理`SRID`限制的列上的索引，使地理边界框计算成为可能。
+- en: 'The optimizer ignores `SPATIAL` indexes on columns that have no `SRID` attribute
+    (and thus are not SRID-restricted). MySQL still maintains such indexes, as follows:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器忽略没有`SRID`属性（因此不受`SRID`限制）的列上的`SPATIAL`索引。MySQL仍然维护这样的索引，如下所示：
+- en: They are updated for table modifications ([`INSERT`](insert.html "15.2.7 INSERT
+    Statement"), [`UPDATE`](update.html "15.2.17 UPDATE Statement"), [`DELETE`](delete.html
+    "15.2.2 DELETE Statement"), and so forth). Updates occur as though the index was
+    Cartesian, even though the column might contain a mix of Cartesian and geographical
+    values.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它们用于表修改（[`INSERT`](insert.html "15.2.7 INSERT Statement")，[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")，[`DELETE`](delete.html "15.2.2 DELETE Statement")等）。即使列可能包含混合的笛卡尔和地理值，更新也会像索引是笛卡尔的一样进行。
+- en: 'They exist only for backward compatibility (for example, the ability to perform
+    a dump in MySQL 5.7 and restore in MySQL 8.0). Because `SPATIAL` indexes on columns
+    that are not SRID-restricted are of no use to the optimizer, each such column
+    should be modified:'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它们仅用于向后兼容性（例如，在MySQL 5.7中执行转储并在MySQL 8.0中恢复的能力）。因为`SPATIAL`索引在不受`SRID`限制的列上对优化器没有用处，因此应修改每个这样的列：
+- en: 'Verify that all values within the column have the same SRID. To determine the
+    SRIDs contained in a geometry column *`col_name`*, use the following query:'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 验证列中的所有值是否具有相同的`SRID`。要确定几何列*`col_name`*中包含的`SRID`，请使用以下查询：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: If the query returns more than one row, the column contains a mix of SRIDs.
+    In that case, modify its contents so all values have the same SRID.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果查询返回多行，则该列包含混合`SRID`的值。在这种情况下，修改其内容以使所有值具有相同的`SRID`。
+- en: Redefine the column to have an explicit `SRID` attribute.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 重新定义列以具有显式的`SRID`属性。
+- en: Recreate the `SPATIAL` index.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 重新创建`SPATIAL`索引。

@@ -1,0 +1,221 @@
+- en: 9.3.1 Establishing a Backup Policy
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 9.3.1 建立备份策略
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/backup-policy.html](https://dev.mysql.com/doc/refman/8.0/en/backup-policy.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/backup-policy.html](https://dev.mysql.com/doc/refman/8.0/en/backup-policy.html)
+- en: To be useful, backups must be scheduled regularly. A full backup (a snapshot
+    of the data at a point in time) can be done in MySQL with several tools. For example,
+    [MySQL Enterprise Backup](mysql-enterprise-backup.html "32.1 MySQL Enterprise
+    Backup Overview") can perform a [physical backup](glossary.html#glos_physical_backup
+    "physical backup") of an entire instance, with optimizations to minimize overhead
+    and avoid disruption when backing up `InnoDB` data files; [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") provides online [logical backup](glossary.html#glos_logical_backup
+    "logical backup"). This discussion uses [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了有用，备份必须定期安排。在MySQL中可以使用几种工具进行完整备份（在某个时间点的数据快照）。例如，[MySQL企业版备份](mysql-enterprise-backup.html
+    "32.1 MySQL Enterprise Backup Overview")可以执行整个实例的[物理备份](glossary.html#glos_physical_backup
+    "physical backup")，并进行优化以最小化开销并在备份`InnoDB`数据文件时避免中断；[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")提供在线[逻辑备份](glossary.html#glos_logical_backup
+    "logical backup")。本讨论使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database
+    Backup Program")。
+- en: 'Assume that we make a full backup of all our `InnoDB` tables in all databases
+    using the following command on Sunday at 1 p.m., when load is low:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设我们在星期日下午1点，负载较低时，使用以下命令对所有数据库中的所有`InnoDB`表进行完全备份：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The resulting `.sql` file produced by [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program") contains a set of SQL [`INSERT`](insert.html "15.2.7 INSERT
+    Statement") statements that can be used to reload the dumped tables at a later
+    time.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")生成的`.sql`文件包含一组SQL
+    [`INSERT`](insert.html "15.2.7 INSERT Statement")语句，可用于在以后重新加载转储的表。
+- en: This backup operation acquires a global read lock on all tables at the beginning
+    of the dump (using [`FLUSH TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock)).
+    As soon as this lock has been acquired, the binary log coordinates are read and
+    the lock is released. If long updating statements are running when the [`FLUSH`](flush.html
+    "15.7.8.3 FLUSH Statement") statement is issued, the backup operation may stall
+    until those statements finish. After that, the dump becomes lock-free and does
+    not disturb reads and writes on the tables.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此备份操作在转储开始时（使用[`FLUSH TABLES WITH READ LOCK`](flush.html#flush-tables-with-read-lock)）获取所有表的全局读锁。一旦获得此锁，就会读取二进制日志坐标并释放锁。如果在发出[`FLUSH`](flush.html
+    "15.7.8.3 FLUSH Statement")语句时正在运行长时间的更新语句，则备份操作可能会停顿，直到这些语句完成。之后，转储变为无锁状态，不会干扰表的读写操作。
+- en: It was assumed earlier that the tables to back up are `InnoDB` tables, so [`--single-transaction`](mysqldump.html#option_mysqldump_single-transaction)
+    uses a consistent read and guarantees that data seen by [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") does not change. (Changes made
+    by other clients to `InnoDB` tables are not seen by the [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") process.) If the backup operation
+    includes nontransactional tables, consistency requires that they do not change
+    during the backup. For example, for the `MyISAM` tables in the `mysql` database,
+    there must be no administrative changes to MySQL accounts during the backup.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 之前假设要备份的表是`InnoDB`表，因此[`--single-transaction`](mysqldump.html#option_mysqldump_single-transaction)使用一致性读取，并保证[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")看到的数据不会更改。（其他客户端对`InnoDB`表所做的更改不会被[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")进程看到。）如果备份操作包括非事务表，一致性要求在备份期间它们不会更改。例如，在`mysql`数据库中的`MyISAM`表，备份期间不能对MySQL帐户进行管理更改。
+- en: Full backups are necessary, but it is not always convenient to create them.
+    They produce large backup files and take time to generate. They are not optimal
+    in the sense that each successive full backup includes all data, even that part
+    that has not changed since the previous full backup. It is more efficient to make
+    an initial full backup, and then to make incremental backups. The incremental
+    backups are smaller and take less time to produce. The tradeoff is that, at recovery
+    time, you cannot restore your data just by reloading the full backup. You must
+    also process the incremental backups to recover the incremental changes.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 完整备份是必要的，但并不总是方便创建。它们产生大型备份文件并需要时间生成。从优化的角度来看，每次连续的完整备份都包含所有数据，即使是自上次完整备份以来未更改的部分。更有效的方法是进行初始完整备份，然后进行增量备份。增量备份更小，生成时间更短。权衡之处在于，在恢复时，你不能仅通过重新加载完整备份来恢复数据。你还必须处理增量备份以恢复增量更改。
+- en: 'To make incremental backups, we need to save the incremental changes. In MySQL,
+    these changes are represented in the binary log, so the MySQL server should always
+    be started with the [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option to enable that log. With binary logging enabled, the server writes each
+    data change into a file while it updates data. Looking at the data directory of
+    a MySQL server that has been running for some days, we find these MySQL binary
+    log files:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要进行增量备份，我们需要保存增量更改。在MySQL中，这些更改在二进制日志中表示，因此MySQL服务器应始终使用[`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)选项启动以启用该日志。启用二进制日志记录后，服务器在更新数据时将每个数据更改写入文件。查看运行了一些天的MySQL服务器的数据目录，我们会发现这些MySQL二进制日志文件：
+- en: '[PRE1]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Each time it restarts, the MySQL server creates a new binary log file using
+    the next number in the sequence. While the server is running, you can also tell
+    it to close the current binary log file and begin a new one manually by issuing
+    a [`FLUSH LOGS`](flush.html#flush-logs) SQL statement or with a [**mysqladmin
+    flush-logs**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program") command. [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database
+    Backup Program") also has an option to flush the logs. The `.index` file in the
+    data directory contains the list of all MySQL binary logs in the directory.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每次重新启动时，MySQL服务器都会使用序列中的下一个数字创建一个新的二进制日志文件。在服务器运行时，您还可以告诉它通过发出[`FLUSH LOGS`](flush.html#flush-logs)
+    SQL语句或使用[**mysqladmin flush-logs**](mysqladmin.html "6.5.2 mysqladmin — A MySQL
+    Server Administration Program")命令手动关闭当前的二进制日志文件并开始一个新的。[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")还有一个选项来刷新日志。数据目录中的`.index`文件包含目录中所有MySQL二进制日志的列表。
+- en: 'The MySQL binary logs are important for recovery because they form the set
+    of incremental backups. If you make sure to flush the logs when you make your
+    full backup, the binary log files created afterward contain all the data changes
+    made since the backup. Let''s modify the previous [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") command a bit so that it flushes
+    the MySQL binary logs at the moment of the full backup, and so that the dump file
+    contains the name of the new current binary log:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL二进制日志对于恢复很重要，因为它们形成了增量备份集。如果确保在进行完整备份时刷新日志，那么之后创建的二进制日志文件将包含自备份以来进行的所有数据更改。让我们稍微修改之前的[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")命令，以便在完整备份时刷新MySQL二进制日志，并使转储文件包含新当前二进制日志的名称：
+- en: '[PRE2]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'After executing this command, the data directory contains a new binary log
+    file, `gbichot2-bin.000007`, because the [`--flush-logs`](mysqldump.html#option_mysqldump_flush-logs)
+    option causes the server to flush its logs. The [`--master-data`](mysqldump.html#option_mysqldump_master-data)
+    option causes [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program") to write binary log information to its output, so the resulting `.sql`
+    dump file includes these lines:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 执行此命令后，数据目录包含一个新的二进制日志文件，`gbichot2-bin.000007`，因为[`--flush-logs`](mysqldump.html#option_mysqldump_flush-logs)选项导致服务器刷新其日志。[`--master-data`](mysqldump.html#option_mysqldump_master-data)选项导致[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")将二进制日志信息写入其输出，因此生成的`.sql`转储文件包含这些行：
+- en: '[PRE3]'
+  id: totrans-15
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Because the [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program") command made a full backup, those lines mean two things:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为[**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")命令进行了完整备份，这些行意味着两件事：
+- en: The dump file contains all changes made before any changes written to the `gbichot2-bin.000007`
+    binary log file or higher.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 转储文件包含在写入`gbichot2-bin.000007`二进制日志文件或更高版本之前所做的所有更改。
+- en: All data changes logged after the backup are not present in the dump file, but
+    are present in the `gbichot2-bin.000007` binary log file or higher.
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 备份后记录的所有数据更改都不包含在转储文件中，但包含在`gbichot2-bin.000007`二进制日志文件或更高版本中。
+- en: On Monday at 1 p.m., we can create an incremental backup by flushing the logs
+    to begin a new binary log file. For example, executing a [**mysqladmin flush-logs**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") command creates `gbichot2-bin.000008`.
+    All changes between the Sunday 1 p.m. full backup and Monday 1 p.m. are written
+    in `gbichot2-bin.000007`. This incremental backup is important, so it is a good
+    idea to copy it to a safe place. (For example, back it up on tape or DVD, or copy
+    it to another machine.) On Tuesday at 1 p.m., execute another [**mysqladmin flush-logs**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") command. All changes
+    between Monday 1 p.m. and Tuesday 1 p.m. are written in `gbichot2-bin.000008`
+    (which also should be copied somewhere safe).
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在星期一下午1点，我们可以通过刷新日志来开始一个新的二进制日志文件进行增量备份。例如，执行[**mysqladmin flush-logs**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")命令会创建`gbichot2-bin.000008`。在星期日下午1点全量备份和星期一下午1点之间的所有更改都写入`gbichot2-bin.000007`。这个增量备份很重要，所以最好将其复制到一个安全的地方。（例如，将其备份到磁带或DVD上，或将其复制到另一台机器上。）在星期二下午1点，执行另一个[**mysqladmin
+    flush-logs**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program")命令。在星期一下午1点和星期二下午1点之间的所有更改都写入`gbichot2-bin.000008`（也应该将其复制到安全的地方）。
+- en: 'The MySQL binary logs take up disk space. To free up space, purge them from
+    time to time. One way to do this is by deleting the binary logs that are no longer
+    needed, such as when we make a full backup:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL二进制日志占用磁盘空间。为了释放空间，定期清理它们。一种方法是删除不再需要的二进制日志，例如当我们进行全量备份时：
+- en: '[PRE4]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Note
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Deleting the MySQL binary logs with [**mysqldump --delete-master-logs**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") can be dangerous if your server
+    is a replication source server, because replicas might not yet fully have processed
+    the contents of the binary log. The description for the [`PURGE BINARY LOGS`](purge-binary-logs.html
+    "15.4.1.1 PURGE BINARY LOGS Statement") statement explains what should be verified
+    before deleting the MySQL binary logs. See [Section 15.4.1.1, “PURGE BINARY LOGS
+    Statement”](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS Statement").
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[**mysqldump --delete-master-logs**](mysqldump.html "6.5.4 mysqldump — A Database
+    Backup Program")删除MySQL二进制日志可能会很危险，如果您的服务器是一个复制源服务器，因为副本可能尚未完全处理二进制日志的内容。[`PURGE
+    BINARY LOGS`](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS Statement")语句的描述解释了在删除MySQL二进制日志之前应该验证的内容。请参阅[Section 15.4.1.1,
+    “PURGE BINARY LOGS Statement”](purge-binary-logs.html "15.4.1.1 PURGE BINARY LOGS
+    Statement")。

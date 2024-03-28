@@ -1,0 +1,691 @@
+- en: 25.7.3 Known Issues in NDB Cluster Replication
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.7.3 NDB集群复制中已知问题
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-issues.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-issues.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-issues.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-issues.html)
+- en: This section discusses known problems or issues when using replication with
+    NDB Cluster.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论在使用NDB集群复制时可能遇到的已知问题或问题。
+- en: '**Loss of connection between source and replica. ** A loss of connection can
+    occur either between the source cluster SQL node and the replica cluster SQL node,
+    or between the source SQL node and the data nodes of the source cluster. In the
+    latter case, this can occur not only as a result of loss of physical connection
+    (for example, a broken network cable), but due to the overflow of data node event
+    buffers; if the SQL node is too slow to respond, it may be dropped by the cluster
+    (this is controllable to some degree by adjusting the [`MaxBufferedEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxbufferedepochs)
+    and [`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)
+    configuration parameters). If this occurs, *it is entirely possible for new data
+    to be inserted into the source cluster without being recorded in the source SQL
+    node''s binary log*. For this reason, to guarantee high availability, it is extremely
+    important to maintain a backup replication channel, to monitor the primary channel,
+    and to fail over to the secondary replication channel when necessary to keep the
+    replica cluster synchronized with the source. NDB Cluster is not designed to perform
+    such monitoring on its own; for this, an external application is required.'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**源和复制品之间的连接丢失。** 连接丢失可能发生在源集群SQL节点和复制集群SQL节点之间，也可能发生在源SQL节点和源集群的数据节点之间。在后一种情况下，这不仅可能是由于物理连接丢失（例如，网络电缆断开），还可能是由于数据节点事件缓冲区溢出；如果SQL节点响应过慢，可能会被集群丢弃（通过调整[`MaxBufferedEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxbufferedepochs)和[`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)配置参数，在一定程度上可以控制这种情况）。如果发生这种情况，*完全有可能在源集群中插入新数据而不记录在源SQL节点的二进制日志中*。因此，为了保证高可用性，非常重要的是维护备份复制通道，监视主要通道，并在必要时切换到次要复制通道，以保持复制集群与源的同步。NDB集群不设计为自行执行此类监控；为此，需要外部应用程序。'
+- en: The source SQL node issues a “gap” event when connecting or reconnecting to
+    the source cluster. (A gap event is a type of “incident event,” which indicates
+    an incident that occurs that affects the contents of the database but that cannot
+    easily be represented as a set of changes. Examples of incidents are server failures,
+    database resynchronization, some software updates, and some hardware changes.)
+    When the replica encounters a gap in the replication log, it stops with an error
+    message. This message is available in the output of [`SHOW REPLICA STATUS`](show-replica-status.html
+    "15.7.7.35 SHOW REPLICA STATUS Statement") (prior to NDB 8.0.22, use [`SHOW SLAVE
+    STATUS`](show-slave-status.html "15.7.7.36 SHOW SLAVE | REPLICA STATUS Statement")),
+    and indicates that the SQL thread has stopped due to an incident registered in
+    the replication stream, and that manual intervention is required. See [Section 25.7.8,
+    “Implementing Failover with NDB Cluster Replication”](mysql-cluster-replication-failover.html
+    "25.7.8 Implementing Failover with NDB Cluster Replication"), for more information
+    about what to do in such circumstances.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当源SQL节点连接或重新连接到源集群时，源SQL节点会发出“gap”事件。（“gap”事件是一种“事故事件”的一种，表示发生了影响数据库内容但不容易表示为一组更改的事件。事故的例子包括服务器故障、数据库重新同步、某些软件更新和某些硬件更改。）当复制品在复制日志中遇到间隙时，它会停止并显示错误消息。此消息可在[`SHOW
+    REPLICA STATUS`](show-replica-status.html "15.7.7.35 SHOW REPLICA STATUS Statement")的输出中找到（在NDB
+    8.0.22之前，请使用[`SHOW SLAVE STATUS`](show-slave-status.html "15.7.7.36 SHOW SLAVE
+    | REPLICA STATUS Statement")），并指示SQL线程由于在复制流中注册的事件而停止，并且需要手动干预。有关在这种情况下应该采取的措施的更多信息，请参见[第25.7.8节，“使用NDB集群复制实现故障转移”](mysql-cluster-replication-failover.html
+    "25.7.8 Implementing Failover with NDB Cluster Replication")。
+- en: Important
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: Because NDB Cluster is not designed on its own to monitor replication status
+    or provide failover, if high availability is a requirement for the replica server
+    or cluster, then you must set up multiple replication lines, monitor the source
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") on the primary replication
+    line, and be prepared fail over to a secondary line if and as necessary. This
+    must be done manually, or possibly by means of a third-party application. For
+    information about implementing this type of setup, see [Section 25.7.7, “Using
+    Two Replication Channels for NDB Cluster Replication”](mysql-cluster-replication-two-channels.html
+    "25.7.7 Using Two Replication Channels for NDB Cluster Replication"), and [Section 25.7.8,
+    “Implementing Failover with NDB Cluster Replication”](mysql-cluster-replication-failover.html
+    "25.7.8 Implementing Failover with NDB Cluster Replication").
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 因为NDB集群本身并不设计用于监视复制状态或提供故障转移，如果副本服务器或集群需要高可用性，则必须设置多个复制线路，监视主复制线路上的源[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器")，并准备在必要时切换到次要线路。这必须手动完成，或可能通过第三方应用程序完成。有关实施此类设置的信息，请参见[第 25.7.7 节，“使用两个复制通道进行NDB集群复制”](mysql-cluster-replication-two-channels.html
+    "25.7.7 使用两个复制通道进行NDB集群复制")，以及[第 25.7.8 节，“使用NDB集群复制实现故障转移”](mysql-cluster-replication-failover.html
+    "25.7.8 使用NDB集群复制实现故障转移")。
+- en: If you are replicating from a standalone MySQL server to an NDB Cluster, one
+    channel is usually sufficient.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果从独立的MySQL服务器复制到NDB集群，则通常一个通道就足够了。
+- en: '**Circular replication. ** NDB Cluster Replication supports circular replication,
+    as shown in the next example. The replication setup involves three NDB Clusters
+    numbered 1, 2, and 3, in which Cluster 1 acts as the replication source for Cluster
+    2, Cluster 2 acts as the source for Cluster 3, and Cluster 3 acts as the source
+    for Cluster 1, thus completing the circle. Each NDB Cluster has two SQL nodes,
+    with SQL nodes A and B belonging to Cluster 1, SQL nodes C and D belonging to
+    Cluster 2, and SQL nodes E and F belonging to Cluster 3.'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**循环复制。** NDB集群复制支持循环复制，如下例所示。复制设置涉及三个NDB集群，编号为1、2和3，其中集群1充当集群2的复制源，集群2充当集群3的源，集群3充当集群1的源，从而完成循环。每个NDB集群都有两个SQL节点，SQL节点A和B属于集群1，SQL节点C和D属于集群2，SQL节点E和F属于集群3。'
+- en: 'Circular replication using these clusters is supported as long as the following
+    conditions are met:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用这些集群进行循环复制时，需要满足以下条件：
+- en: The SQL nodes on all source and replica clusters are the same.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有源和副本集群上的SQL节点都是相同的。
+- en: All SQL nodes acting as sources and replicas are started with the system variable
+    [`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    (NDB 8.0.26 and later) or [`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    (prior to NDB 8.0.26) enabled.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 所有充当源和副本的SQL节点都启用了系统变量[`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)（NDB
+    8.0.26及更高版本）或[`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)（NDB
+    8.0.26之前）。
+- en: 'This type of circular replication setup is shown in the following diagram:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这种循环复制设置类型如下图所示：
+- en: '**Figure 25.11 NDB Cluster Circular Replication With All Sources As Replicas**'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 25.11 NDB集群循环复制，所有源均为副本**'
+- en: '![Some content is described in the surrounding text. The diagram shows three
+    clusters, each with two nodes. Arrows connecting SQL nodes in different clusters
+    illustrate that all sources are also replicas.](../Images/de5f09a17240752cf7530788cfaae44f.png)'
+  id: totrans-14
+  prefs: []
+  type: TYPE_IMG
+  zh: '![周围文本描述了一些内容。图表显示了三个集群，每个集群有两个节点。连接不同集群中SQL节点的箭头说明所有源也是副本。](../Images/de5f09a17240752cf7530788cfaae44f.png)'
+- en: In this scenario, SQL node A in Cluster 1 replicates to SQL node C in Cluster
+    2; SQL node C replicates to SQL node E in Cluster 3; SQL node E replicates to
+    SQL node A. In other words, the replication line (indicated by the curved arrows
+    in the diagram) directly connects all SQL nodes used as sources and replicas.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，集群1中的SQL节点A复制到集群2中的SQL节点C；集群2中的SQL节点C复制到集群3中的SQL节点E；SQL节点E复制到SQL节点A。换句话说，复制线路（图表中的曲线箭头表示）直接连接所有用作源和副本的SQL节点。
+- en: 'It should also be possible to set up circular replication in which not all
+    source SQL nodes are also replicas, as shown here:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 还应该可以设置循环复制，其中并非所有源SQL节点也是副本，如下所示：
+- en: '**Figure 25.12 NDB Cluster Circular Replication Where Not All Sources Are Replicas**'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 25.12 NDB集群循环复制，其中并非所有源均为副本**'
+- en: '![Some content is described in the surrounding text. The diagram shows three
+    clusters, each with two nodes. Arrows connecting SQL nodes in different clusters
+    illustrate that not all sources are replicas.](../Images/da9464ae1a062348a81cbf8645860ee1.png)'
+  id: totrans-18
+  prefs: []
+  type: TYPE_IMG
+  zh: '![周围文本描述了一些内容。图表显示了三个集群，每个集群有两个节点。连接不同集群中的 SQL 节点的箭头说明并非所有源都是副本。](../Images/da9464ae1a062348a81cbf8645860ee1.png)'
+- en: In this case, different SQL nodes in each cluster are used as sources and replicas.
+    However, you must *not* start any of the SQL nodes with the [`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)
+    or [`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)
+    system variable enabled. This type of circular replication scheme for NDB Cluster,
+    in which the line of replication (again indicated by the curved arrows in the
+    diagram) is discontinuous, should be possible, but it should be noted that it
+    has not yet been thoroughly tested and must therefore still be considered experimental.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，每个集群中的不同 SQL 节点被用作源和副本。但是，您*不*应该启用任何 SQL 节点的[`log_replica_updates`](replication-options-binary-log.html#sysvar_log_replica_updates)或[`log_slave_updates`](replication-options-binary-log.html#sysvar_log_slave_updates)系统变量。对于
+    NDB Cluster 的这种循环复制方案，其中复制线（在图中由曲线箭头表示）是不连续的，应该是可能的，但必须注意的是，这种方案尚未经过彻底测试，因此仍然被视为实验性。
+- en: Note
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") storage engine
+    uses idempotent execution mode, which suppresses duplicate-key and other errors
+    that otherwise break circular replication of NDB Cluster. This is equivalent to
+    setting the global value of the system variable [`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)
+    or [`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)
+    to `IDEMPOTENT`, although this is not necessary in NDB Cluster replication, since
+    NDB Cluster sets this variable automatically and ignores any attempts to set it
+    explicitly.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0") 存储引擎使用幂等执行模式，可以抑制重复键和其他错误，否则会破坏
+    NDB Cluster 的循环复制。这相当于将系统变量[`replica_exec_mode`](replication-options-replica.html#sysvar_replica_exec_mode)或[`slave_exec_mode`](replication-options-replica.html#sysvar_slave_exec_mode)的全局值设置为`IDEMPOTENT`，尽管在
+    NDB Cluster 复制中这并不是必需的，因为 NDB Cluster 会自动设置此变量并忽略任何显式设置的尝试。'
+- en: '**NDB Cluster replication and primary keys. ** In the event of a node failure,
+    errors in replication of [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster
+    8.0") tables without primary keys can still occur, due to the possibility of duplicate
+    rows being inserted in such cases. For this reason, it is highly recommended that
+    all [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") tables being
+    replicated have explicit primary keys.'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB Cluster 复制和主键。** 在节点故障的情况下，复制没有主键的[`NDB`](mysql-cluster.html "第25章 MySQL
+    NDB Cluster 8.0")表可能仍会出现错误，因为在这种情况下可能会插入重复行。因此，强烈建议所有被复制的[`NDB`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")表都有明确的主键。'
+- en: '**NDB Cluster Replication and Unique Keys. ** In older versions of NDB Cluster,
+    operations that updated values of unique key columns of [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables could result in duplicate-key errors
+    when replicated. This issue is solved for replication between [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables by deferring unique key checks until
+    after all table row updates have been performed.'
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB Cluster 复制和唯一键。** 在较旧版本的 NDB Cluster 中，更新[`NDB`](mysql-cluster.html "第25章
+    MySQL NDB Cluster 8.0")表的唯一键列的操作在复制时可能会导致重复键错误。通过将唯一键检查推迟到所有表行更新执行之后，解决了在[`NDB`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")表之间的复制中的此问题。'
+- en: Deferring constraints in this way is currently supported only by [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0"). Thus, updates of unique keys when replicating
+    from [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") to a different
+    storage engine such as [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") or [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine") are still not supported.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 目前，只有[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")支持以这种方式推迟约束。因此，当从[`NDB`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")复制到其他存储引擎（如[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB 存储引擎")或[`MyISAM`](myisam-storage-engine.html "第18.2章 MyISAM 存储引擎")）时，仍不支持唯一键的更新。
+- en: 'The problem encountered when replicating without deferred checking of unique
+    key updates can be illustrated using [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") table such as `t`, is created and populated on the source (and
+    transmitted to a replica that does not support deferred unique key updates) as
+    shown here:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在没有延迟检查唯一键更新的情况下复制时遇到的问题可以使用 [`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster
+    8.0") 表，例如 `t`，在源上创建和填充（并传输到不支持延迟唯一键更新的副本）来说明：
+- en: '[PRE0]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The following [`UPDATE`](update.html "15.2.17 UPDATE Statement") statement
+    on `t` succeeds on the source, since the rows affected are processed in the order
+    determined by the `ORDER BY` option, performed over the entire table:'
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下面的 [`UPDATE`](update.html "15.2.17 UPDATE语句") 语句在源上成功，因为受影响的行是按照 `ORDER BY`
+    选项确定的顺序处理的，作用于整个表：
+- en: '[PRE1]'
+  id: totrans-28
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The same statement fails with a duplicate key error or other constraint violation
+    on the replica, because the ordering of the row updates is performed for one partition
+    at a time, rather than for the table as a whole.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 相同的语句在副本上失败，因为行更新的顺序是逐个分区执行的，而不是整个表。
+- en: Note
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Every [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") table is
+    implicitly partitioned by key when it is created. See [Section 26.2.5, “KEY Partitioning”](partitioning-key.html
+    "26.2.5 KEY Partitioning"), for more information.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个 [`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0") 表在创建时都会隐式按键进行分区。有关更多信息，请参见
+    [26.2.5节“KEY分区”](partitioning-key.html "26.2.5 KEY分区")。
+- en: '**GTIDs not supported. ** Replication using global transaction IDs is not compatible
+    with the `NDB` storage engine, and is not supported. Enabling GTIDs is likely
+    to cause NDB Cluster Replication to fail.'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**不支持GTIDs。** 使用全局事务ID进行复制与 `NDB` 存储引擎不兼容，也不受支持。启用GTIDs可能会导致NDB Cluster复制失败。'
+- en: '**Multithreaded replicas. ** Previously, NDB Cluster did not support multithreaded
+    replicas. This restriction was removed in NDB 8.0.33.'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**多线程副本。** 以前，NDB Cluster 不支持多线程副本。此限制在 NDB 8.0.33 中已移除。'
+- en: 'To enable multithreading on the replica in NDB 8.0.33 and later, it is necessary
+    to perform the following steps:'
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在 NDB 8.0.33 及更高版本的副本上启用多线程，需要执行以下步骤：
+- en: Set [`--ndb-log-transaction-dependency`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-dependency)
+    to `ON` when starting the source [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server").
+  id: totrans-35
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在启动源 [**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器") 时，将 [`--ndb-log-transaction-dependency`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-dependency)
+    设置为 `ON`。
+- en: Also on the source [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server"),
+    set [`binlog_transaction_dependency_tracking`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_tracking)
+    to `WRITESET`. This can be done at while the [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") process is running.
+  id: totrans-36
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 同样在源 [**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器") 上，将 [`binlog_transaction_dependency_tracking`](replication-options-binary-log.html#sysvar_binlog_transaction_dependency_tracking)
+    设置为 `WRITESET`。这可以在 [**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器") 进程运行时完成。
+- en: To ensure that the replica uses multiple worker threads, set the value of the
+    [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    greater than 1\. The default is 4, and can be changed on the replica at while
+    it is running.
+  id: totrans-37
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要确保副本使用多个工作线程，将 [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    的值设置大于1。默认值为4，可以在运行时更改副本上的值。
+- en: Prior to NDB 8.0.26, setting any system variables relating to multithreaded
+    replicas such as [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    or [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers),
+    and [`replica_checkpoint_group`](replication-options-replica.html#sysvar_replica_checkpoint_group)
+    or [`slave_checkpoint_group`](replication-options-replica.html#sysvar_slave_checkpoint_group)
+    (or the equivalent [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    startup options) was completely ignored, and had no effect.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 NDB 8.0.26 之前，设置任何与多线程副本相关的系统变量，如 [`replica_parallel_workers`](replication-options-replica.html#sysvar_replica_parallel_workers)
+    或 [`slave_parallel_workers`](replication-options-replica.html#sysvar_slave_parallel_workers)，以及
+    [`replica_checkpoint_group`](replication-options-replica.html#sysvar_replica_checkpoint_group)
+    或 [`slave_checkpoint_group`](replication-options-replica.html#sysvar_slave_checkpoint_group)（或等效的
+    [**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器") 启动选项）完全被忽略，没有任何效果。
+- en: In NDB 8.0.27 through NDB 8.0.32, `replica_parallel_workers` must be set to
+    0\. In these versions, if this is set to any other value on startup, `NDB` changes
+    it to 0, and writes a message to the [**mysqld**](mysqld.html "6.3.1 mysqld —
+    The MySQL Server") server log file. This restriction is also lifted in NDB 8.0.33.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在NDB 8.0.27到NDB 8.0.32中，`replica_parallel_workers`必须设置为0。在这些版本中，如果在启动时将其设置为其他任何值，`NDB`会将其更改为0，并在[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL 服务器")服务器日志文件中写入一条消息。这个限制在NDB 8.0.33中也被解除。
+- en: '**Restarting with --initial. ** Restarting the cluster with the [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    option causes the sequence of GCI and epoch numbers to start over from `0`. (This
+    is generally true of NDB Cluster and not limited to replication scenarios involving
+    Cluster.) The MySQL servers involved in replication should in this case be restarted.
+    After this, you should use the [`RESET MASTER`](reset-master.html "15.4.1.2 RESET
+    MASTER Statement") and [`RESET REPLICA`](reset-replica.html "15.4.2.4 RESET REPLICA
+    Statement") (prior to NDB 8.0.22, use [`RESET SLAVE`](reset-slave.html "15.4.2.5 RESET
+    SLAVE Statement")) statements to clear the invalid `ndb_binlog_index` and `ndb_apply_status`
+    tables, respectively.'
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**使用--initial重新启动。** 使用[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)选项重新启动集群会导致GCI和时代号的序列从`0`重新开始。（这通常适用于NDB集群，不仅限于涉及集群的复制场景。）在这种情况下，涉及复制的MySQL服务器应该重新启动。之后，您应该使用[`RESET
+    MASTER`](reset-master.html "15.4.1.2 RESET MASTER 语句")和[`RESET REPLICA`](reset-replica.html
+    "15.4.2.4 RESET REPLICA 语句")（在NDB 8.0.22之前，使用[`RESET SLAVE`](reset-slave.html
+    "15.4.2.5 RESET SLAVE 语句")）语句清除无效的`ndb_binlog_index`和`ndb_apply_status`表。'
+- en: '**Replication from NDB to other storage engines. ** It is possible to replicate
+    an [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") table on the
+    source to a table using a different storage engine on the replica, taking into
+    account the restrictions listed here:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**从NDB复制到其他存储引擎。** 可以将源上的[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster
+    8.0")表复制到副本上使用不同存储引擎的表，考虑到这里列出的限制：'
+- en: Multi-source and circular replication are not supported (tables on both the
+    source and the replica must use the [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") storage engine for this to work).
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不支持多源和循环复制（源和副本上的表必须都使用[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")存储引擎才能正常工作）。
+- en: Using a storage engine which does not perform binary logging for tables on the
+    replica requires special handling.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在副本上使用不执行表的二进制日志记录的存储引擎需要特殊处理。
+- en: Use of a nontransactional storage engine for tables on the replica also requires
+    special handling.
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在副本上使用非事务性存储引擎处理表格也需要特殊处理。
+- en: The source [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") must
+    be started with [`--ndb-log-update-as-write=0`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write)
+    or `--ndb-log-update-as-write=OFF`.
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 源[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")必须使用[`--ndb-log-update-as-write=0`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write)或`--ndb-log-update-as-write=OFF`启动。
+- en: The next few paragraphs provide additional information about each of the issues
+    just described.
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来的几段提供了关于刚才描述的每个问题的额外信息。
+- en: '**Multiple sources not supported when replicating NDB to other storage engines. **
+    For replication from [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster
+    8.0") to a different storage engine, the relationship between the two databases
+    must be one-to-one. This means that bidirectional or circular replication is not
+    supported between NDB Cluster and other storage engines.'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**不支持将NDB复制到其他存储引擎的多源。** 对于从[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster
+    8.0")到不同存储引擎的复制，两个数据库之间的关系必须是一对一。这意味着NDB集群和其他存储引擎之间不支持双向或循环复制。'
+- en: In addition, it is not possible to configure more than one replication channel
+    when replicating between [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster
+    8.0") and a different storage engine. (An NDB Cluster database *can* simultaneously
+    replicate to multiple NDB Cluster databases.) If the source uses [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables, it is still possible to have more
+    than one MySQL Server maintain a binary log of all changes, but for the replica
+    to change sources (fail over), the new source-replica relationship must be explicitly
+    defined on the replica.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，在从 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") 复制到不同存储引擎的副本时，不可能配置多个复制通道。
+    （NDB 集群数据库 *可以* 同时复制到多个 NDB 集群数据库。）如果源使用 [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") 表，则仍然可以让多个 MySQL 服务器维护所有更改的二进制日志，但是对于副本更改源（故障转移），新的源-副本关系必须在副本上明确定义。
+- en: '**Replicating NDB tables to a storage engine that does not perform binary logging. **
+    If you attempt to replicate from an NDB Cluster to a replica that uses a storage
+    engine that does not handle its own binary logging, the replication process aborts
+    with the error Binary logging not possible ... Statement cannot be written atomically
+    since more than one engine involved and at least one engine is self-logging (Error
+    1595). It is possible to work around this issue in one of the following ways:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**将 NDB 表复制到不执行二进制日志记录的存储引擎。** 如果尝试从 NDB 集群复制到使用不处理自己二进制日志的存储引擎的副本，则复制过程将因错误
+    Binary logging not possible ... Statement cannot be written atomically since more
+    than one engine involved and at least one engine is self-logging (Error 1595)
+    而中止。可以通过以下一种方式解决此问题：'
+- en: '**Turn off binary logging on the replica. ** This can be accomplished by setting
+    [`sql_log_bin = 0`](replication-options-binary-log.html#sysvar_sql_log_bin).'
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**在副本上关闭二进制日志记录。** 可以通过设置 [`sql_log_bin = 0`](replication-options-binary-log.html#sysvar_sql_log_bin)
+    来实现。'
+- en: '**Change the storage engine used for the mysql.ndb_apply_status table. ** Causing
+    this table to use an engine that does not handle its own binary logging can also
+    eliminate the conflict. This can be done by issuing a statement such as [`ALTER
+    TABLE mysql.ndb_apply_status ENGINE=MyISAM`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") on the replica. It is safe to do this when using a storage engine
+    other than [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") on the
+    replica, since you do not need to worry about keeping multiple replicas synchronized.'
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**更改用于 mysql.ndb_apply_status 表的存储引擎。** 使该表使用一个不处理自己二进制日志的引擎也可以消除冲突。可以通过在副本上发出类似
+    [`ALTER TABLE mysql.ndb_apply_status ENGINE=MyISAM`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") 的语句来完成此操作。在副本上使用除 [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") 之外的存储引擎时，这样做是安全的，因为您不需要担心保持多个副本同步。'
+- en: '**Filter out changes to the mysql.ndb_apply_status table on the replica. **
+    This can be done by starting the replica with [`--replicate-ignore-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-ignore-table).
+    If you need for other tables to be ignored by replication, you might wish to use
+    an appropriate [`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    option instead.'
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**在副本上过滤掉对 mysql.ndb_apply_status 表的更改。** 可以通过使用 [`--replicate-ignore-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-ignore-table)
+    来启动副本来完成此操作。如果需要忽略其他表的复制更改，您可能希望使用适当的 [`--replicate-wild-ignore-table`](replication-options-replica.html#option_mysqld_replicate-wild-ignore-table)
+    选项。'
+- en: Important
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: You should *not* disable replication or binary logging of `mysql.ndb_apply_status`
+    or change the storage engine used for this table when replicating from one NDB
+    Cluster to another. See [Replication and binary log filtering rules with replication
+    between NDB Clusters](mysql-cluster-replication-issues.html#mysql-cluster-replication-issues-filtering
+    "Replication and binary log filtering rules with replication between NDB Clusters"),
+    for details.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在从一个 NDB 集群复制到另一个 NDB 集群时，不应禁用 `mysql.ndb_apply_status` 的复制或二进制日志记录，也不应更改此表使用的存储引擎。有关详细信息，请参阅
+    [NDB 集群之间复制和二进制日志过滤规则](mysql-cluster-replication-issues.html#mysql-cluster-replication-issues-filtering
+    "NDB 集群之间复制和二进制日志过滤规则")。
+- en: '**Replication from NDB to a nontransactional storage engine. ** When replicating
+    from [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") to a nontransactional
+    storage engine such as [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM
+    Storage Engine"), you may encounter unnecessary duplicate key errors when replicating
+    [`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html "15.2.7.2 INSERT
+    ... ON DUPLICATE KEY UPDATE Statement") statements. You can suppress these by
+    using [`--ndb-log-update-as-write=0`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write),
+    which forces updates to be logged as writes, rather than as updates.'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**从NDB复制到非事务性存储引擎。** 当从[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")复制到非事务性存储引擎（如[`MyISAM`](myisam-storage-engine.html
+    "18.2 MyISAM存储引擎")）时，当复制[`INSERT ... ON DUPLICATE KEY UPDATE`](insert-on-duplicate.html
+    "15.2.7.2 INSERT ... ON DUPLICATE KEY UPDATE语句")语句时，可能会遇到不必要的重复键错误。您可以通过使用[`--ndb-log-update-as-write=0`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write)来抑制这些错误，该选项强制将更新记录为写入，而不是更新。'
+- en: '**Replication and binary log filtering rules with replication between NDB Clusters. **
+    If you are using any of the options `--replicate-do-*`, `--replicate-ignore-*`,
+    [`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db),
+    or [`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)
+    to filter databases or tables being replicated, you must take care not to block
+    replication or binary logging of the `mysql.ndb_apply_status`, which is required
+    for replication between NDB Clusters to operate properly. In particular, you must
+    keep in mind the following:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB集群之间的复制和二进制日志过滤规则。** 如果您使用任何`--replicate-do-*`、`--replicate-ignore-*`、[`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)或[`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)选项来过滤正在复制的数据库或表，您必须注意不要阻止`mysql.ndb_apply_status`的复制或二进制日志记录，这对于NDB集群之间的复制正常运行是必需的。特别是，您必须牢记以下内容：'
+- en: Using [`--replicate-do-db=*`db_name`*`](replication-options-replica.html#option_mysqld_replicate-do-db)
+    (and no other `--replicate-do-*` or `--replicate-ignore-*` options) means that
+    *only* tables in database *`db_name`* are replicated. In this case, you should
+    also use [`--replicate-do-db=mysql`](replication-options-replica.html#option_mysqld_replicate-do-db),
+    [`--binlog-do-db=mysql`](replication-options-binary-log.html#option_mysqld_binlog-do-db),
+    or [`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    to ensure that `mysql.ndb_apply_status` is populated on replicas.
+  id: totrans-57
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`--replicate-do-db=*`db_name`*`](replication-options-replica.html#option_mysqld_replicate-do-db)（以及没有其他`--replicate-do-*`或`--replicate-ignore-*`选项）意味着只有数据库*`db_name`*中的表会被复制。在这种情况下，您还应该使用[`--replicate-do-db=mysql`](replication-options-replica.html#option_mysqld_replicate-do-db)，[`--binlog-do-db=mysql`](replication-options-binary-log.html#option_mysqld_binlog-do-db)，或[`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)来确保在副本上填充`mysql.ndb_apply_status`。
+- en: Using [`--binlog-do-db=*`db_name`*`](replication-options-binary-log.html#option_mysqld_binlog-do-db)
+    (and no other [`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)
+    options) means that changes *only* to tables in database *`db_name`* are written
+    to the binary log. In this case, you should also use [`--replicate-do-db=mysql`](replication-options-replica.html#option_mysqld_replicate-do-db),
+    [`--binlog-do-db=mysql`](replication-options-binary-log.html#option_mysqld_binlog-do-db),
+    or [`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    to ensure that `mysql.ndb_apply_status` is populated on replicas.
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用[`--binlog-do-db=*`db_name`*`](replication-options-binary-log.html#option_mysqld_binlog-do-db)（以及没有其他[`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)选项）意味着只有数据库*`db_name`*中的表的更改会被写入二进制日志。在这种情况下，您还应该使用[`--replicate-do-db=mysql`](replication-options-replica.html#option_mysqld_replicate-do-db)，[`--binlog-do-db=mysql`](replication-options-binary-log.html#option_mysqld_binlog-do-db)，或[`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)来确保在副本上填充`mysql.ndb_apply_status`。
+- en: Using [`--replicate-ignore-db=mysql`](replication-options-replica.html#option_mysqld_replicate-ignore-db)
+    means that no tables in the `mysql` database are replicated. In this case, you
+    should also use [`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    to ensure that `mysql.ndb_apply_status` is replicated.
+  id: totrans-59
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`--replicate-ignore-db=mysql`](replication-options-replica.html#option_mysqld_replicate-ignore-db)意味着`mysql`数据库中的表不会被复制。在这种情况下，您还应该使用[`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)来确保`mysql.ndb_apply_status`被复制。
+- en: Using [`--binlog-ignore-db=mysql`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)
+    means that no changes to tables in the `mysql` database are written to the binary
+    log. In this case, you should also use [`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)
+    to ensure that `mysql.ndb_apply_status` is replicated.
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用[`--binlog-ignore-db=mysql`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)意味着不会将`mysql`数据库中的表更改写入二进制日志。在这种情况下，您还应该使用[`--replicate-do-table=mysql.ndb_apply_status`](replication-options-replica.html#option_mysqld_replicate-do-table)来确保`mysql.ndb_apply_status`被复制。
+- en: 'You should also remember that each replication rule requires the following:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还应该记住，每个复制规则都需要以下内容：
+- en: Its own `--replicate-do-*` or `--replicate-ignore-*` option, and that multiple
+    rules cannot be expressed in a single replication filtering option. For information
+    about these rules, see [Section 19.1.6, “Replication and Binary Logging Options
+    and Variables”](replication-options.html "19.1.6 Replication and Binary Logging
+    Options and Variables").
+  id: totrans-62
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 自己的`--replicate-do-*`或`--replicate-ignore-*`选项，并且不能在单个复制过滤选项中表示多个规则。有关这些规则的信息，请参见[第19.1.6节，“复制和二进制日志选项和变量”](replication-options.html
+    "19.1.6 复制和二进制日志选项和变量")。
+- en: Its own [`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)
+    or [`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)
+    option, and that multiple rules cannot be expressed in a single binary log filtering
+    option. For information about these rules, see [Section 7.4.4, “The Binary Log”](binary-log.html
+    "7.4.4 The Binary Log").
+  id: totrans-63
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 自己的[`--binlog-do-db`](replication-options-binary-log.html#option_mysqld_binlog-do-db)或[`--binlog-ignore-db`](replication-options-binary-log.html#option_mysqld_binlog-ignore-db)选项，并且不能在单个二进制日志过滤选项中表示多个规则。有关这些规则的信息，请参见[第7.4.4节，“二进制日志”](binary-log.html
+    "7.4.4 二进制日志")。
+- en: If you are replicating an NDB Cluster to a replica that uses a storage engine
+    other than [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0"), the
+    considerations just given previously may not apply, as discussed elsewhere in
+    this section.
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您将NDB集群复制到使用[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")之外的存储引擎的副本，则前面提到的考虑可能不适用，如本节其他地方所讨论的。
+- en: '**NDB Cluster Replication and IPv6. ** Beginning with NDB 8.0.22, all types
+    of NDB Cluster nodes support IPv6; this includes management nodes, data nodes,
+    and API or SQL nodes.'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB集群复制和IPv6。** 从NDB 8.0.22开始，所有类型的NDB集群节点都支持IPv6；这包括管理节点、数据节点和API或SQL节点。'
+- en: 'Prior to NDB 8.0.22, the NDB API and MGM API (and thus data nodes and management
+    nodes) do not support IPv6, although MySQL Servers—including those acting as SQL
+    nodes in an NDB Cluster —can use IPv6 to contact other MySQL Servers. In versions
+    of NDB Cluster prior to 8.0.22, you can replicate between clusters using IPv6
+    to connect the SQL nodes acting as source and replica as shown by the dotted arrow
+    in the following diagram:'
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在NDB 8.0.22之前，NDB API和MGM API（因此数据节点和管理节点）不支持IPv6，尽管MySQL服务器（包括在NDB集群中充当SQL节点的服务器）可以使用IPv6与其他MySQL服务器联系。在8.0.22之前的NDB集群版本中，您可以使用IPv6在SQL节点之间进行复制，连接源和副本的SQL节点如下图中的虚线箭头所示：
+- en: '**Figure 25.13 Replication Between SQL Nodes Connected Using IPv6**'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图25.13 SQL节点之间使用IPv6连接的复制**'
+- en: '![Most content is described in the surrounding text. The dotted line representing
+    a MySQL-to-MySQL IPv6 connection is between two nodes, one each from the source
+    and replica clusters. All connections within the cluster, such as data node to
+    data node or data node to management node, are connected with solid lines to indicate
+    IPv4 connections only.](../Images/6fb95afe11624cfc0fd45261b7ef8ee8.png)'
+  id: totrans-68
+  prefs: []
+  type: TYPE_IMG
+  zh: '![大部分内容在周围的文本中描述。代表MySQL到MySQL的IPv6连接的虚线连接在两个节点之间，分别来自源和副本集群。集群内的所有连接，如数据节点到数据节点或数据节点到管理节点，都使用实线连接表示仅为IPv4连接。](../Images/6fb95afe11624cfc0fd45261b7ef8ee8.png)'
+- en: Prior to NDB 8.0.22, all connections originating *within* the NDB Cluster —represented
+    in the preceding diagram by solid arrows—must use IPv4\. In other words, all NDB
+    Cluster data nodes, management servers, and management clients must be accessible
+    from one another using IPv4. In addition, SQL nodes must use IPv4 to communicate
+    with the cluster. In NDB 8.0.22 and later, these restrictions no longer apply;
+    in addition, any applications written using the NDB and MGM APIs can be written
+    and deployed assuming an IPv6-only environment.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在NDB 8.0.22之前，所有源自NDB集群内部的连接——在前面的图表中用实箭头表示——必须使用IPv4。换句话说，所有NDB集群数据节点、管理服务器和管理客户端必须能够使用IPv4相互访问。此外，SQL节点必须使用IPv4与集群通信。在NDB
+    8.0.22及更高版本中，这些限制不再适用；此外，任何使用NDB和MGM API编写的应用程序都可以假定在仅使用IPv6的环境中编写和部署。
+- en: Note
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: In versions 8.0.22 through 8.0.33 inclusive, `NDB` required system support for
+    IPv6 to run, whether or not the cluster actually used any IPv6 addresses. In NDB
+    Cluster 8.0.34 and later, this is no longer an issue, and you are free to disable
+    IPv6 in the Linux kernel if IPv6 addressing is not in use by the cluster.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在版本8.0.22至8.0.33中，`NDB`需要系统支持IPv6才能运行，无论集群是否实际使用任何IPv6地址。在NDB Cluster 8.0.34及更高版本中，这不再是问题，如果集群未使用IPv6寻址，则可以在Linux内核中禁用IPv6。
+- en: '**Attribute promotion and demotion. ** NDB Cluster Replication includes support
+    for attribute promotion and demotion. The implementation of the latter distinguishes
+    between lossy and non-lossy type conversions, and their use on the replica can
+    be controlled by setting the global value of the system variable [`replica_type_conversions`](replication-options-replica.html#sysvar_replica_type_conversions)
+    (NDB 8.0.26 and later) or [`slave_type_conversions`](replication-options-replica.html#sysvar_slave_type_conversions)
+    (prior to NDB 8.0.26).'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**属性提升和降级。** NDB集群复制包括对属性提升和降级的支持。后者的实现区分了有损和无损类型转换，并且可以通过设置系统变量[`replica_type_conversions`](replication-options-replica.html#sysvar_replica_type_conversions)（NDB
+    8.0.26及更高版本）或[`slave_type_conversions`](replication-options-replica.html#sysvar_slave_type_conversions)（NDB
+    8.0.26之前）的全局值来控制在副本上的使用。'
+- en: 'For more information about attribute promotion and demotion in NDB Cluster,
+    see [Row-based replication: attribute promotion and demotion](replication-features-differing-tables.html#replication-features-attribute-promotion
+    "Row-based replication: attribute promotion and demotion").'
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关NDB集群中属性提升和降级的更多信息，请参阅[基于行的复制：属性提升和降级](replication-features-differing-tables.html#replication-features-attribute-promotion
+    "基于行的复制：属性提升和降级")。
+- en: '`NDB`, unlike [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") or [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine"), does not write changes to virtual columns to the binary log; however,
+    this has no detrimental effects on NDB Cluster Replication or replication between
+    `NDB` and other storage engines. Changes to stored generated columns are logged.'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB`，与[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")或[`MyISAM`](myisam-storage-engine.html
+    "第18.2节 MyISAM存储引擎")不同，不会将对虚拟列的更改写入二进制日志；然而，这对于NDB集群复制或`NDB`与其他存储引擎之间的复制没有不利影响。存储生成列的更改会被记录。'

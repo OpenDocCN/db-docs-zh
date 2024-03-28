@@ -1,0 +1,270 @@
+- en: 25.5.28 ndb_size.pl — NDBCLUSTER Size Requirement Estimator
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.5.28 ndb_size.pl — NDBCLUSTER 大小需求估算器
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndb-size-pl.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndb-size-pl.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndb-size-pl.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-programs-ndb-size-pl.html)
+- en: This is a Perl script that can be used to estimate the amount of space that
+    would be required by a MySQL database if it were converted to use the [`NDBCLUSTER`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") storage engine. Unlike the other utilities
+    discussed in this section, it does not require access to an NDB Cluster (in fact,
+    there is no reason for it to do so). However, it does need to access the MySQL
+    server on which the database to be tested resides.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是一个 Perl 脚本，可用于估算如果将 MySQL 数据库转换为使用[`NDBCLUSTER`](mysql-cluster.html "第 25
+    章 MySQL NDB Cluster 8.0")存储引擎所需的空间量。与本节讨论的其他实用程序不同，它不需要访问 NDB 集群（实际上，它没有理由这样做）。但是，它确实需要访问要测试的数据库所在的
+    MySQL 服务器。
+- en: Requirements
+  id: totrans-3
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 要求
+- en: A running MySQL server. The server instance does not have to provide support
+    for NDB Cluster.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 运行中的 MySQL 服务器。服务器实例不必提供对 NDB 集群的支持。
+- en: A working installation of Perl.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 需要安装 Perl。
+- en: The `DBI` module, which can be obtained from CPAN if it is not already part
+    of your Perl installation. (Many Linux and other operating system distributions
+    provide their own packages for this library.)
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DBI` 模块，如果它不是您的 Perl 安装的一部分，可以从 CPAN 获取。（许多 Linux 和其他操作系统发行版为此库提供了自己的软件包。）'
+- en: A MySQL user account having the necessary privileges. If you do not wish to
+    use an existing account, then creating one using `GRANT USAGE ON *`db_name`*.*`—where
+    *`db_name`* is the name of the database to be examined—is sufficient for this
+    purpose.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 具有必要权限的 MySQL 用户帐户。如果您不希望使用现有帐户，则使用 `GRANT USAGE ON *`db_name`*.*`—其中 *`db_name`*
+    是要检查的数据库的名称—对于此目的已经足够。
+- en: '`ndb_size.pl` can also be found in the MySQL sources in `storage/ndb/tools`.'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ndb_size.pl` 也可以在 MySQL 源代码中的 `storage/ndb/tools` 中找到。'
+- en: Options that can be used with [**ndb_size.pl**](mysql-cluster-programs-ndb-size-pl.html
+    "25.5.28 ndb_size.pl — NDBCLUSTER Size Requirement Estimator") are shown in the
+    following table. Additional descriptions follow the table.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可与[**ndb_size.pl**](mysql-cluster-programs-ndb-size-pl.html "25.5.28 ndb_size.pl
+    — NDBCLUSTER 大小需求估算器")一起使用的选项显示在以下表中。表后面会有额外的描述。
+- en: '**Table 25.49 Command-line options used with the program ndb_size.pl**'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 25.49 与程序 ndb_size.pl 一起使用的命令行选项**'
+- en: '| Format | Description | Added, Deprecated, or Removed |'
+  id: totrans-11
+  prefs: []
+  type: TYPE_TB
+  zh: '| 格式 | 描述 | 已添加、已弃用或已移除 |'
+- en: '| `[--database=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Database or databases to examine; a comma-delimited list; default is ALL (use
+    all databases found on server) | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-12
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--database=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 要检查的数据库或数据库；逗号分隔的列表；默认为 ALL（使用在服务器上找到的所有数据库） | （在基于 MySQL 8.0 的所有 NDB 版本中支持）
+    |'
+- en: '| `[--hostname=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Specify host and optional port in host[:port] format | (Supported in all NDB
+    releases based on MySQL 8.0) |'
+  id: totrans-13
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--hostname=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 指定主机和可选端口的主机[:端口]格式 | （在基于 MySQL 8.0 的所有 NDB 版本中支持） |'
+- en: '| `[--socket=path](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Specify socket to connect to | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--socket=path](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 指定要连接的套接字 | （在基于 MySQL 8.0 的所有 NDB 版本中支持） |'
+- en: '| `[--user=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Specify MySQL user name | (Supported in all NDB releases based on MySQL 8.0)
+    |'
+  id: totrans-15
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--user=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 指定 MySQL 用户名 | （在基于 MySQL 8.0 的所有 NDB 版本中支持） |'
+- en: '| `[--password=password](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Specify MySQL user password | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-16
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--password=password](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 指定 MySQL 用户密码 | （在基于 MySQL 8.0 的所有 NDB 版本中支持） |'
+- en: '| `[--format=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_format)`
+    | Set output format (text or HTML) | (Supported in all NDB releases based on MySQL
+    8.0) |'
+  id: totrans-17
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--format=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_format)`
+    | 设置输出格式（文本或 HTML） | （在基于 MySQL 8.0 的所有 NDB 版本中支持） |'
+- en: '| `[--excludetables=list](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Skip any tables in comma-separated list | (Supported in all NDB releases based
+    on MySQL 8.0) |'
+  id: totrans-18
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--excludetables=list](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 跳过逗号分隔列表中的任何表 | (在基于 MySQL 8.0 的所有 NDB 版本中支持) |'
+- en: '| `[--excludedbs=list](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Skip any databases in comma-separated list | (Supported in all NDB releases
+    based on MySQL 8.0) |'
+  id: totrans-19
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--excludedbs=list](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 跳过逗号分隔列表中的任何数据库 | (在基于 MySQL 8.0 的所有 NDB 版本中支持) |'
+- en: '| `[--savequeries=path](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_debugging)`
+    | Saves all queries on database into file specified | (Supported in all NDB releases
+    based on MySQL 8.0) |'
+  id: totrans-20
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--savequeries=path](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_debugging)`
+    | 将数据库中的所有查询保存到指定文件中 | (在基于 MySQL 8.0 的所有 NDB 版本中支持) |'
+- en: '| `[--loadqueries=path](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_debugging)`
+    | Loads all queries from file specified; does not connect to database | (Supported
+    in all NDB releases based on MySQL 8.0) |'
+  id: totrans-21
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--loadqueries=path](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_debugging)`
+    | 从指定文件加载所有查询；不连接到数据库 | (在基于 MySQL 8.0 的所有 NDB 版本中支持) |'
+- en: '| `[--real_table_name=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | Designates table to handle unique index size calculations | (Supported in all
+    NDB releases based on MySQL 8.0) |'
+  id: totrans-22
+  prefs: []
+  type: TYPE_TB
+  zh: '| `[--real_table_name=string](mysql-cluster-programs-ndb-size-pl.html#option_ndb_size_pl_options)`
+    | 指定处理唯一索引大小计算的表 | (在基于 MySQL 8.0 的所有 NDB 版本中支持) |'
+- en: '| Format | Description | Added, Deprecated, or Removed |'
+  id: totrans-23
+  prefs: []
+  type: TYPE_TB
+  zh: '| 格式 | 描述 | 添加、弃用或删除 |'
+- en: Usage
+  id: totrans-24
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 用法
+- en: '[PRE0]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'By default, this utility attempts to analyze all databases on the server. You
+    can specify a single database using the `--database` option; the default behavior
+    can be made explicit by using `ALL` for the name of the database. You can also
+    exclude one or more databases by using the `--excludedbs` option with a comma-separated
+    list of the names of the databases to be skipped. Similarly, you can cause specific
+    tables to be skipped by listing their names, separated by commas, following the
+    optional `--excludetables` option. A host name can be specified using `--hostname`;
+    the default is `localhost`. You can specify a port in addition to the host using
+    *`host`*:*`port`* format for the value of `--hostname`. The default port number
+    is 3306\. If necessary, you can also specify a socket; the default is `/var/lib/mysql.sock`.
+    A MySQL user name and password can be specified the corresponding options shown.
+    It also possible to control the format of the output using the `--format` option;
+    this can take either of the values `html` or `text`, with `text` being the default.
+    An example of the text output is shown here:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，此实用程序尝试分析服务器上的所有数据库。您可以使用`--database`选项指定单个数据库；使用`ALL`作为数据库名称可以明确指定默认行为。您还可以使用逗号分隔的数据库名称列表使用`--excludedbs`选项排除一个或多个数据库。类似地，您可以通过在可选的`--excludetables`选项后列出其名称（用逗号分隔）来跳过特定表。可以使用`--hostname`指定主机名；默认值为`localhost`。除了主机，还可以使用*`host`*:*`port`*格式为`--hostname`的值指定端口。默认端口号为3306。必要时，还可以指定套接字；默认值为`/var/lib/mysql.sock`。可以使用相应的选项指定
+    MySQL 用户名和密码。还可以使用`--format`选项控制输出的格式；可以使用`html`或`text`中的任一值，`text`为默认值。这里展示了文本输出的示例：
+- en: '[PRE1]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: For debugging purposes, the Perl arrays containing the queries run by this script
+    can be read from the file specified using can be saved to a file using `--savequeries`;
+    a file containing such arrays to be read during script execution can be specified
+    using `--loadqueries`. Neither of these options has a default value.
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了调试目的，可以从指定文件中读取此脚本运行的 Perl 数组包含的查询，并使用`--savequeries`将其保存到文件中；可以使用`--loadqueries`指定包含在脚本执行期间读取的数组的文件。这两个选项都没有默认值。
+- en: 'To produce output in HTML format, use the `--format` option and redirect the
+    output to a file, as shown here:'
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要以 HTML 格式生成输出，请使用`--format`选项并将输出重定向到文件，如下所示：
+- en: '[PRE2]'
+  id: totrans-30
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: (Without the redirection, the output is sent to `stdout`.)
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: (如果没有重定向，则输出将发送到`stdout`。)
+- en: 'The output from this script includes the following information:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此脚本的输出包括以下信息：
+- en: Minimum values for the [`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory),
+    [`IndexMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-indexmemory),
+    [`MaxNoOfTables`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxnooftables),
+    [`MaxNoOfAttributes`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxnoofattributes),
+    [`MaxNoOfOrderedIndexes`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxnooforderedindexes),
+    and [`MaxNoOfTriggers`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxnooftriggers)
+    configuration parameters required to accommodate the tables analyzed.
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了容纳分析的表所需的[`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory)、[`IndexMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-indexmemory)、[`MaxNoOfTables`](mysql-cluster-ndbd-definition.html#ndbparam-ndb-maxnooftables)、[`MaxNoOfAttributes`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxnoofattributes)、[`MaxNoOfOrderedIndexes`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxnooforderedindexes)和[`MaxNoOfTriggers`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-maxnooftriggers)配置参数的最小值。
+- en: Memory requirements for all of the tables, attributes, ordered indexes, and
+    unique hash indexes defined in the database.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数据库中定义的所有表、属性、有序索引和唯一哈希索引的内存需求。
+- en: The [`IndexMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-indexmemory)
+    and [`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory)
+    required per table and table row.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个表和表行所需的[`IndexMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-indexmemory)和[`DataMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-datamemory)。

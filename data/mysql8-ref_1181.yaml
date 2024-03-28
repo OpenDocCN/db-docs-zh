@@ -1,0 +1,801 @@
+- en: 17.6.5 Redo Log
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.6.5 重做日志
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-redo-log.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-redo-log.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-redo-log.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-redo-log.html)
+- en: The redo log is a disk-based data structure used during crash recovery to correct
+    data written by incomplete transactions. During normal operations, the redo log
+    encodes requests to change table data that result from SQL statements or low-level
+    API calls. Modifications that did not finish updating data files before an unexpected
+    shutdown are replayed automatically during initialization and before connections
+    are accepted. For information about the role of the redo log in crash recovery,
+    see [Section 17.18.2, “InnoDB Recovery”](innodb-recovery.html "17.18.2 InnoDB
+    Recovery").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重做日志是一种基于磁盘的数据结构，在崩溃恢复期间用于纠正由不完整事务写入的数据。在正常操作期间，重做日志对由SQL语句或低级API调用导致的更改表数据的请求进行编码。在意外关闭之前未完成更新数据文件的修改在初始化期间和在接受连接之前自动重放。有关重做日志在崩溃恢复中的作用的信息，请参见[第17.18.2节，“InnoDB恢复”](innodb-recovery.html
+    "17.18.2 InnoDB恢复")。
+- en: The redo log is physically represented on disk by redo log files. Data that
+    is written to redo log files is encoded in terms of records affected, and this
+    data is collectively referred to as redo. The passage of data through redo log
+    files is represented by an ever-increasing [LSN](glossary.html#glos_lsn "LSN")
+    value. Redo log data is appended as data modifications occur, and the oldest data
+    is truncated as the checkpoint progresses.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重做日志在磁盘上以重做日志文件的形式物理表示。写入重做日志文件的数据以受影响的记录为编码，这些数据被统称为重做。数据通过重做日志文件的传递由一个不断增加的[LSN](glossary.html#glos_lsn
+    "LSN")值表示。重做日志数据在数据修改发生时追加，而最旧的数据在检查点进展时被截断。
+- en: 'Information and procedures related to redo logs are described under the following
+    topics in the section:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关重做日志的信息和程序在以下主题中描述：
+- en: '[Configuring Redo Log Capacity (MySQL 8.0.30 or Higher)](innodb-redo-log.html#innodb-modifying-redo-log-capacity
+    "Configuring Redo Log Capacity (MySQL 8.0.30 or Higher)")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置重做日志容量（MySQL 8.0.30或更高版本）](innodb-redo-log.html#innodb-modifying-redo-log-capacity
+    "配置重做日志容量（MySQL 8.0.30或更高版本）")'
+- en: '[Configuring Redo Log Capacity (Before MySQL 8.0.30)](innodb-redo-log.html#innodb-redo-log-file-reconfigure
+    "Configuring Redo Log Capacity (Before MySQL 8.0.30)")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置重做日志容量（MySQL 8.0.30之前）](innodb-redo-log.html#innodb-redo-log-file-reconfigure
+    "配置重做日志容量（MySQL 8.0.30之前）")'
+- en: '[Automatic Redo Log Capacity Configuration](innodb-redo-log.html#innodb-redo-log-capacity-automatic-configuration-
+    "Automatic Redo Log Capacity Configuration")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[自动重做日志容量配置](innodb-redo-log.html#innodb-redo-log-capacity-automatic-configuration-
+    "自动重做日志容量配置")'
+- en: '[Redo Log Archiving](innodb-redo-log.html#innodb-redo-log-archiving "Redo Log
+    Archiving")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[重做日志归档](innodb-redo-log.html#innodb-redo-log-archiving "重做日志归档")'
+- en: '[Disabling Redo Logging](innodb-redo-log.html#innodb-disable-redo-logging "Disabling
+    Redo Logging")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[禁用重做日志记录](innodb-redo-log.html#innodb-disable-redo-logging "禁用重做日志记录")'
+- en: '[Related Topics](innodb-redo-log.html#innodb-redo-log-related-topics "Related
+    Topics")'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[相关主题](innodb-redo-log.html#innodb-redo-log-related-topics "相关主题")'
+- en: Configuring Redo Log Capacity (MySQL 8.0.30 or Higher)
+  id: totrans-11
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置重做日志容量（MySQL 8.0.30或更高版本）
+- en: 'From MySQL 8.0.30, the [`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)
+    system variable controls the amount of disk space occupied by redo log files.
+    You can set this variable in an option file at startup or at runtime using a [`SET
+    GLOBAL`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment") statement;
+    for example, the following statement sets the redo log capacity to 8GB:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.30开始，[`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)系统变量控制重做日志文件占用的磁盘空间量。您可以在启动时或运行时使用[`SET
+    GLOBAL`](set-variable.html "15.7.6.1 变量赋值的SET语法")语句在选项文件中设置此变量；例如，以下语句将重做日志容量设置为8GB：
+- en: '[PRE0]'
+  id: totrans-13
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: When set at runtime, the configuration change occurs immediately but it may
+    take some time for the new limit to be fully implemented. If the redo log files
+    occupy less space than the specified value, dirty pages are flushed from the buffer
+    pool to tablespace data files less aggressively, eventually increasing the disk
+    space occupied by the redo log files. If the redo log files occupy more space
+    than the specified value, dirty pages are flushed more aggressively, eventually
+    decreasing the disk space occupied by redo log files.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在运行时设置时，配置更改会立即生效，但新限制可能需要一些时间才能完全实施。如果重做日志文件占用的空间少于指定值，则从缓冲池中更积极地刷新脏页到表空间数据文件，最终增加重做日志文件占用的磁盘空间。如果重做日志文件占用的空间多于指定值，则更积极地刷新脏页，最终减少重做日志文件占用的磁盘空间。
+- en: The [`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)
+    variable supersedes the [`innodb_log_files_in_group`](innodb-parameters.html#sysvar_innodb_log_files_in_group)
+    and [`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size)
+    variables, which are deprecated. When the `innodb_redo_log_capacity` setting is
+    defined, the `innodb_log_files_in_group` and `innodb_log_file_size` settings are
+    ignored; otherwise, these settings are used to compute the [`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)
+    setting (`innodb_log_files_in_group` * `innodb_log_file_size` = `innodb_redo_log_capacity`).
+    If none of those variables are set, redo log capacity is set to the `innodb_redo_log_capacity`
+    default value, which is 104857600 bytes (100MB). The maximum redo log capacity
+    is 128GB.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)变量取代了已弃用的[`innodb_log_files_in_group`](innodb-parameters.html#sysvar_innodb_log_files_in_group)和[`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size)变量。当定义了`innodb_redo_log_capacity`设置时，`innodb_log_files_in_group`和`innodb_log_file_size`设置将被忽略；否则，这些设置将用于计算[`innodb_redo_log_capacity`](innodb-parameters.html#sysvar_innodb_redo_log_capacity)设置（`innodb_log_files_in_group`
+    * `innodb_log_file_size` = `innodb_redo_log_capacity`）。如果没有设置这些变量中的任何一个，重做日志容量将设置为`innodb_redo_log_capacity`的默认值，即104857600字节（100MB）。最大重做日志容量为128GB。'
+- en: Redo log files reside in the `#innodb_redo` directory in the data directory
+    unless a different directory was specified by the [`innodb_log_group_home_dir`](innodb-parameters.html#sysvar_innodb_log_group_home_dir)
+    variable. If [`innodb_log_group_home_dir`](innodb-parameters.html#sysvar_innodb_log_group_home_dir)
+    was defined, the redo log files reside in the `#innodb_redo` directory in that
+    directory. There are two types of redo log files, ordinary and spare. Ordinary
+    redo log files are those being used. Spare redo log files are those waiting to
+    be used. `InnoDB` tries to maintain 32 redo log files in total, with each file
+    equal in size to 1/32 * `innodb_redo_log_capacity`; however, file sizes may differ
+    for a time after modifying the `innodb_redo_log_capacity` setting.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重做日志文件位于数据目录中的`#innodb_redo`目录中，除非通过[`innodb_log_group_home_dir`](innodb-parameters.html#sysvar_innodb_log_group_home_dir)变量指定了不同的目录。如果定义了[`innodb_log_group_home_dir`](innodb-parameters.html#sysvar_innodb_log_group_home_dir)，则重做日志文件位于该目录中的`#innodb_redo`目录中。有两种类型的重做日志文件，普通和备用。普通的重做日志文件是正在使用的。备用的重做日志文件是等待使用的。`InnoDB`尝试总共维护32个重做日志文件，每个文件的大小等于1/32
+    * `innodb_redo_log_capacity`；但是，在修改`innodb_redo_log_capacity`设置后，文件大小可能会有所不同。
+- en: Redo log files use an `#ib_redo*`N`*` naming convention, where *`N`* is the
+    redo log file number. Spare redo log files are denoted by a `_tmp` suffix. The
+    following example shows the redo log files in an `#innodb_redo` directory, where
+    there are 21 active redo log files and 11 spare redo log files, numbered sequentially.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重做日志文件使用`#ib_redo*`N`*`的命名约定，其中*`N`*是重做日志文件编号。备用的重做日志文件以`_tmp`后缀表示。以下示例显示了一个`#innodb_redo`目录中的重做日志文件，其中有21个活动重做日志文件和11个备用重做日志文件，按顺序编号。
+- en: '[PRE1]'
+  id: totrans-18
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Each ordinary redo log file is associated with a particular range of LSN values;
+    for example, the following query shows the `START_LSN` and `END_LSN` values for
+    the active redo log files listed in the previous example:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个普通的重做日志文件与特定范围的LSN值相关联；例如，以下查询显示了前面示例中列出的活动重做日志文件的`START_LSN`和`END_LSN`值：
+- en: '[PRE2]'
+  id: totrans-20
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: When doing a checkpoint, `InnoDB` stores the checkpoint LSN in the header of
+    the file which contains this LSN. During recovery, all redo log files are checked
+    and recovery starts at the latest checkpoint LSN.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在执行检查点时，`InnoDB`将检查点LSN存储在包含此LSN的文件的头部。在恢复过程中，所有重做日志文件都会被检查，恢复从最新的检查点LSN开始。
+- en: 'Several status variables are provided for monitoring the redo log and redo
+    log capacity resize operations; for example, you can query [`Innodb_redo_log_resize_status`](server-status-variables.html#statvar_Innodb_redo_log_resize_status)
+    to view the status of a resize operation:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 提供了几个状态变量用于监视重做日志和重做日志容量调整操作；例如，您可以查询[`Innodb_redo_log_resize_status`](server-status-variables.html#statvar_Innodb_redo_log_resize_status)以查看调整操作的状态：
+- en: '[PRE3]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'The [`Innodb_redo_log_capacity_resized`](server-status-variables.html#statvar_Innodb_redo_log_capacity_resized)
+    status variable shows the current redo log capacity limit:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_capacity_resized`](server-status-variables.html#statvar_Innodb_redo_log_capacity_resized)状态变量显示当前重做日志容量限制：'
+- en: '[PRE4]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Other applicable status variables include:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其他适用的状态变量包括：
+- en: '[`Innodb_redo_log_checkpoint_lsn`](server-status-variables.html#statvar_Innodb_redo_log_checkpoint_lsn)'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_checkpoint_lsn`](server-status-variables.html#statvar_Innodb_redo_log_checkpoint_lsn)'
+- en: '[`Innodb_redo_log_current_lsn`](server-status-variables.html#statvar_Innodb_redo_log_current_lsn)'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_current_lsn`](server-status-variables.html#statvar_Innodb_redo_log_current_lsn)'
+- en: '[`Innodb_redo_log_flushed_to_disk_lsn`](server-status-variables.html#statvar_Innodb_redo_log_flushed_to_disk_lsn)'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_flushed_to_disk_lsn`](server-status-variables.html#statvar_Innodb_redo_log_flushed_to_disk_lsn)'
+- en: '[`Innodb_redo_log_logical_size`](server-status-variables.html#statvar_Innodb_redo_log_logical_size)'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_logical_size`](server-status-variables.html#statvar_Innodb_redo_log_logical_size)'
+- en: '[`Innodb_redo_log_physical_size`](server-status-variables.html#statvar_Innodb_redo_log_physical_size)'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_physical_size`](server-status-variables.html#statvar_Innodb_redo_log_physical_size)'
+- en: '[`Innodb_redo_log_read_only`](server-status-variables.html#statvar_Innodb_redo_log_read_only)'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_read_only`](server-status-variables.html#statvar_Innodb_redo_log_read_only)'
+- en: '[`Innodb_redo_log_uuid`](server-status-variables.html#statvar_Innodb_redo_log_uuid)'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_uuid`](server-status-variables.html#statvar_Innodb_redo_log_uuid)'
+- en: Refer to the status variable descriptions for more information.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请参考状态变量描述以获取更多信息。
+- en: 'You can view information about active redo log files by querying the [`innodb_redo_log_files`](performance-schema-innodb-redo-log-files-table.html
+    "29.12.21.4 The innodb_redo_log_files Table") Performance Schema table. The following
+    query retrieves data from all of the table''s columns:'
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以通过查询[`innodb_redo_log_files`](performance-schema-innodb-redo-log-files-table.html
+    "29.12.21.4 The innodb_redo_log_files Table")性能模式表查看有关活动重做日志文件的信息。以下查询检索所有表列的数据：
+- en: '[PRE5]'
+  id: totrans-36
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: Configuring Redo Log Capacity (Before MySQL 8.0.30)
+  id: totrans-37
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置重做日志容量（MySQL 8.0.30之前）
+- en: Prior to MySQL 8.0.30, `InnoDB` creates two redo log files in the data directory
+    by default, named `ib_logfile0` and `ib_logfile1`, and writes to these files in
+    a circular fashion.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.30之前，默认情况下，`InnoDB`在数据目录中创建两个重做日志文件，命名为`ib_logfile0`和`ib_logfile1`，并以循环方式写入这些文件。
+- en: Modifying redo log capacity requires changing the number or the size of [redo
+    log](glossary.html#glos_redo_log "redo log") files, or both.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修改重做日志容量需要更改[重做日志](glossary.html#glos_redo_log "redo log")文件的数量或大小，或两者兼而有之。
+- en: Stop the MySQL server and make sure that it shuts down without errors.
+  id: totrans-40
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止MySQL服务器，并确保它在没有错误的情况下关闭。
+- en: Edit `my.cnf` to change the redo log file configuration. To change the redo
+    log file size, configure [`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size).
+    To increase the number of redo log files, configure [`innodb_log_files_in_group`](innodb-parameters.html#sysvar_innodb_log_files_in_group).
+  id: totrans-41
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 编辑`my.cnf`以更改重做日志文件配置。要更改重做日志文件大小，请配置[`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size)。要增加重做日志文件数量，请配置[`innodb_log_files_in_group`](innodb-parameters.html#sysvar_innodb_log_files_in_group)。
+- en: Start the MySQL server again.
+  id: totrans-42
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 再次启动MySQL服务器。
+- en: If `InnoDB` detects that the [`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size)
+    differs from the redo log file size, it writes a log checkpoint, closes and removes
+    the old log files, creates new log files at the requested size, and opens the
+    new log files.
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果`InnoDB`检测到[`innodb_log_file_size`](innodb-parameters.html#sysvar_innodb_log_file_size)与重做日志文件大小不同，它会写入日志检查点，关闭并删除旧日志文件，以请求的大小创建新日志文件，并打开新日志文件。
+- en: Automatic Redo Log Capacity Configuration
+  id: totrans-44
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 自动重做日志容量配置
+- en: When [`innodb_dedicated_server`](innodb-parameters.html#sysvar_innodb_dedicated_server)
+    is enabled, `InnoDB` automatically configures certain `InnoDB` parameters, including
+    redo log capacity. Automated configuration is intended for MySQL instances that
+    reside on a server dedicated to MySQL, where the MySQL server can use all available
+    system resources. For more information, see [Section 17.8.12, “Enabling Automatic
+    Configuration for a Dedicated MySQL Server”](innodb-dedicated-server.html "17.8.12 Enabling
+    Automatic Configuration for a Dedicated MySQL Server").
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当启用[`innodb_dedicated_server`](innodb-parameters.html#sysvar_innodb_dedicated_server)时，`InnoDB`会自动配置某些`InnoDB`参数，包括重做日志容量。自动配置适用于驻留在专用于MySQL的服务器上的MySQL实例，其中MySQL服务器可以使用所有可用的系统资源。有关更多信息，请参见[第17.8.12节，“为专用MySQL服务器启用自动配置”](innodb-dedicated-server.html
+    "17.8.12 为专用MySQL服务器启用自动配置")。
+- en: Redo Log Archiving
+  id: totrans-46
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 重做日志归档
+- en: Backup utilities that copy redo log records may sometimes fail to keep pace
+    with redo log generation while a backup operation is in progress, resulting in
+    lost redo log records due to those records being overwritten. This issue most
+    often occurs when there is significant MySQL server activity during the backup
+    operation, and the redo log file storage media operates at a faster speed than
+    the backup storage media. The redo log archiving feature, introduced in MySQL
+    8.0.17, addresses this issue by sequentially writing redo log records to an archive
+    file in addition to the redo log files. Backup utilities can copy redo log records
+    from the archive file as necessary, thereby avoiding the potential loss of data.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 备份工具有时可能在备份操作进行时未能跟上重做日志生成的速度，导致由于这些记录被覆盖而丢失重做日志记录。这个问题在备份操作期间有大量MySQL服务器活动，并且重做日志文件存储介质的运行速度比备份存储介质快时最常发生。MySQL
+    8.0.17中引入的重做日志归档功能通过将重做日志记录顺序写入归档文件来解决这个问题，除了重做日志文件外。备份工具可以根据需要从归档文件中复制重做日志记录，从而避免数据的潜在丢失。
+- en: If redo log archiving is configured on the server, [MySQL Enterprise Backup](/doc/mysql-enterprise-backup/8.0/en/),
+    available with the [MySQL Enterprise Edition](https://www.mysql.com/products/enterprise/),
+    uses the redo log archiving feature when backing up a MySQL server.
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在服务器上配置了重做日志归档，[MySQL企业备份](/doc/mysql-enterprise-backup/8.0/en/)，可用于[MySQL企业版](https://www.mysql.com/products/enterprise/)，在备份MySQL服务器时使用重做日志归档功能。
+- en: 'Enabling redo log archiving on the server requires setting a value for the
+    [`innodb_redo_log_archive_dirs`](innodb-parameters.html#sysvar_innodb_redo_log_archive_dirs)
+    system variable. The value is specified as a semicolon-separated list of labeled
+    redo log archive directories. The `*`label:directory`*` pair is separated by a
+    colon (`:`). For example:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器上启用重做日志归档需要为[`innodb_redo_log_archive_dirs`](innodb-parameters.html#sysvar_innodb_redo_log_archive_dirs)系统变量设置一个值。该值被指定为带标签的重做日志归档目录的分号分隔列表。`*`label:directory`*`对由冒号(`:`)分隔。例如：
+- en: '[PRE6]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: The *`label`* is an arbitrary identifier for the archive directory. It can be
+    any string of characters, with the exception of colons (:), which are not permitted.
+    An empty label is also permitted, but the colon (:) is still required in this
+    case. A *`directory_path`* must be specified. The directory selected for the redo
+    log archive file must exist when redo log archiving is activated, or an error
+    is returned. The path can contain colons (':'), but semicolons (;) are not permitted.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*`label`*是归档目录的任意标识符。它可以是任何字符的字符串，但不允许使用冒号(:)。空标签也是允许的，但在这种情况下仍然需要冒号(:)。必须指定*`directory_path`*。在激活重做日志归档时，用于重做日志归档文件的目录必须存在，否则会返回错误。路径可以包含冒号('':'')，但不允许使用分号(;)。'
+- en: The [`innodb_redo_log_archive_dirs`](innodb-parameters.html#sysvar_innodb_redo_log_archive_dirs)
+    variable must be configured before redo log archiving can be activated. The default
+    value is `NULL`, which does not permit activating redo log archiving.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 必须在激活重做日志归档之前配置[`innodb_redo_log_archive_dirs`](innodb-parameters.html#sysvar_innodb_redo_log_archive_dirs)变量。默认值为`NULL`，不允许激活重做日志归档。
+- en: Notes
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'The archive directories that you specify must satisfy the following requirements.
+    (The requirements are enforced when redo log archiving is activated.):'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您指定的归档目录必须满足以下要求。（这些要求在激活重做日志归档时会被强制执行。）：
+- en: 'Directories must exist. Directories are not created by the redo log archive
+    process. Otherwise, the following error is returned:'
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 目录必须存在。目录不会被重做日志归档过程创建。否则，将返回以下错误：
+- en: 'ERROR 3844 (HY000): Redo log archive directory ''*`directory_path1`*'' does
+    not exist or is not a directory'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 错误 3844 (HY000)：重做日志归档目录'*`directory_path1`*'不存在���不是目录
+- en: 'Directories must not be world-accessible. This is to prevent the redo log data
+    from being exposed to unauthorized users on the system. Otherwise, the following
+    error is returned:'
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 目录不能对所有用户开放访问。这是为了防止重做日志数据暴露给系统上的未经授权用户。否则，将返回以下错误：
+- en: 'ERROR 3846 (HY000): Redo log archive directory ''*`directory_path1`*'' is accessible
+    to all OS users'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 错误 3846 (HY000)：重做日志归档目录'*`directory_path1`*'对所有操作系统用户可访问
+- en: 'Directories cannot be those defined by [`datadir`](server-system-variables.html#sysvar_datadir),
+    [`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir),
+    [`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories), [`innodb_log_group_home_dir`](innodb-parameters.html#sysvar_innodb_log_group_home_dir),
+    [`innodb_temp_tablespaces_dir`](innodb-parameters.html#sysvar_innodb_temp_tablespaces_dir),
+    [`innodb_tmpdir`](innodb-parameters.html#sysvar_innodb_tmpdir) [`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory),
+    or [`secure_file_priv`](server-system-variables.html#sysvar_secure_file_priv),
+    nor can they be parent directories or subdirectories of those directories. Otherwise,
+    an error similar to the following is returned:'
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 目录不能是由[`datadir`](server-system-variables.html#sysvar_datadir)、[`innodb_data_home_dir`](innodb-parameters.html#sysvar_innodb_data_home_dir)、[`innodb_directories`](innodb-parameters.html#sysvar_innodb_directories)、[`innodb_log_group_home_dir`](innodb-parameters.html#sysvar_innodb_log_group_home_dir)、[`innodb_temp_tablespaces_dir`](innodb-parameters.html#sysvar_innodb_temp_tablespaces_dir)、[`innodb_tmpdir`](innodb-parameters.html#sysvar_innodb_tmpdir)、[`innodb_undo_directory`](innodb-parameters.html#sysvar_innodb_undo_directory)或[`secure_file_priv`](server-system-variables.html#sysvar_secure_file_priv)定义的目录，也不能是这些目录的父目录或子目录。否则，将返回类似以下的错误：
+- en: 'ERROR 3845 (HY000): Redo log archive directory ''*`directory_path1`*'' is in,
+    under, or over server directory ''datadir'' - ''*`/path/to/data_directory`*'''
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 错误 3845 (HY000)：重做日志归档目录'*`directory_path1`*'在服务器目录'datadir' - '*`/path/to/data_directory`*'中、下或上
+- en: When a backup utility that supports redo log archiving initiates a backup, the
+    backup utility activates redo log archiving by invoking the `innodb_redo_log_archive_start()`
+    function.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当支持重做日志归档的备份实用程序启动备份时，备份实用程序通过调用`innodb_redo_log_archive_start()`函数激活重做日志归档。
+- en: 'If you are not using a backup utility that supports redo log archiving, redo
+    log archiving can also be activated manually, as shown:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您没有使用支持重做日志归档的备份实用程序，也可以手动激活重做日志归档，如下所示：
+- en: '[PRE7]'
+  id: totrans-63
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Or:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或：
+- en: '[PRE8]'
+  id: totrans-65
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Note
+  id: totrans-66
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The MySQL session that activates redo log archiving (using `innodb_redo_log_archive_start()`)
+    must remain open for the duration of the archiving. The same session must deactivate
+    redo log archiving (using `innodb_redo_log_archive_stop()`). If the session is
+    terminated before the redo log archiving is explicitly deactivated, the server
+    deactivates redo log archiving implicitly and removes the redo log archive file.
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 激活重做日志归档的MySQL会话（使用`innodb_redo_log_archive_start()`）必须保持打开状态以进行归档。相同的会话必须停用重做日志归档（使用`innodb_redo_log_archive_stop()`）。如果会话在显式停用重做日志归档之前终止，则服务器会隐式停用重做日志归档并删除重做日志归档文件。
+- en: where *`label`* is a label defined by [`innodb_redo_log_archive_dirs`](innodb-parameters.html#sysvar_innodb_redo_log_archive_dirs);
+    `subdir` is an optional argument for specifying a subdirectory of the directory
+    identified by *`label`* for saving the archive file; it must be a simple directory
+    name (no slash (/), backslash (\), or colon (:) is permitted). `subdir` can be
+    empty, null, or it can be left out.
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其中*`label`*是由[`innodb_redo_log_archive_dirs`](innodb-parameters.html#sysvar_innodb_redo_log_archive_dirs)定义的标签；`subdir`是用于指定保存归档文件的*`label`*标识的目录的子目录的可选参数；它必须是一个简单的目录名称（不允许斜杠（/）、反斜杠（\）或冒号（:））。`subdir`可以为空，为null，或者可以省略。
+- en: Only users with the [`INNODB_REDO_LOG_ARCHIVE`](privileges-provided.html#priv_innodb-redo-log-archive)
+    privilege can activate redo log archiving by invoking `innodb_redo_log_archive_start()`,
+    or deactivate it using `innodb_redo_log_archive_stop()`. The MySQL user running
+    the backup utility or the MySQL user activating and deactivating redo log archiving
+    manually must have this privilege.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有具有[`INNODB_REDO_LOG_ARCHIVE`](privileges-provided.html#priv_innodb-redo-log-archive)权限的用户才能通过调用`innodb_redo_log_archive_start()`激活重做日志归档，或使用`innodb_redo_log_archive_stop()`停用它。运行备份实用程序的MySQL用户或手动激活和停用重做日志归档的MySQL用户必须具有此权限。
+- en: The redo log archive file path is `*`directory_identified_by_label`*/[*`subdir`*/]archive.*`serverUUID`*.000001.log`,
+    where `*`directory_identified_by_label`*` is the archive directory identified
+    by the `*`label`*` argument for `innodb_redo_log_archive_start()`. `*`subdir`*`
+    is the optional argument used for `innodb_redo_log_archive_start()`.
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重做日志归档文件路径为`*`directory_identified_by_label`*/[*`subdir`*/]archive.*`serverUUID`*.000001.log`，其中`*`directory_identified_by_label`*`是由`innodb_redo_log_archive_start()`的`*`label`*`参数标识的归档目录。`*`subdir`*`是用于`innodb_redo_log_archive_start()`的可选参数。
+- en: 'For example, the full path and name for a redo log archive file appears similar
+    to the following:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，重做日志归档文件的完整路径和名称类似于以下内容：
+- en: '[PRE9]'
+  id: totrans-72
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: After the backup utility finishes copying `InnoDB` data files, it deactivates
+    redo log archiving by calling the `innodb_redo_log_archive_stop()` function.
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 备份工具完成复制`InnoDB`数据文件后，通过调用`innodb_redo_log_archive_stop()`函数来停用重做日志归档。
+- en: 'If you are not using a backup utility that supports redo log archiving, redo
+    log archiving can also be deactivated manually, as shown:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您没有使用支持重做日志归档的备份工具，也可以手动停用重做日志归档，如下所示：
+- en: '[PRE10]'
+  id: totrans-75
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'Or:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者：
+- en: '[PRE11]'
+  id: totrans-77
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: After the stop function completes successfully, the backup utility looks for
+    the relevant section of redo log data from the archive file and copies it into
+    the backup.
+  id: totrans-78
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在停止函数成功完成后，备份工具会从归档文件中查找相关部分的重做日志数据，并将其复制到备份中。
+- en: After the backup utility finishes copying the redo log data and no longer needs
+    the redo log archive file, it deletes the archive file.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 备份工具完成复制重做日志数据并不再需要重做日志归档文件后，会删除该归档文件。
+- en: Removal of the archive file is the responsibility of the backup utility in normal
+    situations. However, if the redo log archiving operation quits unexpectedly before
+    `innodb_redo_log_archive_stop()` is called, the MySQL server removes the file.
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在正常情况下，归档文件的删除是备份工具的责任。但是，如果重做日志归档操作在调用`innodb_redo_log_archive_stop()`之前意外退出，则MySQL服务器会删除该文件。
+- en: Performance Considerations
+  id: totrans-81
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 性能考虑
+- en: Activating redo log archiving typically has a minor performance cost due to
+    the additional write activity.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 激活重做日志归档通常会因为额外的写入活动而产生轻微的性能成本。
+- en: On Unix and Unix-like operating systems, the performance impact is typically
+    minor, assuming there is not a sustained high rate of updates. On Windows, the
+    performance impact is typically a bit higher, assuming the same.
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在Unix和类Unix操作系统上，性能影响通常较小，假设没有持续高速更新。在Windows上，性能影响通常略高，假设情况相同。
+- en: If there is a sustained high rate of updates and the redo log archive file is
+    on the same storage media as the redo log files, the performance impact may be
+    more significant due to compounded write activity.
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果更新速率持续较高且重做日志归档文件与重做日志文件位于相同存储介质上，则由于复合写入活动，性能影响可能更为显著。
+- en: If there is a sustained high rate of updates and the redo log archive file is
+    on slower storage media than the redo log files, performance is impacted arbitrarily.
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果更新速率持续较高且重做日志归档文件位于比重做日志文件更慢的存储介质上，则性能会受到任意影响。
+- en: Writing to the redo log archive file does not impede normal transactional logging
+    except in the case that the redo log archive file storage media operates at a
+    much slower rate than the redo log file storage media, and there is a large backlog
+    of persisted redo log blocks waiting to be written to the redo log archive file.
+    In this case, the transactional logging rate is reduced to a level that can be
+    managed by the slower storage media where the redo log archive file resides.
+  id: totrans-86
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 写入重做日志归档文件不会妨碍正常的事务日志记录，除非重做日志归档文件存储介质的速率远远低于重做日志文件存储介质，并且有大量持久化的重做日志块等待写入重做日志归档文件。在这种情况下，事务日志记录速率会降低到可以由重做日志归档文件所在的较慢存储介质管理的水平。
+- en: Disabling Redo Logging
+  id: totrans-87
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 禁用重做日志记录
+- en: As of MySQL 8.0.21, you can disable redo logging using the [`ALTER INSTANCE
+    DISABLE INNODB REDO_LOG`](alter-instance.html "15.1.5 ALTER INSTANCE Statement")
+    statement. This functionality is intended for loading data into a new MySQL instance.
+    Disabling redo logging speeds up data loading by avoiding redo log writes and
+    doublewrite buffering.
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 截至MySQL 8.0.21版本，您可以使用[`ALTER INSTANCE DISABLE INNODB REDO_LOG`](alter-instance.html
+    "15.1.5 ALTER INSTANCE Statement")语句禁用重做日志记录。此功能旨在将数据加载到新的MySQL实例中。禁用重做日志记录通过避免重做日志写入和双写缓冲来加快数据加载速度。
+- en: Warning
+  id: totrans-89
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: This feature is intended only for loading data into a new MySQL instance. *Do
+    not disable redo logging on a production system.* It is permitted to shutdown
+    and restart the server while redo logging is disabled, but an unexpected server
+    stoppage while redo logging is disabled can cause data loss and instance corruption.
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此功能仅用于将数据加载到新的 MySQL 实例中。*不要在生产系统上禁用重做日志*。允许在禁用重做日志时关闭和重新启动服务器，但在禁用重做日志时发生意外服务器停止可能会导致数据丢失和实例损坏。
+- en: 'Attempting to restart the server after an unexpected server stoppage while
+    redo logging is disabled is refused with the following error:'
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在禁用重做日志后尝试重新启动服务器会被拒绝，并显示以下错误：
+- en: '[PRE12]'
+  id: totrans-92
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: In this case, initialize a new MySQL instance and start the data loading procedure
+    again.
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，初始化一个新的 MySQL 实例并重新启动数据加载过程。
+- en: The [`INNODB_REDO_LOG_ENABLE`](privileges-provided.html#priv_innodb-redo-log-enable)
+    privilege is required to enable and disable redo logging.
+  id: totrans-94
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 启用和禁用重做日志需要[`INNODB_REDO_LOG_ENABLE`](privileges-provided.html#priv_innodb-redo-log-enable)权限。
+- en: The [`Innodb_redo_log_enabled`](server-status-variables.html#statvar_Innodb_redo_log_enabled)
+    status variable permits monitoring redo logging status.
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`Innodb_redo_log_enabled`](server-status-variables.html#statvar_Innodb_redo_log_enabled)状态变量允许监视重做日志状态。'
+- en: Cloning operations and redo log archiving are not permitted while redo logging
+    is disabled and vice versa.
+  id: totrans-96
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在禁用重做日志时，不允许克隆操作和重做日志归档，反之亦然。
+- en: An [`ALTER INSTANCE [ENABLE|DISABLE] INNODB REDO_LOG`](alter-instance.html "15.1.5 ALTER
+    INSTANCE Statement") operation requires an exclusive backup metadata lock, which
+    prevents other [`ALTER INSTANCE`](alter-instance.html "15.1.5 ALTER INSTANCE Statement")
+    operations from executing concurrently. Other [`ALTER INSTANCE`](alter-instance.html
+    "15.1.5 ALTER INSTANCE Statement") operations must wait for the lock to be released
+    before executing.
+  id: totrans-97
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`ALTER INSTANCE [ENABLE|DISABLE] INNODB REDO_LOG`](alter-instance.html "15.1.5 ALTER
+    INSTANCE 语句")操作需要独占备份元数据锁，这会阻止其他[`ALTER INSTANCE`](alter-instance.html "15.1.5 ALTER
+    INSTANCE 语句")操作并发执行。其他[`ALTER INSTANCE`](alter-instance.html "15.1.5 ALTER INSTANCE
+    语句")操作必须等待锁释放后才能执行。'
+- en: The following procedure demonstrates how to disable redo logging when loading
+    data into a new MySQL instance.
+  id: totrans-98
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下过程演示了在将数据加载到新的 MySQL 实例时如何禁用重做日志。
+- en: On the new MySQL instance, grant the [`INNODB_REDO_LOG_ENABLE`](privileges-provided.html#priv_innodb-redo-log-enable)
+    privilege to the user account responsible for disabling redo logging.
+  id: totrans-99
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在新的 MySQL 实例上，向负责禁用重做日志的用户帐户授予[`INNODB_REDO_LOG_ENABLE`](privileges-provided.html#priv_innodb-redo-log-enable)权限。
+- en: '[PRE13]'
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'As the `data_load_admin` user, disable redo logging:'
+  id: totrans-101
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 作为`data_load_admin`用户，禁用重做日志：
+- en: '[PRE14]'
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: Check the [`Innodb_redo_log_enabled`](server-status-variables.html#statvar_Innodb_redo_log_enabled)
+    status variable to ensure that redo logging is disabled.
+  id: totrans-103
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查[`Innodb_redo_log_enabled`](server-status-variables.html#statvar_Innodb_redo_log_enabled)状态变量，确保重做日志已禁用。
+- en: '[PRE15]'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Run the data load operation.
+  id: totrans-105
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 运行数据加载操作。
+- en: 'As the `data_load_admin` user, enable redo logging after the data load operation
+    finishes:'
+  id: totrans-106
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 作为`data_load_admin`用户，在数据加载操作完成后启用重做日志：
+- en: '[PRE16]'
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: Check the [`Innodb_redo_log_enabled`](server-status-variables.html#statvar_Innodb_redo_log_enabled)
+    status variable to ensure that redo logging is enabled.
+  id: totrans-108
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查[`Innodb_redo_log_enabled`](server-status-variables.html#statvar_Innodb_redo_log_enabled)状态变量，确保重做日志已启用。
+- en: '[PRE17]'
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: Related Topics
+  id: totrans-110
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 相关主题
+- en: '[Redo Log Configuration](innodb-init-startup-configuration.html#innodb-startup-log-file-configuration
+    "Redo Log Configuration")'
+  id: totrans-111
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[重做日志配置](innodb-init-startup-configuration.html#innodb-startup-log-file-configuration
+    "重做日志配置")'
+- en: '[Section 10.5.4, “Optimizing InnoDB Redo Logging”](optimizing-innodb-logging.html
+    "10.5.4 Optimizing InnoDB Redo Logging")'
+  id: totrans-112
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[第 10.5.4 节，“优化 InnoDB 重做日志”](optimizing-innodb-logging.html "10.5.4 优化 InnoDB
+    重做日志")'
+- en: '[Redo Log Encryption](innodb-data-encryption.html#innodb-data-encryption-redo-log
+    "Redo Log Encryption")'
+  id: totrans-113
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[重做日志加密](innodb-data-encryption.html#innodb-data-encryption-redo-log "重做日志加密")'

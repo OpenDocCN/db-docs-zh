@@ -1,0 +1,365 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-log-statistics.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-log-statistics.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-log-statistics.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-log-statistics.html)
+- en: 25.6.3.3 Using CLUSTERLOG STATISTICS in the NDB Cluster Management Client
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.6.3.3 在 NDB Cluster 管理客户端中使用 CLUSTERLOG STATISTICS
+- en: The [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") management
+    client's [`CLUSTERLOG STATISTICS`](mysql-cluster-logging-management-commands.html
+    "25.6.3.1 NDB Cluster Logging Management Commands") command can provide a number
+    of useful statistics in its output. Counters providing information about the state
+    of the cluster are updated at 5-second reporting intervals by the transaction
+    coordinator (TC) and the local query handler (LQH), and written to the cluster
+    log.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`NDB`](mysql-cluster.html "第 25 章 MySQL NDB Cluster 8.0")管理客户端的[`CLUSTERLOG
+    STATISTICS`](mysql-cluster-logging-management-commands.html "25.6.3.1 NDB Cluster
+    Logging Management Commands")命令可以在其输出中提供许多有用的统计信息。提供有关集群状态的计数器每 5 秒由事务协调器 (TC)
+    和本地查询处理程序 (LQH) 更新一次，并写入集群日志。'
+- en: '**Transaction coordinator statistics. ** Each transaction has one transaction
+    coordinator, which is chosen by one of the following methods:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**事务协调器统计信息。** 每个事务都有一个事务协调器，可以通过以下方法之一选择：'
+- en: In a round-robin fashion
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 以轮询方式
+- en: By communication proximity
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过通信接近度
+- en: By supplying a data placement hint when the transaction is started
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在事务启动时提供数据放置提示
+- en: Note
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: You can determine which TC selection method is used for transactions started
+    from a given SQL node using the [`ndb_optimized_node_selection`](mysql-cluster-options-variables.html#sysvar_ndb_optimized_node_selection)
+    system variable.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 你可以通过[`ndb_optimized_node_selection`](mysql-cluster-options-variables.html#sysvar_ndb_optimized_node_selection)系统变量确定从给定
+    SQL 节点开始的事务使用哪种 TC 选择方法。
+- en: 'All operations within the same transaction use the same transaction coordinator,
+    which reports the following statistics:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 同一事务内的所有操作使用相同的事务协调器，报告以下统计信息：
+- en: '**Trans count. ** This is the number transactions started in the last interval
+    using this TC as the transaction coordinator. Any of these transactions may have
+    committed, have been aborted, or remain uncommitted at the end of the reporting
+    interval.'
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**事务计数。** 这是在上一个间隔内使用此 TC 作为事务协调器启动的事务数量。这些事务中的任何一个可能已提交、已中止或在报告间隔结束时仍未提交。'
+- en: Note
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Transactions do not migrate between TCs.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 事务不会在 TC 之间迁移。
+- en: '**Commit count. ** This is the number of transactions using this TC as the
+    transaction coordinator that were committed in the last reporting interval. Because
+    some transactions committed in this reporting interval may have started in a previous
+    reporting interval, it is possible for `Commit count` to be greater than `Trans
+    count`.'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**提交计数。** 这是在上一个报告间隔内使用此 TC 作为事务协调器提交的事务数量。因为一些在此报告间隔内提交的事务可能在之前的报告间隔内启动，所以`提交计数`可能大于`事务计数`。'
+- en: '**Read count. ** This is the number of primary key read operations using this
+    TC as the transaction coordinator that were started in the last reporting interval,
+    including simple reads. This count also includes reads performed as part of unique
+    index operations. A unique index read operation generates 2 primary key read operations—1
+    for the hidden unique index table, and 1 for the table on which the read takes
+    place.'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**读取计数。** 这是在上一个报告间隔内使用此 TC 作为事务协调器启动的主键读取操作次数，包括简单读取。此计数还包括作为唯一索引操作的读取。唯一索引读取操作生成
+    2 个主键读取操作——一个用于隐藏的唯一索引表，一个用于读取发生的表。'
+- en: '**Simple read count. ** This is the number of simple read operations using
+    this TC as the transaction coordinator that were started in the last reporting
+    interval.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**简单读取计数。** 这是在上一个报告间隔内使用此 TC 作为事务协调器启动的简单读取操作次数。'
+- en: '**Write count. ** This is the number of primary key write operations using
+    this TC as the transaction coordinator that were started in the last reporting
+    interval. This includes all inserts, updates, writes and deletes, as well as writes
+    performed as part of unique index operations.'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**写入计数。** 这是在上一个报告间隔内以此 TC 作为事务协调器启动的主键写入操作次数。这包括所有插入、更新、写入和删除操作，以及作为唯一索引操作的写入。'
+- en: Note
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: A unique index update operation can generate multiple PK read and write operations
+    on the index table and on the base table.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 唯一索引更新操作可能在索引表和基表上生成多个主键读取和写入操作。
+- en: '**AttrInfoCount. ** This is the number of 32-bit data words received in the
+    last reporting interval for primary key operations using this TC as the transaction
+    coordinator. For reads, this is proportional to the number of columns requested.
+    For inserts and updates, this is proportional to the number of columns written,
+    and the size of their data. For delete operations, this is usually zero.'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**AttrInfoCount. ** 这是在上一个报告间隔中接收的32位数据字的数量，用于使用此TC作为事务协调器的主键操作。对于读取操作，这与请求的列数成比例。对于插入和更新操作，这与写入的列数以及它们的数据大小成比例。对于删除操作，这通常为零。'
+- en: Unique index operations generate multiple PK operations and so increase this
+    count. However, data words sent to describe the PK operation itself, and the key
+    information sent, are *not* counted here. Attribute information sent to describe
+    columns to read for scans, or to describe ScanFilters, is also not counted in
+    `AttrInfoCount`.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 唯一索引操作会生成多个PK操作，因此会增加此计数。但是，用于描述PK操作本身的数据字以及发送的关键信息在此处*不*计入。用于描述扫描读取的列或描述ScanFilters的属性信息也不计入
+    `AttrInfoCount`。
+- en: '**Concurrent Operations. ** This is the number of primary key or scan operations
+    using this TC as the transaction coordinator that were started during the last
+    reporting interval but that were not completed. Operations increment this counter
+    when they are started and decrement it when they are completed; this occurs after
+    the transaction commits. Dirty reads and writes—as well as failed operations—decrement
+    this counter.'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Concurrent Operations. ** 这是在上一个报告间隔中启动但未完成的使用此TC作为事务协调器的主键或扫描操作的数量。当操作启动时，此计数器会递增，并在操作完成后递减；这发生在事务提交后。脏读和写操作以及失败的操作会递减此计数器。'
+- en: The maximum value that `Concurrent Operations` can have is the maximum number
+    of operations that a TC block can support; currently, this is `(2 * MaxNoOfConcurrentOperations)
+    + 16 + MaxNoOfConcurrentTransactions`. (For more information about these configuration
+    parameters, see the *Transaction Parameters* section of [Section 25.4.3.6, “Defining
+    NDB Cluster Data Nodes”](mysql-cluster-ndbd-definition.html "25.4.3.6 Defining
+    NDB Cluster Data Nodes").)
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`Concurrent Operations` 可以达到的最大值是 TC 块可以支持的操作数的最大值；目前，这是 `(2 * MaxNoOfConcurrentOperations)
+    + 16 + MaxNoOfConcurrentTransactions`。（有关这些配置参数的更多信息，请参见[25.4.3.6节，“定义NDB集群数据节点”](mysql-cluster-ndbd-definition.html
+    "25.4.3.6 Defining NDB Cluster Data Nodes")的*事务参数*部分。）'
+- en: '**Abort count. ** This is the number of transactions using this TC as the transaction
+    coordinator that were aborted during the last reporting interval. Because some
+    transactions that were aborted in the last reporting interval may have started
+    in a previous reporting interval, `Abort count` can sometimes be greater than
+    `Trans count`.'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Abort count. ** 这是在上一个报告间隔中被中止的使用此TC作为事务协调器的事务的数量。因为在上一个报告间隔中被中止的一些事务可能在先前的报告间隔中开始，`Abort
+    count` 有时可能大于 `Trans count`。'
+- en: '**Scans. ** This is the number of table scans using this TC as the transaction
+    coordinator that were started during the last reporting interval. This does not
+    include range scans (that is, ordered index scans).'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Scans. ** 这是在上一个报告间隔中启动的使用此TC作为事务协调器的表扫描的数量。这不包括范围扫描（即，有序索引扫描）。'
+- en: '**Range scans. ** This is the number of ordered index scans using this TC as
+    the transaction coordinator that were started in the last reporting interval.'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Range scans. ** 这是在上一个报告间隔中启动的使用此TC作为事务协调器的有序索引扫描的数量。'
+- en: '**Local reads. ** This is the number of primary-key read operations performed
+    using a transaction coordinator on a node that also holds the primary fragment
+    replica of the record. This count can also be obtained from the `LOCAL_READS`
+    counter in the [`ndbinfo.counters`](mysql-cluster-ndbinfo-counters.html "25.6.16.12 The
+    ndbinfo counters Table") table.'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**Local reads. ** 这是在一个节点上使用事务协调器执行的主键读取操作的数量，该节点还保存记录的主键片段副本。此计数也可以从[`ndbinfo.counters`](mysql-cluster-ndbinfo-counters.html
+    "25.6.16.12 The ndbinfo counters Table")表中的 `LOCAL_READS` 计数器中获取。'
+- en: '**Local writes. ** This contains the number of primary-key read operations
+    that were performed using a transaction coordinator on a node that also holds
+    the primary fragment replica of the record. This count can also be obtained from
+    the `LOCAL_WRITES` counter in the [`ndbinfo.counters`](mysql-cluster-ndbinfo-counters.html
+    "25.6.16.12 The ndbinfo counters Table") table.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**本地写入。** 这包含使用事务协调器在同时还持有记录主要片段副本的节点上执行的主键读取操作的数量。此计数也可以从[`ndbinfo.counters`](mysql-cluster-ndbinfo-counters.html
+    "25.6.16.12 The ndbinfo counters Table")表中的`LOCAL_WRITES`计数器中获取。'
+- en: '**Local query handler statistics (Operations). ** There is 1 cluster event
+    per local query handler block (that is, 1 per data node process). Operations are
+    recorded in the LQH where the data they are operating on resides.'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**本地查询处理程序统计信息（操作）。** 每个本地查询处理程序块（即每个数据节点进程）有1个集群事件。操作记录在数据所在的LQH中。'
+- en: Note
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: A single transaction may operate on data stored in multiple LQH blocks.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 单个事务可能操作存储在多个LQH块中的数据。
+- en: The `Operations` statistic provides the number of local operations performed
+    by this LQH block in the last reporting interval, and includes all types of read
+    and write operations (insert, update, write, and delete operations). This also
+    includes operations used to replicate writes. For example, in a cluster with two
+    fragment replicas, the write to the primary fragment replica is recorded in the
+    primary LQH, and the write to the backup is recorded in the backup LQH. Unique
+    key operations may result in multiple local operations; however, this does *not*
+    include local operations generated as a result of a table scan or ordered index
+    scan, which are not counted.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`Operations`统计数据提供了此LQH块在上一个报告间隔中执行的本地操作数量，并包括所有类型的读取和写入操作（插入、更新、写入和删除操作）。这还包括用于复制写入的操作。例如，在具有两个片段副本的集群中，对主要片段副本的写入记录在主LQH中，对备份的写入记录在备份LQH中。唯一键操作可能导致多个本地操作；但是，这*不*包括由于表扫描或有序索引扫描而生成的本地操作，这些操作不计入统计。'
+- en: '**Process scheduler statistics. ** In addition to the statistics reported by
+    the transaction coordinator and local query handler, each [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") process has a scheduler which
+    also provides useful metrics relating to the performance of an NDB Cluster. This
+    scheduler runs in an infinite loop; during each loop the scheduler performs the
+    following tasks:'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**进程调度器统计信息。** 除了事务协调器和本地查询处理程序报告的统计信息外，每个[**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon")进程都有一个调度程序，还提供与NDB Cluster性能相关的有用指标。此调度程序在无限循环中运行；在每个循环期间，调度程序执行以下任务：'
+- en: Read any incoming messages from sockets into a job buffer.
+  id: totrans-33
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从套接字中读取任何传入的消息到作业缓冲区中。
+- en: Check whether there are any timed messages to be executed; if so, put these
+    into the job buffer as well.
+  id: totrans-34
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查是否有任何定时消息需要执行；如果有，也将这些放入作业缓冲区中。
+- en: Execute (in a loop) any messages in the job buffer.
+  id: totrans-35
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行（循环执行）作业缓冲区中的任何消息。
+- en: Send any distributed messages that were generated by executing the messages
+    in the job buffer.
+  id: totrans-36
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 发送通过执行作业缓冲区中的消息生成的任何分布式消息。
+- en: Wait for any new incoming messages.
+  id: totrans-37
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 等待任何新到来的消息。
+- en: 'Process scheduler statistics include the following:'
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 进程调度器统计信息包括以下内容：
+- en: '**Mean Loop Counter. ** This is the number of loops executed in the third step
+    from the preceding list. This statistic increases in size as the utilization of
+    the TCP/IP buffer improves. You can use this to monitor changes in performance
+    as you add new data node processes.'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**平均循环计数器。** 这是从前述列表的第三步中执行的循环次数。随着TCP/IP缓冲区的利用率提高，此统计数据会增加。您可以使用此功能来监视随着添加新数据节点进程而发生的性能变化。'
+- en: '**Mean send size and Mean receive size. ** These statistics enable you to gauge
+    the efficiency of, respectively writes and reads between nodes. The values are
+    given in bytes. Higher values mean a lower cost per byte sent or received; the
+    maximum value is 64K.'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**平均发送大小和平均接收大小。** 这些统计数据使您能够衡量节点之间的写入和读取的效率。这些值以字节为单位给出。较高的值意味着每个字节发送或接收的成本较低；最大值为64K。'
+- en: 'To cause all cluster log statistics to be logged, you can use the following
+    command in the [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    management client:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要导致记录所有集群日志统计信息，您可以在[`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster
+    8.0")管理客户端中使用以下命令：
+- en: '[PRE0]'
+  id: totrans-42
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Note
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Setting the threshold for `STATISTICS` to 15 causes the cluster log to become
+    very verbose, and to grow quite rapidly in size, in direct proportion to the number
+    of cluster nodes and the amount of activity in the NDB Cluster.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 将`STATISTICS`的阈值设置为15会导致集群日志变得非常冗长，并且随着集群节点数量和NDB集群中活动量的增加而迅速增长。
+- en: For more information about NDB Cluster management client commands relating to
+    logging and reporting, see [Section 25.6.3.1, “NDB Cluster Logging Management
+    Commands”](mysql-cluster-logging-management-commands.html "25.6.3.1 NDB Cluster
+    Logging Management Commands").
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关与日志记录和报告相关的NDB集群管理客户端命令的更多信息，请参见[第25.6.3.1节，“NDB集群日志管理命令”](mysql-cluster-logging-management-commands.html
+    "25.6.3.1 NDB集群日志管理命令")。

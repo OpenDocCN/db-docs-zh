@@ -1,0 +1,239 @@
+- en: 17.11.2 File Space Management
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.11.2 文件空间管理
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-file-space.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-file-space.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-file-space.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-file-space.html)
+- en: The data files that you define in the configuration file using the [`innodb_data_file_path`](innodb-parameters.html#sysvar_innodb_data_file_path)
+    configuration option form the `InnoDB` [system tablespace](glossary.html#glos_system_tablespace
+    "system tablespace"). The files are logically concatenated to form the system
+    tablespace. There is no striping in use. You cannot define where within the system
+    tablespace your tables are allocated. In a newly created system tablespace, `InnoDB`
+    allocates space starting from the first data file.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您在配置文件中使用[`innodb_data_file_path`](innodb-parameters.html#sysvar_innodb_data_file_path)配置选项定义的数据文件形成`InnoDB`[系统表空间](glossary.html#glos_system_tablespace
+    "system tablespace")。这些文件在逻辑上连接在一起形成系统表空间。没有使用条带化。您无法定义表在系统表空间内的分配位置。在新创建的系统表空间中，`InnoDB`从第一个数据文件开始分配空间。
+- en: To avoid the issues that come with storing all tables and indexes inside the
+    system tablespace, you can enable the [`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)
+    configuration option (the default), which stores each newly created table in a
+    separate tablespace file (with extension `.ibd`). For tables stored this way,
+    there is less fragmentation within the disk file, and when the table is truncated,
+    the space is returned to the operating system rather than still being reserved
+    by InnoDB within the system tablespace. For more information, see [Section 17.6.3.2,
+    “File-Per-Table Tablespaces”](innodb-file-per-table-tablespaces.html "17.6.3.2 File-Per-Table
+    Tablespaces").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了避免将所有表和索引存储在系统表空间内带来的问题，您可以启用[`innodb_file_per_table`](innodb-parameters.html#sysvar_innodb_file_per_table)配置选项（默认情况下），该选项将每个新创建的表存储在单独的表空间文件中（扩展名为`.ibd`）。以这种方式存储的表在磁盘文件内部的碎片较少，当表被截断时，空间将被返回给操作系统，而不是仍然被InnoDB在系统表空间内保留。更多信息，请参阅[第17.6.3.2节，“每表一个表空间”](innodb-file-per-table-tablespaces.html
+    "17.6.3.2 每表一个表空间")。
+- en: You can also store tables in [general tablespaces](glossary.html#glos_general_tablespace
+    "general tablespace"). General tablespaces are shared tablespaces created using
+    [`CREATE TABLESPACE`](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")
+    syntax. They can be created outside of the MySQL data directory, are capable of
+    holding multiple tables, and support tables of all row formats. For more information,
+    see [Section 17.6.3.3, “General Tablespaces”](general-tablespaces.html "17.6.3.3 General
+    Tablespaces").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以将表存储在[通用表空间](glossary.html#glos_general_tablespace "general tablespace")中。通用表空间是使用[`CREATE
+    TABLESPACE`](create-tablespace.html "15.1.21 CREATE TABLESPACE Statement")语法创建的共享表空间。它们可以在MySQL数据目录之外创建，能够容纳多个表，并支持所有行格式的表。更多信息，请参阅[第17.6.3.3节，“通用表空间”](general-tablespaces.html
+    "17.6.3.3 通用表空间")。
+- en: Pages, Extents, Segments, and Tablespaces
+  id: totrans-5
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 页、区、段和表空间
+- en: Each tablespace consists of database [pages](glossary.html#glos_page "page").
+    Every tablespace in a MySQL instance has the same [page size](glossary.html#glos_page_size
+    "page size"). By default, all tablespaces have a page size of 16KB; you can reduce
+    the page size to 8KB or 4KB by specifying the [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    option when you create the MySQL instance. You can also increase the page size
+    to 32KB or 64KB. For more information, refer to the [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    documentation.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个表空间由数据库[页](glossary.html#glos_page "page")组成。MySQL实例中的每个表空间具有相同的[页大小](glossary.html#glos_page_size
+    "page size")。默认情况下，所有表空间的页大小为16KB；您可以通过在创建MySQL实例时指定[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)选项来将页大小减小到8KB或4KB。您还可以将页大小增加到32KB或64KB。更多信息，请参考[`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)文档。
+- en: The pages are grouped into [extents](glossary.html#glos_extent "extent") of
+    size 1MB for pages up to 16KB in size (64 consecutive 16KB pages, or 128 8KB pages,
+    or 256 4KB pages). For a page size of 32KB, extent size is 2MB. For page size
+    of 64KB, extent size is 4MB. The “files” inside a tablespace are called [segments](glossary.html#glos_segment
+    "segment") in `InnoDB`. (These segments are different from the [rollback segment](glossary.html#glos_rollback_segment
+    "rollback segment"), which actually contains many tablespace segments.)
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 页面被分组为大小为1MB的[extent](glossary.html#glos_extent "extent")，用于大小不超过16KB的页面（64个连续的16KB页面，或128个8KB页面，或256个4KB页面）。对于32KB的页面大小，extent大小为2MB。对于64KB的页面大小，extent大小为4MB。表空间中的“文件”被称为`InnoDB`中的[segments](glossary.html#glos_segment
+    "segment")。（这些段与实际包含许多表空间段的[rollback segment](glossary.html#glos_rollback_segment
+    "rollback segment")不同。）
+- en: When a segment grows inside the tablespace, `InnoDB` allocates the first 32
+    pages to it one at a time. After that, `InnoDB` starts to allocate whole extents
+    to the segment. `InnoDB` can add up to 4 extents at a time to a large segment
+    to ensure good sequentiality of data.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当段在表空间内增长时，`InnoDB`逐个为其分配前32页。之后，`InnoDB`开始为段分配整个extent。`InnoDB`可以一次向大段添加多达4个extent，以确保数据的良好顺序性。
+- en: Two segments are allocated for each index in `InnoDB`. One is for nonleaf nodes
+    of the [B-tree](glossary.html#glos_b_tree "B-tree"), the other is for the leaf
+    nodes. Keeping the leaf nodes contiguous on disk enables better sequential I/O
+    operations, because these leaf nodes contain the actual table data.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在`InnoDB`中，每个索引分配两个段。一个用于[B-tree](glossary.html#glos_b_tree "B-tree")的非叶节点，另一个用于叶节点。在磁盘上保持叶节点连续使得更好的顺序I/O操作成为可能，因为这些叶节点包含实际的表数据。
+- en: Some pages in the tablespace contain bitmaps of other pages, and therefore a
+    few extents in an `InnoDB` tablespace cannot be allocated to segments as a whole,
+    but only as individual pages.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表空间中的一些页面包含其他页面的位图，因此`InnoDB`表空间中的一些extent无法作为整体分配给段，而只能作为单个页面分配。
+- en: When you ask for available free space in the tablespace by issuing a [`SHOW
+    TABLE STATUS`](show-table-status.html "15.7.7.38 SHOW TABLE STATUS Statement")
+    statement, `InnoDB` reports the extents that are definitely free in the tablespace.
+    `InnoDB` always reserves some extents for cleanup and other internal purposes;
+    these reserved extents are not included in the free space.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过发出[`SHOW TABLE STATUS`](show-table-status.html "15.7.7.38 SHOW TABLE STATUS
+    Statement")语句来查询表空间中的可用空闲空间时，`InnoDB`报告表空间中明确空闲的extent。`InnoDB`始终保留一些extent用于清理和其他内部目的；这些保留的extent不包括在空闲空间中。
+- en: When you delete data from a table, `InnoDB` contracts the corresponding B-tree
+    indexes. Whether the freed space becomes available for other users depends on
+    whether the pattern of deletes frees individual pages or extents to the tablespace.
+    Dropping a table or deleting all rows from it is guaranteed to release the space
+    to other users, but remember that deleted rows are physically removed only by
+    the [purge](glossary.html#glos_purge "purge") operation, which happens automatically
+    some time after they are no longer needed for transaction rollbacks or consistent
+    reads. (See [Section 17.3, “InnoDB Multi-Versioning”](innodb-multi-versioning.html
+    "17.3 InnoDB Multi-Versioning").)
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您从表中删除数据时，`InnoDB`会收缩相应的B-tree索引。释放的空间是否可供其他用户使用取决于删除模式是否将单个页面或extent释放到表空间。删除表或从表中删除所有行将确保将空间释放给其他用户，但请记住，删除的行只有在不再需要进行事务回滚或一致性读取后一段时间自动执行的[purge](glossary.html#glos_purge
+    "purge")操作才会被物理删除。（参见[Section 17.3，“InnoDB多版本”](innodb-multi-versioning.html "17.3 InnoDB
+    Multi-Versioning").）
+- en: Configuring the Percentage of Reserved File Segment Pages
+  id: totrans-13
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置保留文件段页面的百分比
+- en: The [`innodb_segment_reserve_factor`](innodb-parameters.html#sysvar_innodb_segment_reserve_factor)
+    variable, introduced in MySQL 8.0.26, is an advanced feature that permits defining
+    the percentage of tablespace file segment pages reserved as empty pages. A percentage
+    of pages are reserved for future growth so that pages in the B-tree can be allocated
+    contiguously. The ability to modify the percentage of reserved pages permits fine-tuning
+    `InnoDB` to address issues of data fragmentation or inefficient use of storage
+    space.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_segment_reserve_factor`](innodb-parameters.html#sysvar_innodb_segment_reserve_factor)变量，引入于MySQL
+    8.0.26，是一个高级功能，允许定义作为空页面保留的表空间文件段页面的百分比。保留一定比例的页面用于未来增长，以便B-tree中的页面可以连续分配。修改保留页面百分比的能力允许对`InnoDB`进行微调，以解决数据碎片化或存储空间的低效使用问题。'
+- en: The setting is applicable to file-per-table and general tablespaces. The [`innodb_segment_reserve_factor`](innodb-parameters.html#sysvar_innodb_segment_reserve_factor)
+    default setting is 12.5 percent, which is the same percentage of pages reserved
+    in previous MySQL releases.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该设置适用于每表文件和通用表空间。[`innodb_segment_reserve_factor`](innodb-parameters.html#sysvar_innodb_segment_reserve_factor)
+    的默认设置为12.5%，与之前的MySQL版本中保留的页面百分比相同。
+- en: 'The [`innodb_segment_reserve_factor`](innodb-parameters.html#sysvar_innodb_segment_reserve_factor)
+    variable is dynamic and can be configured using a [`SET`](set.html "13.3.6 The
+    SET Type") statement. For example:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`innodb_segment_reserve_factor`](innodb-parameters.html#sysvar_innodb_segment_reserve_factor)
+    变量是动态的，可以使用 [`SET`](set.html "13.3.6 SET类型") 语句进行配置。例如：'
+- en: '[PRE0]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: How Pages Relate to Table Rows
+  id: totrans-18
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 页面与表行的关系
+- en: For for 4KB, 8KB, 16KB, and 32KB [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    settings, the maximum row length is slightly less than half a database page size.
+    For example, the maximum row length is slightly less than 8KB for the default
+    16KB `InnoDB` page size. For a 64KB [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    setting, the maximum row length is slightly less than 16KB.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于4KB、8KB、16KB和32KB的 [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    设置，最大行长度略小于半个数据库页面大小。例如，默认的16KB `InnoDB` 页面大小的最大行长度略小于8KB。对于64KB的 [`innodb_page_size`](innodb-parameters.html#sysvar_innodb_page_size)
+    设置，最大行长度略小于16KB。
+- en: 'If a row does not exceed the maximum row length, all of it is stored locally
+    within the page. If a row exceeds the maximum row length, [variable-length columns](glossary.html#glos_variable_length_type
+    "variable-length type") are chosen for external off-page storage until the row
+    fits within the maximum row length limit. External off-page storage for variable-length
+    columns differs by row format:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果行未超过最大行长度，则所有内容都存储在页面内。如果行超过最大行长度，[变长列](glossary.html#glos_variable_length_type
+    "变长类型") 被选择进行外部页存储，直到行符合最大行长度限制。变长列的外部页存储根据行格式而异：
+- en: '*COMPACT and REDUNDANT Row Formats*'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*紧凑和冗余行格式*'
+- en: When a variable-length column is chosen for external off-page storage, `InnoDB`
+    stores the first 768 bytes locally in the row, and the rest externally into overflow
+    pages. Each such column has its own list of overflow pages. The 768-byte prefix
+    is accompanied by a 20-byte value that stores the true length of the column and
+    points into the overflow list where the rest of the value is stored. See [Section 17.10,
+    “InnoDB Row Formats”](innodb-row-format.html "17.10 InnoDB Row Formats").
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当选择变长列进行外部页存储时，`InnoDB` 将前768字节存储在行内，其余部分存储在溢出页中。每个这样的列都有自己的溢出页列表。768字节前缀伴随着一个20字节的值，存储列的真实长度，并指向溢出列表，其中存储了值的其余部分。参见
+    [第17.10节，“InnoDB行格式”](innodb-row-format.html "17.10 InnoDB行格式")。
+- en: '*DYNAMIC and COMPRESSED Row Formats*'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*动态和压缩行格式*'
+- en: When a variable-length column is chosen for external off-page storage, `InnoDB`
+    stores a 20-byte pointer locally in the row, and the rest externally into overflow
+    pages. See [Section 17.10, “InnoDB Row Formats”](innodb-row-format.html "17.10 InnoDB
+    Row Formats").
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当选择变长列进行外部页存储时，`InnoDB` 在行内存储一个20字节的指针，其余部分存储在溢出页中。参见 [第17.10节，“InnoDB行格式”](innodb-row-format.html
+    "17.10 InnoDB行格式")。
+- en: '[`LONGBLOB`](blob.html "13.3.4 The BLOB and TEXT Types") and [`LONGTEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types") columns must be less than 4GB, and the total
+    row length, including [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") and
+    [`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types") columns, must be less than
+    4GB.'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`LONGBLOB`](blob.html "13.3.4 BLOB和TEXT类型") 和 [`LONGTEXT`](blob.html "13.3.4 BLOB和TEXT类型")
+    列必须小于4GB，包括 [`BLOB`](blob.html "13.3.4 BLOB和TEXT类型") 和 [`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")
+    列在内的总行长度必须小于4GB。'

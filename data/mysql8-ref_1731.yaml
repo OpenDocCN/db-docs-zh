@@ -1,0 +1,190 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-add-node-basics.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-add-node-basics.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-add-node-basics.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-online-add-node-basics.html)
+- en: '25.6.7.2 Adding NDB Cluster Data Nodes Online: Basic procedure'
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.6.7.2 在线添加 NDB Cluster 数据节点：基本过程
+- en: 'In this section, we list the basic steps required to add new data nodes to
+    an NDB Cluster. This procedure applies whether you are using [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") binaries
+    for the data node processes. For a more detailed example, see [Section 25.6.7.3,
+    “Adding NDB Cluster Data Nodes Online: Detailed Example”](mysql-cluster-online-add-node-example.html
+    "25.6.7.3 Adding NDB Cluster Data Nodes Online: Detailed Example").'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '在本节中，我们列出了向 NDB Cluster 添加新数据节点所需的基本步骤。此过程适用于数据节点进程使用 [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") 或 [**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)") 二进制文件。有关更详细的示例，请参见
+    [第 25.6.7.3 节，“在线添加 NDB Cluster 数据节点：详细示例”](mysql-cluster-online-add-node-example.html
+    "25.6.7.3 Adding NDB Cluster Data Nodes Online: Detailed Example")。'
+- en: 'Assuming that you already have a running NDB Cluster, adding data nodes online
+    requires the following steps:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您已经有一个运行中的 NDB Cluster，添加在线数据节点需要以下步骤：
+- en: Edit the cluster configuration `config.ini` file, adding new `[ndbd]` sections
+    corresponding to the nodes to be added. In the case where the cluster uses multiple
+    management servers, these changes need to be made to all `config.ini` files used
+    by the management servers.
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 编辑集群配置 `config.ini` 文件，添加新的与要添加的节点对应的 `[ndbd]` 部分。如果集群使用多个管理服务器，则需要对所有管理服务器使用的
+    `config.ini` 文件进行更改。
+- en: You must be careful that node IDs for any new data nodes added in the `config.ini`
+    file do not overlap node IDs used by existing nodes. In the event that you have
+    API nodes using dynamically allocated node IDs and these IDs match node IDs that
+    you want to use for new data nodes, it is possible to force any such API nodes
+    to “migrate”, as described later in this procedure.
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您必须小心，确保在 `config.ini` 文件中添加的任何新数据节点的节点 ID 不重叠使用现有节点的节点 ID。如果您有使用动态分配的节点 ID
+    的 API 节点，并且这些 ID 与您要用于新数据节点的节点 ID 匹配，那么可以强制任何此类 API 节点“迁移”，如本过程后面所述。
+- en: Perform a rolling restart of all NDB Cluster management servers.
+  id: totrans-6
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对所有 NDB Cluster 管理服务器执行滚动重启。
+- en: Important
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: All management servers must be restarted with the [`--reload`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_reload)
+    or [`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial)
+    option to force the reading of the new configuration.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 所有管理服务器必须使用 [`--reload`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_reload)
+    或 [`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial)
+    选项重新启动，以强制读取新配置。
+- en: Perform a rolling restart of all existing NDB Cluster data nodes. It is not
+    necessary (or usually even desirable) to use [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    when restarting the existing data nodes.
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对所有现有的 NDB Cluster 数据节点执行滚动重启。在重新启动现有数据节点时，通常不需要（甚至不建议）使用[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)。
+- en: If you are using API nodes with dynamically allocated IDs matching any node
+    IDs that you wish to assign to new data nodes, you must restart all API nodes
+    (including SQL nodes) before restarting any of the data nodes processes in this
+    step. This causes any API nodes with node IDs that were previously not explicitly
+    assigned to relinquish those node IDs and acquire new ones.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您正在使用具有动态分配的 ID 的 API 节点，这些 ID 与您希望分配给新数据节点的任何节点 ID 匹配，那么在重新启动此步骤中的任何数据节点进程之前，必须重新启动所有
+    API 节点（包括 SQL 节点）。这将导致任何具有先前未明确分配的节点 ID 的 API 节点放弃这些节点 ID 并获取新的节点 ID。
+- en: Perform a rolling restart of any SQL or API nodes connected to the NDB Cluster.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对连接到 NDB Cluster 的任何 SQL 或 API 节点执行滚动重启。
+- en: Start the new data nodes.
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动新数据节点。
+- en: The new data nodes may be started in any order. They can also be started concurrently,
+    as long as they are started after the rolling restarts of all existing data nodes
+    have been completed, and before proceeding to the next step.
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 新数据节点可以以任何顺序启动。只要在所有现有数据节点的滚动重启完成后启动它们，并在进行下一步之前启动它们即可。
+- en: Execute one or more [`CREATE NODEGROUP`](mysql-cluster-mgm-client-commands.html#ndbclient-create-nodegroup)
+    commands in the NDB Cluster management client to create the new node group or
+    node groups to which the new data nodes belong.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在NDB Cluster管理客户端中执行一个或多个[`CREATE NODEGROUP`](mysql-cluster-mgm-client-commands.html#ndbclient-create-nodegroup)命令，以创建新数据节点所属的新节点组或节点组。
+- en: Redistribute the cluster's data among all data nodes, including the new ones.
+    Normally this is done by issuing an [`ALTER TABLE ... ALGORITHM=INPLACE, REORGANIZE
+    PARTITION`](alter-table.html "15.1.9 ALTER TABLE Statement") statement in the
+    [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client for
+    each [`NDBCLUSTER`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0") table.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 重新分配集群的数据到所有数据节点，包括新节点。通常通过在[**mysql**](mysql.html "6.5.1 mysql — MySQL命令行客户端")客户端中为每个[`NDBCLUSTER`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")表发出一个[`ALTER TABLE ... ALGORITHM=INPLACE, REORGANIZE
+    PARTITION`](alter-table.html "15.1.9 ALTER TABLE语句")语句来完成此操作。
+- en: '*Exception*: For tables created using the `MAX_ROWS` option, this statement
+    does not work; instead, use `ALTER TABLE ... ALGORITHM=INPLACE MAX_ROWS=...` to
+    reorganize such tables. You should also bear in mind that using `MAX_ROWS` to
+    set the number of partitions in this fashion is deprecated, and you should use
+    `PARTITION_BALANCE` instead; see [Section 15.1.20.12, “Setting NDB Comment Options”](create-table-ndb-comment-options.html
+    "15.1.20.12 Setting NDB Comment Options"), for more information.'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*异常*：对于使用`MAX_ROWS`选项创建的表，此语句不起作用；而是使用`ALTER TABLE ... ALGORITHM=INPLACE MAX_ROWS=...`来重新组织这些表。您还应该记住，以这种方式使用`MAX_ROWS`设置分区数量已被弃用，应该使用`PARTITION_BALANCE`代替；有关更多信息，请参见[第15.1.20.12节，“设置NDB注释选项”](create-table-ndb-comment-options.html
+    "15.1.20.12 设置NDB注释选项")。'
+- en: Note
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: This needs to be done only for tables already existing at the time the new node
+    group is added. Data in tables created after the new node group is added is distributed
+    automatically; however, data added to any given table `tbl` that existed before
+    the new nodes were added is not distributed using the new nodes until that table
+    has been reorganized.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这仅适用于在添加新节点组时已经存在的表。在添加新节点组后创建的表中的数据会自动分布；但是，在添加新节点之前存在的表`tbl`中添加的数据直到重新组织该表后才会使用新节点进行分布。
+- en: '`ALTER TABLE ... REORGANIZE PARTITION ALGORITHM=INPLACE` reorganizes partitions
+    but does not reclaim the space freed on the “old” nodes. You can do this by issuing,
+    for each [`NDBCLUSTER`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    table, an [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE Statement")
+    statement in the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") client.'
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: '`ALTER TABLE ... REORGANIZE PARTITION ALGORITHM=INPLACE`重新组织分区但不会回收“旧”节点上释放的空间。您可以通过为每个[`NDBCLUSTER`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")表在[**mysql**](mysql.html "6.5.1 mysql — MySQL命令行客户端")客户端中发出一个[`OPTIMIZE
+    TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE语句")语句来执行此操作。'
+- en: This works for space used by variable-width columns of in-memory `NDB` tables.
+    `OPTIMIZE TABLE` is not supported for fixed-width columns of in-memory tables;
+    it is also not supported for Disk Data tables.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这适用于内存中`NDB`表的可变宽度列使用的空间。`OPTIMIZE TABLE`不支持内存表的固定宽度列；也不支持磁盘数据表。
+- en: You can add all the nodes desired, then issue several [`CREATE NODEGROUP`](mysql-cluster-mgm-client-commands.html#ndbclient-create-nodegroup)
+    commands in succession to add the new node groups to the cluster.
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以添加所有所需的节点，然后连续发出几个[`CREATE NODEGROUP`](mysql-cluster-mgm-client-commands.html#ndbclient-create-nodegroup)命令来将新节点组添加到集群中。

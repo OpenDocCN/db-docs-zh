@@ -1,0 +1,382 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html](https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html](https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html)
+- en: 15.1.20.8 CREATE TABLE and Generated Columns
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.1.20.8 CREATE TABLE and Generated Columns
+- en: '[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement") supports
+    the specification of generated columns. Values of a generated column are computed
+    from an expression included in the column definition.'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")支持生成列的规范。生成列的值是从列定义中包含的表达式计算出来的。'
+- en: Generated columns are also supported by the [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") storage engine.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成列也受到[`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")存储引擎的支持。
+- en: 'The following simple example shows a table that stores the lengths of the sides
+    of right triangles in the `sidea` and `sideb` columns, and computes the length
+    of the hypotenuse in `sidec` (the square root of the sums of the squares of the
+    other sides):'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下简单示例显示了一个表，该表存储直角三角形的边长在`sidea`和`sideb`列中，并在`sidec`中计算斜边的长度（其他两边平方和的平方根）：
+- en: '[PRE0]'
+  id: totrans-5
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Selecting from the table yields this result:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从表中选择会产生以下结果：
+- en: '[PRE1]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Any application that uses the `triangle` table has access to the hypotenuse
+    values without having to specify the expression that calculates them.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`triangle`表的任何应用程序都可以访问斜边值，而无需指定计算它们的表达式。
+- en: 'Generated column definitions have this syntax:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成列的定义具有以下语法：
+- en: '[PRE2]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '`AS (*`expr`*)` indicates that the column is generated and defines the expression
+    used to compute column values. `AS` may be preceded by `GENERATED ALWAYS` to make
+    the generated nature of the column more explicit. Constructs that are permitted
+    or prohibited in the expression are discussed later.'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`AS (*`expr`*)`表示该列是生成的，并定义用于计算列值的表达式。`AS`之前可以加上`GENERATED ALWAYS`以使列的生成性质更加明确。表达式中允许或禁止的结构将在后面讨论。'
+- en: 'The `VIRTUAL` or `STORED` keyword indicates how column values are stored, which
+    has implications for column use:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`VIRTUAL`或`STORED`关键字指示列值的存储方式，这对列的使用有影响：'
+- en: '`VIRTUAL`: Column values are not stored, but are evaluated when rows are read,
+    immediately after any `BEFORE` triggers. A virtual column takes no storage.'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`VIRTUAL`：列值不存储，但在读取行时立即计算，紧随任何`BEFORE`触发器之后。虚拟列不占用存储空间。'
+- en: '`InnoDB` supports secondary indexes on virtual columns. See [Section 15.1.20.9,
+    “Secondary Indexes and Generated Columns”](create-table-secondary-indexes.html
+    "15.1.20.9 Secondary Indexes and Generated Columns").'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`InnoDB`支持虚拟列上的二级索引。请参阅[Section 15.1.20.9, “Secondary Indexes and Generated
+    Columns”](create-table-secondary-indexes.html "15.1.20.9 Secondary Indexes and
+    Generated Columns")。'
+- en: '`STORED`: Column values are evaluated and stored when rows are inserted or
+    updated. A stored column does require storage space and can be indexed.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STORED`：在插入或更新行时，列值会被计算并存储。存储列确实需要存储空间，并且可以被索引。'
+- en: The default is `VIRTUAL` if neither keyword is specified.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果未指定关键字，则默认为`VIRTUAL`。
+- en: It is permitted to mix `VIRTUAL` and `STORED` columns within a table.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在表中混合使用`VIRTUAL`和`STORED`列是允许的。
+- en: Other attributes may be given to indicate whether the column is indexed or can
+    be `NULL`, or provide a comment.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以提供其他属性以指示列是否被索引或可以为`NULL`，或提供注释。
+- en: Generated column expressions must adhere to the following rules. An error occurs
+    if an expression contains disallowed constructs.
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成列表达式必须遵守以下规则。如果表达式包含不允许的结构，则会发生错误。
+- en: 'Literals, deterministic built-in functions, and operators are permitted. A
+    function is deterministic if, given the same data in tables, multiple invocations
+    produce the same result, independently of the connected user. Examples of functions
+    that are nondeterministic and fail this definition: [`CONNECTION_ID()`](information-functions.html#function_connection-id),
+    [`CURRENT_USER()`](information-functions.html#function_current-user), [`NOW()`](date-and-time-functions.html#function_now).'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 文本，确定性内置函数和运算符是允许的。如果给定相同的表中数据，多次调用产生相同结果，则函数是确定性的，与连接的用户无关。不确定性并不符合此定义的函数示例：[`CONNECTION_ID()`](information-functions.html#function_connection-id)，[`CURRENT_USER()`](information-functions.html#function_current-user)，[`NOW()`](date-and-time-functions.html#function_now)。
+- en: Stored functions and loadable functions are not permitted.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不允许存储函数和可加载函数。
+- en: Stored procedure and function parameters are not permitted.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不允许存储过程和函数参数。
+- en: Variables (system variables, user-defined variables, and stored program local
+    variables) are not permitted.
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不允许变量（系统变量、用户定义变量和存储过程局部变量）。
+- en: Subqueries are not permitted.
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不允许子查询。
+- en: A generated column definition can refer to other generated columns, but only
+    those occurring earlier in the table definition. A generated column definition
+    can refer to any base (nongenerated) column in the table whether its definition
+    occurs earlier or later.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 生成列定义可以引用其他生成列，但只能引用表定义中较早出现的列。生成列定义可以引用表中的任何基本（非生成的）列，无论其定义是早于还是晚于。
+- en: The `AUTO_INCREMENT` attribute cannot be used in a generated column definition.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`AUTO_INCREMENT`属性不能在生成列定义中使用。'
+- en: An `AUTO_INCREMENT` column cannot be used as a base column in a generated column
+    definition.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`AUTO_INCREMENT`列不能作为生成列定义中的基本列使用。'
+- en: If expression evaluation causes truncation or provides incorrect input to a
+    function, the [`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")
+    statement terminates with an error and the DDL operation is rejected.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果表达式评估导致截断或向函数提供不正确的输入，则[`CREATE TABLE`](create-table.html "15.1.20 CREATE
+    TABLE Statement")语句将以错误终止，并拒绝DDL操作。
+- en: If the expression evaluates to a data type that differs from the declared column
+    type, implicit coercion to the declared type occurs according to the usual MySQL
+    type-conversion rules. See [Section 14.3, “Type Conversion in Expression Evaluation”](type-conversion.html
+    "14.3 Type Conversion in Expression Evaluation").
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果表达式评估为与声明的列类型不同的数据类型，则根据通常的MySQL类型转换规则隐式强制转换为声明的类型。请参见[第14.3节，“表达式评估中的类型转换”](type-conversion.html
+    "14.3 表达式评估中的类型转换")。
+- en: If a generated column uses the [`TIMESTAMP`](datetime.html "13.2.2 The DATE,
+    DATETIME, and TIMESTAMP Types") data type, the setting for [`explicit_defaults_for_timestamp`](server-system-variables.html#sysvar_explicit_defaults_for_timestamp)
+    is ignored. In such cases, if this variable is disabled then `NULL` is not converted
+    to [`CURRENT_TIMESTAMP`](date-and-time-functions.html#function_current-timestamp).
+    In MySQL 8.0.22 and later, if the column is also declared as `NOT NULL`, attempting
+    to insert `NULL` is explicitly rejected with [`ER_BAD_NULL_ERROR`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_bad_null_error).
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果生成的列使用[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")数据类型，则[`explicit_defaults_for_timestamp`](server-system-variables.html#sysvar_explicit_defaults_for_timestamp)设置将被忽略。在这种情况下，如果此变量被禁用，则`NULL`不会转换为[`CURRENT_TIMESTAMP`](date-and-time-functions.html#function_current-timestamp)。在MySQL
+    8.0.22及更高版本中，如果列还声明为`NOT NULL`，则尝试插入`NULL`将明确拒绝，并显示[`ER_BAD_NULL_ERROR`](/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_bad_null_error)。
+- en: Note
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Expression evaluation uses the SQL mode in effect at evaluation time. If any
+    component of the expression depends on the SQL mode, different results may occur
+    for different uses of the table unless the SQL mode is the same during all uses.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 表达式评估使用评估时有效的SQL模式。如果表达式的任何组件依赖于SQL模式，则除非在所有使用期间SQL模式相同，否则可能会出现不同的结果。
+- en: For [`CREATE TABLE ... LIKE`](create-table-like.html "15.1.20.3 CREATE TABLE
+    ... LIKE Statement"), the destination table preserves generated column information
+    from the original table.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`CREATE TABLE ... LIKE`](create-table-like.html "15.1.20.3 CREATE TABLE ...
+    LIKE Statement")，目标表保留原始表的生成列信息。
+- en: For [`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE
+    ... SELECT Statement"), the destination table does not preserve information about
+    whether columns in the selected-from table are generated columns. The [`SELECT`](select.html
+    "15.2.13 SELECT Statement") part of the statement cannot assign values to generated
+    columns in the destination table.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`CREATE TABLE ... SELECT`](create-table-select.html "15.1.20.4 CREATE TABLE
+    ... SELECT Statement")，目标表不保留所选自表中列是否为生成列的信息。语句的[`SELECT`](select.html "15.2.13 SELECT
+    Statement")部分不能为目标表中的生成列分配值。
+- en: Partitioning by generated columns is permitted. See [Table Partitioning](create-table.html#create-table-partitioning
+    "Table Partitioning").
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 允许通过生成列进行分区。请参见[表分区](create-table.html#create-table-partitioning "表分区")。
+- en: A foreign key constraint on a stored generated column cannot use `CASCADE`,
+    `SET NULL`, or `SET DEFAULT` as `ON UPDATE` referential actions, nor can it use
+    `SET NULL` or `SET DEFAULT` as `ON DELETE` referential actions.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存储生成列上的外键约束不能使用`CASCADE`、`SET NULL`或`SET DEFAULT`作为`ON UPDATE`参照操作，也不能使用`SET
+    NULL`或`SET DEFAULT`作为`ON DELETE`参照操作。
+- en: A foreign key constraint on the base column of a stored generated column cannot
+    use `CASCADE`, `SET NULL`, or `SET DEFAULT` as `ON UPDATE` or `ON DELETE` referential
+    actions.
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 存储生成列的基列上的外键约束不能使用`CASCADE`、`SET NULL`或`SET DEFAULT`作为`ON UPDATE`或`ON DELETE`引用动作。
+- en: A foreign key constraint cannot reference a virtual generated column.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 外键约束不能引用虚拟生成列。
+- en: Triggers cannot use `NEW.*`col_name`*` or use `OLD.*`col_name`*` to refer to
+    generated columns.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '触发器不能使用`NEW.*col_name*`或使用`OLD.*col_name*`来引用生成列。 '
+- en: For [`INSERT`](insert.html "15.2.7 INSERT Statement"), [`REPLACE`](replace.html
+    "15.2.12 REPLACE Statement"), and [`UPDATE`](update.html "15.2.17 UPDATE Statement"),
+    if a generated column is inserted into, replaced, or updated explicitly, the only
+    permitted value is `DEFAULT`.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于[`INSERT`](insert.html "15.2.7 INSERT 语句")、[`REPLACE`](replace.html "15.2.12
+    REPLACE 语句")和[`UPDATE`](update.html "15.2.17 UPDATE 语句")，如果显式插入、替换或更新生成列，则唯一允许的值是`DEFAULT`。
+- en: A generated column in a view is considered updatable because it is possible
+    to assign to it. However, if such a column is updated explicitly, the only permitted
+    value is `DEFAULT`.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 视图中的生成列被视为可更新，因为可以对其进行赋值。但是，如果显式更新此类列，则唯一允许的值是`DEFAULT`。
+- en: 'Generated columns have several use cases, such as these:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成列有几种用途，例如：
+- en: Virtual generated columns can be used as a way to simplify and unify queries.
+    A complicated condition can be defined as a generated column and referred to from
+    multiple queries on the table to ensure that all of them use exactly the same
+    condition.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 虚拟生成列可用作简化和统一查询的一种方式。可以将复杂条件定义为生成列，并从表上的多个查询中引用该条件，以确保它们都使用完全相同的条件。
+- en: Stored generated columns can be used as a materialized cache for complicated
+    conditions that are costly to calculate on the fly.
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存储生成列可用作复杂条件的物化缓存，这些条件在实时计算时成本高昂。
+- en: 'Generated columns can simulate functional indexes: Use a generated column to
+    define a functional expression and index it. This can be useful for working with
+    columns of types that cannot be indexed directly, such as [`JSON`](json.html "13.5 The
+    JSON Data Type") columns; see [Indexing a Generated Column to Provide a JSON Column
+    Index](create-table-secondary-indexes.html#json-column-indirect-index "Indexing
+    a Generated Column to Provide a JSON Column Index"), for a detailed example.'
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 生成列可以模拟函数索引：使用生成列定义函数表达式并对其进行索引。这对于无法直接索引的类型列（例如[`JSON`](json.html "13.5 JSON
+    数据类型")列）非常有用；请参见[使用生成列创建 JSON 列索引](create-table-secondary-indexes.html#json-column-indirect-index
+    "使用生成列创建 JSON 列索引")，以获取详细示例。
+- en: For stored generated columns, the disadvantage of this approach is that values
+    are stored twice; once as the value of the generated column and once in the index.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于存储生成列，这种方法的缺点是值存储两次；一次作为生成列的值，一次作为索引中的值。
+- en: If a generated column is indexed, the optimizer recognizes query expressions
+    that match the column definition and uses indexes from the column as appropriate
+    during query execution, even if a query does not refer to the column directly
+    by name. For details, see [Section 10.3.11, “Optimizer Use of Generated Column
+    Indexes”](generated-column-index-optimizations.html "10.3.11 Optimizer Use of
+    Generated Column Indexes").
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果生成列被索引，优化器会识别与列定义匹配的查询表达式，并在查询执行期间适当地使用列的索引，即使查询没有直接按名称引用该列。有关详细信息，请参见[第10.3.11节，“生成列索引的优化器使用”](generated-column-index-optimizations.html
+    "10.3.11 优化器使用生成列索引")。
+- en: 'Example:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 示例：
+- en: 'Suppose that a table `t1` contains `first_name` and `last_name` columns and
+    that applications frequently construct the full name using an expression like
+    this:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设表`t1`包含`first_name`和`last_name`列，并且应用程序经常使用类似以下表达式构建全名：
+- en: '[PRE3]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'One way to avoid writing out the expression is to create a view `v1` on `t1`,
+    which simplifies applications by enabling them to select `full_name` directly
+    without using an expression:'
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 避免编写表达式的一种方法是在`t1`上创建视图`v1`，这样可以通过直接选择`full_name`来简化应用程序，而无需使用表达式：
+- en: '[PRE4]'
+  id: totrans-52
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'A generated column also enables applications to select `full_name` directly
+    without the need to define a view:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 生成列还使应用程序能够直接选择`full_name`，而无需定义视图：
+- en: '[PRE5]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'

@@ -1,0 +1,181 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-pitr.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-pitr.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-pitr.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-pitr.html)
+- en: 25.7.9.2 Point-In-Time Recovery Using NDB Cluster Replication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.7.9.2 使用NDB集群复制进行时点恢复
+- en: Point-in-time recovery—that is, recovery of data changes made since a given
+    point in time—is performed after restoring a full backup that returns the server
+    to its state when the backup was made. Performing point-in-time recovery of NDB
+    Cluster tables with NDB Cluster and NDB Cluster Replication can be accomplished
+    using a native [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster 8.0")
+    data backup (taken by issuing [`CREATE BACKUP`](mysql-cluster-mgm-client-commands.html#ndbclient-create-nodegroup)
+    in the [**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm — The
+    NDB Cluster Management Client") client) and restoring the `ndb_binlog_index` table
+    (from a dump made using [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database
+    Backup Program")).
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB集群表的时点恢复，即恢复自某一特定时间点以来所做的数据更改，是在恢复将服务器恢复到备份时的状态的完整备份之后进行的。使用NDB集群和NDB集群复制进行NDB集群表的时点恢复可以通过使用本地[`NDB`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")数据备份（通过在[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html
+    "25.5.5 ndb_mgm — The NDB Cluster Management Client")客户端中发出[`CREATE BACKUP`](mysql-cluster-mgm-client-commands.html#ndbclient-create-nodegroup)命令）和恢复`ndb_binlog_index`表（从使用[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")制作的转储中）来完成。
+- en: 'To perform point-in-time recovery of NDB Cluster, it is necessary to follow
+    the steps shown here:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要执行NDB集群的时点恢复，需要按照以下步骤进行：
+- en: Back up all `NDB` databases in the cluster, using the [`START BACKUP`](mysql-cluster-backup-using-management-client.html
+    "25.6.8.2 Using The NDB Cluster Management Client to Create a Backup") command
+    in the [**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html "25.5.5 ndb_mgm — The
+    NDB Cluster Management Client") client (see [Section 25.6.8, “Online Backup of
+    NDB Cluster”](mysql-cluster-backup.html "25.6.8 Online Backup of NDB Cluster")).
+  id: totrans-4
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`START BACKUP`](mysql-cluster-backup-using-management-client.html "25.6.8.2 Using
+    The NDB Cluster Management Client to Create a Backup")命令在[**ndb_mgm**](mysql-cluster-programs-ndb-mgm.html
+    "25.5.5 ndb_mgm — The NDB Cluster Management Client")客户端中备份集群中的所有`NDB`数据库（参见[第25.6.8节，“NDB集群的在线备份”](mysql-cluster-backup.html
+    "25.6.8 Online Backup of NDB Cluster")）。
+- en: At some later point, prior to restoring the cluster, make a backup of the `mysql.ndb_binlog_index`
+    table. It is probably simplest to use [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program") for this task. Also back up the binary log files
+    at this time.
+  id: totrans-5
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在恢复集群之前的某个时间点，备份`mysql.ndb_binlog_index`表。最简单的方法可能是使用[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program")来完成此任务。同时备份二进制日志文件。
+- en: This backup should be updated regularly—perhaps even hourly—depending on your
+    needs.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 根据您的需求，这个备份应该定期更新，甚至可能每小时更新一次。
+- en: (*Catastrophic failure or error occurs*.)
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: （*发生灾难性故障或错误*。）
+- en: Locate the last known good backup.
+  id: totrans-8
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 定位最近的备份。
+- en: Clear the data node file systems (using [**ndbd**](mysql-cluster-programs-ndbd.html
+    "25.5.1 ndbd — The NDB Cluster Data Node Daemon") [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    or [**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd — The NDB Cluster
+    Data Node Daemon (Multi-Threaded)") [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)).
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 清除数据节点文件系统（使用[**ndbd**](mysql-cluster-programs-ndbd.html "25.5.1 ndbd — The
+    NDB Cluster Data Node Daemon") [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    或 [**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd — The NDB Cluster
+    Data Node Daemon (Multi-Threaded)") [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)）。
+- en: Note
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Beginning with NDB 8.0.21, Disk Data tablespace and log files are removed by
+    [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial). Previously,
+    it was necessary to delete these manually.
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从NDB 8.0.21开始，磁盘数据表空间和日志文件将通过[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)删除。以前，��要手动删除这些文件。
+- en: Use [`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement") or [`TRUNCATE
+    TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement") with the `mysql.ndb_binlog_index`
+    table.
+  id: totrans-12
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[`DROP TABLE`](drop-table.html "15.1.32 DROP TABLE Statement")或[`TRUNCATE
+    TABLE`](truncate-table.html "15.1.37 TRUNCATE TABLE Statement")命令处理`mysql.ndb_binlog_index`表。
+- en: Execute [**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup"), restoring all data. You must include the [`--restore-epoch`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_restore-epoch)
+    option when you run [**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — Restore an NDB Cluster Backup"), so that the `ndb_apply_status`
+    table is populated correctly. (See [Section 25.5.23, “ndb_restore — Restore an
+    NDB Cluster Backup”](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — Restore an NDB Cluster Backup"), for more information.)
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行[**ndb_restore**](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — 恢复 NDB 集群备份")，恢复所有数据。在运行[**ndb_restore**](mysql-cluster-programs-ndb-restore.html
+    "25.5.23 ndb_restore — 恢复 NDB 集群备份")时，必须包括[`--restore-epoch`](mysql-cluster-programs-ndb-restore.html#option_ndb_restore_restore-epoch)选项，以便正确填充`ndb_apply_status`表。（有关更多信息，请参见[Section 25.5.23,
+    “ndb_restore — 恢复 NDB 集群备份”](mysql-cluster-programs-ndb-restore.html "25.5.23 ndb_restore
+    — 恢复 NDB 集群备份").）
+- en: Restore the `ndb_binlog_index` table from the output of [**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — A Database Backup Program") and restore the binary log files
+    from backup, if necessary.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从[**mysqldump**](mysqldump.html "6.5.4 mysqldump — 数据库备份程序")的输出中恢复`ndb_binlog_index`表，并根据需要从备份中恢复二进制日志文件。
+- en: 'Find the epoch applied most recently—that is, the maximum `epoch` column value
+    in the `ndb_apply_status` table—as the user variable `@LATEST_EPOCH` (emphasized):'
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 找到最近应用的时代，即`ndb_apply_status`表中的最大`epoch`列值，作为用户变量`@LATEST_EPOCH`（强调）：
+- en: '[PRE0]'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Find the latest binary log file (`@FIRST_FILE`) and position (`Position` column
+    value) within this file that correspond to `@LATEST_EPOCH` in the `ndb_binlog_index`
+    table:'
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 找到与`ndb_binlog_index`表中的`@LATEST_EPOCH`对应的最新二进制日志文件（`@FIRST_FILE`）和位置（`Position`列值）：
+- en: '[PRE1]'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Using [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files"), replay the binary log events from the given file and position
+    up to the point of the failure. (See [Section 6.6.9, “mysqlbinlog — Utility for
+    Processing Binary Log Files”](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for
+    Processing Binary Log Files").)
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")，重放给定文件和位置的二进制日志事件，直到故障点。（参见[Section 6.6.9,
+    “mysqlbinlog — 用于处理二进制日志文件的实用程序”](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序").）
+- en: See also [Section 9.5, “Point-in-Time (Incremental) Recovery”](point-in-time-recovery.html
+    "9.5 Point-in-Time (Incremental) Recovery"), for more information about the binary
+    log, replication, and incremental recovery.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另请参阅[Section 9.5, “时间点（增量）恢复”](point-in-time-recovery.html "9.5 时间点（增量）恢复")，了解有关二进制日志、复制和增量恢复的更多信息。

@@ -1,0 +1,472 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/semijoins.html](https://dev.mysql.com/doc/refman/8.0/en/semijoins.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/semijoins.html](https://dev.mysql.com/doc/refman/8.0/en/semijoins.html)。
+- en: 10.2.2.1 Optimizing IN and EXISTS Subquery Predicates with Semijoin Transformations
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.2.1 使用半连接转换优化IN和EXISTS子查询谓词
+- en: A semijoin is a preparation-time transformation that enables multiple execution
+    strategies such as table pullout, duplicate weedout, first match, loose scan,
+    and materialization. The optimizer uses semijoin strategies to improve subquery
+    execution, as described in this section.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 半连接是一种准备时间转换，可以启用多种执行策略，如表拉出、重复消除、首次匹配、宽松扫描和物化。优化器使用半连接策略来改善子查询执行，如本节所述。
+- en: 'For an inner join between two tables, the join returns a row from one table
+    as many times as there are matches in the other table. But for some questions,
+    the only information that matters is whether there is a match, not the number
+    of matches. Suppose that there are tables named `class` and `roster` that list
+    classes in a course curriculum and class rosters (students enrolled in each class),
+    respectively. To list the classes that actually have students enrolled, you could
+    use this join:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于两个表之间的内连接，连接将从一个表中返回一行，只要在另一个表中有匹配。但对于一些问题，唯一重要的信息是是否有匹配，而不是匹配的次数。假设有名为`class`和`roster`的表，分别列出课程课程和班级名单（每个班级中注册的学生），要列出实际有学生注册的班级，可以使用这个连接：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: However, the result lists each class once for each enrolled student. For the
+    question being asked, this is unnecessary duplication of information.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，结果为每个注册学生列出每个班级一次。对于所提出的问题，这是信息的不必要重复。
+- en: Assuming that `class_num` is a primary key in the `class` table, duplicate suppression
+    is possible by using [`SELECT DISTINCT`](select.html "15.2.13 SELECT Statement"),
+    but it is inefficient to generate all matching rows first only to eliminate duplicates
+    later.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设`class`表中的`class_num`是主键，通过使用[`SELECT DISTINCT`](select.html "15.2.13 SELECT
+    Statement")可以实现去重，但是先生成所有匹配行再后来消除重复是低效的。
+- en: 'The same duplicate-free result can be obtained by using a subquery:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以通过使用子查询获得相同的无重复结果：
+- en: '[PRE1]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Here, the optimizer can recognize that the `IN` clause requires the subquery
+    to return only one instance of each class number from the `roster` table. In this
+    case, the query can use a semijoin; that is, an operation that returns only one
+    instance of each row in `class` that is matched by rows in `roster`.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里，优化器可以识别到`IN`子句要求子查询只返回`roster`表中每个班级编号的一个实例。在这种情况下，查询可以使用半连接；也就是说，只返回与`roster`中的行匹配的`class`中每行的一个实例。
+- en: 'The following statement, which contains an `EXISTS` subquery predicate, is
+    equivalent to the previous statement containing an `IN` subquery predicate:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 包含`EXISTS`子查询谓词的以下语句与包含等效`IN`子查询谓词的先前语句等效：
+- en: '[PRE2]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: In MySQL 8.0.16 and later, any statement with an `EXISTS` subquery predicate
+    is subject to the same semijoin transforms as a statement with an equivalent `IN`
+    subquery predicate.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.16及更高版本中，任何带有`EXISTS`子查询谓词的语句都会受到与具有等效`IN`子查询谓词的语句相同的半连接转换的影响。
+- en: 'Beginning with MySQL 8.0.17, the following subqueries are transformed into
+    antijoins:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.17开始，以下子查询被转换为反连接：
+- en: '`NOT IN (SELECT ... FROM ...)`'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NOT IN (SELECT ... FROM ...)`。'
+- en: '`NOT EXISTS (SELECT ... FROM ...)`.'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NOT EXISTS (SELECT ... FROM ...)`。'
+- en: '`IN (SELECT ... FROM ...) IS NOT TRUE`'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IN (SELECT ... FROM ...) IS NOT TRUE`。'
+- en: '`EXISTS (SELECT ... FROM ...) IS NOT TRUE`.'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`EXISTS (SELECT ... FROM ...) IS NOT TRUE`。'
+- en: '`IN (SELECT ... FROM ...) IS FALSE`'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`IN (SELECT ... FROM ...) IS FALSE`。'
+- en: '`EXISTS (SELECT ... FROM ...) IS FALSE`.'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`EXISTS (SELECT ... FROM ...) IS FALSE`。'
+- en: In short, any negation of a subquery of the form `IN (SELECT ... FROM ...)`
+    or `EXISTS (SELECT ... FROM ...)` is transformed into an antijoin.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 简而言之，对形式为`IN (SELECT ... FROM ...)`或`EXISTS (SELECT ... FROM ...)`的子查询的否定被转换为反连接。
+- en: 'An antijoin is an operation that returns only rows for which there is no match.
+    Consider the query shown here:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 反连接是一种仅返回没有匹配的行的操作。考虑这里显示的查询：
+- en: '[PRE3]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: This query is rewritten internally as the antijoin `SELECT class_num, class_name
+    FROM class ANTIJOIN roster ON class_num`, which returns one instance of each row
+    in `class` that is *not* matched by any rows in `roster`. This means that, for
+    each row in `class`, as soon as a match is found in `roster`, the row in `class`
+    can be discarded.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此查询在内部重写为反连接`SELECT class_num, class_name FROM class ANTIJOIN roster ON class_num`，它返回`class`中每行的一个实例，该实例*不*与`roster`中的任何行匹配。这意味着对于`class`中的每行，一旦在`roster`中找到匹配，就可以丢弃`class`中的行。
+- en: Antijoin transformations cannot in most cases be applied if the expressions
+    being compared are nullable. An exception to this rule is that `(... NOT IN (SELECT
+    ...)) IS NOT FALSE` and its equivalent `(... IN (SELECT ...)) IS NOT TRUE` can
+    be transformed into antijoins.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果被比较的表达式是可空的，则通常无法应用反连接转换。一个例外是 `(... NOT IN (SELECT ...)) IS NOT FALSE` 及其等效的
+    `(... IN (SELECT ...)) IS NOT TRUE` 可以被转换为反连接。
+- en: Outer join and inner join syntax is permitted in the outer query specification,
+    and table references may be base tables, derived tables, view references, or common
+    table expressions.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 外连接和内连接语法允许在外部查询规范中，表引用可以是基本表、派生表、视图引用或公共表达式。
+- en: 'In MySQL, a subquery must satisfy these criteria to be handled as a semijoin
+    (or, in MySQL 8.0.17 and later, an antijoin if `NOT` modifies the subquery):'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 中，一个子查询必须满足这些条件才能被处理为半连接（或在 MySQL 8.0.17 及更高版本中，如果 `NOT` 修改子查询，则为反连接）：
+- en: 'It must be part of an `IN`, `= ANY`, or `EXISTS` predicate that appears at
+    the top level of the `WHERE` or `ON` clause, possibly as a term in an `AND` expression.
+    For example:'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它必须是 `WHERE` 或 `ON` 子句的顶层出现的 `IN`、`= ANY` 或 `EXISTS` 谓词的一部分，可能作为 `AND` 表达式中的一个项。例如：
+- en: '[PRE4]'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Here, `ot_*`i`*` and `it_*`i`*` represent tables in the outer and inner parts
+    of the query, and `oe_*`i`*` and `ie_*`i`*` represent expressions that refer to
+    columns in the outer and inner tables.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这里，`ot_*`i`*` 和 `it_*`i`*` 代表查询的外部和内部部分中的表，`oe_*`i`*` 和 `ie_*`i`*` 代表引用外部和内部表中列的表达式。
+- en: In MySQL 8.0.17 and later, the subquery can also be the argument to an expression
+    modified by `NOT`, `IS [NOT] TRUE`, or `IS [NOT] FALSE`.
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.17 及更高版本中，子查询也可以作为被 `NOT`、`IS [NOT] TRUE` 或 `IS [NOT] FALSE` 修饰的表达式的参数。
+- en: It must be a single [`SELECT`](select.html "15.2.13 SELECT Statement") without
+    [`UNION`](union.html "15.2.18 UNION Clause") constructs.
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它必须是一个单独的 [`SELECT`](select.html "15.2.13 SELECT Statement")，不包含 [`UNION`](union.html
+    "15.2.18 UNION Clause") 结构。
+- en: It must not contain a `HAVING` clause.
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它不能包含 `HAVING` 子句。
+- en: It must not contain any aggregate functions (whether it is explicitly or implicitly
+    grouped).
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它不能包含任何聚合函数（无论是显式还是隐式分组）。
+- en: It must not have a `LIMIT` clause.
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 它不能有 `LIMIT` 子句。
+- en: The statement must not use the `STRAIGHT_JOIN` join type in the outer query.
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 语句不能在外部查询中使用 `STRAIGHT_JOIN` 连接类型。
+- en: The `STRAIGHT_JOIN` modifier must not be present.
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STRAIGHT_JOIN` 修饰符不能存在。'
+- en: The number of outer and inner tables together must be less than the maximum
+    number of tables permitted in a join.
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部和内部表的数量总和必须小于联接中允许的最大表数量。
+- en: The subquery may be correlated or uncorrelated. In MySQL 8.0.16 and later, decorrelation
+    looks at trivially correlated predicates in the `WHERE` clause of a subquery used
+    as the argument to `EXISTS`, and makes it possible to optimize it as if it was
+    used within `IN (SELECT b FROM ...)`. The term *trivially correlated* means that
+    the predicate is an equality predicate, that it is the sole predicate in the `WHERE`
+    clause (or is combined with `AND`), and that one operand is from a table referenced
+    in the subquery and the other operand is from the outer query block.
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 子查询可以是相关的或不相关的。在 MySQL 8.0.16 及更高版本中，解相关性会查看作为 `EXISTS` 参数使用的子查询的 `WHERE` 子句中的平凡相关谓词，并使其能够优化，就像它是在
+    `IN (SELECT b FROM ...)` 中使用一样。术语 *平凡相关* 意味着谓词是一个相等谓词，它是 `WHERE` 子句中唯一的谓词（或与 `AND`
+    结合），并且一个操作数来自子查询中引用的表，另一个操作数来自外部查询块。
+- en: The `DISTINCT` keyword is permitted but ignored. Semijoin strategies automatically
+    handle duplicate removal.
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DISTINCT` 关键字是允许的，但会被忽略。半连接策略会自动处理重复项的移除。'
+- en: A `GROUP BY` clause is permitted but ignored, unless the subquery also contains
+    one or more aggregate functions.
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 允许使用 `GROUP BY` 子句，但会被忽略，除非子查询还包含一个或多个聚合函数。
+- en: An `ORDER BY` clause is permitted but ignored, since ordering is irrelevant
+    to the evaluation of semijoin strategies.
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 允许使用 `ORDER BY` 子句，但会被忽略，因为排序对于半连接策略的评估是无关紧要的。
+- en: 'If a subquery meets the preceding criteria, MySQL converts it to a semijoin
+    (or, in MySQL 8.0.17 or later, an antijoin if applicable) and makes a cost-based
+    choice from these strategies:'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个子查询符合上述条件，MySQL 将其转换为半连接（或在 MySQL 8.0.17 或更高版本中，如果适用，转换为反连接）并从以下策略中做出基于成本的选择：
+- en: Convert the subquery to a join, or use table pullout and run the query as an
+    inner join between subquery tables and outer tables. Table pullout pulls a table
+    out from the subquery to the outer query.
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将子查询转换为联接，或使用表拉出并在子查询表和外部表之间运行查询作为内连接。表拉出是将一个表从子查询中拉出到外部查询中。
+- en: '*Duplicate Weedout*: Run the semijoin as if it was a join and remove duplicate
+    records using a temporary table.'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*Duplicate Weedout*: 将半连接视为连接运行，并使用临时表去除重复记录。'
+- en: '*FirstMatch*: When scanning the inner tables for row combinations and there
+    are multiple instances of a given value group, choose one rather than returning
+    them all. This "shortcuts" scanning and eliminates production of unnecessary rows.'
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*FirstMatch*: 在扫描内部表以获取行组合时，如果给定值组有多个实例，则选择一个而不是返回它们全部。这种“捷径”扫描并消除了不必要的行的生成。'
+- en: '*LooseScan*: Scan a subquery table using an index that enables a single value
+    to be chosen from each subquery''s value group.'
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*LooseScan*: 使用允许从每个子查询值组中选择单个值的索引扫描子查询表。'
+- en: Materialize the subquery into an indexed temporary table that is used to perform
+    a join, where the index is used to remove duplicates. The index might also be
+    used later for lookups when joining the temporary table with the outer tables;
+    if not, the table is scanned. For more information about materialization, see
+    [Section 10.2.2.2, “Optimizing Subqueries with Materialization”](subquery-materialization.html
+    "10.2.2.2 Optimizing Subqueries with Materialization").
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将子查询材料化为用于执行连接的索引临时表，其中索引用于去重。当将临时表与外部表连接时，索引也可能稍后用于查找；如果不是，则扫描表。有关材料化的更多信息，请参见[第10.2.2.2节，“使用材料化优化子查询”](subquery-materialization.html
+    "10.2.2.2 优化子查询材料化")。
+- en: 'Each of these strategies can be enabled or disabled using the following [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    system variable flags:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以使用以下[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量标志启用或禁用这些策略：
+- en: The [`semijoin`](switchable-optimizations.html#optflag_semijoin) flag controls
+    whether semijoins are used. Starting with MySQL 8.0.17, this also applies to antijoins.
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`semijoin`](switchable-optimizations.html#optflag_semijoin)标志控制是否使用半连接。从MySQL
+    8.0.17开始，这也适用于反连接。'
+- en: If [`semijoin`](switchable-optimizations.html#optflag_semijoin) is enabled,
+    the [`firstmatch`](switchable-optimizations.html#optflag_firstmatch), [`loosescan`](switchable-optimizations.html#optflag_loosescan),
+    [`duplicateweedout`](switchable-optimizations.html#optflag_duplicateweedout),
+    and [`materialization`](switchable-optimizations.html#optflag_materialization)
+    flags enable finer control over the permitted semijoin strategies.
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了[`semijoin`](switchable-optimizations.html#optflag_semijoin)，则[`firstmatch`](switchable-optimizations.html#optflag_firstmatch)、[`loosescan`](switchable-optimizations.html#optflag_loosescan)、[`duplicateweedout`](switchable-optimizations.html#optflag_duplicateweedout)和[`materialization`](switchable-optimizations.html#optflag_materialization)标志可以更精细地控制允许的半连接策略。
+- en: If the [`duplicateweedout`](switchable-optimizations.html#optflag_duplicateweedout)
+    semijoin strategy is disabled, it is not used unless all other applicable strategies
+    are also disabled.
+  id: totrans-51
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果禁用了[`duplicateweedout`](switchable-optimizations.html#optflag_duplicateweedout)半连接策略，则除非所有其他适用策略也被禁用，否则不会使用。
+- en: If [`duplicateweedout`](switchable-optimizations.html#optflag_duplicateweedout)
+    is disabled, on occasion the optimizer may generate a query plan that is far from
+    optimal. This occurs due to heuristic pruning during greedy search, which can
+    be avoided by setting [`optimizer_prune_level=0`](server-system-variables.html#sysvar_optimizer_prune_level).
+  id: totrans-52
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果禁用了[`duplicateweedout`](switchable-optimizations.html#optflag_duplicateweedout)，优化器偶尔可能生成远非最佳的查询计划。这是由于贪婪搜索期间的启发式修剪导致的，可以通过设置[`optimizer_prune_level=0`](server-system-variables.html#sysvar_optimizer_prune_level)来避免。
+- en: These flags are enabled by default. See [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations").
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些标志默认启用。请参见[第10.9.2节，“可切换优化”](switchable-optimizations.html "10.9.2 可切换优化")。
+- en: 'The optimizer minimizes differences in handling of views and derived tables.
+    This affects queries that use the `STRAIGHT_JOIN` modifier and a view with an
+    `IN` subquery that can be converted to a semijoin. The following query illustrates
+    this because the change in processing causes a change in transformation, and thus
+    a different execution strategy:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器最小化了对视图和派生表处理的差异。这影响了使用`STRAIGHT_JOIN`修饰符和具有可以转换为半连接的`IN`子查询的视图的查询。以下查询说明了这一点，因为处理方式的改变导致了转换的改变，从而产生了不同的执行策略：
+- en: '[PRE5]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: The optimizer first looks at the view and converts the `IN` subquery to a semijoin,
+    then checks whether it is possible to merge the view into the outer query. Because
+    the `STRAIGHT_JOIN` modifier in the outer query prevents semijoin, the optimizer
+    refuses the merge, causing derived table evaluation using a materialized table.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 优化器首先查看视图并将 `IN` 子查询转换为半连接，然后检查是否可能将视图合并到外部查询中。由于外部查询中的 `STRAIGHT_JOIN` 修饰符阻止了半连接，优化器拒绝合并，导致使用物化表进行派生表评估。
+- en: '[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output indicates the use
+    of semijoin strategies as follows:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") 输出指示了半连接策略的使用如下：'
+- en: For extended [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output, the
+    text displayed by a following [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement") shows the rewritten query, which displays the semijoin structure.
+    (See [Section 10.8.3, “Extended EXPLAIN Output Format”](explain-extended.html
+    "10.8.3 Extended EXPLAIN Output Format").) From this you can get an idea about
+    which tables were pulled out of the semijoin. If a subquery was converted to a
+    semijoin, you should see that the subquery predicate is gone and its tables and
+    `WHERE` clause were merged into the outer query join list and `WHERE` clause.
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于扩展的 [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") 输出，随后由 [`SHOW WARNINGS`](show-warnings.html
+    "15.7.7.42 SHOW WARNINGS Statement") 显示的文本显示了重写的查询，其中显示了半连接结构。从中可以了解哪些表被提取出半连接。如果子查询被转换为半连接，您应该看到子查询谓词消失，其表和
+    `WHERE` 子句被合并到外部查询的连接列表和 `WHERE` 子句中。
+- en: Temporary table use for Duplicate Weedout is indicated by `Start temporary`
+    and `End temporary` in the `Extra` column. Tables that were not pulled out and
+    are in the range of [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output
+    rows covered by `Start temporary` and `End temporary` have their `rowid` in the
+    temporary table.
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 `Extra` 列中的 `Start temporary` 和 `End temporary` 表示重复消除时使用了临时表。未被提取出来且在 `Start
+    temporary` 和 `End temporary` 覆盖的 [`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")
+    输出行范围内的表，在临时表中具有其 `rowid`。
+- en: '`FirstMatch(*`tbl_name`*)` in the `Extra` column indicates join shortcutting.'
+  id: totrans-60
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`FirstMatch(*`tbl_name`*)` 在 `Extra` 列中表示连接快捷方式。'
+- en: '`LooseScan(*`m`*..*`n`*)` in the `Extra` column indicates use of the LooseScan
+    strategy. *`m`* and *`n`* are key part numbers.'
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`LooseScan(*`m`*..*`n`*)` 在 `Extra` 列中表示使用了 LooseScan 策略。*`m`* 和 *`n`* 是关键部件编号。'
+- en: Temporary table use for materialization is indicated by rows with a `select_type`
+    value of `MATERIALIZED` and rows with a `table` value of `<subquery*`N`*>`.
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 临时表用于物化的使用通过具有 `select_type` 值为 `MATERIALIZED` 和具有 `table` 值为 `<subquery*`N`*>`
+    的行来表示。
+- en: In MySQL 8.0.21 and later, a semijoin transformation can also be applied to
+    a single-table [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") statement that uses a `[NOT] IN` or `[NOT] EXISTS`
+    subquery predicate, provided that the statement does not use `ORDER BY` or `LIMIT`,
+    and that semijoin transformations are allowed by an optimizer hint or by the [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    setting.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 MySQL 8.0.21 及更高版本中，半连接转换也可以应用于使用 `[NOT] IN` 或 `[NOT] EXISTS` 子查询谓词的单表 [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") 或 [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    语句，前提是该语句不使用 `ORDER BY` 或 `LIMIT`，并且通过优化器提示或 [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)
+    设置允许半连接转换。

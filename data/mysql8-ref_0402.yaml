@@ -1,0 +1,1703 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/kerberos-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/kerberos-pluggable-authentication.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/kerberos-pluggable-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/kerberos-pluggable-authentication.html)
+- en: 8.4.1.8 Kerberos Pluggable Authentication
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 8.4.1.8 Kerberos可插拔认证
+- en: Note
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Kerberos pluggable authentication is an extension included in MySQL Enterprise
+    Edition, a commercial product. To learn more about commercial products, see [https://www.mysql.com/products/](https://www.mysql.com/products/).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Kerberos可插拔认证是MySQL企业版中包含的扩展，这是一个商业产品。要了解更多关于商业产品的信息，请参见[https://www.mysql.com/products/](https://www.mysql.com/products/)。
+- en: MySQL Enterprise Edition supports an authentication method that enables users
+    to authenticate to MySQL Server using Kerberos, provided that appropriate Kerberos
+    tickets are available or can be obtained.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL企业版支持一种认证方法，允许用户使用Kerberos对MySQL服务器进行身份验证，前提是有适当的Kerberos票证可用或可以获取。
+- en: This authentication method is available in MySQL 8.0.26 and higher, for MySQL
+    servers and clients on Linux. It is useful in Linux environments where applications
+    have access to Microsoft Active Directory, which has Kerberos enabled by default.
+    As of MySQL 8.0.27 (MySQL 8.0.32 for MIT Kerberos), the client-side plugin is
+    supported on Windows as well. The server-side plugin is still supported only on
+    Linux.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 该认证方法适用于MySQL 8.0.26及更高版本，在Linux上的MySQL服务器和客户端。在Linux环境中，应用程序可以访问默认启用Kerberos的Microsoft
+    Active Directory时，这是非常有用的。从MySQL 8.0.27开始（MIT Kerberos的MySQL 8.0.32），客户端端插件也在Windows上受支持。服务器端插件仍然只在Linux上受支持。
+- en: 'Kerberos pluggable authentication provides these capabilities:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Kerberos可插拔认证提供了以下功能：
+- en: 'External authentication: Kerberos authentication enables MySQL Server to accept
+    connections from users defined outside the MySQL grant tables who have obtained
+    the proper Kerberos tickets.'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 外部认证：Kerberos认证使MySQL服务器能够接受来自MySQL授权表之外定义的用户的连接，这些用户已经获得了适当的Kerberos票证。
+- en: 'Security: Kerberos uses tickets together with symmetric-key cryptography, enabling
+    authentication without sending passwords over the network. Kerberos authentication
+    supports userless and passwordless scenarios.'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 安全性：Kerberos使用票证与对称密钥加密结合，实现了在网络上传输密码的身份验证。Kerberos认证支持无用户和无密码的场景。
+- en: The following table shows the plugin and library file names. The file name suffix
+    might differ on your system. The file must be located in the directory named by
+    the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir) system variable.
+    For installation information, see [Installing Kerberos Pluggable Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "Installing Kerberos Pluggable Authentication").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下表显示了插件和库文件名称。文件名后缀可能在您的系统上有所不同。该文件必须位于由[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量命名的目录中。有关安装信息，请参见[安装Kerberos可插拔认证](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "安装Kerberos可插拔认证")。
+- en: '**Table 8.24 Plugin and Library Names for Kerberos Authentication**'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.24 Kerberos认证的插件和库名称**'
+- en: '| Plugin or File | Plugin or File Name |'
+  id: totrans-11
+  prefs: []
+  type: TYPE_TB
+  zh: '| 插件或文件 | 插件或文件名 |'
+- en: '| Server-side plugin | `authentication_kerberos` |'
+  id: totrans-12
+  prefs: []
+  type: TYPE_TB
+  zh: '| 服务器端插件 | `authentication_kerberos` |'
+- en: '| Client-side plugin | `authentication_kerberos_client` |'
+  id: totrans-13
+  prefs: []
+  type: TYPE_TB
+  zh: '| 客户端插件 | `authentication_kerberos_client` |'
+- en: '| Library file | `authentication_kerberos.so`, `authentication_kerberos_client.so`
+    |'
+  id: totrans-14
+  prefs: []
+  type: TYPE_TB
+  zh: '| 库文件 | `authentication_kerberos.so`，`authentication_kerberos_client.so` |'
+- en: The server-side Kerberos authentication plugin is included only in MySQL Enterprise
+    Edition. It is not included in MySQL community distributions. The client-side
+    plugin is included in all distributions, including community distributions. This
+    enables clients from any distribution to connect to a server that has the server-side
+    plugin loaded.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端Kerberos认证插件仅包含在MySQL企业版中。它不包含在MySQL社区发行版中。客户端插件包含在所有发行版中，包括社区发行版。这使得来自任何发行版的客户端都可以连接到加载了服务器端插件的服务器。
+- en: 'The following sections provide installation and usage information specific
+    to Kerberos pluggable authentication:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下各节提供了特定于Kerberos可插拔认证的安装和使用信息：
+- en: '[Prerequisites for Kerberos Pluggable Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-prerequisites
+    "Prerequisites for Kerberos Pluggable Authentication")'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[Kerberos可插拔认证的先决条件](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-prerequisites
+    "Kerberos可插拔认证的先决条件")'
+- en: '[How Kerberos Authentication of MySQL Users Works](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-process
+    "How Kerberos Authentication of MySQL Users Works")'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[MySQL 用户的 Kerberos 认证工作原理](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-process
+    "MySQL 用户的 Kerberos 认证工作原理")'
+- en: '[Installing Kerberos Pluggable Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "Installing Kerberos Pluggable Authentication")'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[安装 Kerberos 可插拔认证](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "安装 Kerberos 可插拔认证")'
+- en: '[Using Kerberos Pluggable Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-usage
+    "Using Kerberos Pluggable Authentication")'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用 Kerberos 可插拔认证](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-usage
+    "使用 Kerberos 可插拔认证")'
+- en: '[Kerberos Authentication Debugging](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-debugging
+    "Kerberos Authentication Debugging")'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[Kerberos 认证调试](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-debugging
+    "Kerberos 认证调试")'
+- en: For general information about pluggable authentication in MySQL, see [Section 8.2.17,
+    “Pluggable Authentication”](pluggable-authentication.html "8.2.17 Pluggable Authentication").
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 MySQL 中可插拔认证的一般信息，请参阅 [第 8.2.17 节，“可插拔认证”](pluggable-authentication.html
+    "8.2.17 可插拔认证")。
+- en: Prerequisites for Kerberos Pluggable Authentication
+  id: totrans-23
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: Kerberos 可插拔认证的先决条件
+- en: 'To use Kerberos pluggable authentication for MySQL, these prerequisites must
+    be satisfied:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在 MySQL 中使用可插拔的 Kerberos 认证，必须满足以下先决条件：
+- en: A Kerberos service must be available for the Kerberos authentication plugins
+    to communicate with.
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 必须提供一个 Kerberos 服务，以便 Kerberos 认证插件进行通信。
+- en: Each Kerberos user (principal) to be authenticated by MySQL must be present
+    in the database managed by the KDC server.
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL 要对其进行认证的每个 Kerberos 用户（主体）必须存在于 KDC 服务器管理的数据库中。
+- en: A Kerberos client library must be available on systems where either the server-side
+    or client-side Kerberos authentication plugin is used. In addition, GSSAPI is
+    used as the interface for accessing Kerberos authentication, so a GSSAPI library
+    must be available.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在使用服务器端或客户端 Kerberos 认证插件的系统上必须提供 Kerberos 客户端库。此外，GSSAPI 用作访问 Kerberos 认证的接口，因此必须提供
+    GSSAPI 库。
+- en: How Kerberos Authentication of MySQL Users Works
+  id: totrans-28
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: MySQL 用户的 Kerberos 认证工作原理
+- en: This section provides an overview of how MySQL and Kerberos work together to
+    authenticate MySQL users. For examples showing how to set up MySQL accounts to
+    use the Kerberos authentication plugins, see [Using Kerberos Pluggable Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-usage
+    "Using Kerberos Pluggable Authentication").
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节概述了 MySQL 和 Kerberos 如何共同工作以对 MySQL 用户进行认证。有关如何设置 MySQL 帐户以使用 Kerberos 认证插件的示例，请参阅
+    [使用 Kerberos 可插拔认证](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-usage
+    "使用 Kerberos 可插拔认证")。
+- en: Familiarity is assumed here with Kerberos concepts and operation. The following
+    list briefly defines several common Kerberos terms. You may also find the Glossary
+    section of [RFC 4120](https://tools.ietf.org/html/rfc4120) helpful.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假定读者熟悉 Kerberos 的概念和操作。以下列表简要定义了几个常见的 Kerberos 术语。您还可以在 [RFC 4120](https://tools.ietf.org/html/rfc4120)
+    的术语表部分找到有用的信息。
+- en: '[Principal](glossary.html#glos_principal "principal"): A named entity, such
+    as a user or server. In this discussion, certain principal-related terms occur
+    frequently:'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[主体](glossary.html#glos_principal "主体")：命名实体，如用户或服务器。在本讨论中，某些与主体相关的术语经常出现：'
+- en: '[SPN](glossary.html#glos_service_principal_name "service principal name"):
+    Service principal name; the name of a principal that represents a service.'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[SPN](glossary.html#glos_service_principal_name "服务主体名称")：服务主体名称；代表服务的主体名称。'
+- en: '[UPN](glossary.html#glos_user_principal_name "user principal name"): User principal
+    name; the name of a principal that represents a user.'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[UPN](glossary.html#glos_user_principal_name "用户主体名称")：用户主体名称；代表用户的主体名称。'
+- en: '[KDC](glossary.html#glos_key_distribution_center "key distribution center"):
+    The key distribution center, comprising the AS and TGS:'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[KDC](glossary.html#glos_key_distribution_center "密钥分发中心")：密钥分发中心，包括 AS 和 TGS：'
+- en: '[AS](glossary.html#glos_authentication_server "authentication server"): The
+    authentication server; provides the initial ticket-granting ticket needed to obtain
+    additional tickets.'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[AS](glossary.html#glos_authentication_server "认证服务器")：认证服务器；提供获取额外票证所需的初始票证授予票证。'
+- en: '[TGS](glossary.html#glos_ticket_granting_server "ticket-granting server"):
+    The ticket-granting server; provides additional tickets to Kerberos clients that
+    possess a valid TGT.'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[TGS](glossary.html#glos_ticket_granting_server "票据授予服务器")：票据授予服务器；为拥有有效 TGT
+    的 Kerberos 客户端提供额外的票据。'
+- en: '[TGT](glossary.html#glos_ticket_granting_ticket "ticket-granting ticket"):
+    The ticket-granting ticket; presented to the TGS to obtain service tickets for
+    service access.'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[TGT](glossary.html#glos_ticket_granting_ticket "票据授予票据")：票据授予票据；提交给 TGS 以获取用于服务访问的服务票据。'
+- en: '[ST](glossary.html#glos_service_ticket "service ticket"): A service ticket;
+    provides access to a service such as that offered by a MySQL server.'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[ST](glossary.html#glos_service_ticket "服务票据")：服务票据；提供对 MySQL 服务器等服务的访问。'
+- en: Authentication using Kerberos requires a KDC server, for example, as provided
+    by Microsoft Active Directory.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 Kerberos 进行身份验证需要一个 KDC 服务器，例如，由 Microsoft Active Directory 提供。
+- en: Kerberos authentication in MySQL uses Generic Security Service Application Program
+    Interface (GSSAPI), which is a security abstraction interface. Kerberos is an
+    instance of a specific security protocol that can be used through that abstract
+    interface. Using GSSAPI, applications authenticate to Kerberos to obtain service
+    credentials, then use those credentials in turn to enable secure access to other
+    services.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 中的 Kerberos 认证使用通用安全服务应用程序接口（GSSAPI），这是一个安全抽象接口。Kerberos 是可以通过该抽象接口使用的特定安全协议的一个实例。使用
+    GSSAPI，应用程序进行身份验证以获取服务凭据，然后依次使用这些凭据来启用对其他服务的安全访问。
+- en: 'On Windows, the `authentication_kerberos_client` authentication plugin supports
+    two modes, which the client user can set at runtime or specify in an option file:'
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Windows 上，`authentication_kerberos_client` 认证插件支持两种模式，客户端用户可以在运行时设置或在选项文件中指定：
+- en: '`SSPI` mode: Security Support Provider Interface (SSPI) implements GSSAPI (see
+    [Commands for Windows Clients in SSPI Mode](kerberos-pluggable-authentication.html#kerberos-usage-win-sspi-client-commands)).
+    SSPI, while being compatible with GSSAPI at the wire level, only supports the
+    Windows single sign-on scenario and specifically refers to the logged-on user.
+    SSPI is the default mode on most Windows clients.'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SSPI` 模式：安全支持提供程序接口（SSPI）实现了 GSSAPI（参见 [SSPI 模式下的 Windows 客户端命令](kerberos-pluggable-authentication.html#kerberos-usage-win-sspi-client-commands)）。SSPI
+    在传输层面与 GSSAPI 兼容，但仅支持 Windows 单点登录场景，并且专门指代已登录用户。SSPI 是大多数 Windows 客户端的默认模式。'
+- en: '`GSSAPI` mode: Supports GSSAPI through the MIT Kerberos library on Windows
+    (see [Commands for Windows Clients in GSSAPI Mode](kerberos-pluggable-authentication.html#kerberos-usage-win-gssapi-client-commands)).'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GSSAPI` 模式：在 Windows 上通过 MIT Kerberos 库支持 GSSAPI（参见 [GSSAPI 模式下的 Windows 客户端命令](kerberos-pluggable-authentication.html#kerberos-usage-win-gssapi-client-commands)）。'
+- en: With the Kerberos authentication plugins, applications and MySQL servers are
+    able to use the Kerberos authentication protocol to mutually authenticate users
+    and MySQL services. This way both the user and the server are able to verify each
+    other's identity. No passwords are sent over the network and Kerberos protocol
+    messages are protected against eavesdropping and replay attacks.
+  id: totrans-44
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 Kerberos 认证插件，应用程序和 MySQL 服务器能够使用 Kerberos 认证协议相互认证用户和 MySQL 服务。这样，用户和服务器都能够验证彼此的身份。不会通过网络发送密码，并且
+    Kerberos 协议消息受到窃听和重放攻击的保护。
+- en: 'Kerberos authentication follows these steps, where the server-side and client-side
+    parts are performed using the `authentication_kerberos` and `authentication_kerberos_client`
+    authentication plugins, respectively:'
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 中的 Kerberos 认证遵循这些步骤，其中服务器端和客户端部分分别使用 `authentication_kerberos` 和 `authentication_kerberos_client`
+    认证插件执行：
+- en: The MySQL server sends to the client application its service principal name.
+    This SPN must be registered in the Kerberos system, and is configured on the server
+    side using the [`authentication_kerberos_service_principal`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_principal)
+    system variable.
+  id: totrans-46
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: MySQL 服务器向客户端应用程序发送其服务主体名称。此 SPN 必须在 Kerberos 系统中注册，并且在服务器端使用 [`authentication_kerberos_service_principal`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_principal)
+    系统变量进行配置。
+- en: 'Using GSSAPI, the client application creates a Kerberos client-side authentication
+    session and exchanges Kerberos messages with the Kerberos KDC:'
+  id: totrans-47
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用 GSSAPI，客户端应用程序创建一个 Kerberos 客户端端身份验证会话，并与 Kerberos KDC 交换 Kerberos 消息：
+- en: The client obtains a ticket-granting ticket from the authentication server.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端从认证服务器获取票据授予票据。
+- en: Using the TGT, the client obtains a service ticket for MySQL from the ticket-granting
+    service.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 TGT，客户端从票据授予服务获取 MySQL 的服务票据。
+- en: This step can be skipped or partially skipped if the TGT, ST, or both are already
+    cached locally. The client optionally may use a client keytab file to obtain a
+    TGT and ST without supplying a password.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果 TGT、ST 或两者都已在本地缓存，则可以跳过或部分跳过此步骤。客户端可以选择使用客户端 keytab 文件来获取 TGT 和 ST，而无需提供密码。
+- en: Using GSSAPI, the client application presents the MySQL ST to the MySQL server.
+  id: totrans-51
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用 GSSAPI，客户端应用程序向 MySQL 服务器呈现 MySQL ST。
+- en: Using GSSAPI, the MySQL server creates a Kerberos server-side authentication
+    session. The server validates the user identity and the validity of the user request.
+    It authenticates the ST using the service key configured in its service keytab
+    file to determine whether authentication succeeds or fails, and returns the authentication
+    result to the client.
+  id: totrans-52
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用 GSSAPI，MySQL 服务器创建一个 Kerberos 服务器端认证会话。服务器验证用户身份和用户请求的有效性。它使用其服务 keytab 文件中配置的服务密钥验证
+    ST，以确定身份验证成功或失败，并将身份验证结果返回给客户端。
+- en: Applications are able to authenticate using a provided user name and password,
+    or using a locally cached TGT or ST (for example, created using **kinit** or similar).
+    This design therefore covers use cases ranging from completely userless and passwordless
+    connections, where Kerberos service tickets are obtained from a locally stored
+    Kerberos cache, to connections where both user name and password are provided
+    and used to obtain a valid Kerberos service ticket from a KDC, to send to the
+    MySQL server.
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应用程序可以使用提供的用户名和密码进行身份验证，也可以使用本地缓存的 TGT 或 ST（例如，使用 **kinit** 或类似方法创建）。因此，此设计涵盖了各种用例，从完全无用户和无密码连接，其中
+    Kerberos 服务票据是从本地存储的 Kerberos 缓存获取的，到提供并使用用户名和密码以获取有效的 Kerberos 服务票据从 KDC 发送到
+    MySQL 服务器的连接。
+- en: 'As indicated in the preceding description, MySQL Kerberos authentication uses
+    two kinds of keytab files:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前述描述所示，MySQL 的 Kerberos 认证使用两种类型的 keytab 文件：
+- en: On the client host, a client keytab file may be used to obtain a TGT and ST
+    without supplying a password. See [Client Configuration Parameters for Kerberos
+    Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "Client Configuration Parameters for Kerberos Authentication").
+  id: totrans-55
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在客户端主机上，可以使用客户端 keytab 文件来获取 TGT 和 ST，而无需提供密码。请参阅 [Client Configuration Parameters
+    for Kerberos Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "Client Configuration Parameters for Kerberos Authentication")。
+- en: On the MySQL server host, a server-side service keytab file is used to verify
+    service tickets received by the MySQL server from clients. The keytab file name
+    is configured using the [`authentication_kerberos_service_key_tab`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_key_tab)
+    system variable.
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 MySQL 服务器主机上，使用服务器端服务 keytab 文件来验证 MySQL 服务器从客户端接收的服务票据。 keytab 文件名是使用 [`authentication_kerberos_service_key_tab`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_key_tab)
+    系统变量配置的。
+- en: For information about keytab files, see [https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html](https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html).
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关 keytab 文件的信息，请参阅 [https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html](https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html)。
+- en: Installing Kerberos Pluggable Authentication
+  id: totrans-58
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 安装 Kerberos 可插拔认证
+- en: This section describes how to install the server-side Kerberos authentication
+    plugin. For general information about installing plugins, see [Section 7.6.1,
+    “Installing and Uninstalling Plugins”](plugin-loading.html "7.6.1 Installing and
+    Uninstalling Plugins").
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何安装服务器端 Kerberos 认证插件。有关安装插件的一般信息，请参阅 [Section 7.6.1, “Installing and
+    Uninstalling Plugins”](plugin-loading.html "7.6.1 Installing and Uninstalling
+    Plugins")。
+- en: Note
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The server-side plugin is supported only on Linux systems. On Windows systems,
+    only the client-side plugin is supported (as of MySQL 8.0.27), which can be used
+    on a Windows system to connect to a Linux server that uses Kerberos authentication.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端插件仅在 Linux 系统上受支持。在 Windows 系统上，仅支持客户端端插件（截至 MySQL 8.0.27），可以在 Windows 系统上用于连接使用
+    Kerberos 认证的 Linux 服务器。
+- en: To be usable by the server, the plugin library file must be located in the MySQL
+    plugin directory (the directory named by the [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)
+    system variable). If necessary, configure the plugin directory location by setting
+    the value of [`plugin_dir`](server-system-variables.html#sysvar_plugin_dir) at
+    server startup.
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使服务器可用，插件库文件必须位于MySQL插件目录中（由[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)系统变量命名的目录）。必要时，通过设置[`plugin_dir`](server-system-variables.html#sysvar_plugin_dir)的值来配置插件目录位置以在服务器启动时生效。
+- en: The server-side plugin library file base name is `authentication_kerberos`.
+    The file name suffix for Unix and Unix-like systems is `.so`.
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 服务器端插件库文件基本名称为`authentication_kerberos`。Unix和类Unix系统的文件名后缀为`.so`。
+- en: 'To load the plugin at server startup, use the [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)
+    option to name the library file that contains it. With this plugin-loading method,
+    the option must be given each time the server starts. Also, specify values for
+    any plugin-provided system variables you wish to configure. The plugin exposes
+    these system variables, enabling its operation to be configured:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在服务器启动时加载插件，请使用[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)选项命名包含插件的库文件。使用此插件加载方法，每次服务器启动时都必须提供该选项。还要为您希望配置的任何插件提供的系统变量指定值。插件公开这些系统变量，使其操作可以配置：
+- en: '[`authentication_kerberos_service_principal`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_principal):
+    The MySQL service principal name (SPN). This name is sent to clients that attempt
+    to authenticate using Kerberos. The SPN must be present in the database managed
+    by the KDC server. The default is `mysql/*`host_name`*@*`realm_name`*`.'
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_kerberos_service_principal`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_principal):
+    MySQL服务主体名称（SPN）。此名称将发送给尝试使用Kerberos进行身份验证的客户端。SPN必须存在于KDC服务器管理的数据库中。默认值为`mysql/*`host_name`*@*`realm_name`*`。'
+- en: '[`authentication_kerberos_service_key_tab`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_key_tab):
+    The keytab file for authenticating tickets received from clients. This file must
+    exist and contain a valid key for the SPN or authentication of clients will fail.
+    The default is `mysql.keytab` in the data directory.'
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_kerberos_service_key_tab`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_key_tab):
+    用于验证从客户端接收到的票证的keytab文件。此文件必须存在并包含SPN的有效密钥，否则客户端的身份验证将失败。默认值为数据目录中的`mysql.keytab`。'
+- en: For details about all Kerberos authentication system variables, see [Section 8.4.1.13,
+    “Pluggable Authentication System Variables”](pluggable-authentication-system-variables.html
+    "8.4.1.13 Pluggable Authentication System Variables").
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关所有Kerberos身份验证系统变量的详细信息，请参见[Section 8.4.1.13, “Pluggable Authentication System
+    Variables”](pluggable-authentication-system-variables.html "8.4.1.13 Pluggable
+    Authentication System Variables")。
+- en: 'To load the plugin and configure it, put lines such as these in your `my.cnf`
+    file, using values for the system variables that are appropriate for your installation:'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要加载插件并配置它，请在您的`my.cnf`文件中放入类似以下行的内容，使用适合您安装的系统变量的值：
+- en: '[PRE0]'
+  id: totrans-69
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: After modifying `my.cnf`, restart the server to cause the new settings to take
+    effect.
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修改`my.cnf`后，重新启动服务器以使新设置生效。
+- en: 'Alternatively, to load the plugin at runtime, use this statement:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，要在运行时加载插件，请使用以下语句：
+- en: '[PRE1]'
+  id: totrans-72
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")
+    loads the plugin immediately, and also registers it in the `mysql.plugins` system
+    table to cause the server to load it for each subsequent normal startup without
+    the need for [`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add).'
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`INSTALL PLUGIN`](install-plugin.html "15.7.4.4 INSTALL PLUGIN Statement")立即加载插件，并在`mysql.plugins`系统表中注册它，以使服务器在每次后续正常启动时加载它，而无需[`--plugin-load-add`](server-options.html#option_mysqld_plugin-load-add)。'
+- en: 'When you install the plugin at runtime without configuring its system variables
+    in the `my.cnf` file, the system variable [`authentication_kerberos_service_key_tab`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_key_tab)
+    is set to the default value of `mysql.keytab` in the data directory. The value
+    of this system variable cannot be changed at runtime, so if you need to specify
+    a different file, you need to add the setting to your `my.cnf` file then restart
+    the MySQL server. For example:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您在运行时安装插件而没有在`my.cnf`文件中配置其系统变量时，系统变量 [`authentication_kerberos_service_key_tab`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_key_tab)
+    将设置为数据目录中的默认值`mysql.keytab`。此系统变量的值不能在运行时更改，因此如果需要指定不同的文件，您需要将设置添加到您的`my.cnf`文件，然后重新启动
+    MySQL 服务器。例如：
+- en: '[PRE2]'
+  id: totrans-75
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: If the keytab file is not in the correct place or does not contain a valid SPN
+    key, the MySQL server does not validate this, but clients return authentication
+    errors until you fix the issue.
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果 keytab 文件不在正确的位置或不包含有效的 SPN 密钥，则 MySQL 服务器不会验证此问题，但客户端会返回身份验证错误，直到您解决问题。
+- en: 'The [`authentication_kerberos_service_principal`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_principal)
+    system variable can be set and persisted at runtime without restarting the server,
+    by using a [`SET PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable
+    Assignment") statement:'
+  id: totrans-77
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`authentication_kerberos_service_principal`](pluggable-authentication-system-variables.html#sysvar_authentication_kerberos_service_principal)
+    系统变量可以在运行时使用 [`SET PERSIST`](set-variable.html "15.7.6.1 变量赋值的SET语法") 语句设置和持久化，而无需重新启动服务器：'
+- en: '[PRE3]'
+  id: totrans-78
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '[`SET PERSIST`](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment")
+    sets a value for the running MySQL instance. It also saves the value, causing
+    it to carry over to subsequent server restarts. To change a value for the running
+    MySQL instance without having it carry over to subsequent restarts, use the `GLOBAL`
+    keyword rather than `PERSIST`. See [Section 15.7.6.1, “SET Syntax for Variable
+    Assignment”](set-variable.html "15.7.6.1 SET Syntax for Variable Assignment").'
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`SET PERSIST`](set-variable.html "15.7.6.1 变量赋值的SET语法") 为运行中的 MySQL 实例设置一个值。它还保存该值，导致其在后续服务器重启时保留。要更改运行中的
+    MySQL 实例的值，而不使其在后续重启中保留，使用`GLOBAL`关键字而不是`PERSIST`。参见 [Section 15.7.6.1, “变量赋值的SET语法”](set-variable.html
+    "15.7.6.1 变量赋值的SET语法")。'
+- en: 'To verify plugin installation, examine the Information Schema [`PLUGINS`](information-schema-plugins-table.html
+    "28.3.22 The INFORMATION_SCHEMA PLUGINS Table") table or use the [`SHOW PLUGINS`](show-plugins.html
+    "15.7.7.25 SHOW PLUGINS Statement") statement (see [Section 7.6.2, “Obtaining
+    Server Plugin Information”](obtaining-plugin-information.html "7.6.2 Obtaining
+    Server Plugin Information")). For example:'
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要验证插件安装，请检查信息模式 [`PLUGINS`](information-schema-plugins-table.html "28.3.22 INFORMATION_SCHEMA
+    PLUGINS 表") 表或使用 [`SHOW PLUGINS`](show-plugins.html "15.7.7.25 SHOW PLUGINS 语句")
+    语句（参见 [Section 7.6.2, “获取服务器插件信息”](obtaining-plugin-information.html "7.6.2 获取服务器插件信息")）。例如：
+- en: '[PRE4]'
+  id: totrans-81
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: If a plugin fails to initialize, check the server error log for diagnostic messages.
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果插件初始化失败，请检查服务器错误日志以获取诊断信息。
+- en: To associate MySQL accounts with the Kerberos plugin, see [Using Kerberos Pluggable
+    Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-usage
+    "Using Kerberos Pluggable Authentication").
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要将 MySQL 帐户与 Kerberos 插件关联，请参见 [使用 Kerberos 可插拔认证](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-usage
+    "使用 Kerberos 可插拔认证")。
+- en: Using Kerberos Pluggable Authentication
+  id: totrans-84
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 使用 Kerberos 可插拔认证
+- en: This section describes how to enable MySQL accounts to connect to the MySQL
+    server using Kerberos pluggable authentication. It is assumed that the server
+    is running with the server-side plugin enabled, as described in [Installing Kerberos
+    Pluggable Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "Installing Kerberos Pluggable Authentication"), and that the client-side plugin
+    is available on the client host.
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了如何启用 MySQL 帐户使用 Kerberos 可插拔认证连接到 MySQL 服务器。假定服务器正在运行并启用了服务器端插件，如 [安装 Kerberos
+    可插拔认证](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "安装 Kerberos 可插拔认证") 中所述，并且客户端主机上可用客户端插件。
+- en: '[Verify Kerberos Availability](kerberos-pluggable-authentication.html#kerberos-usage-kerberos-setup
+    "Verify Kerberos Availability")'
+  id: totrans-86
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[验证 Kerberos 可用性](kerberos-pluggable-authentication.html#kerberos-usage-kerberos-setup
+    "验证 Kerberos 可用性")'
+- en: '[Create a MySQL Account That Uses Kerberos Authentication](kerberos-pluggable-authentication.html#kerberos-usage-mysql-account-setup
+    "Create a MySQL Account That Uses Kerberos Authentication")'
+  id: totrans-87
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[创建一个使用Kerberos身份验证的MySQL帐户](kerberos-pluggable-authentication.html#kerberos-usage-mysql-account-setup
+    "创建一个使用Kerberos身份验证的MySQL帐户")'
+- en: '[Use the MySQL Account to Connect to the MySQL Server](kerberos-pluggable-authentication.html#kerberos-usage-mysql-client-usage
+    "Use the MySQL Account to Connect to the MySQL Server")'
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[使用MySQL帐户连接到MySQL服务器](kerberos-pluggable-authentication.html#kerberos-usage-mysql-client-usage
+    "使用MySQL帐户连接到MySQL服务器")'
+- en: '[Client Configuration Parameters for Kerberos Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "Client Configuration Parameters for Kerberos Authentication")'
+  id: totrans-89
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[Kerberos身份验证的客户端配置参数](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "Kerberos身份验证的客户端配置参数")'
+- en: Verify Kerberos Availability
+  id: totrans-90
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 验证Kerberos的可用性
+- en: 'The following example shows how to test availability of Kerberos in Active
+    Directory. The example makes these assumptions:'
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例显示如何测试Active Directory中Kerberos的可用性。该示例做出以下假设：
+- en: Active Directory is running on the host named `krbauth.example.com` with IP
+    address `198.51.100.11`.
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Active Directory正在名为`krbauth.example.com`的主机上运行，IP地址为`198.51.100.11`。
+- en: MySQL-related Kerberos authentication uses the `MYSQL.LOCAL` domain, and also
+    uses `MYSQL.LOCAL` as the realm name.
+  id: totrans-93
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 与MySQL相关的Kerberos身份验证使用`MYSQL.LOCAL`域，并且还使用`MYSQL.LOCAL`作为领域名称。
+- en: A principal named `karl@MYSQL.LOCAL` is registered with the KDC. (In later discussion,
+    this principal name is associated with the MySQL account that authenticates to
+    the MySQL server using Kerberos.)
+  id: totrans-94
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 名为`karl@MYSQL.LOCAL`的主体已在KDC中注册。（在后续讨论中，此主体名称与使用Kerberos身份验证连接到MySQL服务器的MySQL帐户相关联。）
+- en: 'With those assumptions satisfied, follow this procedure:'
+  id: totrans-95
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在满足这些假设的情况下，按照以下步骤进行：
+- en: 'Verify that the Kerberos library is installed and configured correctly in the
+    operating system. For example, to configure a `MYSQL.LOCAL` domain and realm for
+    use during MySQL authentication, the `/etc/krb5.conf` Kerberos configuration file
+    should contain something like this:'
+  id: totrans-96
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 验证操作系统中是否正确安装和配置了Kerberos库。例如，要在MySQL身份验证期间使用`MYSQL.LOCAL`域和领域，`/etc/krb5.conf`
+    Kerberos配置文件应包含类似于以下内容：
+- en: '[PRE5]'
+  id: totrans-97
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'You may need to add an entry to `/etc/hosts` for the server host:'
+  id: totrans-98
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 您可能需要为服务器主机在`/etc/hosts`中添加一个条目：
+- en: '[PRE6]'
+  id: totrans-99
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'Check whether Kerberos authentication works correctly:'
+  id: totrans-100
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 检查Kerberos身份验证是否正常工作：
+- en: 'Use **kinit** to authenticate to Kerberos:'
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用**kinit**进行Kerberos身份验证：
+- en: '[PRE7]'
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: The command authenticates for the Kerberos principal named `karl@MYSQL.LOCAL`.
+    Enter the principal's password when the command prompts for it. The KDC returns
+    a TGT that is cached on the client side for use by other Kerberos-aware applications.
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 该命令对名为`karl@MYSQL.LOCAL`的Kerberos主体进行身份验证。当命令提示时输入主体密码。KDC返回一个TGT，该TGT在客户端缓存以供其他了解Kerberos的应用程序使用。
+- en: 'Use **klist** to check whether the TGT was obtained correctly. The output should
+    be similar to this:'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用**klist**检查TGT是否正确获取。输出应类似于以下内容：
+- en: '[PRE8]'
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Create a MySQL Account That Uses Kerberos Authentication
+  id: totrans-106
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 创建一个使用Kerberos身份验证的MySQL帐户
+- en: 'MySQL authentication using the `authentication_kerberos` authentication plugin
+    is based on a Kerberos user principal name (UPN). The instructions here assume
+    that a MySQL user named `karl` authenticates to MySQL using Kerberos, that the
+    Kerberos realm is named `MYSQL.LOCAL`, and that the user principal name is `karl@MYSQL.LOCAL`.
+    This UPN must be registered in several places:'
+  id: totrans-107
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`authentication_kerberos`身份验证插件进行MySQL身份验证基于Kerberos用户主体名称（UPN）。这里的说明假设一个名为`karl`的MySQL用户使用Kerberos进行MySQL身份验证，Kerberos领域命名为`MYSQL.LOCAL`，用户主体名称为`karl@MYSQL.LOCAL`。这个UPN必须在几个地方注册：
+- en: The Kerberos administrator should register the user name as a Kerberos principal.
+    This name includes a realm name. Clients use the principal name and password to
+    authenticate with Kerberos and obtain a ticket-granting ticket (TGT).
+  id: totrans-108
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: Kerberos管理员应将用户名称注册为Kerberos主体。此名称包括领域名称。客户端使用主体名称和密码进行Kerberos身份验证，并获取票据授予票据（TGT）。
+- en: The MySQL DBA should create an account that corresponds to the Kerberos principal
+    name and that authenticates using the Kerberos plugin.
+  id: totrans-109
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: MySQL DBA应创建一个与Kerberos主体名称对应并使用Kerberos插件进行身份验证的帐户。
+- en: 'Assume that the Kerberos user principal name has been registered by the appropriate
+    service administrator, and that, as previously described in [Installing Kerberos
+    Pluggable Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "Installing Kerberos Pluggable Authentication"), the MySQL server has been started
+    with appropriate configuration settings for the server-side Kerberos plugin. To
+    create a MySQL account that corresponds to a Kerberos UPN of `*`user`*@*`realm_name`*`,
+    the MySQL DBA uses a statement like this:'
+  id: totrans-110
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设适当的服务管理员已注册了Kerberos用户主体名称，并且如前所述在[安装Kerberos可插拔认证](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-installation
+    "Installing Kerberos Pluggable Authentication")中，MySQL服务器已使用适当的配置设置启动了服务器端Kerberos插件。要创建与Kerberos
+    UPN `*`user`*@*`realm_name`*`对应的MySQL帐户，MySQL DBA使用类似于以下语句：
+- en: '[PRE9]'
+  id: totrans-111
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: The account named by *`user`* can include or omit the host name part. If the
+    host name is omitted, it defaults to `%` as usual. The *`realm_name`* is stored
+    as the `authentication_string` value for the account in the `mysql.user` system
+    table.
+  id: totrans-112
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由*`user`*指定的帐户可以包含或省略主机名部分。如果省略主机名，则通常默认为`%`。*`realm_name`*存储为`mysql.user`系统表中帐户的`authentication_string`值。
+- en: 'To create a MySQL account that corresponds to the UPN `karl@MYSQL.LOCAL`, use
+    this statement:'
+  id: totrans-113
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要创建与UPN `karl@MYSQL.LOCAL`对应的MySQL帐户，请使用此语句：
+- en: '[PRE10]'
+  id: totrans-114
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: If MySQL must construct the UPN for this account, for example, to obtain or
+    validate tickets (TGTs or STs), it does so by combining the account name (ignoring
+    any host name part) and the realm name. For example, the full account name resulting
+    from the preceding [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    statement is `'karl'@'%'`. MySQL constructs the UPN from the user name part `karl`
+    (ignoring the host name part) and the realm name `MYSQL.LOCAL` to produce `karl@MYSQL.LOCAL`.
+  id: totrans-115
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果MySQL必须为此帐户构造UPN，例如获取或验证票证（TGT或ST），则通过组合帐户名（忽略任何主机名部分）和领域名来执行此操作。例如，从前述[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER Statement")语句中得到的完整帐户名为`'karl'@'%'`。MySQL从用户名部分`karl`（忽略主机名部分）和领域名`MYSQL.LOCAL`构造UPN，以生成`karl@MYSQL.LOCAL`。
+- en: Note
+  id: totrans-116
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Observe that when creating an account that authenticates using `authentication_kerberos`,
+    the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") statement
+    does not include the UPN realm as part of the user name. Instead, specify the
+    realm (`MYSQL.LOCAL` in this case) as the authentication string in the `BY` clause.
+    This differs from creating accounts that use the `authentication_ldap_sasl` SASL
+    LDAP authentication plugin with the GSSAPI/Kerberos authentication method. For
+    such accounts, the [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement")
+    statement does include the UPN realm as part of the user name. See [Create a MySQL
+    Account That Uses GSSAPI/Kerberos for LDAP Authentication](ldap-pluggable-authentication.html#ldap-gssapi-mysql-account-setup
+    "Create a MySQL Account That Uses GSSAPI/Kerberos for LDAP Authentication").
+  id: totrans-117
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，当创建使用`authentication_kerberos`进行身份验证的帐户时，[`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement")语句不包括UPN领域作为用户名的一部分。而是在`BY`子句中指定领域（在本例中为`MYSQL.LOCAL`）作为认证字符串。这与使用GSSAPI/Kerberos认证方法的`authentication_ldap_sasl`
+    SASL LDAP认证插件创建帐户不同。对于这样的帐户，[`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement")语句包括UPN领域作为用户名的一部分。请参阅[创建使用GSSAPI/Kerberos进行LDAP认证的MySQL帐户](ldap-pluggable-authentication.html#ldap-gssapi-mysql-account-setup
+    "Create a MySQL Account That Uses GSSAPI/Kerberos for LDAP Authentication")。
+- en: With the account set up, clients can use it to connect to the MySQL server.
+    The procedure depends on whether the client host runs Linux or Windows, as indicated
+    in the following discussion.
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 设置好帐户后，客户端可以使用它连接到MySQL服务器。该过程取决于客户端主机是运行Linux还是Windows，如下面的讨论所示。
+- en: 'Use of `authentication_kerberos` is subject to the restriction that UPNs with
+    the same user part but a different realm part are not supported. For example,
+    you cannot create MySQL accounts that correspond to both these UPNs:'
+  id: totrans-119
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用`authentication_kerberos`受到限制，即不支持具有相同用户部分但不同领域部分的UPN。例如，您不能创建对应于以下这两个UPN的MySQL帐户：
+- en: '[PRE11]'
+  id: totrans-120
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: Both UPNs have a user part of `kate` but differ in the realm part (`MYSQL.LOCAL`
+    versus `EXAMPLE.COM`). This is disallowed.
+  id: totrans-121
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个UPN都具有`kate`的用户部分，但领域部分不同（`MYSQL.LOCAL`与`EXAMPLE.COM`）。这是不允许的。
+- en: Use the MySQL Account to Connect to the MySQL Server
+  id: totrans-122
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 使用MySQL帐户连接到MySQL服务器
+- en: 'After a MySQL account that authenticates using Kerberos has been set up, clients
+    can use it to connect to the MySQL server as follows:'
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 设置了使用Kerberos进行身份验证的MySQL帐户后，客户端可以按以下方式连接到MySQL服务器：
+- en: Authenticate to Kerberos with the user principal name (UPN) and its password
+    to obtain a ticket-granting ticket (TGT).
+  id: totrans-124
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用用户主体名称（UPN）和其密码对Kerberos进行身份验证，以获取票据授予票据（TGT）。
+- en: Use the TGT to obtain a service ticket (ST) for MySQL.
+  id: totrans-125
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用TGT获取MySQL的服务票据（ST）。
+- en: Authenticate to the MySQL server by presenting the MySQL ST.
+  id: totrans-126
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 通过呈现MySQL ST向MySQL服务器进行身份验证。
+- en: 'The first step (authenticating to Kerberos) can be performed various ways:'
+  id: totrans-127
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 第一步（向Kerberos进行身份验证）可以通过各种方式执行：
+- en: 'Prior to connecting to MySQL:'
+  id: totrans-128
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在连接到MySQL之前：
+- en: On Linux or on Windows in `GSSAPI` mode, invoke **kinit** to obtain the TGT
+    and save it in the Kerberos credentials cache.
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在Linux或在`GSSAPI`模式下的Windows上，调用**kinit**以获取TGT并将其保存在Kerberos凭据缓存中。
+- en: On Windows in `SSPI` mode, authentication may already have been done at login
+    time, which saves the TGT for the logged-in user in the Windows in-memory cache.
+    **kinit** is not used and there is no Kerberos cache.
+  id: totrans-130
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`SSPI`模式下的Windows中，认证可能已在登录时完成，这会将登录用户的TGT保存在Windows内存缓存中。**kinit**不会被使用，也没有Kerberos缓存。
+- en: 'When connecting to MySQL, the client program itself can obtain the TGT, if
+    it can determine the required Kerberos UPN and password:'
+  id: totrans-131
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 连接到MySQL时，客户端程序本身可以获取TGT，如果它可以确定所需的Kerberos UPN和密码：
+- en: That information can come from sources such as command options or the operating
+    system.
+  id: totrans-132
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 信息可以来自诸如命令选项或操作系统之类的来源。
+- en: On Linux, clients also can use a keytab file or the `/etc/krb5.conf` configuration
+    file. Windows clients in `GSSAPI` mode use a configuration file. Windows clients
+    in `SSPI` mode use neither.
+  id: totrans-133
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在Linux上，客户端还可以使用keytab文件或`/etc/krb5.conf`配置文件。在`GSSAPI`模式下的Windows客户端使用配置文件。在`SSPI`模式下��Windows客户端两者都不使用。
+- en: 'Details of the client commands for connecting to the MySQL server differ for
+    Linux and Windows, so each host type is discussed separately, but these command
+    properties apply regardless of host type:'
+  id: totrans-134
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 连接到MySQL服务器的客户端命令的详细信息因Linux和Windows而异，因此每个主机类型都会单独讨论，但这些命令属性适用于所有主机类型：
+- en: 'Each command shown includes the following options, but each one may be omitted
+    under certain conditions:'
+  id: totrans-135
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个显示的命令都包括以下选项，但在某些情况下可以省略每个选项：
+- en: The [`--default-auth`](connection-options.html#option_general_default-auth)
+    option specifies the name of the client-side authentication plugin (`authentication_kerberos_client`).
+    This option may be omitted when the [`--user`](connection-options.html#option_general_user)
+    option is specified because in that case MySQL can determine the plugin from the
+    user account information sent by MySQL server.
+  id: totrans-136
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--default-auth`](connection-options.html#option_general_default-auth)选项指定客户端端身份验证插件的名称（`authentication_kerberos_client`）。当指定[`--user`](connection-options.html#option_general_user)选项时，可以省略此选项，因为在这种情况下，MySQL可以从MySQL服务器发送的用户帐户信息中确定插件。'
+- en: The [`--plugin-dir`](connection-options.html#option_general_plugin-dir) option
+    indicates to the client program the location of the `authentication_kerberos_client`
+    plugin. This option may be omitted if the plugin is installed in the default (compiled-in)
+    location.
+  id: totrans-137
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`--plugin-dir`](connection-options.html#option_general_plugin-dir)选项指示客户端程序`authentication_kerberos_client`插件的位置。如果插件安装在默认（编译内）位置，则可以省略此选项。'
+- en: Commands should also include any other options such as [`--host`](connection-options.html#option_general_host)
+    or [`--port`](connection-options.html#option_general_port) that are required to
+    specify which MySQL server to connect to.
+  id: totrans-138
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 命令还应包括任何其他选项，如[`--host`](connection-options.html#option_general_host)或[`--port`](connection-options.html#option_general_port)，以指定连接到哪个MySQL服务器。
+- en: Enter each command on a single line. If the command includes a [`--password`](connection-options.html#option_general_password)
+    option to solicit a password, enter the password of the Kerberos UPN associated
+    with the MySQL user when prompted.
+  id: totrans-139
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个命令都要单独输入一行。如果命令包括[`--password`](connection-options.html#option_general_password)选项以获取密码，请在提示时输入与MySQL用户关联的Kerberos
+    UPN的密码。
+- en: '**Connection Commands for Linux Clients**'
+  id: totrans-140
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**Linux客户端连接命令**'
+- en: 'On Linux, the appropriate client command for connecting to the MySQL server
+    varies depending on whether the command authenticates using a TGT from the Kerberos
+    cache, or based on command options for the MySQL user name and the UPN password:'
+  id: totrans-141
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在Linux上，连接到MySQL服务器的适当客户端命令因命令是使用来自Kerberos缓存的TGT进行身份验证，还是基于MySQL用户名和UPN密码的命令选项而异：
+- en: 'Prior to invoking the MySQL client program, the client user can obtain a TGT
+    from the KDC independently of MySQL. For example, the client user can use **kinit**
+    to authenticate to Kerberos by providing a Kerberos user principal name and the
+    principal password:'
+  id: totrans-142
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在调用MySQL客户端程序之前，客户端用户可以独立于MySQL从KDC获取TGT。例如，客户端用户可以使用**kinit**通过提供Kerberos用户主体名称和主体密码来对Kerberos进行身份验证：
+- en: '[PRE12]'
+  id: totrans-143
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'The resulting TGT for the UPN is cached and becomes available for use by other
+    Kerberos-aware applications, such as programs that use the client-side Kerberos
+    authentication plugin. In this case, invoke the client without specifying a user-name
+    or password option:'
+  id: totrans-144
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 生成的UPN的TGT被缓存，并可供其他了解Kerberos的应用程序使用，例如使用客户端端Kerberos认证插件的程序。在这种情况下，调用客户端时不指定用户名称或密码选项：
+- en: '[PRE13]'
+  id: totrans-145
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: The client-side plugin finds the TGT in the cache, uses it to obtain a MySQL
+    ST, and uses the ST to authenticate to the MySQL server.
+  id: totrans-146
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端插件在缓存中找到TGT，使用它获取MySQL ST，并使用ST对MySQL服务器进行身份验证。
+- en: 'As just described, when the TGT for the UPN is cached, user-name and password
+    options are not needed in the client command. If the command includes them anyway,
+    they are handled as follows:'
+  id: totrans-147
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 正如刚才描述的，当UPN的TGT被缓存时，在客户端命令中不需要用户名称和密码选项。如果命令仍然包含它们，则处理如下：
+- en: 'This command includes a user-name option:'
+  id: totrans-148
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此命令包括一个用户名选项：
+- en: '[PRE14]'
+  id: totrans-149
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: In this case, authentication fails if the user name specified by the option
+    does not match the user name part of the UPN in the TGT.
+  id: totrans-150
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，如果选项指定的用户名与TGT中的UPN的用户名部分不匹配，则身份验证将失败。
+- en: 'This command includes a password option, which you enter when prompted:'
+  id: totrans-151
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此命令包括一个密码选项，在提示时输入：
+- en: '[PRE15]'
+  id: totrans-152
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: In this case, the client-side plugin ignores the password. Because authentication
+    is based on the TGT, it can succeed *even if the user-provided password is incorrect*.
+    For this reason, the plugin produces a warning if a valid TGT is found that causes
+    a password to be ignored.
+  id: totrans-153
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，客户端端插件会忽略密码。因为身份验证是基于TGT的，即使用户提供的密码不正确，也可以成功*。因此，如果找到导致密码被忽略的有效TGT，插件会产生警告。
+- en: 'If the Kerberos cache contains no TGT, the client-side Kerberos authentication
+    plugin itself can obtain the TGT from the KDC. Invoke the client with options
+    for the MySQL user name and the password, then enter the UPN password when prompted:'
+  id: totrans-154
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果Kerberos缓存中不包含TGT，则客户端端Kerberos认证插件本身可以从KDC获取TGT。使用MySQL用户名和密码的选项调用客户端，然后在提示时输入UPN密码：
+- en: '[PRE16]'
+  id: totrans-155
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: The client-side Kerberos authentication plugin combines the user name (`karl`)
+    and the realm specified in the user account (`MYSQL.LOCAL`) to construct the UPN
+    (`karl@MYSQL.LOCAL`). The client-side plugin uses the UPN and password to obtain
+    a TGT, uses the TGT to obtain a MySQL ST, and uses the ST to authenticate to the
+    MySQL server.
+  id: totrans-156
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端端的Kerberos认证插件将用户名称（`karl`）与用户帐户中指定的领域（`MYSQL.LOCAL`）结合起来构建UPN（`karl@MYSQL.LOCAL`）。客户端插件使用UPN和密码获取TGT，使用TGT获取MySQL
+    ST，并使用ST对MySQL服务器进行身份验证。
+- en: 'Or, suppose that the Kerberos cache contains no TGT and the command specifies
+    a password option but no user-name option:'
+  id: totrans-157
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者，假设Kerberos缓存中不包含TGT，并且命令指定了密码选项但没有用户名称选项：
+- en: '[PRE17]'
+  id: totrans-158
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: The client-side Kerberos authentication plugin uses the operating system login
+    name as the MySQL user name. It combines that user name and the realm in the user's
+    MySQL account to construct the UPN. The client-side plugin uses the UPN and the
+    password to obtain a TGT, uses the TGT to obtain a MySQL ST, and uses the ST to
+    authenticate to the MySQL server.
+  id: totrans-159
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端端Kerberos认证插件使用操作系统登录名作为MySQL用户名。它将该用户名与用户的MySQL帐户中的领域结合起来构建UPN。客户端插件使用UPN和密码获取TGT，使用TGT获取MySQL
+    ST，并使用ST对MySQL服务器进行身份验证。
+- en: If you are uncertain whether a TGT exists, you can use **klist** to check.
+  id: totrans-160
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您不确定是否存在TGT，可以使用**klist**进行检查。
+- en: Note
+  id: totrans-161
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: When the client-side Kerberos authentication plugin itself obtains the TGT,
+    the client user may not want the TGT to be reused. As described in [Client Configuration
+    Parameters for Kerberos Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "Client Configuration Parameters for Kerberos Authentication"), the local `/etc/krb5.conf`
+    file can be used to cause the client-side plugin to destroy the TGT when done
+    with it.
+  id: totrans-162
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当客户端端Kerberos认证插件本身获取TGT时，客户端用户可能不希望TGT被重用。如[用于Kerberos认证的客户端配置参数](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "用于Kerberos认证的客户端配置参数")中所述，本地`/etc/krb5.conf`文件可用于使客户端插件在完成后销毁TGT。
+- en: '**Connection Commands for Windows Clients in SSPI Mode**'
+  id: totrans-163
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**SSPI 模式下 Windows 客户端的连接命令**'
+- en: On Windows, using the default client-side plugin option (SSPI), the appropriate
+    client command for connecting to the MySQL server varies depending on whether
+    the command authenticates based on command options for the MySQL user name and
+    the UPN password, or instead uses a TGT from the Windows in-memory cache. For
+    details about GSSAPI mode on Windows, see [Commands for Windows Clients in GSSAPI
+    Mode](kerberos-pluggable-authentication.html#kerberos-usage-win-gssapi-client-commands).
+  id: totrans-164
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Windows 上，使用默认的客户端插件选项（SSPI），连接到 MySQL 服务器的适当客户端命令取决于命令是基于 MySQL 用户名和 UPN
+    密码的命令选项进行身份验证，还是使用 Windows 内存缓存中的 TGT。有关 Windows 上 GSSAPI 模式的详细信息，请参阅 [GSSAPI
+    模式下 Windows 客户端的命令](kerberos-pluggable-authentication.html#kerberos-usage-win-gssapi-client-commands)。
+- en: 'A command can explicitly specify options for the MySQL user name and the UPN
+    password, or the command can omit those options:'
+  id: totrans-165
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个命令可以明确指定 MySQL 用户名和 UPN 密码的选项，也可以省略这些选项：
+- en: 'This command includes options for the MySQL user name and UPN password:'
+  id: totrans-166
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此命令包括 MySQL 用户名和 UPN 密码的选项：
+- en: '[PRE18]'
+  id: totrans-167
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: The client-side Kerberos authentication plugin combines the user name (`karl`)
+    and the realm specified in the user account (`MYSQL.LOCAL`) to construct the UPN
+    (`karl@MYSQL.LOCAL`). The client-side plugin uses the UPN and password to obtain
+    a TGT, uses the TGT to obtain a MySQL ST, and uses the ST to authenticate to the
+    MySQL server.
+  id: totrans-168
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端端的 Kerberos 认证插件将用户名称（`karl`）和用户帐户中指定的领域（`MYSQL.LOCAL`）结合起来构建 UPN（`karl@MYSQL.LOCAL`）。客户端插件使用
+    UPN 和密码获取 TGT，使用 TGT 获取 MySQL ST，并使用 ST 对 MySQL 服务器进行身份验证。
+- en: Any information in the Windows in-memory cache is ignored; the user-name and
+    password option values take precedence.
+  id: totrans-169
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: Windows 内存缓存中的任何信息都将被忽略；用户名称和密码选项值优先。
+- en: 'This command includes an option for the UPN password but not for the MySQL
+    user name:'
+  id: totrans-170
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此命令包括 UPN 密码选项，但不包括 MySQL 用户名选项：
+- en: '[PRE19]'
+  id: totrans-171
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: The client-side Kerberos authentication plugin uses the logged-in user name
+    as the MySQL user name and combines that user name and the realm in the user's
+    MySQL account to construct the UPN. The client-side plugin uses the UPN and the
+    password to obtain a TGT, uses the TGT to obtain a MySQL ST, and uses the ST to
+    authenticate to the MySQL server.
+  id: totrans-172
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端端的 Kerberos 认证插件使用已登录用户名称作为 MySQL 用户名，并将该用户名与用户 MySQL 帐户中的领域结合起来构建 UPN。客户端插件使用
+    UPN 和密码获取 TGT，使用 TGT 获取 MySQL ST，并使用 ST 对 MySQL 服务器进行身份验证。
+- en: 'This command includes no options for the MySQL user name or UPN password:'
+  id: totrans-173
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此命令不包括 MySQL 用户名或 UPN 密码的选项：
+- en: '[PRE20]'
+  id: totrans-174
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: The client-side plugin obtains the TGT from the Windows in-memory cache, uses
+    the TGT to obtain a MySQL ST, and uses the ST to authenticate to the MySQL server.
+  id: totrans-175
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端端插件从 Windows 内存缓存中获取 TGT，使用 TGT 获取 MySQL ST，并使用 ST 对 MySQL 服务器进行身份验证。
+- en: 'This approach requires the client host to be part of the Windows Server Active
+    Directory (AD) domain. If that is not the case, help the MySQL client discover
+    the IP address for the AD domain by manually entering the AD server and realm
+    as the DNS server and prefix:'
+  id: totrans-176
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这种方法要求客户端主机是 Windows Server Active Directory (AD) 域的一部分。如果不是这种情况，请通过手动输入 AD
+    服务器和领域作为 DNS 服务器和前缀来帮助 MySQL 客户端发现 AD 域的 IP 地址：
+- en: Start `console.exe` and select Network and Sharing Center.
+  id: totrans-177
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 启动 `console.exe` 并选择网络和共享中心。
+- en: From the sidebar of the Network and Sharing Center window, select Change adapter
+    settings.
+  id: totrans-178
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从网络和共享中心窗口的侧边栏中，选择更改适配器设置。
+- en: In the Network Connections window, right-click the network or VPN connection
+    to configure and select Properties.
+  id: totrans-179
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在网络连接窗口中，右键单击要配置的网络或 VPN 连接，然后选择属性。
+- en: From the Network tab, locate and click Internet Protocol Version 4 (TCP/IPv4),
+    and then click Properties.
+  id: totrans-180
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从网络选项卡中，找到并单击 Internet 协议版本 4 (TCP/IPv4)，然后单击属性。
+- en: Click Advanced in the Internet Protocol Version 4 (TCP/IPv4) Properties dialog.
+    The Advanced TCP/IP Settings dialog opens.
+  id: totrans-181
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在 Internet 协议版本 4 (TCP/IPv4) 属性对话框中，单击高级。打开高级 TCP/IP 设置对话框。
+- en: From the DNS tab, add the Active Directory server and realm as a DNS server
+    and prefix.
+  id: totrans-182
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从 DNS 选项卡中，将 Active Directory 服务器和领域添加为 DNS 服务器和前缀。
+- en: 'This command includes an option for the MySQL user name but not for the UPN
+    password:'
+  id: totrans-183
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 此命令包括 MySQL 用户名选项，但不包括 UPN 密码选项：
+- en: '[PRE21]'
+  id: totrans-184
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: The client-side Kerberos authentication plugin compares the name specified by
+    the user-name option against the logged-in user name. If the names are the same,
+    the plugin uses the logged-in user TGT for authentication. If the names differ,
+    authentication fails.
+  id: totrans-185
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 客户端端的 Kerberos 身份验证插件将由用户名称选项指定的名称与登录用户名进行比较。如果名称相同，则插件使用登录用户的 TGT 进行身份验证。如果名称不同，则身份验证失败。
+- en: '**Connection Commands for Windows Clients in GSSAPI Mode**'
+  id: totrans-186
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**在 GSSAPI 模式下的 Windows 客户端连接命令**'
+- en: On Windows, the client user must specify `GSSAPI` mode explicitly using the
+    `plugin_authentication_kerberos_client_mode` plugin option to enable support through
+    the MIT Kerberos library. The default mode is `SSPI` (see [Commands for Windows
+    Clients in SSPI Mode](kerberos-pluggable-authentication.html#kerberos-usage-win-sspi-client-commands)).
+  id: totrans-187
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 Windows 上，客户端用户必须明确使用 `plugin_authentication_kerberos_client_mode` 插件选项指定
+    `GSSAPI` 模式，以通过 MIT Kerberos 库启用支持。默认模式为 `SSPI`（请参阅 [SSPI 模式下 Windows 客户端的命令](kerberos-pluggable-authentication.html#kerberos-usage-win-sspi-client-commands)）。
+- en: 'It is possible to specify `GSSAPI` mode:'
+  id: totrans-188
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以指定 `GSSAPI` 模式：
+- en: 'Prior to invoking the MySQL client program in an option file. The plugin variable
+    name is valid using either underscores or dashes:'
+  id: totrans-189
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在运行 Windows 主机上始终从 MIT Kerberos 缓存中检索或放置票证。
+- en: '[PRE22]'
+  id: totrans-190
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: 'Or:'
+  id: totrans-191
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或：
+- en: '[PRE23]'
+  id: totrans-192
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: At runtime from the command line using the [**mysql**](mysql.html "6.5.1 mysql
+    — The MySQL Command-Line Client") or [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program") client programs. For example, the following commands
+    (with underscores or dashes) causes [**mysql**](mysql.html "6.5.1 mysql — The
+    MySQL Command-Line Client") to connect to the server through the MIT Kerberos
+    library on Windows.
+  id: totrans-193
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在运行时从命令行使用 [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client")
+    或 [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup Program")
+    客户端程序。例如，以下命令（带有下划线或破折号）使 [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") 通过 MIT Kerberos 库连接到 Windows 上的服务器。
+- en: '[PRE24]'
+  id: totrans-194
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: 'Or:'
+  id: totrans-195
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或：
+- en: '[PRE25]'
+  id: totrans-196
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: 'Client users can select `GSSAPI` mode from MySQL Workbench and some MySQL connectors.
+    On client hosts running Windows, you can override the default location of:'
+  id: totrans-197
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 客户端用户可以从 MySQL Workbench 和一些 MySQL 连接器中选择 `GSSAPI` 模式。在运行 Windows 的客户端主机上，您可以覆盖默认位置：
+- en: The Kerberos configuration file by setting the `KRB5_CONFIG` environment variable.
+  id: totrans-198
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过设置 `KRB5_CONFIG` 环境变量来配置 Kerberos 配置文件。
+- en: The default credential cache name with the `KRB5CCNAME` environment variable
+    (for example, `KRB5CCNAME=DIR:/mydir/`).
+  id: totrans-199
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用 `KRB5CCNAME` 环境变量设置默认凭据缓存名称（例如，`KRB5CCNAME=DIR:/mydir/`）。
+- en: For specific client-side plugin information, see the documentation at [https://dev.mysql.com/doc/](/doc/).
+  id: totrans-200
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关特定客户端插件信息，请参阅 [https://dev.mysql.com/doc/](/doc/) 文档。
+- en: 'The appropriate client command for connecting to the MySQL server varies depending
+    on whether the command authenticates using a TGT from the MIT Kerberos cache,
+    or based on command options for the MySQL user name and the UPN password. GSSAPI
+    support through the MIT library on Windows is similar to GSSAPI on Linux (see
+    [Commands for Linux Clients](kerberos-pluggable-authentication.html#kerberos-usage-linux-client-commands)),
+    with the following exceptions:'
+  id: totrans-201
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 连接到 MySQL 服务器的适当客户端命令因命令是使用 MIT Kerberos 缓存中的 TGT 进行身份验证，还是基于 MySQL 用户名称和 UPN
+    密码的命令选项而异。在 Windows 上通过 MIT 库支持的 GSSAPI 与 Linux 上的 GSSAPI 类似（请参阅 [Linux 客户端命令](kerberos-pluggable-authentication.html#kerberos-usage-linux-client-commands)），但有以下例外：
+- en: Tickets are always retrieved from or placed into the MIT Kerberos cache on hosts
+    running Windows.
+  id: totrans-202
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在运行 MySQL 客户端程序之前，在选项文件中。插件变量名称可以使用下划线或破折号：
+- en: '**kinit** runs with Functional Accounts on Windows that have narrow permissions
+    and specific roles. The client user does not know the **kinit** password. For
+    an overview, see [https://docs.oracle.com/en/java/javase/11/tools/kinit.html](https://docs.oracle.com/en/java/javase/11/tools/kinit.html).'
+  id: totrans-203
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '**kinit** 在 Windows 上以具有狭窄权限和特定角色的功能帐户运行。客户端用户不知道 **kinit** 密码。有关概述，请参阅 [https://docs.oracle.com/en/java/javase/11/tools/kinit.html](https://docs.oracle.com/en/java/javase/11/tools/kinit.html)。'
+- en: If the client user supplies a password, the MIT Kerberos library on Windows
+    decides whether to use it or rely on the existing ticket.
+  id: totrans-204
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果客户端用户提供密码，MIT Kerberos 库在 Windows 上决定是使用密码还是依赖现有票证。
+- en: The `destroy_tickets` parameter, described in [Client Configuration Parameters
+    for Kerberos Authentication](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "Client Configuration Parameters for Kerberos Authentication"), is not supported
+    because the MIT Kerberos library on Windows does not support the required API
+    member (`get_profile_boolean`) to read its value from configuration file.
+  id: totrans-205
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 描述在[用于Kerberos认证的客户端配置参数](kerberos-pluggable-authentication.html#kerberos-pluggable-authentication-mysql-client-config-parameters
+    "用于Kerberos认证的客户端配置参数")中的`destroy_tickets`参数不受支持，因为Windows上的MIT Kerberos库不支持所需的API成员（`get_profile_boolean`）来从配置文件中读取其值。
+- en: Client Configuration Parameters for Kerberos Authentication
+  id: totrans-206
+  prefs:
+  - PREF_H6
+  type: TYPE_NORMAL
+  zh: 用于Kerberos认证的客户端配置参数
+- en: This section applies only for client hosts running Linux, not client hosts running
+    Windows.
+  id: totrans-207
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节仅适用于运行Linux的客户端主机，不适用于运行Windows的客户端主机。
+- en: Note
+  id: totrans-208
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: A client host running Windows with the `authentication_kerberos_client` client-side
+    Kerberos plugin set to `GSSAPI` mode does support client configuration parameters,
+    in general, but the MIT Kerberos library on Windows does not support the `destroy_tickets`
+    parameter described in this section.
+  id: totrans-209
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 运行Windows的客户端主机，将`authentication_kerberos_client`客户端Kerberos插件设置为`GSSAPI`模式支持客户端配置参数，但Windows上的MIT
+    Kerberos库不支持本节中描述的`destroy_tickets`参数。
+- en: If no valid ticket-granting ticket (TGT) exists at the time of MySQL client
+    application invocation, the application itself may obtain and cache the TGT. If
+    during the Kerberos authentication process the client application causes a TGT
+    to be cached, any such TGT that was added can be destroyed after it is no longer
+    needed, by setting the appropriate configuration parameter.
+  id: totrans-210
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在MySQL客户端应用程序调用时不存在有效的票证授予票证（TGT），应用程序本身可以获取并缓存TGT。如果在Kerberos认证过程中，客户端应用程序导致TGT被缓存，任何添加的TGT在不再需要时可以通过设置适当的配置参数销毁。
+- en: 'The `authentication_kerberos_client` client-side Kerberos plugin reads the
+    local `/etc/krb5.conf` file. If this file is missing or inaccessible, an error
+    occurs. Assuming that the file is accessible, it can include an optional `[appdefaults]`
+    section to provide information used by the plugin. Place the information within
+    the `mysql` part of the section. For example:'
+  id: totrans-211
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`authentication_kerberos_client`客户端Kerberos插件读取本地的`/etc/krb5.conf`文件。如果该文件丢失或无法访问，将会出现错误。假设文件可访问，它可以包含一个可选的`[appdefaults]`部分，提供插件使用的信息。将信息放在该部分的`mysql`部分内。例如：'
+- en: '[PRE26]'
+  id: totrans-212
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: 'The client-side plugin recognizes these parameters in the `mysql` section:'
+  id: totrans-213
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 客户端插件在`mysql`部分识别这些参数：
+- en: The `destroy_tickets` value indicates whether the client-side plugin destroys
+    the TGT after obtaining and using it. By default, `destroy_tickets` is `false`,
+    but can be set to `true` to avoid TGT reuse. (This setting applies only to TGTs
+    created by the client-side plugin, not TGTs created by other plugins or externally
+    to MySQL.)
+  id: totrans-214
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`destroy_tickets`值指示客户端插件在获取和使用TGT后是否销毁TGT。默认情况下，`destroy_tickets`为`false`，但可以设置为`true`以避免TGT重用。（此设置仅适用于由客户端插件创建的TGT，不适用于由其他插件或外部MySQL创建的TGT。）'
+- en: On the client host, a client keytab file may be used to obtain a TGT and TS
+    without supplying a password. For information about keytab files, see [https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html](https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html).
+  id: totrans-215
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在客户端主机上，可以使用客户端keytab文件来获取TGT和TS而无需提供密码。有关keytab文件的信息，请参阅[https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html](https://web.mit.edu/kerberos/krb5-latest/doc/basic/keytab_def.html)。
+- en: Kerberos Authentication Debugging
+  id: totrans-216
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: Kerberos认证调试
+- en: The `AUTHENTICATION_KERBEROS_CLIENT_LOG` environment variable enables or disables
+    debug output for Kerberos authentication.
+  id: totrans-217
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`AUTHENTICATION_KERBEROS_CLIENT_LOG`环境变量用于启用或禁用Kerberos认证的调试输出。'
+- en: Note
+  id: totrans-218
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Despite `CLIENT` in the name `AUTHENTICATION_KERBEROS_CLIENT_LOG`, the same
+    environment variable applies to the server-side plugin as well as the client-side
+    plugin.
+  id: totrans-219
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尽管`AUTHENTICATION_KERBEROS_CLIENT_LOG`中包含`CLIENT`，但同一环境变量也适用于服务器端插件以及客户端插件。
+- en: On the server side, the permitted values are 0 (off) and 1 (on). Log messages
+    are written to the server error log, subject to the server error-logging verbosity
+    level. For example, if you are using priority-based log filtering, the [`log_error_verbosity`](server-system-variables.html#sysvar_log_error_verbosity)
+    system variable controls verbosity, as described in [Section 7.4.2.5, “Priority-Based
+    Error Log Filtering (log_filter_internal)”](error-log-priority-based-filtering.html
+    "7.4.2.5 Priority-Based Error Log Filtering (log_filter_internal)").
+  id: totrans-220
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在服务器端，允许的值为0（关闭）和1（开启）。日志消息写入服务器错误日志，受服务器错误日志详细级别的影响。例如，如果您正在使用基于优先级的日志过滤，[`log_error_verbosity`](server-system-variables.html#sysvar_log_error_verbosity)
+    系统变量控制详细程度，如[第7.4.2.5节“基于优先级的错误日志过滤（log_filter_internal）”](error-log-priority-based-filtering.html
+    "7.4.2.5 基于优先级的错误日志过滤（log_filter_internal）")中所述。
+- en: On the client side, the permitted values are from 1 to 5 and are written to
+    the standard error output. The following table shows the meaning of each log-level
+    value.
+  id: totrans-221
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在客户端，允许的值为1到5，并写入标准错误输出。以下表格显示了每个日志级别值的含义。
+- en: '| Log Level | Meaning |'
+  id: totrans-222
+  prefs: []
+  type: TYPE_TB
+  zh: '| 日志级别 | 含义 |'
+- en: '| 1 or not set | No logging |'
+  id: totrans-223
+  prefs: []
+  type: TYPE_TB
+  zh: '| 1 或未设置 | 无日志记录 |'
+- en: '| 2 | Error messages |'
+  id: totrans-224
+  prefs: []
+  type: TYPE_TB
+  zh: '| 2 | 错误消息 |'
+- en: '| 3 | Error and warning messages |'
+  id: totrans-225
+  prefs: []
+  type: TYPE_TB
+  zh: '| 3 | 错误和警告消息 |'
+- en: '| 4 | Error, warning, and information messages |'
+  id: totrans-226
+  prefs: []
+  type: TYPE_TB
+  zh: '| 4 | 错误、警告和信息消息 |'
+- en: '| 5 | Error, warning, information, and debug messages |'
+  id: totrans-227
+  prefs: []
+  type: TYPE_TB
+  zh: '| 5 | 错误、警告、信息和调试消息 |'

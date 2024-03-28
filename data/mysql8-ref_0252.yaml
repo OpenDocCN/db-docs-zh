@@ -1,0 +1,628 @@
+- en: 7.1.15 MySQL Server Time Zone Support
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.1.15 MySQL服务器时区支持
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/time-zone-support.html](https://dev.mysql.com/doc/refman/8.0/en/time-zone-support.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/time-zone-support.html](https://dev.mysql.com/doc/refman/8.0/en/time-zone-support.html)
+- en: This section describes the time zone settings maintained by MySQL, how to load
+    the system tables required for named time support, how to stay current with time
+    zone changes, and how to enable leap-second support.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了MySQL维护的时区设置，如何加载命名时间支持所需的系统表，如何跟进时区变更以及如何启用闰秒支持。
+- en: Beginning with MySQL 8.0.19, time zone offsets are also supported for inserted
+    datetime values; see [Section 13.2.2, “The DATE, DATETIME, and TIMESTAMP Types”](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types"), for more information.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.19开始，插入的日期时间值也支持时区偏移；请参见[第 13.2.2节，“DATE、DATETIME和TIMESTAMP类型”](datetime.html
+    "13.2.2 DATE、DATETIME和TIMESTAMP类型")，以获取更多信息。
+- en: For information about time zone settings in replication setups, see [Section 19.5.1.14,
+    “Replication and System Functions”](replication-features-functions.html "19.5.1.14 Replication
+    and System Functions") and [Section 19.5.1.33, “Replication and Time Zones”](replication-features-timezone.html
+    "19.5.1.33 Replication and Time Zones").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关复制设置中的时区设置信息，请参见[第 19.5.1.14节，“复制和系统函数”](replication-features-functions.html
+    "19.5.1.14 复制和系统函数")和[第 19.5.1.33节，“复制和时区”](replication-features-timezone.html
+    "19.5.1.33 复制和时区")。
+- en: '[Time Zone Variables](time-zone-support.html#time-zone-variables "Time Zone
+    Variables")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[时区变量](time-zone-support.html#time-zone-variables "时区变量")'
+- en: '[Populating the Time Zone Tables](time-zone-support.html#time-zone-installation
+    "Populating the Time Zone Tables")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[填充时区表](time-zone-support.html#time-zone-installation "填充时区表")'
+- en: '[Staying Current with Time Zone Changes](time-zone-support.html#time-zone-upgrades
+    "Staying Current with Time Zone Changes")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[时区变更跟进](time-zone-support.html#time-zone-upgrades "时区变更跟进")'
+- en: '[Time Zone Leap Second Support](time-zone-support.html#time-zone-leap-seconds
+    "Time Zone Leap Second Support")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[时区闰秒支持](time-zone-support.html#time-zone-leap-seconds "时区闰秒支持")'
+- en: Time Zone Variables
+  id: totrans-9
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 时区变量
+- en: 'MySQL Server maintains several time zone settings:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器维护了几个时区设置：
+- en: The server system time zone. When the server starts, it attempts to determine
+    the time zone of the host machine and uses it to set the [`system_time_zone`](server-system-variables.html#sysvar_system_time_zone)
+    system variable.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器系统时区。服务器启动时，会尝试确定主机机器的时区并将其用于设置[`system_time_zone`](server-system-variables.html#sysvar_system_time_zone)系统变量。
+- en: To explicitly specify the system time zone for MySQL Server at startup, set
+    the `TZ` environment variable before you start [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server"). If you start the server using [**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL Server Startup Script"), its [`--timezone`](mysqld-safe.html#option_mysqld_safe_timezone)
+    option provides another way to set the system time zone. The permissible values
+    for `TZ` and [`--timezone`](mysqld-safe.html#option_mysqld_safe_timezone) are
+    system dependent. Consult your operating system documentation to see what values
+    are acceptable.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要在MySQL服务器启动时明确指定系统时区，请在启动[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器")之前设置`TZ`环境变量。如果使用[**mysqld_safe**](mysqld-safe.html
+    "6.3.2 mysqld_safe — MySQL服务器启动脚本")启动服务器，则其[`--timezone`](mysqld-safe.html#option_mysqld_safe_timezone)选项提供了另一种设置系统时区的方式。`TZ`和[`--timezone`](mysqld-safe.html#option_mysqld_safe_timezone)的可接受值取决于系统。请查阅您的操作系统文档以查看哪些值是可接受的。
+- en: The server current time zone. The global [`time_zone`](server-system-variables.html#sysvar_time_zone)
+    system variable indicates the time zone the server currently is operating in.
+    The initial [`time_zone`](server-system-variables.html#sysvar_time_zone) value
+    is `'SYSTEM'`, which indicates that the server time zone is the same as the system
+    time zone.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器当前时区。全局[`time_zone`](server-system-variables.html#sysvar_time_zone)系统变量指示服务器当前操作的时区。初始[`time_zone`](server-system-variables.html#sysvar_time_zone)值为`'SYSTEM'`，表示服务器时区与系统时区相同。
+- en: Note
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If set to `SYSTEM`, every MySQL function call that requires a time zone calculation
+    makes a system library call to determine the current system time zone. This call
+    may be protected by a global mutex, resulting in contention.
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果设置为`SYSTEM`，则每个需要时区计算的MySQL函数调用都会进行系统库调用以确定当前系统时区。这个调用可能受到全局互斥锁的保护，导致争用。
+- en: 'The initial global server time zone value can be specified explicitly at startup
+    with the [`--default-time-zone`](server-options.html#option_mysqld_default-time-zone)
+    option on the command line, or you can use the following line in an option file:'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 初始全局服务器时区值可以在启动时通过命令行上的[`--default-time-zone`](server-options.html#option_mysqld_default-time-zone)选项明确指定，或者可以在选项文件中使用以下行：
+- en: '[PRE0]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'If you have the [`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)
+    privilege (or the deprecated [`SUPER`](privileges-provided.html#priv_super) privilege),
+    you can set the global server time zone value at runtime with this statement:'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您拥有[`SYSTEM_VARIABLES_ADMIN`](privileges-provided.html#priv_system-variables-admin)权限（或已弃用的[`SUPER`](privileges-provided.html#priv_super)权限），您可以使用以下语句在运行时设置全局服务器时区值：
+- en: '[PRE1]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Per-session time zones. Each client that connects has its own session time
+    zone setting, given by the session [`time_zone`](server-system-variables.html#sysvar_time_zone)
+    variable. Initially, the session variable takes its value from the global [`time_zone`](server-system-variables.html#sysvar_time_zone)
+    variable, but the client can change its own time zone with this statement:'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个连接的客户端都有自己的会话时区设置，由会话[`time_zone`](server-system-variables.html#sysvar_time_zone)变量给出。最初，会话变量从全局[`time_zone`](server-system-variables.html#sysvar_time_zone)变量中获取其值，但客户端可以使用以下语句更改自己的时区：
+- en: '[PRE2]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: The session time zone setting affects display and storage of time values that
+    are zone-sensitive. This includes the values displayed by functions such as [`NOW()`](date-and-time-functions.html#function_now)
+    or [`CURTIME()`](date-and-time-functions.html#function_curtime), and values stored
+    in and retrieved from [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME,
+    and TIMESTAMP Types") columns. Values for [`TIMESTAMP`](datetime.html "13.2.2 The
+    DATE, DATETIME, and TIMESTAMP Types") columns are converted from the session time
+    zone to UTC for storage, and from UTC to the session time zone for retrieval.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话时区设置会影响对时区敏感的时间值的显示和存储。这包括由[`NOW()`](date-and-time-functions.html#function_now)或[`CURTIME()`](date-and-time-functions.html#function_curtime)等函数显示的值，以及存储在和从[`TIMESTAMP`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")列中检索的值。[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")列的值会在存储时从会话时区转换为UTC，并在检索时从UTC转换为会话时区。
+- en: The session time zone setting does not affect values displayed by functions
+    such as [`UTC_TIMESTAMP()`](date-and-time-functions.html#function_utc-timestamp)
+    or values in [`DATE`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP
+    Types"), [`TIME`](time.html "13.2.3 The TIME Type"), or [`DATETIME`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") columns. Nor are values in those
+    data types stored in UTC; the time zone applies for them only when converting
+    from [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    values. If you want locale-specific arithmetic for [`DATE`](datetime.html "13.2.2 The
+    DATE, DATETIME, and TIMESTAMP Types"), [`TIME`](time.html "13.2.3 The TIME Type"),
+    or [`DATETIME`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")
+    values, convert them to UTC, perform the arithmetic, and then convert back.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 会话时区设置不会影响诸如[`UTC_TIMESTAMP()`](date-and-time-functions.html#function_utc-timestamp)等函数显示的值，也不会影响[`DATE`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")、[`TIME`](time.html "13.2.3 时间类型")或[`DATETIME`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")列中的值。这些数据类型中的值也不会以UTC存储；时区仅在从[`TIMESTAMP`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")值转换时应用。如果您想要对[`DATE`](datetime.html "13.2.2 日期、时间和时间戳类型")、[`TIME`](time.html
+    "13.2.3 时间类型")或[`DATETIME`](datetime.html "13.2.2 日期、时间和时间戳类型")值进行区域特定的算术运算，将它们转换为UTC，执行算术运算，然后再转换回来。
+- en: 'The current global and session time zone values can be retrieved like this:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当前的全局和会话时区值可以这样检索：
+- en: '[PRE3]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '*`timezone`* values can be given in several formats, none of which are case-sensitive:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*`timezone`* 值可以以几种格式给出，大小写不敏感：'
+- en: As the value `'SYSTEM'`, indicating that the server time zone is the same as
+    the system time zone.
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为值`'SYSTEM'`，表示服务器时区与系统时区相同。
+- en: As a string indicating an offset from UTC of the form `[*`H`*]*`H`*:*`MM`*`,
+    prefixed with a `+` or `-`, such as `'+10:00'`, `'-6:00'`, or `'+05:30'`. A leading
+    zero can optionally be used for hours values less than 10; MySQL prepends a leading
+    zero when storing and retrieving the value in such cases. MySQL converts `'-00:00'`
+    or `'-0:00'` to `'+00:00'`.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为一个表示与UTC偏移的字符串，格式为`[*`H`*]*`H`*:*`MM`*`，前缀带有`+`或`-`，例如`'+10:00'`，`'-6:00'`或`'+05:30'`。对于小时值小于10的情况，可以选择性地使用前导零；在这种情况下，MySQL在存储和检索值时会添加前导零。MySQL将`'-00:00'`或`'-0:00'`转换为`'+00:00'`。
+- en: Prior to MySQL 8.0.19, this value had to be in the range `'-12:59'` to `'+13:00'`,
+    inclusive; beginning with MySQL 8.0.19, the permitted range is `'-13:59'` to `'+14:00'`,
+    inclusive.
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.19之前，此值必须在`'-12:59'`到`'+13:00'`的范围内；从MySQL 8.0.19开始，允许的范围是`'-13:59'`到`'+14:00'`，包括在内。
+- en: As a named time zone, such as `'Europe/Helsinki'`, `'US/Eastern'`, `'MET'`,
+    or `'UTC'`.
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 作为一个命名的时区，例如`'Europe/Helsinki'`，`'US/Eastern'`，`'MET'`或`'UTC'`。
+- en: Note
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: 'Named time zones can be used only if the time zone information tables in the
+    `mysql` database have been created and populated. Otherwise, use of a named time
+    zone results in an error:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 只有在`mysql`数据库中的时区信息表已创建并填充的情况下才能使用命名时区。否则，使用命名时区会导致错误：
+- en: '[PRE4]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Populating the Time Zone Tables
+  id: totrans-34
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 填充时区表
+- en: Several tables in the `mysql` system schema exist to store time zone information
+    (see [Section 7.3, “The mysql System Schema”](system-schema.html "7.3 The mysql
+    System Schema")). The MySQL installation procedure creates the time zone tables,
+    but does not load them. To do so manually, use the following instructions.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`mysql`系统模式中存在几个表用于存储时区信息（参见[第7.3节，“mysql系统模式”](system-schema.html "7.3 mysql系统模式")）。MySQL安装过程会创建时区表，但不会加载它们。要手动加载，请使用以下说明。'
+- en: Note
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Loading the time zone information is not necessarily a one-time operation because
+    the information changes occasionally. When such changes occur, applications that
+    use the old rules become out of date and you may find it necessary to reload the
+    time zone tables to keep the information used by your MySQL server current. See
+    [Staying Current with Time Zone Changes](time-zone-support.html#time-zone-upgrades
+    "Staying Current with Time Zone Changes").
+  id: totrans-37
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 加载时区信息不一定是一次性操作，因为信息偶尔会发生变化。当发生这种变化时，使用旧规则的应用程序会变得过时，您可能需要重新加载时区表以保持MySQL服务器使用的信息最新。请参阅[保持时区更改最新](time-zone-support.html#time-zone-upgrades
+    "保持时区更改最新")。
+- en: If your system has its own zoneinfo database (the set of files describing time
+    zones), use the [**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — Load the Time Zone Tables") program to load the time zone tables. Examples of
+    such systems are Linux, macOS, FreeBSD, and Solaris. One likely location for these
+    files is the `/usr/share/zoneinfo` directory. If your system has no zoneinfo database,
+    you can use a downloadable package, as described later in this section.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的系统有自己的zoneinfo数据库（描述时区的文件集），请使用[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html
+    "6.4.4 mysql_tzinfo_to_sql — 加载时区表")程序加载时区表。这些系统的示例包括Linux、macOS、FreeBSD和Solaris。这些文件的一个可能位置是`/usr/share/zoneinfo`目录。如果您的系统没有zoneinfo数据库，可以使用后面本节中描述的可下载包。
+- en: 'To load the time zone tables from the command line, pass the zoneinfo directory
+    path name to [**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — Load the Time Zone Tables") and send the output into the [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") program. For example:'
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从命令行加载时区表，请将zoneinfo目录路径名称传递给[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html
+    "6.4.4 mysql_tzinfo_to_sql — 加载时区表")并将输出发送到[**mysql**](mysql.html "6.5.1 mysql
+    — MySQL命令行客户端")程序。例如：
+- en: '[PRE5]'
+  id: totrans-40
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: The [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") command
+    shown here assumes that you connect to the server using an account such as `root`
+    that has privileges for modifying tables in the `mysql` system schema. Adjust
+    the connection parameters as required.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这里显示的[**mysql**](mysql.html "6.5.1 mysql — MySQL命令行客户端")命令假定您使用具有修改`mysql`系统模式中表权限的帐户（如`root`）连接到服务器。根据需要调整连接参数。
+- en: '[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — Load the Time Zone Tables") reads your system''s time zone files and generates
+    SQL statements from them. [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line
+    Client") processes those statements to load the time zone tables.'
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — 加载时区表")读取系统的时区文件，并从中生成SQL语句。[**mysql**](mysql.html "6.5.1 mysql — MySQL命令行客户端")处理这些语句以加载时区表。'
+- en: '[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — Load the Time Zone Tables") also can be used to load a single time zone file
+    or generate leap second information:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — 加载时区表")也可用于加载单个时区文件或生成闰秒信息：'
+- en: 'To load a single time zone file *`tz_file`* that corresponds to a time zone
+    name *`tz_name`*, invoke [**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — Load the Time Zone Tables") like this:'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要加载与时区名称*`tz_name`*对应的单个时区文件*`tz_file`*，请像这样调用[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html
+    "6.4.4 mysql_tzinfo_to_sql — 加载时区表")：
+- en: '[PRE6]'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: With this approach, you must execute a separate command to load the time zone
+    file for each named zone that the server needs to know about.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用这种方法，您必须为服务器需要了解的每个命名区域执行一个单独的命令来加载时区文件。
+- en: 'If your time zone must account for leap seconds, initialize leap second information
+    like this, where *`tz_file`* is the name of your time zone file:'
+  id: totrans-47
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您的时区必须考虑闰秒，像这样初始化闰秒信息，其中*`tz_file`*是您的时区文件的名称：
+- en: '[PRE7]'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: After running [**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — Load the Time Zone Tables"), restart the server so that it does not continue
+    to use any previously cached time zone data.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 运行完[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — 加载时区表")后，重新启动服务器，以确保它不会继续使用任何先前缓存的时区数据。
+- en: 'If your system has no zoneinfo database (for example, Windows), you can use
+    a package containing SQL statements that is available for download at the MySQL
+    Developer Zone:'
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的系统没有zoneinfo数据库（例如Windows），您可以使用一个包含SQL语句的软件包，可在MySQL开发者区下载：
+- en: '[PRE8]'
+  id: totrans-51
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: Warning
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Do *not* use a downloadable time zone package if your system has a zoneinfo
+    database. Use the [**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html "6.4.4 mysql_tzinfo_to_sql
+    — Load the Time Zone Tables") utility instead. Otherwise, you may cause a difference
+    in datetime handling between MySQL and other applications on your system.
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您的系统有一个zoneinfo数据库，请不要使用可下载的时区包。而是使用[**mysql_tzinfo_to_sql**](mysql-tzinfo-to-sql.html
+    "6.4.4 mysql_tzinfo_to_sql — 加载时区表")实用程序。否则，可能会导致MySQL和系统上其他应用程序在处理日期时间时出现差异。
+- en: 'To use an SQL-statement time zone package that you have downloaded, unpack
+    it, then load the unpacked file contents into the time zone tables:'
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用已下载的SQL语句时区包，请解压缩它，然后将解压后的文件内容加载到时区表中：
+- en: '[PRE9]'
+  id: totrans-55
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Then restart the server.
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然后重新启动服务器。
+- en: Warning
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: Do *not* use a downloadable time zone package that contains `MyISAM` tables.
+    That is intended for older MySQL versions. MySQL now uses `InnoDB` for the time
+    zone tables. Trying to replace them with `MyISAM` tables causes problems.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不要使用包含`MyISAM`表的可下载时区包。这是为较旧的MySQL版本设计的。MySQL现在使用`InnoDB`来存储时区表。尝试用`MyISAM`表替换它们会导致问题。
+- en: Staying Current with Time Zone Changes
+  id: totrans-59
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 保持与时区变更同步
+- en: 'When time zone rules change, applications that use the old rules become out
+    of date. To stay current, it is necessary to make sure that your system uses current
+    time zone information is used. For MySQL, there are multiple factors to consider
+    in staying current:'
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当时区规则发生变化时，使用旧规则的应用程序会变得过时。为了保持最新，必须确保您的系统使用当前的时区信息。对于MySQL，有多个因素需要考虑以保持最新：
+- en: The operating system time affects the value that the MySQL server uses for times
+    if its time zone is set to `SYSTEM`. Make sure that your operating system is using
+    the latest time zone information. For most operating systems, the latest update
+    or service pack prepares your system for the time changes. Check the website for
+    your operating system vendor for an update that addresses the time changes.
+  id: totrans-61
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 操作系统时间会影响MySQL服务器用于时间的值，如果其时区设置为`SYSTEM`。确保您的操作系统使用最新的时区信息。对于大多数操作系统，最新的更新或服务包会为时间更改做准备。查看您操作系统供应商的网站，了解解决时间更改的更新。
+- en: If you replace the system's `/etc/localtime` time zone file with a version that
+    uses rules differing from those in effect at [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") startup, restart [**mysqld**](mysqld.html "6.3.1 mysqld —
+    The MySQL Server") so that it uses the updated rules. Otherwise, [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") might not notice when the system changes its
+    time.
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您用一个使用与[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")启动时不同的规则的版本替换系统的
+    `/etc/localtime` 时区文件，请重新启动[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")以使用更新的规则。否则，[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL 服务器")可能不会注意到系统更改时间。
+- en: 'If you use named time zones with MySQL, make sure that the time zone tables
+    in the `mysql` database are up to date:'
+  id: totrans-63
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您在 MySQL 中使用命名时区，请确保 `mysql` 数据库中的时区表是最新的：
+- en: If your system has its own zoneinfo database, reload the MySQL time zone tables
+    whenever the zoneinfo database is updated.
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您的系统有自己的 zoneinfo 数据库，请在 zoneinfo 数据库更新时重新加载 MySQL 时区表。
+- en: For systems that do not have their own zoneinfo database, check the MySQL Developer
+    Zone for updates. When a new update is available, download it and use it to replace
+    the content of your current time zone tables.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于没有自己的 zoneinfo 数据库的系统，请查看 MySQL 开发者区域以获取更新。当有新的更新可用时，下载并使用它来替换当前时区表的内容。
+- en: For instructions for both methods, see [Populating the Time Zone Tables](time-zone-support.html#time-zone-installation
+    "Populating the Time Zone Tables"). [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server") caches time zone information that it looks up, so after updating
+    the time zone tables, restart [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server") to make sure that it does not continue to serve outdated time zone data.
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关两种方法的说明，请参见[填充时区表](time-zone-support.html#time-zone-installation "填充时区表")。[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL 服务器") 缓存它查找的时区信息，因此在更新时区表后，重新启动[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL 服务器")以确保它不会继续提供过时的时区数据。
+- en: 'If you are uncertain whether named time zones are available, for use either
+    as the server''s time zone setting or by clients that set their own time zone,
+    check whether your time zone tables are empty. The following query determines
+    whether the table that contains time zone names has any rows:'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您不确定命名时区是否可用，无论是作为服务器的时区设置还是由设置自己时区的客户端使用，请检查您的时区表是否为空。以下查询确定包含时区名称的表是否有任何行：
+- en: '[PRE10]'
+  id: totrans-68
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: A count of zero indicates that the table is empty. In this case, no applications
+    currently are using named time zones, and you need not update the tables (unless
+    you want to enable named time zone support). A count greater than zero indicates
+    that the table is not empty and that its contents are available to be used for
+    named time zone support. In this case, be sure to reload your time zone tables
+    so that applications that use named time zones can obtain correct query results.
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 0 的计数表示表为空。在这种情况下，当前没有应用程序使用命名时区，您不需要更新表（除非您想启用命名时区支持）。大于零的计数表示表不为空，其内容可用于命名时区支持。在这种情况下，请确保重新加载您的时区表，以便使用命名时区的应用程序可以获得正确的查询结果。
+- en: To check whether your MySQL installation is updated properly for a change in
+    Daylight Saving Time rules, use a test like the one following. The example uses
+    values that are appropriate for the 2007 DST 1-hour change that occurs in the
+    United States on March 11 at 2 a.m.
+  id: totrans-70
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要检查您的 MySQL 安装是否正确更新以适应夏令时规则的更改，请使用以下示例测试。该示例使用适用于 2007 年美国于 3 月 11 日凌晨 2 点发生的
+    DST 1 小时更改的值。
+- en: 'The test uses this query:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 测试使用此查询：
+- en: '[PRE11]'
+  id: totrans-72
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: The two time values indicate the times at which the DST change occurs, and the
+    use of named time zones requires that the time zone tables be used. The desired
+    result is that both queries return the same result (the input time, converted
+    to the equivalent value in the 'US/Central' time zone).
+  id: totrans-73
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个时间值表示 DST 更改发生的时间，使用命名时区需要使用时区表。期望的结果是两个查询返回相同的结果（输入时间转换为 'US/Central' 时区中的等效值）。
+- en: 'Before updating the time zone tables, you see an incorrect result like this:'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在更新时区表之前，您会看到类似于这样的错误结果：
+- en: '[PRE12]'
+  id: totrans-75
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: 'After updating the tables, you should see the correct result:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 更新表后，您应该看到正确的结果：
+- en: '[PRE13]'
+  id: totrans-77
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: Time Zone Leap Second Support
+  id: totrans-78
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 时区闰秒支持
+- en: Leap second values are returned with a time part that ends with `:59:59`. This
+    means that a function such as [`NOW()`](date-and-time-functions.html#function_now)
+    can return the same value for two or three consecutive seconds during the leap
+    second. It remains true that literal temporal values having a time part that ends
+    with `:59:60` or `:59:61` are considered invalid.
+  id: totrans-79
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 跳秒值返回的时间部分以`:59:59`结尾。这意味着在跳秒期间，诸如[`NOW()`](date-and-time-functions.html#function_now)之类的函数可能在跳秒期间的两三秒内返回相同的值。仍然正确的是，时间部分以`:59:60`或`:59:61`结尾的文字时间值被视为无效。
+- en: If it is necessary to search for [`TIMESTAMP`](datetime.html "13.2.2 The DATE,
+    DATETIME, and TIMESTAMP Types") values one second before the leap second, anomalous
+    results may be obtained if you use a comparison with `'*`YYYY-MM-DD hh:mm:ss`*'`
+    values. The following example demonstrates this. It changes the session time zone
+    to UTC so there is no difference between internal [`TIMESTAMP`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types") values (which are in UTC) and
+    displayed values (which have time zone correction applied).
+  id: totrans-80
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果需要搜索跳秒前一秒的[`TIMESTAMP`](datetime.html "13.2.2 日期、时间和时间戳类型")值，如果使用与`'*`YYYY-MM-DD
+    hh:mm:ss`*'`值进行比较，可能会得到异常结果。以下示例演示了这一点。它将会话时区更改为UTC，因此内部[`TIMESTAMP`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")值（在UTC中）和显示值（应用了时区校正的值）之间没有区别。
+- en: '[PRE14]'
+  id: totrans-81
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: 'To work around this, you can use a comparison based on the UTC value actually
+    stored in the column, which has the leap second correction applied:'
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了解决这个问题，您可以使用基于实际存储在列中的UTC值的比较，其中应用了跳秒校正：
+- en: '[PRE15]'
+  id: totrans-83
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'

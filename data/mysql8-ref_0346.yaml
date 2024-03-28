@@ -1,0 +1,1125 @@
+- en: 7.9.3 The LOCK_ORDER Tool
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 7.9.3 LOCK_ORDER工具
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/lock-order-tool.html](https://dev.mysql.com/doc/refman/8.0/en/lock-order-tool.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/lock-order-tool.html](https://dev.mysql.com/doc/refman/8.0/en/lock-order-tool.html)
+- en: The MySQL server is a multithreaded application that uses numerous internal
+    locking and lock-related primitives, such as mutexes, rwlocks (including prlocks
+    and sxlocks), conditions, and files. Within the server, the set of lock-related
+    objects changes with implementation of new features and code refactoring for performance
+    improvements. As with any multithreaded application that uses locking primitives,
+    there is always a risk of encountering a deadlock during execution when multiple
+    locks are held at once. For MySQL, the effect of a deadlock is catastrophic, causing
+    a complete loss of service.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL服务器是一个使用许多内部锁定和与锁相关的原语的多线程应用程序，例如互斥锁，rwlocks（包括prlocks和sxlocks），条件和文件。在服务器内部，锁相关对象的集合随着实现新功能和代码重构以提高性能而改变。与使用锁定原语的任何多线程应用程序一样，当同时持有多个锁时，在执行期间遇到死锁的风险始终存在。对于MySQL，死锁的影响是灾难性的，会导致完全丧失服务。
+- en: As of MySQL 8.0.17, to enable detection of lock-acquisition deadlocks and enforcement
+    that runtime execution is free of them, MySQL supports `LOCK_ORDER` tooling. This
+    enables a lock-order dependency graph to be defined as part of server design,
+    and server runtime checking to ensure that lock acquisition is acyclic and that
+    execution paths comply with the graph.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.17开始，为了启用锁获取死锁检测和确保运行时执行不包含死锁的强制执行，MySQL支持`LOCK_ORDER`工具。这使得可以定义锁顺序依赖图作为服务器设计的一部分，并且服务器运行时检查以确保锁获取是无环的，并且执行路径符合图形。
+- en: This section provides information about using the `LOCK_ORDER` tool, but only
+    at a basic level. For complete details, see the Lock Order section of the MySQL
+    Server Doxygen documentation, available at [https://dev.mysql.com/doc/index-other.html](/doc/index-other.html).
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节提供有关使用`LOCK_ORDER`工具的信息，但仅在基本水平上。有关完整详情，请参阅MySQL Server Doxygen文档中的Lock Order部分，网址为[https://dev.mysql.com/doc/index-other.html](/doc/index-other.html)。
+- en: The `LOCK_ORDER` tool is intended for debugging the server, not for production
+    use.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER`工具旨在用于调试服务器，而非生产使用。'
+- en: 'To use the `LOCK_ORDER` tool, follow this procedure:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用`LOCK_ORDER`工具，请按照以下步骤进行：
+- en: Build MySQL from source, configuring it with the [`-DWITH_LOCK_ORDER=ON`](source-configuration-options.html#option_cmake_with_lock_order)
+    **CMake** option so that the build includes `LOCK_ORDER` tooling.
+  id: totrans-7
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 从源代码构建MySQL，并使用[`-DWITH_LOCK_ORDER=ON`](source-configuration-options.html#option_cmake_with_lock_order)
+    **CMake**选项进行配置，以便构建包含`LOCK_ORDER`工具的内容。
+- en: Note
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: With the [`WITH_LOCK_ORDER`](source-configuration-options.html#option_cmake_with_lock_order)
+    option enabled, MySQL builds require the **flex** program.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 启用[`WITH_LOCK_ORDER`](source-configuration-options.html#option_cmake_with_lock_order)选项后，MySQL构建需要**flex**程序。
+- en: To run the server with the `LOCK_ORDER` tool enabled, enable the [`lock_order`](lock-order-tool.html#sysvar_lock_order)
+    system variable at server startup. Several other system variables for `LOCK_ORDER`
+    configuration are available as well.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 要在启用`LOCK_ORDER`工具的情况下运行服务器，请在服务器启动时启用[`lock_order`](lock-order-tool.html#sysvar_lock_order)系统变量。还有其他用于`LOCK_ORDER`配置的系统变量可用。
+- en: For MySQL test suite operation, **mysql-test-run.pl** has a `--lock-order` option
+    that controls whether to enable the `LOCK_ORDER` tool during test case execution.
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 对于MySQL测试套件操作，**mysql-test-run.pl**具有一个`--lock-order`选项，用于控制在测试用例执行期间是否启用`LOCK_ORDER`工具。
+- en: 'The system variables described following configure operation of the `LOCK_ORDER`
+    tool, assuming that MySQL has been built to include `LOCK_ORDER` tooling. The
+    primary variable is [`lock_order`](lock-order-tool.html#sysvar_lock_order), which
+    indicates whether to enable the `LOCK_ORDER` tool at runtime:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下描述的系统变量配置`LOCK_ORDER`工具的操作，假设MySQL已构建包含`LOCK_ORDER`工具。主要变量是[`lock_order`](lock-order-tool.html#sysvar_lock_order)，指示是否在运行时启用`LOCK_ORDER`工具：
+- en: If [`lock_order`](lock-order-tool.html#sysvar_lock_order) is disabled (the default),
+    no other `LOCK_ORDER` system variables have any effect.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果[`lock_order`](lock-order-tool.html#sysvar_lock_order)被禁用（默认情况下），则其他`LOCK_ORDER`系统变量不会产生任何影响。
+- en: If [`lock_order`](lock-order-tool.html#sysvar_lock_order) is enabled, the other
+    system variables configure which `LOCK_ORDER` features to enable.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了[`lock_order`](lock-order-tool.html#sysvar_lock_order)，则其他系统变量配置哪些`LOCK_ORDER`功能要启用。
+- en: Note
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: In general, it is intended that the `LOCK_ORDER` tool be configured by executing
+    **mysql-test-run.pl** with the `--lock-order` option, and for **mysql-test-run.pl**
+    to set `LOCK_ORDER` system variables to appropriate values.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常情况下，应通过使用 `--lock-order` 选项执行 **mysql-test-run.pl** 来配置 `LOCK_ORDER` 工具，并让
+    **mysql-test-run.pl** 将 `LOCK_ORDER` 系统变量设置为适当的值。
+- en: All `LOCK_ORDER` system variables must be set at server startup. At runtime,
+    their values are visible but cannot be changed.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 所有 `LOCK_ORDER` 系统变量必须在服务器启动时设置。在运行时，它们的值是可见的，但不能更改。
+- en: 'Some system variables exist in pairs, such as [`lock_order_debug_loop`](lock-order-tool.html#sysvar_lock_order_debug_loop)
+    and [`lock_order_trace_loop`](lock-order-tool.html#sysvar_lock_order_trace_loop).
+    For such pairs, the variables are distinguished as follows when the condition
+    occurs with which they are associated:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一些系统变量存在成对出现，例如 [`lock_order_debug_loop`](lock-order-tool.html#sysvar_lock_order_debug_loop)
+    和 [`lock_order_trace_loop`](lock-order-tool.html#sysvar_lock_order_trace_loop)。对于这样的成对变量，在发生与其关联的条件时，这些变量的区别如下：
+- en: If the `_debug_` variable is enabled, a debug assertion is raised.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了 `_debug_` 变量，则会引发调试断言。
+- en: If the `_trace_` variable is enabled, an error is printed to the logs.
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果启用了 `_trace_` 变量，则会将错误打印到日志中。
+- en: '**Table 7.8 LOCK_ORDER System Variable Summary**'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 7.8 LOCK_ORDER 系统变量摘要**'
+- en: '| Variable Name | Variable Type | Variable Scope |'
+  id: totrans-22
+  prefs: []
+  type: TYPE_TB
+  zh: '| 变量名称 | 变量类型 | 变量范围 |'
+- en: '| [lock_order](lock-order-tool.html#sysvar_lock_order) | Boolean | Global |'
+  id: totrans-23
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order](lock-order-tool.html#sysvar_lock_order) | 布尔值 | 全局 |'
+- en: '| [lock_order_debug_loop](lock-order-tool.html#sysvar_lock_order_debug_loop)
+    | Boolean | Global |'
+  id: totrans-24
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_debug_loop](lock-order-tool.html#sysvar_lock_order_debug_loop)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_debug_missing_arc](lock-order-tool.html#sysvar_lock_order_debug_missing_arc)
+    | Boolean | Global |'
+  id: totrans-25
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_debug_missing_arc](lock-order-tool.html#sysvar_lock_order_debug_missing_arc)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_debug_missing_key](lock-order-tool.html#sysvar_lock_order_debug_missing_key)
+    | Boolean | Global |'
+  id: totrans-26
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_debug_missing_key](lock-order-tool.html#sysvar_lock_order_debug_missing_key)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_debug_missing_unlock](lock-order-tool.html#sysvar_lock_order_debug_missing_unlock)
+    | Boolean | Global |'
+  id: totrans-27
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_debug_missing_unlock](lock-order-tool.html#sysvar_lock_order_debug_missing_unlock)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_dependencies](lock-order-tool.html#sysvar_lock_order_dependencies)
+    | File name | Global |'
+  id: totrans-28
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_dependencies](lock-order-tool.html#sysvar_lock_order_dependencies)
+    | 文件名 | 全局 |'
+- en: '| [lock_order_extra_dependencies](lock-order-tool.html#sysvar_lock_order_extra_dependencies)
+    | File name | Global |'
+  id: totrans-29
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_extra_dependencies](lock-order-tool.html#sysvar_lock_order_extra_dependencies)
+    | 文件名 | 全局 |'
+- en: '| [lock_order_output_directory](lock-order-tool.html#sysvar_lock_order_output_directory)
+    | Directory name | Global |'
+  id: totrans-30
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_output_directory](lock-order-tool.html#sysvar_lock_order_output_directory)
+    | 目录名 | 全局 |'
+- en: '| [lock_order_print_txt](lock-order-tool.html#sysvar_lock_order_print_txt)
+    | Boolean | Global |'
+  id: totrans-31
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_print_txt](lock-order-tool.html#sysvar_lock_order_print_txt)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_trace_loop](lock-order-tool.html#sysvar_lock_order_trace_loop)
+    | Boolean | Global |'
+  id: totrans-32
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_trace_loop](lock-order-tool.html#sysvar_lock_order_trace_loop)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_trace_missing_arc](lock-order-tool.html#sysvar_lock_order_trace_missing_arc)
+    | Boolean | Global |'
+  id: totrans-33
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_trace_missing_arc](lock-order-tool.html#sysvar_lock_order_trace_missing_arc)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_trace_missing_key](lock-order-tool.html#sysvar_lock_order_trace_missing_key)
+    | Boolean | Global |'
+  id: totrans-34
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_trace_missing_key](lock-order-tool.html#sysvar_lock_order_trace_missing_key)
+    | 布尔值 | 全局 |'
+- en: '| [lock_order_trace_missing_unlock](lock-order-tool.html#sysvar_lock_order_trace_missing_unlock)
+    | Boolean | Global |'
+  id: totrans-35
+  prefs: []
+  type: TYPE_TB
+  zh: '| [lock_order_trace_missing_unlock](lock-order-tool.html#sysvar_lock_order_trace_missing_unlock)
+    | 布尔值 | 全局 |'
+- en: '| Variable Name | Variable Type | Variable Scope |'
+  id: totrans-36
+  prefs: []
+  type: TYPE_TB
+  zh: '| 变量名称 | 变量类型 | 变量范围 |'
+- en: '[`lock_order`](lock-order-tool.html#sysvar_lock_order)'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order`](lock-order-tool.html#sysvar_lock_order)'
+- en: '| Command-Line Format | `--lock-order[={OFF&#124;ON}]` |'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order](lock-order-tool.html#sysvar_lock_order)`
+    |'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order](lock-order-tool.html#sysvar_lock_order)` |'
+- en: '| Scope | Global |'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether to enable the `LOCK_ORDER` tool at runtime. If [`lock_order`](lock-order-tool.html#sysvar_lock_order)
+    is disabled (the default), no other `LOCK_ORDER` system variables have any effect.
+    If [`lock_order`](lock-order-tool.html#sysvar_lock_order) is enabled, the other
+    system variables configure which `LOCK_ORDER` features to enable.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 是否在运行时启用`LOCK_ORDER`工具。如果禁用了[`lock_order`](lock-order-tool.html#sysvar_lock_order)，则不会影响任何其他`LOCK_ORDER`系统变量。如果启用了[`lock_order`](lock-order-tool.html#sysvar_lock_order)，则其他系统变量配置哪些`LOCK_ORDER`功能启用。
+- en: If [`lock_order`](lock-order-tool.html#sysvar_lock_order) is enabled, an error
+    is raised if the server encounters a lock-acquisition sequence that is not declared
+    in the lock-order graph.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果启用了[`lock_order`](lock-order-tool.html#sysvar_lock_order)，则如果服务器遇到未在锁定顺序图中声明的锁定获取序列，将引发错误。
+- en: '[`lock_order_debug_loop`](lock-order-tool.html#sysvar_lock_order_debug_loop)'
+  id: totrans-48
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_debug_loop`](lock-order-tool.html#sysvar_lock_order_debug_loop)'
+- en: '| Command-Line Format | `--lock-order-debug-loop[={OFF&#124;ON}]` |'
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-debug-loop[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_debug_loop](lock-order-tool.html#sysvar_lock_order_debug_loop)`
+    |'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_debug_loop](lock-order-tool.html#sysvar_lock_order_debug_loop)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether the `LOCK_ORDER` tool causes a debug assertion failure when it encounters
+    a dependency that is flagged as a loop in the lock-order graph.
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当`LOCK_ORDER`工具遇到在锁定顺序图中标记为循环的依赖关系时，是否导致调试断言失败。
+- en: '[`lock_order_debug_missing_arc`](lock-order-tool.html#sysvar_lock_order_debug_missing_arc)'
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_debug_missing_arc`](lock-order-tool.html#sysvar_lock_order_debug_missing_arc)'
+- en: '| Command-Line Format | `--lock-order-debug-missing-arc[={OFF&#124;ON}]` |'
+  id: totrans-59
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-debug-missing-arc[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-60
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_debug_missing_arc](lock-order-tool.html#sysvar_lock_order_debug_missing_arc)`
+    |'
+  id: totrans-61
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_debug_missing_arc](lock-order-tool.html#sysvar_lock_order_debug_missing_arc)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-62
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether the `LOCK_ORDER` tool causes a debug assertion failure when it encounters
+    a dependency that is not declared in the lock-order graph.
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当`LOCK_ORDER`工具遇到在锁定顺序图中未声明的依赖关系时，是否导致调试断言失败。
+- en: '[`lock_order_debug_missing_key`](lock-order-tool.html#sysvar_lock_order_debug_missing_key)'
+  id: totrans-68
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_debug_missing_key`](lock-order-tool.html#sysvar_lock_order_debug_missing_key)'
+- en: '| Command-Line Format | `--lock-order-debug-missing-key[={OFF&#124;ON}]` |'
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-debug-missing-key[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-70
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_debug_missing_key](lock-order-tool.html#sysvar_lock_order_debug_missing_key)`
+    |'
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_debug_missing_key](lock-order-tool.html#sysvar_lock_order_debug_missing_key)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-72
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether the `LOCK_ORDER` tool causes a debug assertion failure when it encounters
+    an object that is not properly instrumented with the Performance Schema.
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当`LOCK_ORDER`工具遇到未正确使用性能模式仪器的对象时，是否导致调试断言失败。
+- en: '[`lock_order_debug_missing_unlock`](lock-order-tool.html#sysvar_lock_order_debug_missing_unlock)'
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_debug_missing_unlock`](lock-order-tool.html#sysvar_lock_order_debug_missing_unlock)'
+- en: '| Command-Line Format | `--lock-order-debug-missing-unlock[={OFF&#124;ON}]`
+    |'
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-debug-missing-unlock[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_debug_missing_unlock](lock-order-tool.html#sysvar_lock_order_debug_missing_unlock)`
+    |'
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_debug_missing_unlock](lock-order-tool.html#sysvar_lock_order_debug_missing_unlock)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-83
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-84
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-85
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-86
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether the `LOCK_ORDER` tool causes a debug assertion failure when it encounters
+    a lock that is destroyed while still held.
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER`工具在遇到仍在持有的锁被销毁时是否导致调试断言失败。'
+- en: '[`lock_order_dependencies`](lock-order-tool.html#sysvar_lock_order_dependencies)'
+  id: totrans-88
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_dependencies`](lock-order-tool.html#sysvar_lock_order_dependencies)'
+- en: '| Command-Line Format | `--lock-order-dependencies=file_name` |'
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-dependencies=file_name` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-90
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_dependencies](lock-order-tool.html#sysvar_lock_order_dependencies)`
+    |'
+  id: totrans-91
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_dependencies](lock-order-tool.html#sysvar_lock_order_dependencies)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-92
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用域 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法")提示适用
+    | 否 |'
+- en: '| Type | File name |'
+  id: totrans-95
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 文件名 |'
+- en: '| Default Value | `empty string` |'
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `空字符串` |'
+- en: The path to the `lock_order_dependencies.txt` file that defines the server lock-order
+    dependency graph.
+  id: totrans-97
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`lock_order_dependencies.txt`文件的路径，定义了服务器锁定顺序依赖图。'
+- en: It is permitted to specify no dependencies. An empty dependency graph is used
+    in this case.
+  id: totrans-98
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以指定不使用任何依赖项。在这种情况下，将使用空依赖图。
+- en: '[`lock_order_extra_dependencies`](lock-order-tool.html#sysvar_lock_order_extra_dependencies)'
+  id: totrans-99
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_extra_dependencies`](lock-order-tool.html#sysvar_lock_order_extra_dependencies)'
+- en: '| Command-Line Format | `--lock-order-extra-dependencies=file_name` |'
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-extra-dependencies=file_name` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-101
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_extra_dependencies](lock-order-tool.html#sysvar_lock_order_extra_dependencies)`
+    |'
+  id: totrans-102
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_extra_dependencies](lock-order-tool.html#sysvar_lock_order_extra_dependencies)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-103
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用域 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-104
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-105
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法")提示适用
+    | 否 |'
+- en: '| Type | File name |'
+  id: totrans-106
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 文件名 |'
+- en: '| Default Value | `empty string` |'
+  id: totrans-107
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `空字符串` |'
+- en: The path to a file containing additional dependencies for the lock-order dependency
+    graph. This is useful to amend the primary server dependency graph, defined in
+    the `lock_order_dependencies.txt` file, with additional dependencies describing
+    the behavior of third party code. (The alternative is to modify `lock_order_dependencies.txt`
+    itself, which is not encouraged.)
+  id: totrans-108
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 包含额外依赖项的文件路径，用于修改锁定顺序依赖图的主要服务器依赖图。这对于使用额外依赖项描述第三方代码行为很有用，而不是修改`lock_order_dependencies.txt`文件本身（这是不鼓励的替代方法）。
+- en: If this variable is not set, no secondary file is used.
+  id: totrans-109
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果未设置此变量，则不使用辅助文件。
+- en: '[`lock_order_output_directory`](lock-order-tool.html#sysvar_lock_order_output_directory)'
+  id: totrans-110
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_output_directory`](lock-order-tool.html#sysvar_lock_order_output_directory)'
+- en: '| Command-Line Format | `--lock-order-output-directory=dir_name` |'
+  id: totrans-111
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-output-directory=dir_name` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-112
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| ���入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_output_directory](lock-order-tool.html#sysvar_lock_order_output_directory)`
+    |'
+  id: totrans-113
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_output_directory](lock-order-tool.html#sysvar_lock_order_output_directory)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-114
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用域 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-115
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-116
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法")提示适用
+    | 否 |'
+- en: '| Type | Directory name |'
+  id: totrans-117
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 目录名称 |'
+- en: '| Default Value | `empty string` |'
+  id: totrans-118
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `空字符串` |'
+- en: The directory where the `LOCK_ORDER` tool writes its logs. If this variable
+    is not set, the default is the current directory.
+  id: totrans-119
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER`工具写入其日志的目录。如果未设置此变量，则默认为当前目录。'
+- en: '[`lock_order_print_txt`](lock-order-tool.html#sysvar_lock_order_print_txt)'
+  id: totrans-120
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_print_txt`](lock-order-tool.html#sysvar_lock_order_print_txt)'
+- en: '| Command-Line Format | `--lock-order-print-txt[={OFF&#124;ON}]` |'
+  id: totrans-121
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-print-txt[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-122
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_print_txt](lock-order-tool.html#sysvar_lock_order_print_txt)`
+    |'
+  id: totrans-123
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_print_txt](lock-order-tool.html#sysvar_lock_order_print_txt)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-124
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用域 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-125
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-126
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法")提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-127
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-128
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether the `LOCK_ORDER` tool performs a lock-order graph analysis and prints
+    a textual report. The report includes any lock-acquisition cycles detected.
+  id: totrans-129
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER`工具是否执行锁定顺序图分析并打印文本报告。报告包括检测到的任何锁获取循环。'
+- en: '[`lock_order_trace_loop`](lock-order-tool.html#sysvar_lock_order_trace_loop)'
+  id: totrans-130
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_trace_loop`](lock-order-tool.html#sysvar_lock_order_trace_loop)'
+- en: '| Command-Line Format | `--lock-order-trace-loop[={OFF&#124;ON}]` |'
+  id: totrans-131
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-trace-loop[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-132
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_trace_loop](lock-order-tool.html#sysvar_lock_order_trace_loop)`
+    |'
+  id: totrans-133
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_trace_loop](lock-order-tool.html#sysvar_lock_order_trace_loop)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-134
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-135
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-136
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-137
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-138
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether the `LOCK_ORDER` tool prints a trace in the log file when it encounters
+    a dependency that is flagged as a loop in the lock-order graph.
+  id: totrans-139
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER` 工具在遇到在锁序图中标记为循环的依赖关系时是否在日志文件中打印跟踪信息。'
+- en: '[`lock_order_trace_missing_arc`](lock-order-tool.html#sysvar_lock_order_trace_missing_arc)'
+  id: totrans-140
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_trace_missing_arc`](lock-order-tool.html#sysvar_lock_order_trace_missing_arc)'
+- en: '| Command-Line Format | `--lock-order-trace-missing-arc[={OFF&#124;ON}]` |'
+  id: totrans-141
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-trace-missing-arc[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-142
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_trace_missing_arc](lock-order-tool.html#sysvar_lock_order_trace_missing_arc)`
+    |'
+  id: totrans-143
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_trace_missing_arc](lock-order-tool.html#sysvar_lock_order_trace_missing_arc)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-144
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-145
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-146
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-147
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `ON` |'
+  id: totrans-148
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `ON` |'
+- en: Whether the `LOCK_ORDER` tool prints a trace in the log file when it encounters
+    a dependency that is not declared in the lock-order graph.
+  id: totrans-149
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER` 工具在遇到在锁序图中未声明的依赖关系时是否在日志文件中打印跟踪信息。'
+- en: '[`lock_order_trace_missing_key`](lock-order-tool.html#sysvar_lock_order_trace_missing_key)'
+  id: totrans-150
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_trace_missing_key`](lock-order-tool.html#sysvar_lock_order_trace_missing_key)'
+- en: '| Command-Line Format | `--lock-order-trace-missing-key[={OFF&#124;ON}]` |'
+  id: totrans-151
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-trace-missing-key[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-152
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_trace_missing_key](lock-order-tool.html#sysvar_lock_order_trace_missing_key)`
+    |'
+  id: totrans-153
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_trace_missing_key](lock-order-tool.html#sysvar_lock_order_trace_missing_key)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-154
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-155
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-156
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-157
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `OFF` |'
+  id: totrans-158
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `OFF` |'
+- en: Whether the `LOCK_ORDER` tool prints a trace in the log file when it encounters
+    an object that is not properly instrumented with the Performance Schema.
+  id: totrans-159
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER` 工具在遇到未正确使用性能模式进行仪表化的对象时是否在日志文件中打印跟踪信息。'
+- en: '[`lock_order_trace_missing_unlock`](lock-order-tool.html#sysvar_lock_order_trace_missing_unlock)'
+  id: totrans-160
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`lock_order_trace_missing_unlock`](lock-order-tool.html#sysvar_lock_order_trace_missing_unlock) '
+- en: '| Command-Line Format | `--lock-order-trace-missing-unlock[={OFF&#124;ON}]`
+    |'
+  id: totrans-161
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 命令行格式 | `--lock-order-trace-missing-unlock[={OFF&#124;ON}]` |'
+- en: '| Introduced | 8.0.17 |'
+  id: totrans-162
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 引入版本 | 8.0.17 |'
+- en: '| System Variable | `[lock_order_trace_missing_unlock](lock-order-tool.html#sysvar_lock_order_trace_missing_unlock)`
+    |'
+  id: totrans-163
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 系统变量 | `[lock_order_trace_missing_unlock](lock-order-tool.html#sysvar_lock_order_trace_missing_unlock)`
+    |'
+- en: '| Scope | Global |'
+  id: totrans-164
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 作用范围 | 全局 |'
+- en: '| Dynamic | No |'
+  id: totrans-165
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 动态 | 否 |'
+- en: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "Variable-Setting
+    Hint Syntax") Hint Applies | No |'
+  id: totrans-166
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| [`SET_VAR`](optimizer-hints.html#optimizer-hints-set-var "变量设置提示语法") 提示适用
+    | 否 |'
+- en: '| Type | Boolean |'
+  id: totrans-167
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 类型 | 布尔值 |'
+- en: '| Default Value | `ON` |'
+  id: totrans-168
+  prefs:
+  - PREF_IND
+  type: TYPE_TB
+  zh: '| 默认值 | `ON` |'
+- en: Whether the `LOCK_ORDER` tool prints a trace in the log file when it encounters
+    a lock that is destroyed while still held.
+  id: totrans-169
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`LOCK_ORDER` 工具在遇到一个被销毁但仍被持有的锁时是否在日志文件中打印跟踪信息。'

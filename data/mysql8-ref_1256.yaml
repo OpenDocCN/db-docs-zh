@@ -1,0 +1,124 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-internal-data.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-internal-data.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-internal-data.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-internal-data.html)
+- en: 17.15.2.3 Persistence and Consistency of InnoDB Transaction and Locking Information
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.15.2.3 InnoDB 事务和锁信息的持久性和一致性
+- en: Note
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: This section describes locking information as exposed by the Performance Schema
+    [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The data_locks
+    Table") and [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") tables, which supersede the `INFORMATION_SCHEMA`
+    `INNODB_LOCKS` and `INNODB_LOCK_WAITS` tables in MySQL 8.0\. For similar discussion
+    written in terms of the older `INFORMATION_SCHEMA` tables, see [Persistence and
+    Consistency of InnoDB Transaction and Locking Information](/doc/refman/5.7/en/innodb-information-schema-internal-data.html),
+    in [MySQL 5.7 Reference Manual](/doc/refman/5.7/en/).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述了由性能模式 [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The
+    data_locks Table") 和 [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") 表公开的锁信息，这些表在 MySQL 8.0 中取代了 `INFORMATION_SCHEMA`
+    `INNODB_LOCKS` 和 `INNODB_LOCK_WAITS` 表。有关以旧的 `INFORMATION_SCHEMA` 表为基础的类似讨论，请参阅
+    [InnoDB 事务和锁信息的持久性和一致性](/doc/refman/5.7/en/innodb-information-schema-internal-data.html)，在
+    [MySQL 5.7 参考手册](/doc/refman/5.7/en/) 中。
+- en: 'The data exposed by the transaction and locking tables (`INFORMATION_SCHEMA`
+    [`INNODB_TRX`](information-schema-innodb-trx-table.html "28.4.28 The INFORMATION_SCHEMA
+    INNODB_TRX Table") table, Performance Schema [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table") and [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") tables) represents a glimpse into fast-changing
+    data. This is not like user tables, where the data changes only when application-initiated
+    updates occur. The underlying data is internal system-managed data, and can change
+    very quickly:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事务和锁定表（`INFORMATION_SCHEMA` [`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table") 表，性能模式 [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table") 和 [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") 表）公开的数据代表了对快速变化数据的一瞥。这不像用户表，其中数据仅在应用程序发起的更新发生时才会更改。底层数据是内部系统管理的数据，可以非常快速地更改：
+- en: Data might not be consistent between the [`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table"), [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table"), and [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") tables.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_TRX`](information-schema-innodb-trx-table.html "28.4.28 The INFORMATION_SCHEMA
+    INNODB_TRX Table")、[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The
+    data_locks Table") 和 [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") 表之间的数据可能不一致。'
+- en: The [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The
+    data_locks Table") and [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") tables expose live data from the `InnoDB`
+    storage engine, to provide lock information about the transactions in the [`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table") table. Data retrieved from
+    the lock tables exists when the [`SELECT`](select.html "15.2.13 SELECT Statement")
+    is executed, but might be gone or changed by the time the query result is consumed
+    by the client.
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The data_locks
+    Table") 和 [`data_lock_waits`](performance-schema-data-lock-waits-table.html "29.12.13.2 The
+    data_lock_waits Table") 表公开了来自 `InnoDB` 存储引擎的实时数据，提供有关 [`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table") 表中事务的锁信息。从锁表中检索的数据存在于执行 [`SELECT`](select.html
+    "15.2.13 SELECT Statement") 时，但在查询结果被客户端消耗时可能已经消失或更改。'
+- en: Joining [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The
+    data_locks Table") with [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") can show rows in [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") that identify a parent row in [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table") that no longer exists or does not exist yet.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 data_locks表")与[`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 data_lock_waits表")连接可以显示在[`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 data_lock_waits表")中标识不再存在或尚不存在的[`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 data_locks表")中的父行的行。
+- en: Data in the transaction and locking tables might not be consistent with data
+    in the `INFORMATION_SCHEMA` [`PROCESSLIST`](information-schema-processlist-table.html
+    "28.3.23 The INFORMATION_SCHEMA PROCESSLIST Table") table or Performance Schema
+    [`threads`](performance-schema-threads-table.html "29.12.21.8 The threads Table")
+    table.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 事务和锁定表中的数据可能与`INFORMATION_SCHEMA` [`PROCESSLIST`](information-schema-processlist-table.html
+    "28.3.23 INFORMATION_SCHEMA PROCESSLIST表")表或性能模式[`threads`](performance-schema-threads-table.html
+    "29.12.21.8 threads表")表中的数据不一致。
+- en: For example, you should be careful when comparing data in the `InnoDB` transaction
+    and locking tables with data in the [`PROCESSLIST`](information-schema-processlist-table.html
+    "28.3.23 The INFORMATION_SCHEMA PROCESSLIST Table") table. Even if you issue a
+    single `SELECT` (joining [`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table") and [`PROCESSLIST`](information-schema-processlist-table.html
+    "28.3.23 The INFORMATION_SCHEMA PROCESSLIST Table"), for example), the content
+    of those tables is generally not consistent. It is possible for [`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table") to reference rows that are
+    not present in [`PROCESSLIST`](information-schema-processlist-table.html "28.3.23 The
+    INFORMATION_SCHEMA PROCESSLIST Table") or for the currently executing SQL query
+    of a transaction shown in `INNODB_TRX.TRX_QUERY` to differ from the one in `PROCESSLIST.INFO`.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 例如，当比较`InnoDB`事务和锁定表中的数据与[`PROCESSLIST`](information-schema-processlist-table.html
+    "28.3.23 INFORMATION_SCHEMA PROCESSLIST表")表中的数据时，应该小心。即使您发出单个`SELECT`（例如连接[`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 INFORMATION_SCHEMA INNODB_TRX表")和[`PROCESSLIST`](information-schema-processlist-table.html
+    "28.3.23 INFORMATION_SCHEMA PROCESSLIST表")），这些表的内容通常不一致。[`INNODB_TRX`](information-schema-innodb-trx-table.html
+    "28.4.28 INFORMATION_SCHEMA INNODB_TRX表")可能引用[`PROCESSLIST`](information-schema-processlist-table.html
+    "28.3.23 INFORMATION_SCHEMA PROCESSLIST表")中不存在的行，或者当前执行的事务中`INNODB_TRX.TRX_QUERY`显示的SQL查询与`PROCESSLIST.INFO`中的查询不同。

@@ -1,0 +1,505 @@
+- en: 20.10 Frequently Asked Questions
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.10 常见问题
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-frequently-asked-questions.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-frequently-asked-questions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-frequently-asked-questions.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-frequently-asked-questions.html)
+- en: This section provides answers to frequently asked questions.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节提供了常见问题的答案。
+- en: What is the maximum number of MySQL servers in a group?
+  id: totrans-3
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 一个组中MySQL服务器的最大数量是多少？
+- en: A group can consist of maximum 9 servers. Attempting to add another server to
+    a group with 9 members causes the request to join to be refused. This limit has
+    been identified from testing and benchmarking as a safe boundary where the group
+    performs reliably on a stable local area network.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个组最多可以由9台服务器组成。尝试向具有9个成员的组添加另一台服务器会导致加入请求被拒绝。这个限制是通过测试和基准测试确定的，是一个安全边界，在稳定的本地区域网络上组表现可靠。
+- en: How are servers in a group connected?
+  id: totrans-5
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 组中的服务器是如何连接的？
+- en: Servers in a group connect to the other servers in the group by opening a peer-to-peer
+    TCP connection. These connections are only used for internal communication and
+    message passing between servers in the group. This address is configured by the
+    [`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)
+    variable.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组中的服务器通过打开对等TCP连接连接到组中的其他服务器。这些连接仅用于组内通信和服务器之间的消息传递。此地址由[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)变量配置。
+- en: What is the group_replication_bootstrap_group option used for?
+  id: totrans-7
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: '`group_replication_bootstrap_group`选项用于什么目的？'
+- en: The bootstrap flag instructs a member to *create* a group and act as the initial
+    seed server. The second member joining the group needs to ask the member that
+    bootstrapped the group to dynamically change the configuration in order for it
+    to be added to the group.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 引导标志指示成员*创建*一个组并充当初始种子服务器。加入组的第二个成员需要请求引导组的成员动态更改配置，以便将其添加到组中。
+- en: A member needs to bootstrap the group in two scenarios. When the group is originally
+    created, or when shutting down and restarting the entire group.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 成员需要在两种情况下引导组。当组最初创建时，或者当关闭并重新启动整个组时。
+- en: How do I set credentials for the distributed recovery process?
+  id: totrans-10
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 如何为分布式恢复过程设置凭据？
+- en: You can set the user credentials permanently as the credentials for the `group_replication_recovery`
+    channel, using a [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") statement (from MySQL 8.0.23)
+    or [`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE MASTER TO Statement")
+    statement (before MySQL 8.0.23). Alternatively, from MySQL 8.0.21, you can specify
+    them on the [`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START
+    GROUP_REPLICATION Statement") statement each time Group Replication is started.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以将用户凭据永久设置为`group_replication_recovery`通道的凭据，使用[`CHANGE REPLICATION SOURCE
+    TO`](change-replication-source-to.html "15.4.2.3 CHANGE REPLICATION SOURCE TO
+    Statement")语句（从MySQL 8.0.23开始）或[`CHANGE MASTER TO`](change-master-to.html "15.4.2.1 CHANGE
+    MASTER TO Statement")语句（MySQL 8.0.23之前）。另外，从MySQL 8.0.21开始，您可以在每次启动Group Replication时在[`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement")语句中指定它们。
+- en: User credentials set using [`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html
+    "15.4.2.3 CHANGE REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement") are stored in plain text in the replication
+    metadata repositories on the server, but user credentials specified on [`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement") are saved in memory only, and are removed by a [`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement") statement or server shutdown. Using
+    [`START GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement") to specify the user credentials therefore helps to secure the Group
+    Replication servers against unauthorized access. However, this method is not compatible
+    with starting Group Replication automatically, as specified by the [`group_replication_start_on_boot`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)
+    system variable. For more information, see [Section 20.6.3.1, “Secure User Credentials
+    for Distributed Recovery”](group-replication-secure-user.html "20.6.3.1 Secure
+    User Credentials for Distributed Recovery").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用[`CHANGE REPLICATION SOURCE TO`](change-replication-source-to.html "15.4.2.3 CHANGE
+    REPLICATION SOURCE TO Statement") | [`CHANGE MASTER TO`](change-master-to.html
+    "15.4.2.1 CHANGE MASTER TO Statement")设置的用户凭据以明文形式存储在服务器上的复制元数据存储库中，但在[`START
+    GROUP_REPLICATION`](start-group-replication.html "15.4.3.1 START GROUP_REPLICATION
+    Statement")中指定的用户凭据仅保存在内存中，并且通过[`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement")语句或服务器关闭时会被删除。因此，使用[`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement")指定用户凭据有助于保护组复制服务器免受未经授权的访问。但是，此方法与通过[`group_replication_start_on_boot`](group-replication-system-variables.html#sysvar_group_replication_start_on_boot)系统变量指定自动启动组复制不兼容。有关更多信息，请参见[Section 20.6.3.1,
+    “Secure User Credentials for Distributed Recovery”](group-replication-secure-user.html
+    "20.6.3.1 Secure User Credentials for Distributed Recovery")。
+- en: Can I scale-out my write-load using Group Replication?
+  id: totrans-13
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 我可以使用组复制来扩展我的写入负载吗？
+- en: Not directly, but MySQL Group replication is a shared nothing full replication
+    solution, where all servers in the group replicate the same amount of data. Therefore
+    if one member in the group writes N bytes to storage as the result of a transaction
+    commit operation, then roughly N bytes are written to storage on other members
+    as well, because the transaction is replicated everywhere.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不直接，但MySQL组复制是一种共享无内容完全复制解决方案，组中的所有服务器都复制相同数量的数据。因此，如果组中的一个成员将N字节写入存储作为事务提交操作的结果，那么其他成员上也大致会写入N字节到存储，因为事务在所有地方都被复制。
+- en: However, given that other members do not have to do the same amount of processing
+    that the original member had to do when it originally executed the transaction,
+    they apply the changes faster. Transactions are replicated in a format that is
+    used to apply row transformations only, without having to re-execute transactions
+    again (row-based format).
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，由于其他成员不必像原始成员在最初执行事务时那样进行相同数量的处理，他们会更快地应用更改。事务以仅用于应用行转换的格式进行复制，而无需重新执行事务（基于行的格式）。
+- en: Furthermore, given that changes are propagated and applied in row-based format,
+    this means that they are received in an optimized and compact format, and likely
+    reducing the number of IO operations required when compared to the originating
+    member.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，由于更改以基于行的格式传播和应用，这意味着它们以优化和紧凑的格式接收，并且与原始成员相比，可能减少所需的IO操作次数。
+- en: To summarize, you can scale-out processing, by spreading conflict free transactions
+    throughout different members in the group. And you can likely scale-out a small
+    fraction of your IO operations, since remote servers receive only the necessary
+    changes to read-modify-write changes to stable storage.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 总结一下，您可以通过将无冲突的事务分布到组中的不同成员来扩展处理能力。您可以很可能扩展出小部分IO操作，因为远程服务器只接收读取-修改-写入到稳定存储的必要更改。
+- en: Does Group Replication require more network bandwidth and CPU, when compared
+    to simple replication and under the same workload?
+  id: totrans-18
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 与简单复制相比，组复制是否需要更多的网络带宽和CPU，在相同的工作负载下？
+- en: Some additional load is expected because servers need to be constantly interacting
+    with each other for synchronization purposes. It is difficult to quantify how
+    much more data. It also depends on the size of the group (three servers puts less
+    stress on the bandwidth requirements than nine servers in the group).
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于服务器需要不断相互交互以进行同步，因此预计会有一些额外负载。很难量化需要多少数据。这也取决于组的大小（三台服务器对带宽需求的压力比九台服务器少）。
+- en: Also the memory and CPU footprint are larger, because more complex work is done
+    for the server synchronization part and for the group messaging.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 内存和 CPU 占用也更大，因为服务器同步部分和组消息传递需要执行更复杂的工作。
+- en: Can I deploy Group Replication across wide-area networks?
+  id: totrans-21
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 我可以在广域网上部署组复制吗？
+- en: Yes, but the network connection between each member *must* be reliable and have
+    suitable performance. Low latency, high bandwidth network connections are a requirement
+    for optimal performance.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 是的，但是每个成员之间的网络连接 *必须* 是可靠的，并且具有适当的性能。低延迟、高带宽的网络连接是实现最佳性能的要求。
+- en: If network bandwidth alone is an issue, then [Section 20.7.4, “Message Compression”](group-replication-message-compression.html
+    "20.7.4 Message Compression") can be used to lower the bandwidth required. However,
+    if the network drops packets, leading to re-transmissions and higher end-to-end
+    latency, throughput and latency are both negatively affected.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果仅网络带宽是问题，那么可以使用 [第 20.7.4 节，“消息压缩”](group-replication-message-compression.html
+    "20.7.4 消息压缩") 来降低所需的带宽。然而，如果网络丢包导致重传和更高的端到端延迟，吞吐量和延迟都会受到负面影响。
+- en: Warning
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: When the network round-trip time (RTT) between any group members is 5 seconds
+    or more you could encounter problems as the built-in failure detection mechanism
+    could be incorrectly triggered.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当任何组成员之间的网络往返时间（RTT）为 5 秒或更长时，您可能会遇到问题，因为内置的故障检测机制可能会错误地触发。
+- en: Do members automatically rejoin a group in case of temporary connectivity problems?
+  id: totrans-26
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 在临时连接问题的情况下，成员是否会自动重新加入组？
+- en: This depends on the reason for the connectivity problem. If the connectivity
+    problem is transient and the reconnection is quick enough that the failure detector
+    is not aware of it, then the server may not be removed from the group. If it is
+    a "long" connectivity problem, then the failure detector eventually suspects a
+    problem and the server is removed from the group.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这取决于连接问题的原因。如果连接问题是暂时的，并且重新连接足够快以至于故障检测器没有意识到它，那么服务器可能不会从组中移除。如果是一个“长期”的连接问题，那么故障检测器最终会怀疑存在问题，并将服务器从组中移除。
+- en: 'From MySQL 8.0, two settings are available to increase the chances of a member
+    remaining in or rejoining a group:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0 开始，有两个设置可用于增加成员保持在组中或重新加入组的机会：
+- en: '[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    increases the time between the creation of a suspicion (which happens after an
+    initial 5-second detection period) and the expulsion of the member. You can set
+    a waiting period of up to 1 hour. From MySQL 8.0.21, a waiting period of 5 seconds
+    is set by default.'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    增加了在创建怀疑（在初始 5 秒检测期之后发生）和将成员驱逐之间的时间。您可以设置最多 1 小时的等待时间。从 MySQL 8.0.21 开始，默认设置为
+    5 秒的等待时间。'
+- en: '[`group_replication_autorejoin_tries`](group-replication-system-variables.html#sysvar_group_replication_autorejoin_tries)
+    makes a member try to rejoin the group after an expulsion or unreachable majority
+    timeout. The member makes the specified number of auto-rejoin attempts five minutes
+    apart. From MySQL 8.0.21, this feature is activated by default and the member
+    makes three auto-rejoin attempts.'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`group_replication_autorejoin_tries`](group-replication-system-variables.html#sysvar_group_replication_autorejoin_tries)
+    使成员在被驱逐或不可达的大多数超时后尝试重新加入组。成员将按照指定的次数间隔五分钟进行自动重新加入尝试。从 MySQL 8.0.21 开始，默认情况下激活此功能，并且成员进行三次自动重新加入尝试。'
+- en: If a server is expelled from the group and any auto-rejoin attempts do not succeed,
+    you need to join it back again. In other words, after a server is removed explicitly
+    from the group you need to rejoin it manually (or have a script doing it automatically).
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果服务器被从组中驱逐，并且任何自动重新加入尝试都不成功，您需要手动重新加入它。换句话说，当服务器被明确从组中移除后，您需要手动重新加入它（或者有一个脚本自动执行）。
+- en: When is a member excluded from a group?
+  id: totrans-32
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 什么时候会将成员从组中排除？
+- en: If the member becomes silent, the other members remove it from the group configuration.
+    In practice this may happen when the member has crashed or there is a network
+    disconnection.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果成员变得沉默，其他成员将其从组配置中移除。实际上，当成员崩溃或存在网络断开时可能会发生这种情况。
+- en: The failure is detected after a given timeout elapses for a given member and
+    a new configuration without the silent member in it is created.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在给定成员经过一定超时后检测到故障，并创建一个不包含静默成员的新配置。
+- en: What happens when one node is significantly lagging behind?
+  id: totrans-35
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 当一个节点明显滞后时会发生什么？
+- en: There is no method for defining policies for when to expel members automatically
+    from the group. You need to find out why a member is lagging behind and fix that
+    or remove the member from the group. Otherwise, if the server is so slow that
+    it triggers the flow control, then the entire group slows down as well. The flow
+    control can be configured according to the your needs.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 没有一种方法可以自动定义何时从组中自动驱逐成员的策略。您需要找出为什么成员滞后并解决问题，或将该成员从组中移除。否则，如果服务器太慢以至于触发流量控制，那么整个组也会减速。流量控制可以根据您的需求进行配置。
+- en: Upon suspicion of a problem in the group, is there a special member responsible
+    for triggering a reconfiguration?
+  id: totrans-37
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 在怀疑组内出现问题时，是否有特定成员负责触发重新配置？
+- en: No, there is no special member in the group in charge of triggering a reconfiguration.
+  id: totrans-38
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不，组内没有特定成员负责触发重新配置。
+- en: Any member can suspect that there is a problem. All members need to (automatically)
+    agree that a given member has failed. One member is in charge of expelling it
+    from the group, by triggering a reconfiguration. Which member is responsible for
+    expelling the member is not something you can control or set.
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 任何成员都可以怀疑存在问题。所有成员需要（自动）同意某个成员已经失败。一个成员负责将其从组中驱逐，触发重新配置。负责驱逐成员的成员不是您可以控制或设置的。
+- en: Can I use Group Replication for sharding?
+  id: totrans-40
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 我可以将 Group Replication 用于分片吗？
+- en: Group Replication is designed to provide highly available replica sets; data
+    and writes are duplicated on each member in the group. For scaling beyond what
+    a single system can provide, you need an orchestration and sharding framework
+    built around a number of Group Replication sets, where each replica set maintains
+    and manages a given shard or partition of your total dataset. This type of setup,
+    often called a “sharded cluster”, allows you to scale reads and writes linearly
+    and without limit.
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication 旨在提供高可用性的副本集；数据和写入在组内的每个成员上都会复制。为了扩展超出单个系统所能提供的范围，您需要围绕多个
+    Group Replication 集构建编排和分片框架，其中每个副本集维护和管理总数据集的给定分片或分区。这种设置通常称为“分片集群”，允许您线性扩展读取和写入，而且没有限制。
+- en: How do I use Group Replication with SELinux?
+  id: totrans-42
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 如何在使用 SELinux 时使用 Group Replication？
+- en: If SELinux is enabled, which you can verify using **sestatus -v**, then you
+    need to enable the use of the Group Replication communication port. See [Setting
+    the TCP Port Context for Group Replication](selinux-context-mysql-feature-ports.html#selinux-context-group-replication-port
+    "Setting the TCP Port Context for Group Replication").
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果启用了 SELinux，您可以使用 **sestatus -v** 进行验证，然后需要启用 Group Replication 通信端口的使用。请参阅
+    [为 Group Replication 设置 TCP 端口上下文](selinux-context-mysql-feature-ports.html#selinux-context-group-replication-port
+    "为 Group Replication 设置 TCP 端口上下文")。
+- en: How do I use Group Replication with iptables?
+  id: totrans-44
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 如何在使用 iptables 时使用 Group Replication？
+- en: If **iptables** is enabled, then you need to open up the Group Replication port
+    for communication between the machines. To see the current rules in place on each
+    machine, issue **iptables -L**. Assuming the port configured is 33061, enable
+    communication over the necessary port by issuing **iptables -A INPUT -p tcp --dport
+    33061 -j ACCEPT**.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果启用了 **iptables**，那么您需要为机器之间的通信打开 Group Replication 端口。要查看每台机器上当前的规则，请执行 **iptables
+    -L**。假设配置的端口是 33061，在必要端口上启用通信，请执行 **iptables -A INPUT -p tcp --dport 33061 -j
+    ACCEPT**。
+- en: How do I recover the relay log for a replication channel used by a group member?
+  id: totrans-46
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 如何恢复由组成员使用的复制通道的中继日志？
+- en: The replication channels used by Group Replication behave in the same way as
+    replication channels used in asynchronous source to replica replication, and as
+    such rely on the relay log. In the event of a change of the [`relay_log`](replication-options-replica.html#sysvar_relay_log)
+    variable, or when the option is not set and the host name changes, there is a
+    chance of errors. See [Section 19.2.4.1, “The Relay Log”](replica-logs-relaylog.html
+    "19.2.4.1 The Relay Log") for a recovery procedure in this situation. Alternatively,
+    another way of fixing the issue specifically in Group Replication is to issue
+    a [`STOP GROUP_REPLICATION`](stop-group-replication.html "15.4.3.2 STOP GROUP_REPLICATION
+    Statement") statement and then a [`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement") statement to restart the instance.
+    The Group Replication plugin creates the `group_replication_applier` channel again.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication使用的复制通道的行为方式与异步源到副本复制中使用的复制通道相同，因此依赖于中继日志。在更改[`relay_log`](replication-options-replica.html#sysvar_relay_log)变量或主机名更改时，可能会出现错误。请参阅[Section 19.2.4.1,
+    “The Relay Log”](replica-logs-relaylog.html "19.2.4.1 The Relay Log")以了解在此情况下的恢复过程。另外，在Group
+    Replication中专门解决此问题的另一种方法是发出[`STOP GROUP_REPLICATION`](stop-group-replication.html
+    "15.4.3.2 STOP GROUP_REPLICATION Statement")语句，然后发出[`START GROUP_REPLICATION`](start-group-replication.html
+    "15.4.3.1 START GROUP_REPLICATION Statement")语句重新启动实例。Group Replication插件会再次创建`group_replication_applier`通道。
+- en: Why does Group Replication use two bind addresses?
+  id: totrans-48
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: Group Replication为什么使用两个绑定地址？
+- en: Group Replication uses two bind addresses in order to split network traffic
+    between the SQL address, used by clients to communicate with the member, and the
+    [`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address),
+    used internally by the group members to communicate. For example, assume a server
+    with two network interfaces assigned to the network addresses `203.0.113.1` and
+    `198.51.100.179`. In such a situation you could use `203.0.113.1:33061` for the
+    internal group network address by setting [`group_replication_local_address=203.0.113.1:33061`](group-replication-system-variables.html#sysvar_group_replication_local_address).
+    Then you could use `198.51.100.179` for [`hostname`](server-system-variables.html#sysvar_hostname)
+    and `3306` for the [`port`](server-system-variables.html#sysvar_port). Client
+    SQL applications would then connect to the member at `198.51.100.179:3306`. This
+    enables you to configure different rules on the different networks. Similarly,
+    the internal group communication can be separated from the network connection
+    used for client applications, for increased security.
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication使用两个绑定地址，以便在SQL地址（客户端用于与成员通信的地址）和[`group_replication_local_address`](group-replication-system-variables.html#sysvar_group_replication_local_address)之间分割网络流量，成员内部使用该地址进行通信。例如，假设一个服务器有两个网络接口分配给网络地址`203.0.113.1`和`198.51.100.179`。在这种情况下，您可以通过设置[`group_replication_local_address=203.0.113.1:33061`](group-replication-system-variables.html#sysvar_group_replication_local_address)来使用`203.0.113.1:33061`作为内部组网络地址。然后您可以使用`198.51.100.179`作为[`hostname`](server-system-variables.html#sysvar_hostname)，`3306`作为[`port`](server-system-variables.html#sysvar_port)。客户端SQL应用程序将连接到`198.51.100.179:3306`的成员。这使您可以在不同网络上配置不同的规则。同样，内部组通信可以与用于客户端应用程序的网络连接分开，以增加安全性。
+- en: How does Group Replication use network addresses and hostnames?
+  id: totrans-50
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: Group Replication如何使用网络地址和主机名？
+- en: Group Replication uses network connections between members and therefore its
+    functionality is directly impacted by how you configure hostnames and ports. For
+    example, Group Replication's distributed recovery process creates a connection
+    to an existing group member using the server's hostname and port. When a member
+    joins a group it receives the group membership information, using the network
+    address information that is listed at [`performance_schema.replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table"). One of the members listed
+    in that table is selected as the donor of the missing data from the group to the
+    joining member.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: Group Replication使用成员之间的网络连接，因此其功能直接受到主机名和端口配置的影响。例如，Group Replication的分布式恢复过程使用服务器的主机名和端口创建到现有组成员的连接。当成员加入组时，它会接收组成员信息，使用在[`performance_schema.replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table")中列出的网络地址信息。该表中列出的成员之一被选为从组到加入成员的缺失数据的捐赠者。
+- en: This means that any value you configure using a hostname, such as the SQL network
+    address or the group seeds address, must be a fully qualified name and resolvable
+    by each member of the group. You can ensure this for example through DNS, or correctly
+    configured `/etc/hosts` files, or other local processes. If a you want to configure
+    the `MEMBER_HOST` value on a server, specify it using the [`--report-host`](replication-options-replica.html#sysvar_report_host)
+    option on the server before joining it to the group.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这意味着使用主机名配置的任何值，例如SQL网络地址或组种子地址，必须是完全合格的名称，并且每个组成员都可以解析。例如，您可以通过DNS或正确配置的`/etc/hosts`文件或其他本地进程来确保这一点。如果您想在服务器上配置`MEMBER_HOST`值，请在将其加入组之前使用服务器上的[`--report-host`](replication-options-replica.html#sysvar_report_host)选项指定。
+- en: Important
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: The assigned value is used directly and is not affected by the [`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)
+    system variable.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 分配的值直接使用，不受[`skip_name_resolve`](server-system-variables.html#sysvar_skip_name_resolve)系统变量的影响。
+- en: To configure `MEMBER_PORT` on a server, specify it using the [`report_port`](replication-options-replica.html#sysvar_report_port)
+    system variable.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要在服务器上配置`MEMBER_PORT`，请使用[`report_port`](replication-options-replica.html#sysvar_report_port)系统变量指定。
+- en: Why did the auto increment setting on the server change?
+  id: totrans-56
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 为什么服务器上的自增设置发生了变化？
+- en: When Group Replication is started on a server, the value of [`auto_increment_increment`](replication-options-source.html#sysvar_auto_increment_increment)
+    is changed to the value of [`group_replication_auto_increment_increment`](group-replication-system-variables.html#sysvar_group_replication_auto_increment_increment),
+    which defaults to 7, and the value of [`auto_increment_offset`](replication-options-source.html#sysvar_auto_increment_offset)
+    is changed to the server ID. The changes are reverted when Group Replication is
+    stopped. These settings avoid the selection of duplicate auto-increment values
+    for writes on group members, which causes rollback of transactions. The default
+    auto increment value of 7 for Group Replication represents a balance between the
+    number of usable values and the permitted maximum size of a replication group
+    (9 members).
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当在服务器上启动Group Replication时，[`auto_increment_increment`](replication-options-source.html#sysvar_auto_increment_increment)的值会更改为[`group_replication_auto_increment_increment`](group-replication-system-variables.html#sysvar_group_replication_auto_increment_increment)的值，默认为7，并且[`auto_increment_offset`](replication-options-source.html#sysvar_auto_increment_offset)的值会更改为服务器ID。当Group
+    Replication停止时，更改会被还原。这些设置避免了在组成员上写入时选择重复的自增值，从而导致事务回滚。Group Replication的默认自增值7代表可用值数量和复制组的允许最大大小（9个成员）之间的平衡。
+- en: The changes are only made and reverted if [`auto_increment_increment`](replication-options-source.html#sysvar_auto_increment_increment)
+    and [`auto_increment_offset`](replication-options-source.html#sysvar_auto_increment_offset)
+    each have their default value of 1\. If their values have already been modified
+    from the default, Group Replication does not alter them. From MySQL 8.0, the system
+    variables are also not modified when Group Replication is in single-primary mode,
+    where only one server writes.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有当[`auto_increment_increment`](replication-options-source.html#sysvar_auto_increment_increment)和[`auto_increment_offset`](replication-options-source.html#sysvar_auto_increment_offset)的值都已经被修改为默认值1时，更改才会生效并回滚。如果它们的值已经从默认值修改过，Group
+    Replication不会改变它们。从MySQL 8.0开始，当Group Replication处于单主模式时，系统变量也不会被修改，只有一个服务器进行写入。
+- en: How do I find the primary?
+  id: totrans-59
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+  zh: 如何找到主服务器？
+- en: If the group is operating in single-primary mode, it can be useful to find out
+    which member is the primary. See [Section 20.1.3.1.2, “Finding the Primary”](group-replication-single-primary-mode.html#group-replication-find-primary
+    "20.1.3.1.2 Finding the Primary")
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果组在单主模式下运行，找出哪个成员是主要的可能很有用。请参阅[Section 20.1.3.1.2, “Finding the Primary”](group-replication-single-primary-mode.html#group-replication-find-primary
+    "20.1.3.1.2 Finding the Primary")

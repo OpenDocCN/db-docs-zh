@@ -1,0 +1,273 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-security-mysql-privileges.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-security-mysql-privileges.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-security-mysql-privileges.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-security-mysql-privileges.html)
+- en: 25.6.20.2 NDB Cluster and MySQL Privileges
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.6.20.2 NDB Cluster和MySQL特权
+- en: In this section, we discuss how the MySQL privilege system works in relation
+    to NDB Cluster and the implications of this for keeping an NDB Cluster secure.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在本节中，我们讨论了MySQL特权系统在与NDB Cluster的关系中的工作原理，以及这对保持NDB Cluster安全性的影响。
+- en: Standard MySQL privileges apply to NDB Cluster tables. This includes all MySQL
+    privilege types ([`SELECT`](privileges-provided.html#priv_select) privilege, [`UPDATE`](privileges-provided.html#priv_update)
+    privilege, [`DELETE`](privileges-provided.html#priv_delete) privilege, and so
+    on) granted on the database, table, and column level. As with any other MySQL
+    Server, user and privilege information is stored in the `mysql` system database.
+    The SQL statements used to grant and revoke privileges on [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") tables, databases containing such tables,
+    and columns within such tables are identical in all respects with the [`GRANT`](grant.html
+    "15.7.1.6 GRANT Statement") and [`REVOKE`](revoke.html "15.7.1.8 REVOKE Statement")
+    statements used in connection with database objects involving any (other) MySQL
+    storage engine. The same thing is true with respect to the [`CREATE USER`](create-user.html
+    "15.7.1.3 CREATE USER Statement") and [`DROP USER`](drop-user.html "15.7.1.5 DROP
+    USER Statement") statements.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 标准的MySQL特权适用于NDB Cluster表。这包括在数据库、表和列级别授予的所有MySQL特权类型（[`SELECT`](privileges-provided.html#priv_select)特权、[`UPDATE`](privileges-provided.html#priv_update)特权、[`DELETE`](privileges-provided.html#priv_delete)特权等），与任何其他MySQL服务器一样，用户和特权信息存储在`mysql`系统数据库中。用于在[`NDB`](mysql-cluster.html
+    "第25章 MySQL NDB Cluster 8.0")表、包含这些表的数据库以及这些表中的列上授予和撤销特权的SQL语句在所有方面与用于涉及任何（其他）MySQL存储引擎的数据库对象的[`GRANT`](grant.html
+    "15.7.1.6 GRANT语句")和[`REVOKE`](revoke.html "15.7.1.8 REVOKE语句")语句相同。对于[`CREATE
+    USER`](create-user.html "15.7.1.3 CREATE USER语句")和[`DROP USER`](drop-user.html
+    "15.7.1.5 DROP USER语句")语句也是如此。
+- en: It is important to keep in mind that, by default, the MySQL grant tables use
+    the [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    storage engine. Because of this, those tables are not normally duplicated or shared
+    among MySQL servers acting as SQL nodes in an NDB Cluster. In other words, changes
+    in users and their privileges do not automatically propagate between SQL nodes
+    by default. If you wish, you can enable synchronization of MySQL users and privileges
+    across NDB Cluster SQL nodes; see [Section 25.6.13, “Privilege Synchronization
+    and NDB_STORED_USER”](mysql-cluster-privilege-synchronization.html "25.6.13 Privilege
+    Synchronization and NDB_STORED_USER"), for details.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要的是要记住，默认情况下，MySQL授权表使用[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")存储引擎。因此，这些表通常不会在充当NDB
+    Cluster中SQL节点的MySQL服务器之间复制或共享。换句话说，默认情况下，用户及其特权的更改不会在SQL节点之间自动传播。如果需要，您可以启用NDB
+    Cluster SQL节点之间的MySQL用户和特权同步；有关详细信息，请参见[第25.6.13节“特权同步和NDB_STORED_USER”](mysql-cluster-privilege-synchronization.html
+    "25.6.13 特权同步和NDB_STORED_USER")。
+- en: 'Conversely, because there is no way in MySQL to deny privileges (privileges
+    can either be revoked or not granted in the first place, but not denied as such),
+    there is no special protection for `NDB` tables on one SQL node from users that
+    have privileges on another SQL node; this is true even if you are not using automatic
+    distribution of user privileges. The definitive example of this is the MySQL `root`
+    account, which can perform any action on any database object. In combination with
+    empty `[mysqld]` or `[api]` sections of the `config.ini` file, this account can
+    be especially dangerous. To understand why, consider the following scenario:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 相反，因为MySQL中没有拒绝特权的方法（特权可以被撤销或者一开始就不授予，但不能被明确拒绝），因此没有办法在一个SQL节点上对`NDB`表进行特殊保护，使其免受在另一个SQL节点上具有特权的用户的影响；即使您没有使用用户特权的自动分发，这也是如此。这一点的明显例子是MySQL的`root`账户，它可以对任何数据库对象执行任何操作。结合`config.ini`文件中空的`[mysqld]`或`[api]`部分，这个账户可能特别危险。要理解原因，请考虑以下情景：
+- en: The `config.ini` file contains at least one empty `[mysqld]` or `[api]` section.
+    This means that the NDB Cluster management server performs no checking of the
+    host from which a MySQL Server (or other API node) accesses the NDB Cluster.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`config.ini` 文件至少包含一个空的 `[mysqld]` 或 `[api]` 部分。这意味着 NDB 集群管理服务器不会检查 MySQL
+    服务器（或其他 API 节点）访问 NDB 集群的主机。'
+- en: There is no firewall, or the firewall fails to protect against access to the
+    NDB Cluster from hosts external to the network.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 没有防火墙，或者防火墙无法阻止外部主机访问 NDB 集群。
+- en: The host name or IP address of the NDB Cluster management server is known or
+    can be determined from outside the network.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: NDB 集群管理服务器的主机名或 IP 地址已知或可以从网络外部确定。
+- en: 'If these conditions are true, then anyone, anywhere can start a MySQL Server
+    with [`--ndbcluster`](mysql-cluster-options-variables.html#option_mysqld_ndbcluster)
+    [`--ndb-connectstring=*`management_host`*`](mysql-cluster-options-variables.html#option_mysqld_ndb-connectstring)
+    and access this NDB Cluster. Using the MySQL `root` account, this person can then
+    perform the following actions:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果这些条件成立，那么任何人在任何地方都可以启动一个带有 [`--ndbcluster`](mysql-cluster-options-variables.html#option_mysqld_ndbcluster)
+    [`--ndb-connectstring=*`management_host`*`](mysql-cluster-options-variables.html#option_mysqld_ndb-connectstring)
+    的 MySQL 服务器，并访问这个 NDB 集群。使用 MySQL 的 `root` 账户，这个人可以执行以下操作：
+- en: Execute metadata statements such as [`SHOW DATABASES`](show-databases.html "15.7.7.14 SHOW
+    DATABASES Statement") statement (to obtain a list of all [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") databases on the server) or [`SHOW TABLES
+    FROM *`some_ndb_database`*`](show-tables.html "15.7.7.39 SHOW TABLES Statement")
+    statement to obtain a list of all [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") tables in a given database
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行元数据语句，比如[`SHOW DATABASES`](show-databases.html "15.7.7.14 SHOW DATABASES Statement")语句（获取服务器上所有[`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0")数据库的列表）或[`SHOW TABLES FROM *`some_ndb_database`*`](show-tables.html
+    "15.7.7.39 SHOW TABLES Statement")语句（获取给定数据库中所有[`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0")表的列表）
+- en: 'Run any legal MySQL statements on any of the discovered tables, such as:'
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在任何发现的表上运行任何合法的 MySQL 语句，比如：
+- en: '`SELECT * FROM *`some_table`*` or `TABLE *`some_table`*` to read all the data
+    from any table'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SELECT * FROM *`some_table`*` 或 `TABLE *`some_table`*` 从任意表中读取所有数据'
+- en: '`DELETE FROM *`some_table`*` or TRUNCATE TABLE to delete all the data from
+    a table'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DELETE FROM *`some_table`*` 或 TRUNCATE TABLE 删除表中的所有数据'
+- en: '`DESCRIBE *`some_table`*` or `SHOW CREATE TABLE *`some_table`*` to determine
+    the table schema'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DESCRIBE *`some_table`*` 或 `SHOW CREATE TABLE *`some_table`*` 确定表结构'
+- en: '`UPDATE *`some_table`* SET *`column1`* = *`some_value`*` to fill a table column
+    with “garbage” data; this could actually cause much greater damage than simply
+    deleting all the data'
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`UPDATE *`some_table`* SET *`column1`* = *`some_value`*` 用“垃圾”数据填充表列；这实际上可能造成比简单删除所有数据更大的损害'
+- en: 'More insidious variations might include statements like these:'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更加隐匿的变种可能包括以下语句：
+- en: '[PRE0]'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: or
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 或者
+- en: '[PRE1]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: Such malicious statements are limited only by the imagination of the attacker.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这样的恶意语句仅受攻击者想象力的限制。
+- en: The only tables that would be safe from this sort of mayhem would be those tables
+    that were created using storage engines other than `NDB`, and so not visible to
+    a “rogue” SQL node.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 唯一安全的表将是使用非 `NDB` 存储引擎创建的表，因此对于“流氓” SQL 节点不可见。
+- en: A user who can log in as `root` can also access the [`INFORMATION_SCHEMA`](information-schema.html
+    "Chapter 28 INFORMATION_SCHEMA Tables") database and its tables, and so obtain
+    information about databases, tables, stored routines, scheduled events, and any
+    other database objects for which metadata is stored in `INFORMATION_SCHEMA`.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一个能够以 `root` 身份登录的用户也可以访问 [`INFORMATION_SCHEMA`](information-schema.html "Chapter 28 INFORMATION_SCHEMA
+    Tables") 数据库及其表，从而获取关于存储在 `INFORMATION_SCHEMA` 中的数据库、表、存储过程、定时事件以及其他数据库对象的信息。
+- en: It is also a very good idea to use different passwords for the `root` accounts
+    on different NDB Cluster SQL nodes unless you are using shared privileges.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于不使用共享权限的情况，最好为不同的 NDB 集群 SQL 节点上的 `root` 账户使用不同的密码。
+- en: In sum, you cannot have a safe NDB Cluster if it is directly accessible from
+    outside your local network.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 总的来说，如果直接从本地网络之外可以访问 NDB 集群，那么你无法拥有一个安全的 NDB 集群。
+- en: Important
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: '*Never leave the MySQL root account password empty*. This is just as true when
+    running MySQL as an NDB Cluster SQL node as it is when running it as a standalone
+    (non-Cluster) MySQL Server, and should be done as part of the MySQL installation
+    process before configuring the MySQL Server as an SQL node in an NDB Cluster.'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '*永远不要将MySQL root账户密码留空*。无论是在作为NDB集群SQL节点运行MySQL还是作为独立（非集群）MySQL服务器运行时，都是正确的，应该在将MySQL服务器配置为NDB集群中的SQL节点之前作为MySQL安装过程的一部分来完成。'
+- en: If you need to synchronize `mysql` system tables between SQL nodes, you can
+    use standard MySQL replication to do so, or employ a script to copy table entries
+    between the MySQL servers. Users and their privileges can be shared and kept in
+    synch using the [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)
+    privilege.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果需要在SQL节点之间同步`mysql`系统表，可以使用标准的MySQL复制来实现，或者使用脚本在MySQL服务器之间复制表条目。用户及其权限可以使用[`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)特权进行共享和保持同步。
+- en: '**Summary. ** The most important points to remember regarding the MySQL privilege
+    system with regard to NDB Cluster are listed here:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**摘要。** 关于MySQL特权系统与NDB集群相关的最重要的要点如下：'
+- en: Users and privileges established on one SQL node do not automatically exist
+    or take effect on other SQL nodes in the cluster. Conversely, removing a user
+    or privilege on one SQL node in the cluster does not remove the user or privilege
+    from any other SQL nodes.
+  id: totrans-29
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在一个SQL节点上建立的用户和权限不会自动存在或生效于集群中的其他SQL节点。反之，在集群中的一个SQL节点上删除用户或权限并不会从任何其他SQL节点中删除用户或权限。
+- en: You can share MySQL users and privileges among SQL nodes using [`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user).
+  id: totrans-30
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 你可以使用[`NDB_STORED_USER`](privileges-provided.html#priv_ndb-stored-user)在SQL节点之间共享MySQL用户和权限。
+- en: Once a MySQL user is granted privileges on an [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") table from one SQL node in an NDB Cluster, that user can “see”
+    any data in that table regardless of the SQL node from which the data originated,
+    even if that user is not shared.
+  id: totrans-31
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 一旦在NDB集群中的一个SQL节点上为一个MySQL用户授予了对[`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0")表的权限，该用户可以“看到”该表中的任何数据，无论数据来自哪个SQL节点，即使该用户没有共享。

@@ -1,0 +1,153 @@
+- en: 9.6 MyISAM Table Maintenance and Crash Recovery
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 9.6 MyISAM表维护和崩溃恢复
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-table-maintenance.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-table-maintenance.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-table-maintenance.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-table-maintenance.html)
+- en: '[9.6.1 Using myisamchk for Crash Recovery](myisam-crash-recovery.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.6.1 使用myisamchk进行崩溃恢复](myisam-crash-recovery.html)'
+- en: '[9.6.2 How to Check MyISAM Tables for Errors](myisam-check.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.6.2 如何检查MyISAM表中的错误](myisam-check.html)'
+- en: '[9.6.3 How to Repair MyISAM Tables](myisam-repair.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.6.3 如何修复MyISAM表](myisam-repair.html)'
+- en: '[9.6.4 MyISAM Table Optimization](myisam-optimization.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.6.4 MyISAM表优化](myisam-optimization.html)'
+- en: '[9.6.5 Setting Up a MyISAM Table Maintenance Schedule](myisam-maintenance-schedule.html)'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[9.6.5 设置MyISAM表维护计划](myisam-maintenance-schedule.html)'
+- en: This section discusses how to use [**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") to check or repair `MyISAM` tables (tables
+    that have `.MYD` and `.MYI` files for storing data and indexes). For general [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") background, see [Section 6.6.4,
+    “myisamchk — MyISAM Table-Maintenance Utility”](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility"). Other table-repair information can be found
+    at [Section 3.14, “Rebuilding or Repairing Tables or Indexes”](rebuilding-tables.html
+    "3.14 Rebuilding or Repairing Tables or Indexes").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论如何使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")来检查或修复`MyISAM`表（用于存储数据和索引的`.MYD`和`.MYI`文件的表）。有关一般[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")背景，请参阅[Section 6.6.4, “myisamchk
+    — MyISAM Table-Maintenance Utility”](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility")。其他表修复信息可在[Section 3.14, “Rebuilding or Repairing Tables
+    or Indexes”](rebuilding-tables.html "3.14 Rebuilding or Repairing Tables or Indexes")找到。
+- en: You can use [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") to check, repair, or optimize database tables. The following sections
+    describe how to perform these operations and how to set up a table maintenance
+    schedule. For information about using [**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") to get information about your tables, see
+    [Section 6.6.4.5, “Obtaining Table Information with myisamchk”](myisamchk-table-info.html
+    "6.6.4.5 Obtaining Table Information with myisamchk").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")来检查、修复或优化数据库表。以下各节描述了如何执行这些操作以及如何设置表维护计划。有关使用[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")获取有关您的表的信息，请参阅[Section 6.6.4.5,
+    “Obtaining Table Information with myisamchk”](myisamchk-table-info.html "6.6.4.5 Obtaining
+    Table Information with myisamchk")。
+- en: Even though table repair with [**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") is quite secure, it is always a good idea
+    to make a backup *before* doing a repair or any maintenance operation that could
+    make a lot of changes to a table.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 即使使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")进行表修复是相当安全的，但在进行修复或任何可能对表进行大量更改的维护操作之前，始终最好先备份*数据*。
+- en: '[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") operations that affect indexes can cause `MyISAM` `FULLTEXT` indexes
+    to be rebuilt with full-text parameters that are incompatible with the values
+    used by the MySQL server. To avoid this problem, follow the guidelines in [Section 6.6.4.1,
+    “myisamchk General Options”](myisamchk-general-options.html "6.6.4.1 myisamchk
+    General Options").'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")影响索引的操作可能导致`MyISAM` `FULLTEXT`索引使用与MySQL服务器使用的值不兼容的全文参数进行重建。为避免此问题，请遵循[Section 6.6.4.1,
+    “myisamchk General Options”](myisamchk-general-options.html "6.6.4.1 myisamchk
+    General Options")中的指南。'
+- en: '`MyISAM` table maintenance can also be done using the SQL statements that perform
+    operations similar to what [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") can do:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`MyISAM`表维护也可以使用执行类似于[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility")的操作的SQL语句来完成：'
+- en: To check `MyISAM` tables, use [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK
+    TABLE Statement").
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要检查`MyISAM`表，请使用[`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement")。
+- en: To repair `MyISAM` tables, use [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR
+    TABLE Statement").
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要修复`MyISAM`表，请使用[`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")。
+- en: To optimize `MyISAM` tables, use [`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE
+    TABLE Statement").
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要优化`MyISAM`表，请使用[`OPTIMIZE TABLE`](optimize-table.html "15.7.3.4 OPTIMIZE TABLE
+    Statement")。
+- en: To analyze `MyISAM` tables, use [`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE
+    TABLE Statement").
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要分析`MyISAM`表，请使用[`ANALYZE TABLE`](analyze-table.html "15.7.3.1 ANALYZE TABLE
+    Statement")。
+- en: For additional information about these statements, see [Section 15.7.3, “Table
+    Maintenance Statements”](table-maintenance-statements.html "15.7.3 Table Maintenance
+    Statements").
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关这些语句的更多信息，请参阅[Section 15.7.3, “Table Maintenance Statements”](table-maintenance-statements.html
+    "15.7.3 Table Maintenance Statements")。
+- en: These statements can be used directly or by means of the [**mysqlcheck**](mysqlcheck.html
+    "6.5.3 mysqlcheck — A Table Maintenance Program") client program. One advantage
+    of these statements over [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") is that the server does all the work. With [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility"), you must make sure that
+    the server does not use the tables at the same time so that there is no unwanted
+    interaction between [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") and the server.
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些语句可以直接使用，也可以通过[**mysqlcheck**](mysqlcheck.html "6.5.3 mysqlcheck — A Table
+    Maintenance Program")客户端程序使用。这些语句相对于[**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")的一个优点是服务器完成所有工作。使用[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")时，您必须确保服务器不同时使用表，以避免[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")和服务器之间发生不必要的交互。

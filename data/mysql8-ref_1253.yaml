@@ -1,0 +1,143 @@
+- en: 17.15.2 InnoDB INFORMATION_SCHEMA Transaction and Locking Information
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 17.15.2 InnoDB INFORMATION_SCHEMA事务和锁定信息
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-transactions.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-transactions.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-transactions.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-information-schema-transactions.html)
+- en: '[17.15.2.1 Using InnoDB Transaction and Locking Information](innodb-information-schema-examples.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[17.15.2.1 使用InnoDB事务和锁定信息](innodb-information-schema-examples.html)'
+- en: '[17.15.2.2 InnoDB Lock and Lock-Wait Information](innodb-information-schema-understanding-innodb-locking.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[17.15.2.2 InnoDB锁和锁等待信息](innodb-information-schema-understanding-innodb-locking.html)'
+- en: '[17.15.2.3 Persistence and Consistency of InnoDB Transaction and Locking Information](innodb-information-schema-internal-data.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[17.15.2.3 InnoDB事务和锁定信息的持久性和一致性](innodb-information-schema-internal-data.html)'
+- en: Note
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: This section describes locking information as exposed by the Performance Schema
+    [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The data_locks
+    Table") and [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") tables, which supersede the `INFORMATION_SCHEMA`
+    `INNODB_LOCKS` and `INNODB_LOCK_WAITS` tables in MySQL 8.0\. For similar discussion
+    written in terms of the older `INFORMATION_SCHEMA` tables, see [InnoDB INFORMATION_SCHEMA
+    Transaction and Locking Information](/doc/refman/5.7/en/innodb-information-schema-transactions.html),
+    in [MySQL 5.7 Reference Manual](/doc/refman/5.7/en/).
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节描述由Performance Schema [`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 data_locks表") 和 [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 data_lock_waits表") 表公开的锁定信息，这些表在MySQL 8.0中取代了`INFORMATION_SCHEMA`
+    `INNODB_LOCKS` 和 `INNODB_LOCK_WAITS` 表。有关以旧的`INFORMATION_SCHEMA`表为基础撰写的类似讨论，请参阅[InnoDB
+    INFORMATION_SCHEMA事务和锁定信息](/doc/refman/5.7/en/innodb-information-schema-transactions.html)，在[MySQL
+    5.7参考手册](/doc/refman/5.7/en/)中。
+- en: 'One `INFORMATION_SCHEMA` table and two Performance Schema tables enable you
+    to monitor `InnoDB` transactions and diagnose potential locking problems:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一个`INFORMATION_SCHEMA`表和两个Performance Schema表使您能够监视`InnoDB`事务并诊断潜在的锁定问题：
+- en: '[`INNODB_TRX`](information-schema-innodb-trx-table.html "28.4.28 The INFORMATION_SCHEMA
+    INNODB_TRX Table"): This `INFORMATION_SCHEMA` table provides information about
+    every transaction currently executing inside `InnoDB`, including the transaction
+    state (for example, whether it is running or waiting for a lock), when the transaction
+    started, and the particular SQL statement the transaction is executing.'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`INNODB_TRX`](information-schema-innodb-trx-table.html "28.4.28 INFORMATION_SCHEMA
+    INNODB_TRX表")：这个`INFORMATION_SCHEMA`表提供有关每个当前在`InnoDB`中执行的事务的信息，包括事务状态（例如，它是正在运行还是等待锁），事务开始时间以及事务正在执行的特定SQL语句。'
+- en: '[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The data_locks
+    Table"): This Performance Schema table contains a row for each hold lock and each
+    lock request that is blocked waiting for a held lock to be released:'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 data_locks表")：这个Performance
+    Schema表包含每个持有锁和每个被阻塞等待持有锁释放的锁请求的行：'
+- en: There is one row for each held lock, whatever the state of the transaction that
+    holds the lock (`INNODB_TRX.TRX_STATE` is `RUNNING`, `LOCK WAIT`, `ROLLING BACK`
+    or `COMMITTING`).
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于每个持有的锁都有一行，无论持有锁的事务的状态如何（`INNODB_TRX.TRX_STATE`为`RUNNING`，`LOCK WAIT`，`ROLLING
+    BACK`或`COMMITTING`）。
+- en: Each transaction in InnoDB that is waiting for another transaction to release
+    a lock (`INNODB_TRX.TRX_STATE` is `LOCK WAIT`) is blocked by exactly one blocking
+    lock request. That blocking lock request is for a row or table lock held by another
+    transaction in an incompatible mode. A lock request always has a mode that is
+    incompatible with the mode of the held lock that blocks the request (read vs.
+    write, shared vs. exclusive).
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 每个在InnoDB中等待另一个事务释放锁的事务（`INNODB_TRX.TRX_STATE`为`LOCK WAIT`）都被一个阻塞的锁请求所阻塞。该阻塞的锁请求是由另一个事务以不兼容模式持有的行或表锁引起的。锁请求的模式总是与阻止请求的持有锁的模式不兼容（读
+    vs. 写，共享 vs. 独占）。
+- en: The blocked transaction cannot proceed until the other transaction commits or
+    rolls back, thereby releasing the requested lock. For every blocked transaction,
+    [`data_locks`](performance-schema-data-locks-table.html "29.12.13.1 The data_locks
+    Table") contains one row that describes each lock the transaction has requested,
+    and for which it is waiting.
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 被阻塞的事务在另一个事务提交或回滚后才能继续，从而释放所请求的锁。对于每个被阻塞的事务，[`data_locks`](performance-schema-data-locks-table.html
+    "29.12.13.1 The data_locks Table") 包含一行，描述了事务请求的每个锁以及等待的锁。
+- en: '[`data_lock_waits`](performance-schema-data-lock-waits-table.html "29.12.13.2 The
+    data_lock_waits Table"): This Performance Schema table indicates which transactions
+    are waiting for a given lock, or for which lock a given transaction is waiting.
+    This table contains one or more rows for each blocked transaction, indicating
+    the lock it has requested and any locks that are blocking that request. The `REQUESTING_ENGINE_LOCK_ID`
+    value refers to the lock requested by a transaction, and the `BLOCKING_ENGINE_LOCK_ID`
+    value refers to the lock (held by another transaction) that prevents the first
+    transaction from proceeding. For any given blocked transaction, all rows in [`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") have the same value for `REQUESTING_ENGINE_LOCK_ID`
+    and different values for `BLOCKING_ENGINE_LOCK_ID`.'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`data_lock_waits`](performance-schema-data-lock-waits-table.html "29.12.13.2 The
+    data_lock_waits Table")：这个性能模式表指示哪些事务正在等待特定的锁，或者哪个锁正在等待特定的事务。对于每个被阻塞的事务，这个表包含一个或多个行，指示它请求的锁以及阻止该请求的任何锁。`REQUESTING_ENGINE_LOCK_ID`
+    值指的是事务请求的锁，`BLOCKING_ENGINE_LOCK_ID` 值指的是（由另一个事务持有的）阻止第一个事务继续的锁。对于任何被阻塞的事务，[`data_lock_waits`](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table") 中的所有行都具有相同的 `REQUESTING_ENGINE_LOCK_ID`
+    值，但 `BLOCKING_ENGINE_LOCK_ID` 值不同。'
+- en: For more information about the preceding tables, see [Section 28.4.28, “The
+    INFORMATION_SCHEMA INNODB_TRX Table”](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table"), [Section 29.12.13.1, “The
+    data_locks Table”](performance-schema-data-locks-table.html "29.12.13.1 The data_locks
+    Table"), and [Section 29.12.13.2, “The data_lock_waits Table”](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table").
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关上述表的更多信息，请参见 [第 28.4.28 节，“INFORMATION_SCHEMA INNODB_TRX 表”](information-schema-innodb-trx-table.html
+    "28.4.28 The INFORMATION_SCHEMA INNODB_TRX Table")，[第 29.12.13.1 节，“data_locks
+    表”](performance-schema-data-locks-table.html "29.12.13.1 The data_locks Table")，以及
+    [第 29.12.13.2 节，“data_lock_waits 表”](performance-schema-data-lock-waits-table.html
+    "29.12.13.2 The data_lock_waits Table")。

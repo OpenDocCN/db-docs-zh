@@ -1,0 +1,203 @@
+- en: 9.5.1 Point-in-Time Recovery Using Binary Log
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 9.5.1 使用二进制日志进行时间点恢复
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-binlog.html](https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-binlog.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-binlog.html](https://dev.mysql.com/doc/refman/8.0/en/point-in-time-recovery-binlog.html)
+- en: This section explains the general idea of using the binary log to perform a
+    point-in-time-recovery. The next section, [Section 9.5.2, “Point-in-Time Recovery
+    Using Event Positions”](point-in-time-recovery-positions.html "9.5.2 Point-in-Time
+    Recovery Using Event Positions"), explains the operation in details with an example.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节解释了使用二进制日志执行时间点恢复的一般思路。下一节，[第9.5.2节，“使用事件位置进行时间点恢复”](point-in-time-recovery-positions.html
+    "9.5.2 使用事件位置进行时间点恢复")，通过示例详细解释了操作。
+- en: Note
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Many of the examples in this and the next section use the [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") client to process binary log output
+    produced by [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for
+    Processing Binary Log Files"). If your binary log contains `\0` (null) characters,
+    that output cannot be parsed by [**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client") unless you invoke it with the [`--binary-mode`](mysql-command-options.html#option_mysql_binary-mode)
+    option.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节和下一节中的许多示例使用[**mysql**](mysql.html "6.5.1 mysql — MySQL命令行客户端")客户端来处理[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")生成的二进制日志输出。如果您的二进制日志包含`\0`（空）字符，则除非使用[`--binary-mode`](mysql-command-options.html#option_mysql_binary-mode)选项调用，否则[**mysql**](mysql.html
+    "6.5.1 mysql — MySQL命令行客户端")无法解析该输出。
+- en: The source of information for point-in-time recovery is the set of binary log
+    files generated subsequent to the full backup operation. Therefore, to allow a
+    server to be restored to a point-in-time, binary logging must be enabled on it,
+    which is the default setting for MySQL 8.0 (see [Section 7.4.4, “The Binary Log”](binary-log.html
+    "7.4.4 The Binary Log")).
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 时间点恢复的信息来源是在完全备份操作之后生成的一组二进制日志文件。因此，为了允许服务器恢复到某个时间点，必须在其上启用二进制日志记录，这是MySQL 8.0的默认设置（参见
+    [第7.4.4节，“二进制日志”](binary-log.html "7.4.4 二进制日志")）。
+- en: 'To restore data from the binary log, you must know the name and location of
+    the current binary log files. By default, the server creates binary log files
+    in the data directory, but a path name can be specified with the [`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option to place the files in a different location. To see a listing of all binary
+    log files, use this statement:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从二进制日志中恢复数据，必须知道当前二进制日志文件的名称和位置。默认情况下，服务器在数据目录中创建二进制日志文件，但可以使用[`--log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)选项指定路径名以将文件放在不同位置。要查看所有二进制日志文件的列表，请使用以下语句：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'To determine the name of the current binary log file, issue the following statement:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要确定当前二进制日志文件的名称，请执行以下语句：
+- en: '[PRE1]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: The [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") utility converts the events in the binary log files from binary
+    format to text so that they can be viewed or applied. [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") has options for
+    selecting sections of the binary log based on event times or position of events
+    within the log. See [Section 6.6.9, “mysqlbinlog — Utility for Processing Binary
+    Log Files”](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing Binary
+    Log Files").
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")
+    实用程序将二进制日志文件中的事件从二进制格式转换为文本，以便查看或应用。[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — 用于处理二进制日志文件的实用程序") 有选项可根据事件时间或日志中事件位置选择二进制日志的部分。请参阅 [第6.6.9节，“mysqlbinlog —
+    用于处理二进制日志文件的实用程序”](mysqlbinlog.html "6.6.9 mysqlbinlog — 用于处理二进制日志文件的实用程序")。'
+- en: 'Applying events from the binary log causes the data modifications they represent
+    to be reexecuted. This enables recovery of data changes for a given span of time.
+    To apply events from the binary log, process [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") output using the
+    [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从二进制日志应用事件会导致它们所代表的数据修改重新执行。这使得可以恢复给定时间段的数据更改。要从二进制日志应用事件，请使用[**mysql**](mysql.html
+    "6.5.1 mysql — MySQL命令行客户端")客户端处理[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — 用于处理二进制日志文件的实用程序")输出：
+- en: '[PRE2]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'If binary log files have been encrypted, which can be done from MySQL 8.0.14
+    onwards, [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") cannot read them directly as in the above example, but can
+    read them from the server using the [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    (`-R`) option. For example:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果二进制日志文件已加密，从 MySQL 8.0.14 开始可以执行此操作，[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") 无法像上面的示例那样直接读取它们，但可以使用 [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    (`-R`) 选项从服务器读取它们。例如：
+- en: '[PRE3]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Here, the option `--ssl-mode=required` has been used to ensure that the data
+    from the binary log files is protected in transit, because it is sent to [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") in an unencrypted
+    format.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这里，选项 `--ssl-mode=required` 被用来确保从二进制日志文件中传输的数据在传输过程中受到保护，因为它以未加密的格式发送给 [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files")。
+- en: Important
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: '`VERIFY_CA` and `VERIFY_IDENTITY` are better choices than `REQUIRED` for the
+    SSL mode, because they help prevent man-in-the-middle attacks. To implement one
+    of these settings, you must first ensure that the CA certificate for the server
+    is reliably available to all the clients that use it in your environment, otherwise
+    availability issues will result. See [Command Options for Encrypted Connections](connection-options.html#encrypted-connection-options
+    "Command Options for Encrypted Connections").'
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`VERIFY_CA` 和 `VERIFY_IDENTITY` 比 `REQUIRED` 更好的选择作为 SSL 模式，因为它们有助于防止中间人攻击。要实施这些设置之一，您必须首先确保服务器的
+    CA 证书可靠地提供给所有在您的环境中使用它的客户端，否则将导致可用性问题。请参阅[加密连接的命令选项](connection-options.html#encrypted-connection-options
+    "加密连接的命令选项")。'
+- en: 'Viewing log contents can be useful when you need to determine event times or
+    positions to select partial log contents prior to executing events. To view events
+    from the log, send [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") output into a paging program:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查看日志内容在需要确定事件时间或位置以选择执行事件之前的部分日志内容时很有用。要查看日志中的事件，请将 [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") 输出发送到分页程序：
+- en: '[PRE4]'
+  id: totrans-19
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'Alternatively, save the output in a file and view the file in a text editor:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者，将输出保存在文件中，并在文本编辑器中查看文件：
+- en: '[PRE5]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'After editing the file, apply the contents as follows:'
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 编辑文件后，应用内容如下：
+- en: '[PRE6]'
+  id: totrans-23
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'If you have more than one binary log to apply on the MySQL server, use a single
+    connection to apply the contents of all binary log files that you want to process.
+    Here is one way to do so:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您有多个要应用于 MySQL 服务器的二进制日志，则可以使用单个连接来应用要处理的所有二进制日志文件的内容。以下是一种方法：
+- en: '[PRE7]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Another approach is to write the whole log to a single file and then process
+    the file:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一种方法是将整个日志写入单个文件，然后处理该文件：
+- en: '[PRE8]'
+  id: totrans-27
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'

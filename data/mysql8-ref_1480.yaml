@@ -1,0 +1,227 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-primary-mode.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-primary-mode.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-primary-mode.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-single-primary-mode.html)
+- en: 20.1.3.1 Single-Primary Mode
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 20.1.3.1 单主模式
+- en: In single-primary mode ([`group_replication_single_primary_mode=ON`](group-replication-system-variables.html#sysvar_group_replication_single_primary_mode))
+    the group has a single primary server that is set to read-write mode. All the
+    other members in the group are set to read-only mode (with [`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only)).
+    The primary is typically the first server to bootstrap the group. All other servers
+    that join the group learn about the primary server and are automatically set to
+    read-only mode.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在单主模式下（[`group_replication_single_primary_mode=ON`](group-replication-system-variables.html#sysvar_group_replication_single_primary_mode)），组具有一个被设置为读写模式的单主服务器。组中的所有其他成员都被设置为只读模式（使用[`super_read_only=ON`](server-system-variables.html#sysvar_super_read_only)）。主服务器通常是第一个引导组的服务器。加入组的所有其他服务器都会了解主服务器并自动设置为只读模式。
+- en: In single-primary mode, Group Replication enforces that only a single server
+    writes to the group, so compared to multi-primary mode, consistency checking can
+    be less strict and DDL statements do not need to be handled with any extra care.
+    The option [`group_replication_enforce_update_everywhere_checks`](group-replication-system-variables.html#sysvar_group_replication_enforce_update_everywhere_checks)
+    enables or disables strict consistency checks for a group. When deploying in single-primary
+    mode, or changing the group to single-primary mode, this system variable must
+    be set to `OFF`.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在单主模式下，组复制要求只有一个服务器写入组，因此与多主模式相比，一致性检查可以更宽松，DDL语句不需要额外小心处理。选项[`group_replication_enforce_update_everywhere_checks`](group-replication-system-variables.html#sysvar_group_replication_enforce_update_everywhere_checks)用于启用或禁用组的严格一致性检查。在部署单主模式或将组更改为单主模式时，必须将此系统变量设置为`OFF`。
+- en: 'The member that is designated as the primary server can change in the following
+    ways:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 被指定为主服务器的成员可以通过以下方式更改：
+- en: If the existing primary leaves the group, whether voluntarily or unexpectedly,
+    a new primary is elected automatically.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果现有的主服务器离开组，无论是自愿还是意外，新的主服务器将自动选举产生。
+- en: You can appoint a specific member as the new primary using the [`group_replication_set_as_primary()`](group-replication-functions-for-new-primary.html#function_group-replication-set-as-primary)
+    function.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 您可以使用[`group_replication_set_as_primary()`](group-replication-functions-for-new-primary.html#function_group-replication-set-as-primary)函数指定特定成员作为新的主服务器。
+- en: If you use the [`group_replication_switch_to_single_primary_mode()`](group-replication-functions-for-mode.html#function_group-replication-switch-to-single-primary-mode)
+    function to change a group that was running in multi-primary mode to run in single-primary
+    mode, a new primary is elected automatically, or you can appoint the new primary
+    by specifying it with the function.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果使用[`group_replication_switch_to_single_primary_mode()`](group-replication-functions-for-mode.html#function_group-replication-switch-to-single-primary-mode)函数将运行在多主模式下的组更改为单主模式，新的主服务器将自动选举产生，或者您可以通过该函数指定新的主服务器。
+- en: The functions can only be used when all group members are running MySQL 8.0.13
+    or higher. When a new primary server is elected automatically or appointed manually,
+    it is automatically set to read-write, and the other group members remain as secondaries,
+    and as such, read-only. [Figure 20.4, “New Primary Election”](group-replication-single-primary-mode.html#group-replication-primary-election-diagram
+    "Figure 20.4 New Primary Election") shows this process.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些函数只能在所有组成员运行MySQL 8.0.13或更高版本时使用。当新的主服务器自动选举产生或手动指定时，它会自动设置为读写模式，其他组成员保持为从服务器，因此为只读模式。[图 20.4,
+    “新主服务器选举”](group-replication-single-primary-mode.html#group-replication-primary-election-diagram
+    "图 20.4 新主服务器选举")展示了这个过程。
+- en: '**Figure 20.4 New Primary Election**'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**图 20.4 新主服务器选举**'
+- en: '![Five server instances, S1, S2, S3, S4, and S5, are deployed as an interconnected
+    group. Server S1 is the primary. Write clients are communicating with server S1,
+    and a read client is communicating with server S4\. Server S1 then fails, breaking
+    communication with the write clients. Server S2 then takes over as the new primary,
+    and the write clients now communicate with server S2.](../Images/6c2c5095234524372bb1923c58429d29.png)'
+  id: totrans-10
+  prefs: []
+  type: TYPE_IMG
+  zh: '![部署为互连组的五个服务器实例，S1、S2、S3、S4和S5。服务器S1是主要服务器。写客户端正在与服务器S1通信，读客户端正在与服务器S4通信。然后，服务器S1失败，导致与写客户端的通信中断。然后，服务器S2接管为新的主要服务器，现在写客户端与服务器S2通信。](../Images/6c2c5095234524372bb1923c58429d29.png)'
+- en: When a new primary is elected or appointed, it might have a backlog of changes
+    that had been applied on the old primary but have not yet been applied on this
+    server. In this situation, until the new primary catches up with the old primary,
+    read-write transactions might result in conflicts and be rolled back, and read-only
+    transactions might result in stale reads. Group Replication's flow control mechanism,
+    which minimizes the difference between fast and slow members, reduces the chances
+    of this happening if it is activated and properly tuned. For more information
+    on flow control, see [Section 20.7.2, “Flow Control”](group-replication-flow-control.html
+    "20.7.2 Flow Control"). From MySQL 8.0.14, you can also use the [`group_replication_consistency`](group-replication-system-variables.html#sysvar_group_replication_consistency)
+    system variable to configure the group's level of transaction consistency to prevent
+    this issue. The setting `BEFORE_ON_PRIMARY_FAILOVER` (or any higher consistency
+    level) holds new transactions on a newly elected primary until the backlog has
+    been applied. For more information on transaction consistency, see [Section 20.5.3,
+    “Transaction Consistency Guarantees”](group-replication-consistency-guarantees.html
+    "20.5.3 Transaction Consistency Guarantees"). If flow control and transaction
+    consistency guarantees are not used for a group, it is a good practice to wait
+    for the new primary to apply its replication-related relay log before re-routing
+    client applications to it.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当新的主要被选举或任命时，它可能有一些在旧主要上已应用但尚未应用在此服务器上的更改积压。在这种情况下，直到新的主要赶上旧的主要，读写事务可能会导致冲突并被回滚，只读事务可能会导致过时读取。如果激活并正确调整了Group
+    Replication的流量控制机制，它将减少快速和慢速成员之间的差异，从而降低发生这种情况的机会。有关流量控制的更多信息，请参见[第20.7.2节，“流量控制”](group-replication-flow-control.html
+    "20.7.2 流量控制")。从MySQL 8.0.14开始，您还可以使用[`group_replication_consistency`](group-replication-system-variables.html#sysvar_group_replication_consistency)系统变量来配置组的事务一致性级别，以防止此问题。设置`BEFORE_ON_PRIMARY_FAILOVER`（或任何更高的一致性级别）将新事务保留在新选举的主要上，直到积压被应用。有关事务一致性的更多信息，请参见[第20.5.3节，“事务一致性保证”](group-replication-consistency-guarantees.html
+    "20.5.3 事务一致性保证")。如果组未使用流量控制和事务一致性保证，等待新主要应用其与复制相关的中继日志再将客户端应用程序重新路由到它是一个良好的做法。
+- en: 20.1.3.1.1 Primary Election Algorithm
+  id: totrans-12
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.1.3.1.1 主要选举算法
+- en: The automatic primary member election process involves each member looking at
+    the new view of the group, ordering the potential new primary members, and choosing
+    the member that qualifies as the most suitable. Each member makes its own decision
+    locally, following the primary election algorithm in its MySQL Server release.
+    Because all members must reach the same decision, members adapt their primary
+    election algorithm if other group members are running lower MySQL Server versions,
+    so that they have the same behavior as the member with the lowest MySQL Server
+    version in the group.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 自动主要成员选举过程涉及每个成员查看组的新视图，对潜在的新主要成员进行排序，并选择符合条件的最合适的成员。每个成员在本地做出自己的决定，遵循其MySQL
+    Server版本中的主要选举算法。因为所有成员必须达成相同的决定，如果其他组成员运行较低版本的MySQL Server，则成员会调整其主要选举算法，以使其与组中具有最低MySQL
+    Server版本的成员具有相同的行为。
+- en: 'The factors considered by members when electing a primary, in order, are as
+    follows:'
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 成员在选举主要时考虑的因素按顺序如下：
+- en: The first factor considered is which member or members are running the lowest
+    MySQL Server version. If all group members are running MySQL 8.0.17 or higher,
+    members are first ordered by the patch version of their release. If any members
+    are running MySQL Server 5.7 or MySQL 8.0.16 or lower, members are first ordered
+    by the major version of their release, and the patch version is ignored.
+  id: totrans-15
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 考虑的第一个因素是哪个成员或哪些成员正在运行最低版本的 MySQL 服务器。如果所有组成员都在运行 MySQL 8.0.17 或更高版本，则首先按照其发布的补丁版本对成员进行排序。如果有任何成员正在运行
+    MySQL 服务器 5.7 或 MySQL 8.0.16 或更低版本，则首先按照其发布的主要版本对成员进行排序，而忽略补丁版本。
+- en: If more than one member is running the lowest MySQL Server version, the second
+    factor considered is the member weight of each of those members, as specified
+    by the [`group_replication_member_weight`](group-replication-system-variables.html#sysvar_group_replication_member_weight)
+    system variable on the member. If any member of the group is running MySQL Server
+    5.7, where this system variable was not available, this factor is ignored.
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果有多个成员运行最低版本的 MySQL 服务器，则考虑的第二个因素是每个成员的成员权重，由成员上的[`group_replication_member_weight`](group-replication-system-variables.html#sysvar_group_replication_member_weight)系统变量指定。如果组中的任何成员正在运行
+    MySQL 服务器 5.7，在那里这个系统变量不可用，则忽略此因素。
+- en: The [`group_replication_member_weight`](group-replication-system-variables.html#sysvar_group_replication_member_weight)
+    system variable specifies a number in the range 0-100. All members default to
+    a weight of 50, so set a weight below this to lower their ordering, and a weight
+    above it to increase their ordering. You can use this weighting function to prioritize
+    the use of better hardware or to ensure failover to a specific member during scheduled
+    maintenance of the primary.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`group_replication_member_weight`](group-replication-system-variables.html#sysvar_group_replication_member_weight)系统变量指定一个范围为
+    0-100 的数字。所有成员的默认权重为 50，因此将权重设置为低于此值以降低其排序，将权重设置为高于此值以增加其排序。您可以使用此加权函数来优先使用更好的硬件或确保在主服务器计划维护期间故障转移到特定成员。'
+- en: If more than one member is running the lowest MySQL Server version, and more
+    than one of those members has the highest member weight (or member weighting is
+    being ignored), the third factor considered is the lexicographical order of the
+    generated server UUIDs of each member, as specified by the [`server_uuid`](replication-options.html#sysvar_server_uuid)
+    system variable. The member with the lowest server UUID is chosen as the primary.
+    This factor acts as a guaranteed and predictable tie-breaker so that all group
+    members reach the same decision if it cannot be determined by any important factors.
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果有多个成员运行最低版本的 MySQL 服务器，并且其中有多个成员具有最高的成员权重（或正在忽略成员权重），则考虑的第三个因素是每个成员生成的服务器
+    UUID 的词典顺序，由[`server_uuid`](replication-options.html#sysvar_server_uuid)系统变量指定。具有最低服务器
+    UUID 的成员被选择为主服务器。此因素充当保证和可预测的决定者，以便如果没有任何重要因素可以确定，则所有组成员达成相同的决定。
+- en: 20.1.3.1.2 Finding the Primary
+  id: totrans-19
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 20.1.3.1.2 找到主服务器
+- en: 'To find out which server is currently the primary when deployed in single-primary
+    mode, use the `MEMBER_ROLE` column in the [`performance_schema.replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table") table. For example:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要找出在单主模式下当前是主服务器的服务器，请使用[`performance_schema.replication_group_members`](performance-schema-replication-group-members-table.html
+    "29.12.11.11 The replication_group_members Table")表中的`MEMBER_ROLE`列。例如：
+- en: '[PRE0]'
+  id: totrans-21
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Warning
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 警告
+- en: The `group_replication_primary_member` status variable has been deprecated and
+    is scheduled to be removed in a future version.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`group_replication_primary_member`状态变量已被弃用，并计划在将来的版本中删除。'
+- en: Alternatively use the [`group_replication_primary_member`](group-replication-status-variables.html#statvar_group_replication_primary_member)
+    status variable.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 或者使用[`group_replication_primary_member`](group-replication-status-variables.html#statvar_group_replication_primary_member)状态变量。
+- en: '[PRE1]'
+  id: totrans-25
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'

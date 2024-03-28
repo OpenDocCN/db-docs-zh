@@ -1,0 +1,142 @@
+- en: 20.7.7 Responses to Failure Detection and Network Partitioning
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 20.7.7 响应故障检测和网络分区
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure.html](https://dev.mysql.com/doc/refman/8.0/en/group-replication-responses-failure.html)
+- en: '[20.7.7.1 Expel Timeout](group-replication-responses-failure-expel.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.7.1 驱逐超时](group-replication-responses-failure-expel.html)'
+- en: '[20.7.7.2 Unreachable Majority Timeout](group-replication-responses-failure-partition.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.7.2 不可达多数超时](group-replication-responses-failure-partition.html)'
+- en: '[20.7.7.3 Auto-Rejoin](group-replication-responses-failure-rejoin.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.7.3 自动重新加入](group-replication-responses-failure-rejoin.html)'
+- en: '[20.7.7.4 Exit Action](group-replication-responses-failure-exit.html)'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[20.7.7.4 退出操作](group-replication-responses-failure-exit.html)'
+- en: Group Replication's failure detection mechanism is designed to identify group
+    members that are no longer communicating with the group, and expel them as and
+    when it seems likely that they have failed. Having a failure detection mechanism
+    increases the chance that the group contains a majority of correctly working members,
+    and that requests from clients are therefore processed correctly.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组复制的故障检测机制旨在识别不再与组通信并在看似可能已经失败时将其驱逐的组成员。拥有故障检测机制增加了组包含大多数正常工作成员的机会，因此客户端的请求能够被正确处理。
+- en: Normally, all group members regularly exchange messages with all other group
+    members. If a group member does not receive any messages from a particular fellow
+    member for 5 seconds, when this detection period ends, it creates a suspicion
+    of the fellow member. When a suspicion times out, the suspected member is assumed
+    to have failed, and is expelled from the group. An expelled member is removed
+    from the membership list seen by the other members, but it does not know that
+    it has been expelled from the group, so it sees itself as online and the other
+    members as unreachable. If the member has not in fact failed (for example, because
+    it was just disconnected due to a temporary network issue) and it is able to resume
+    communication with the other members, it receives a view containing the information
+    that it has been expelled from the group.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通常，所有组成员定期与所有其他组成员交换消息。如果某个组成员在5秒内没有收到来自特定成员的任何消息，当检测期结束时，会对该成员产生怀疑。当怀疑超时时，被怀疑的成员被认为已经失败，并被驱逐出组。被驱逐的成员从其他成员看到的成员列表中被移除，但它并不知道自己已经被驱逐出组，因此它认为自己在线，而其他成员无法到达。如果成员实际上没有失败（例如，因为仅因临时网络问题而断开连接），并且能够恢复与其他成员的通信，它将接收一个包含其被驱逐出组信息的视图。
+- en: 'The responses of group members, including the failed member itself, to these
+    situations can be configured at a number of points in the process. By default,
+    the following behaviors happen if a member is suspected of having failed:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 组成员对这些情况的响应，包括故障成员本身，在整个过程中可以进行配置。默认情况下，如果怀疑某个成员已经失败，则会发生以下行为：
+- en: Up to MySQL 8.0.20, when a suspicion is created, it times out immediately. The
+    suspected member is liable for expulsion as soon as the expired suspicion is identified
+    by the group. The member could potentially survive for a further few seconds after
+    the timeout because the check for expired suspicions is carried out periodically.
+    From MySQL 8.0.21, a waiting period of 5 seconds is added before the suspicion
+    times out and the suspected member is liable for expulsion.
+  id: totrans-9
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在MySQL 8.0.20之前，当产生怀疑时，立即超时。一旦组识别到已过期的怀疑，被怀疑的成员就有可能在超时后的几秒内存活，因为定期进行过期怀疑检查。从MySQL
+    8.0.21开始，在怀疑超时并且被怀疑的成员有可能被驱逐之前，会添加5秒的等待时间。
+- en: If an expelled member resumes communication and realises that it was expelled,
+    up to MySQL 8.0.20, it does not try to rejoin the group. From MySQL 8.0.21, it
+    makes three automatic attempts to rejoin the group (with 5 minutes between each
+    attempt), and if this auto-rejoin procedure does not work, it then stops trying
+    to rejoin the group.
+  id: totrans-10
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果被驱逐的成员恢复通信并意识到自己已被驱逐，在MySQL 8.0.20之前，它不会尝试重新加入组。从MySQL 8.0.21开始，它将自动尝试三次重新加入组（每次尝试之间间隔5分钟），如果此自动重新加入过程不起作用，则停止尝试重新加入组。
+- en: When an expelled member is not trying to rejoin the group, it switches to super
+    read only mode and awaits operator attention. (The exception is in releases from
+    MySQL 8.0.12 to 8.0.15, where the default was for the member to shut itself down.
+    From MySQL 8.0.16, the behavior was changed to match the behavior in MySQL 5.7.)
+  id: totrans-11
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当被驱逐的成员不尝试重新加入组时，它会切换到超级只读模式并等待操作员注意。（例外情况是在MySQL 8.0.12至8.0.15的版本中，默认情况下成员会关闭自身。从MySQL
+    8.0.16开始，行为已更改以匹配MySQL 5.7中的行为。）
+- en: You can use the Group Replication configuration options described in this section
+    to change these behaviors either permanently or temporarily, to suit your system's
+    requirements and your priorities. If you are experiencing unnecessary expulsions
+    caused by slower networks or machines, networks with a high rate of unexpected
+    transient outages, or planned network outages, consider increasing the expel timeout
+    and auto-rejoin attempts. From MySQL 8.0.21, the default settings have been changed
+    in this direction to reduce the frequency of the need for operator intervention
+    to reinstate expelled members in these situations. Note that while a member is
+    undergoing any of the default behaviors described above, although it does not
+    accept writes, reads can still be made if the member is still communicating with
+    clients, with an increasing likelihood of stale reads over time. If avoiding stale
+    reads is a higher priority for you than avoiding operator intervention, consider
+    reducing the expel timeout and auto-rejoin attempts or setting them to zero.
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用本节中描述的组复制配置选项来永久或临时更改这些行为，以适应您系统的要求和您的优先级。如果您遇到由较慢的网络或机器引起的不必要的驱逐、具有高意外瞬时中断率的网络，或计划中的网络中断，考虑增加驱逐超时和自动重新加入尝试次数。从MySQL
+    8.0.21开始，已更改默认设置以减少在这些情况下需要操作员干预以恢复被驱逐成员的频率。请注意，虽然成员正在经历上述任何默认行为之一时，尽管它不接受写入，但如果成员仍在与客户端通信，则仍然可以进行读取，随着时间的推移，过时读取的可能性会增加。如果避免过时读取对您而言比避免操作员干预更重要，请考虑减少驱逐超时和自动重新加入尝试次数或将其设置为零。
+- en: Members that have not failed might lose contact with part, but not all, of the
+    replication group due to a network partition. For example, in a group of 5 servers
+    (S1,S2,S3,S4,S5), if there is a disconnection between (S1,S2) and (S3,S4,S5) there
+    is a network partition. The first group (S1,S2) is now in a minority because it
+    cannot contact more than half of the group. Any transactions that are processed
+    by the members in the minority group are blocked, because the majority of the
+    group is unreachable, therefore the group cannot achieve quorum. For a detailed
+    description of this scenario, see [Section 20.7.8, “Handling a Network Partition
+    and Loss of Quorum”](group-replication-network-partitioning.html "20.7.8 Handling
+    a Network Partition and Loss of Quorum"). In this situation, the default behavior
+    is for the members in both the minority and the majority to remain in the group,
+    continue to accept transactions (although they are blocked on the members in the
+    minority), and wait for operator intervention. This behavior is also configurable.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 未发生故障的成员可能会由于网络分区而失去与复制组的部分但不是全部的联系。例如，在一个由5台服务器（S1、S2、S3、S4、S5）组成的组中，如果（S1、S2）和（S3、S4、S5）之间存在断开连接，则存在网络分区。第一组（S1、S2）现在处于少数派，因为它无法与超过一半的组联系。由少数派组成员处理的任何事务都会被阻塞，因为组的大多数是不可达的，因此组无法达成法定人数。有关此场景的详细描述，请参见[第20.7.8节，“处理网络分区和法定人数丧失”](group-replication-network-partitioning.html
+    "20.7.8 处理网络分区和法定人数丧失")。在这种情况下，默认行为是使少数派和多数派的成员继续留在组中，继续接受事务（尽管在少数派成员上被阻塞），并等待操作员干预。此行为也是可配置的。
+- en: Note that where group members are at an older MySQL Server release that does
+    not support a relevant setting, or at a release with a different default, they
+    act towards themselves and other group members according to the default behaviors
+    stated above. For example, a member that does not support the [`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)
+    system variable expels other members as soon as an expired suspicion is detected,
+    and this expulsion is accepted by other members even if they support the system
+    variable and have a longer timeout set.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，如果团队成员使用的是较旧的MySQL服务器版本，不支持相关设置，或者使用具有不同默认设置的版本，则他们会根据上述默认行为对自己和其他团队成员采取行动。例如，不支持[`group_replication_member_expel_timeout`](group-replication-system-variables.html#sysvar_group_replication_member_expel_timeout)系统变量的成员会在检测到过期的怀疑时立即驱逐其他成员，并即使其他成员支持该系统变量并设置了更长的超时时间，他们也会接受这种驱逐。

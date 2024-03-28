@@ -1,0 +1,137 @@
+- en: 19.3.2 Encrypting Binary Log Files and Relay Log Files
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.3.2 加密二进制日志文件和中继日志文件
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-binlog-encryption.html](https://dev.mysql.com/doc/refman/8.0/en/replication-binlog-encryption.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-binlog-encryption.html](https://dev.mysql.com/doc/refman/8.0/en/replication-binlog-encryption.html)
+- en: '[19.3.2.1 Scope of Binary Log Encryption](replication-binlog-encryption-scope.html)'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.3.2.1 二进制日志加密范围](replication-binlog-encryption-scope.html)'
+- en: '[19.3.2.2 Binary Log Encryption Keys](replication-binlog-encryption-encryption-keys.html)'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.3.2.2 二进制日志加密密钥](replication-binlog-encryption-encryption-keys.html)'
+- en: '[19.3.2.3 Binary Log Master Key Rotation](replication-binlog-encryption-key-rotation.html)'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[19.3.2.3 二进制日志主密钥轮换](replication-binlog-encryption-key-rotation.html)'
+- en: From MySQL 8.0.14, binary log files and relay log files can be encrypted, helping
+    to protect these files and the potentially sensitive data contained in them from
+    being misused by outside attackers, and also from unauthorized viewing by users
+    of the operating system where they are stored. The encryption algorithm used for
+    the files, the AES (Advanced Encryption Standard) cipher algorithm, is built in
+    to MySQL Server and cannot be configured.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.14 开始，二进制日志文件和中继日志文件可以进行加密，有助于保护这些文件以及其中可能包含的敏感数据，防止外部攻击者滥用，也防止操作系统用户未经授权查看。文件使用的加密算法是
+    AES（高级加密标准）密码算法，内置于 MySQL Server 中，无法配置。
+- en: You enable this encryption on a MySQL server by setting the [`binlog_encryption`](replication-options-binary-log.html#sysvar_binlog_encryption)
+    system variable to `ON`. `OFF` is the default. The system variable sets encryption
+    on for binary log files and relay log files. Binary logging does not need to be
+    enabled on the server to enable encryption, so you can encrypt the relay log files
+    on a replica that has no binary log. To use encryption, a keyring component or
+    plugin must be installed and configured to supply MySQL Server's keyring service.
+    For instructions to do this, see [Section 8.4.4, “The MySQL Keyring”](keyring.html
+    "8.4.4 The MySQL Keyring"). Any supported keyring component or plugin can be used
+    to store binary log encryption keys.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过将 MySQL 服务器上的 [`binlog_encryption`](replication-options-binary-log.html#sysvar_binlog_encryption)
+    系统变量设置为 `ON` 来启用此加密。`OFF` 是默认值。该系统变量为二进制日志文件和中继日志文件设置加密。要启用加密，服务器上不需要启用二进制日志记录，因此可以在没有二进制日志的副本上加密中继日志文件。要使用加密，必须安装和配置一个密钥环组件或插件以提供
+    MySQL Server 的密钥环服务。有关如何执行此操作的说明，请参见 [Section 8.4.4, “The MySQL Keyring”](keyring.html
+    "8.4.4 The MySQL Keyring")。任何支持的密钥环组件或插件都可以用于存储二进制日志加密密钥。
+- en: When you first start the server with encryption enabled, a new binary log encryption
+    key is generated before the binary log and relay logs are initialized. This key
+    is used to encrypt a file password for each binary log file (if the server has
+    binary logging enabled) and relay log file (if the server has replication channels),
+    and further keys generated from the file passwords are used to encrypt the data
+    in the files. The binary log encryption key that is currently in use on the server
+    is called the binary log master key. The two tier encryption key architecture
+    means that the binary log master key can be rotated (replaced by a new master
+    key) as required, and only the file password for each file needs to be re-encrypted
+    with the new master key, not the whole file. Relay log files are encrypted for
+    all channels, including new channels that are created after encryption is activated.
+    The binary log index file and relay log index file are never encrypted.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当首次启用加密时，服务器会在初始化二进制日志和中继日志之前生成一个新的二进制日志加密密钥。该密钥用于为每个二进制日志文件（如果服务器启用了二进制日志记录）和中继日志文件（如果服务器有复制通道）加密文件密码，并从文件密码生成的进一步密钥用于加密文件中的数据。服务器当前正在使用的二进制日志加密密钥称为二进制日志主密钥。两层加密密钥架构意味着可以根据需要轮换（用新的主密钥替换）二进制日志主密钥，只需重新使用新主密钥重新加密每个文件的文件密码，而不是整个文件。中继日志文件对所有通道进行加密，包括在激活加密后创建的新通道。二进制日志索引文件和中继日志索引文件永远不会被加密。
+- en: If you activate encryption while the server is running, a new binary log encryption
+    key is generated at that time. The exception is if encryption was active previously
+    on the server and was then disabled, in which case the binary log encryption key
+    that was in use before is used again. The binary log file and relay log files
+    are rotated immediately, and file passwords for the new files and all subsequent
+    binary log files and relay log files are encrypted using this binary log encryption
+    key. Existing binary log files and relay log files still present on the server
+    are not encrypted, but you can purge them if they are no longer needed.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在服务器运行时激活加密，则会生成一个新的二进制日志加密密钥。例外情况是，如果之前在服务器上激活了加密，然后禁用了加密，那么之前使用的二进制日志加密密钥将再次被使用。二进制日志文件和中继日志文件立即轮换，新文件和所有后续的二进制日志文件和中继日志文件的文件密码都使用此二进制日志加密密钥进行加密。服务器上仍存在的现有二进制日志文件和中继日志文件不会被加密，但如果不再需要，可以清除它们。
+- en: If you deactivate encryption by changing the [`binlog_encryption`](replication-options-binary-log.html#sysvar_binlog_encryption)
+    system variable to `OFF`, the binary log file and relay log files are rotated
+    immediately and all subsequent logging is unencrypted. Previously encrypted files
+    are not automatically decrypted, but the server is still able to read them. The
+    [`BINLOG_ENCRYPTION_ADMIN`](privileges-provided.html#priv_binlog-encryption-admin)
+    privilege is required to activate or deactivate encryption while the server is
+    running.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果通过将[`binlog_encryption`](replication-options-binary-log.html#sysvar_binlog_encryption)
+    系统变量更改为 `OFF` 来停用加密，则二进制日志文件和中继日志文件将立即轮换，并且所有后续记录都将是未加密的。先前加密的文件不会自动解密，但服务器仍然能够读取它们。在服务器运行时激活或停用加密需要[`BINLOG_ENCRYPTION_ADMIN`](privileges-provided.html#priv_binlog-encryption-admin)
+    权限。
+- en: Encrypted and unencrypted binary log files can be distinguished using the magic
+    number at the start of the file header for encrypted log files (`0xFD62696E`),
+    which differs from that used for unencrypted log files (`0xFE62696E`). The [`SHOW
+    BINARY LOGS`](show-binary-logs.html "15.7.7.1 SHOW BINARY LOGS Statement") statement
+    shows whether each binary log file is encrypted or unencrypted.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以通过加密日志文件头部的魔数来区分加密和未加密的二进制日志文件（加密日志文件为`0xFD62696E`，而未加密日志文件为`0xFE62696E`）。[`SHOW
+    BINARY LOGS`](show-binary-logs.html "15.7.7.1 SHOW BINARY LOGS Statement") 语句显示每个二进制日志文件是加密还是未加密。
+- en: When binary log files have been encrypted, [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") cannot read them
+    directly, but can read them from the server using the [`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)
+    option. From MySQL 8.0.14, [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog
+    — Utility for Processing Binary Log Files") returns a suitable error if you attempt
+    to read an encrypted binary log file directly, but older versions of [**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") do not recognize
+    the file as a binary log file at all. If you back up encrypted binary log files
+    using [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files"), note that the copies of the files that are generated using
+    [**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility for Processing
+    Binary Log Files") are stored in an unencrypted format.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当二进制日志文件被加密时，[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") 无法直接读取，但可以使用[`--read-from-remote-server`](mysqlbinlog.html#option_mysqlbinlog_read-from-remote-server)选项从服务器读取。从
+    MySQL 8.0.14 开始，[**mysqlbinlog**](mysqlbinlog.html "6.6.9 mysqlbinlog — Utility
+    for Processing Binary Log Files") 如果尝试直接读取加密的二进制日志文件，将返回适当的错误，但旧版本的[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") 根本不会将文件识别为二进制日志文件。如果使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") 备份加密的二进制日志文件，请注意，使用[**mysqlbinlog**](mysqlbinlog.html
+    "6.6.9 mysqlbinlog — Utility for Processing Binary Log Files") 生成的文件副本以未加密格式存储。
+- en: Binary log encryption can be combined with binary log transaction compression
+    (available as of MySQL 8.0.20). For more information on binary log transaction
+    compression, see [Section 7.4.4.5, “Binary Log Transaction Compression”](binary-log-transaction-compression.html
+    "7.4.4.5 Binary Log Transaction Compression").
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 二进制日志加密可以与二进制日志事务压缩结合使用（自 MySQL 8.0.20 起可用）。有关二进制日志事务压缩的更多信息，请参见[Section 7.4.4.5,
+    “Binary Log Transaction Compression”](binary-log-transaction-compression.html
+    "7.4.4.5 Binary Log Transaction Compression")。

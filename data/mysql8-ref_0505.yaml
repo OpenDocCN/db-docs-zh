@@ -1,0 +1,139 @@
+- en: 9.6.1 Using myisamchk for Crash Recovery
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 9.6.1 使用 myisamchk 进行崩溃恢复
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-crash-recovery.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-crash-recovery.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-crash-recovery.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-crash-recovery.html)
+- en: This section describes how to check for and deal with data corruption in MySQL
+    databases. If your tables become corrupted frequently, you should try to find
+    the reason why. See [Section B.3.3.3, “What to Do If MySQL Keeps Crashing”](crashing.html
+    "B.3.3.3 What to Do If MySQL Keeps Crashing").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这一部分描述了如何检查和处理 MySQL 数据库中的数据损坏。如果您的表经常损坏，您应该尝试找出原因。请参阅[第 B.3.3.3 节，“如果 MySQL
+    经常崩溃该怎么办”](crashing.html "B.3.3.3 What to Do If MySQL Keeps Crashing")。
+- en: For an explanation of how `MyISAM` tables can become corrupted, see [Section 18.2.4,
+    “MyISAM Table Problems”](myisam-table-problems.html "18.2.4 MyISAM Table Problems").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关`MyISAM`表如何变得损坏的解释，请参阅[第 18.2.4 节，“MyISAM 表问题”](myisam-table-problems.html
+    "18.2.4 MyISAM Table Problems")。
+- en: If you run [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") with
+    external locking disabled (which is the default), you cannot reliably use [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") to check a table when [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") is using the same table. If you can be certain
+    that no one can access the tables using [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") while you run [**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility"), you only have to execute [**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") before you start checking
+    the tables. If you cannot guarantee this, you must stop [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") while you check the tables. If you run [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") to check tables that [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") is updating at the same time, you may get a
+    warning that a table is corrupt even when it is not.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您使用外部锁定禁用（默认情况下）运行[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")，您不能可靠地使用[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")来检查一个表，当[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")正在使用相同的表时。如果您可以确定没有人可以在您运行[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")检查表时使用[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")访问表，您只需在开始检查表之前执行[**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")。如果您无法保证这一点，您必须在检查表时停止[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")。如果您运行[**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")来检查[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")同时正在更新的表，即使表没有损坏，您可能会收到警告。
+- en: If the server is run with external locking enabled, you can use [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") to check tables at any time.
+    In this case, if the server tries to update a table that [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") is using, the server waits
+    for [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") to finish before it continues.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果服务器启用了外部锁定，您可以随时使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility")来检查表。在这种情况下，如果服务器尝试更新一个正在使用的表，服务器会等待[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")完成后才继续。
+- en: If you use [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") to repair or optimize tables, you *must* always ensure that the [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") server is not using the table (this also applies
+    if external locking is disabled). If you do not stop [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server"), you should at least do a [**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program") before you run [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility"). Your tables *may become
+    corrupted* if the server and [**myisamchk**](myisamchk.html "6.6.4 myisamchk —
+    MyISAM Table-Maintenance Utility") access the tables simultaneously.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")来修复或优化表，您*必须*始终确保[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")服务器未使用该表（如果禁用外部锁定也适用）。如果不停止[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")，您至少应在运行[**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")之前执行[**mysqladmin flush-tables**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")。如果服务器和[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")同时访问表，您的表*可能会损坏*。
+- en: When performing crash recovery, it is important to understand that each `MyISAM`
+    table *`tbl_name`* in a database corresponds to the three files in the database
+    directory shown in the following table.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在执行崩溃恢复时，重要的是要理解数据库中每个`MyISAM`表*`tbl_name`*对应于数据库目录中的三个文件，如下表所示。
+- en: '| File | Purpose |'
+  id: totrans-8
+  prefs: []
+  type: TYPE_TB
+  zh: '| 文件 | 目的 |'
+- en: '| `*`tbl_name`*.MYD` | Data file |'
+  id: totrans-9
+  prefs: []
+  type: TYPE_TB
+  zh: '| `*`tbl_name`*.MYD` | 数据文件 |'
+- en: '| `*`tbl_name`*.MYI` | Index file |'
+  id: totrans-10
+  prefs: []
+  type: TYPE_TB
+  zh: '| `*`tbl_name`*.MYI` | 索引文件 |'
+- en: Each of these three file types is subject to corruption in various ways, but
+    problems occur most often in data files and index files.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这三种文件类型中的每一种都可能以各种方式损坏，但问题最常发生在数据文件和索引文件中。
+- en: '[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") works by creating a copy of the `.MYD` data file row by row. It ends
+    the repair stage by removing the old `.MYD` file and renaming the new file to
+    the original file name. If you use [`--quick`](myisamchk-repair-options.html#option_myisamchk_quick),
+    [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")
+    does not create a temporary `.MYD` file, but instead assumes that the `.MYD` file
+    is correct and generates only a new index file without touching the `.MYD` file.
+    This is safe, because [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") automatically detects whether the `.MYD` file is corrupt
+    and aborts the repair if it is. You can also specify the [`--quick`](myisamchk-repair-options.html#option_myisamchk_quick)
+    option twice to [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility"). In this case, [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") does not abort on some errors (such as duplicate-key
+    errors) but instead tries to resolve them by modifying the `.MYD` file. Normally
+    the use of two [`--quick`](myisamchk-repair-options.html#option_myisamchk_quick)
+    options is useful only if you have too little free disk space to perform a normal
+    repair. In this case, you should at least make a backup of the table before running
+    [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance Utility").'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") 通过逐行创建`.MYD`数据文件的副本来工作。它通过删除旧的`.MYD`文件并将新文件重命名为原始文件名来结束修复阶段。如果使用[`--quick`](myisamchk-repair-options.html#option_myisamchk_quick)，[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") 不会创建临时的`.MYD`文件，而是假设`.MYD`文件是正确的，并且仅生成一个新的索引文件而不触及`.MYD`文件。这是安全的，因为[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")会自动检测`.MYD`文件是否损坏，并在损坏时中止修复。您还可以两次指定[`--quick`](myisamchk-repair-options.html#option_myisamchk_quick)选项给[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")。在这种情况下，[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")不会在某些错误（如重复键错误）上中止，而是尝试通过修改`.MYD`文件来解决这些错误。通常只有在磁盘空间不足以执行正常修复时，才有必要使用两个[`--quick`](myisamchk-repair-options.html#option_myisamchk_quick)选项。在这种情况下，您至少应在运行[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")之前备份表。'

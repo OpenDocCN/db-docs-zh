@@ -1,0 +1,311 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html)
+- en: 10.2.1.17 GROUP BY Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.17 GROUP BY 优化
+- en: The most general way to satisfy a `GROUP BY` clause is to scan the whole table
+    and create a new temporary table where all rows from each group are consecutive,
+    and then use this temporary table to discover groups and apply aggregate functions
+    (if any). In some cases, MySQL is able to do much better than that and avoid creation
+    of temporary tables by using index access.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最一般的满足`GROUP BY`子句的方法是扫描整个表，并创建一个新的临时表，其中每个组的所有行都是连续的，然后使用这个临时表来发现组并应用聚合函数（如果有的话）。在某些情况下，MySQL能够比这做得更好，通过使用索引访问来避免创建临时表。
+- en: The most important preconditions for using indexes for `GROUP BY` are that all
+    `GROUP BY` columns reference attributes from the same index, and that the index
+    stores its keys in order (as is true, for example, for a `BTREE` index, but not
+    for a `HASH` index). Whether use of temporary tables can be replaced by index
+    access also depends on which parts of an index are used in a query, the conditions
+    specified for these parts, and the selected aggregate functions.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用索引进行`GROUP BY`的最重要的前提条件是所有`GROUP BY`列引用来自同一索引的属性，并且索引按顺序存储其键（例如`BTREE`索引是这样的，但`HASH`索引不是）。临时表的使用是否可以被索引访问替代还取决于查询中使用了索引的哪些部分，为这些部分指定的条件以及选择的聚合函数。
+- en: There are two ways to execute a `GROUP BY` query through index access, as detailed
+    in the following sections. The first method applies the grouping operation together
+    with all range predicates (if any). The second method first performs a range scan,
+    and then groups the resulting tuples.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有两种通过索引访问执行`GROUP BY`查询的方法，如下节所述。第一种方法将分组操作与所有范围谓词（如果有的话）一起应用。第二种方法首先执行范围扫描，然后对结果元组进行分组。
+- en: '[Loose Index Scan](group-by-optimization.html#loose-index-scan "Loose Index
+    Scan")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[松散索引扫描](group-by-optimization.html#loose-index-scan "松散索引扫描")'
+- en: '[Tight Index Scan](group-by-optimization.html#tight-index-scan "Tight Index
+    Scan")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[紧凑索引扫描](group-by-optimization.html#tight-index-scan "紧凑索引扫描")'
+- en: Loose Index Scan can also be used in the absence of `GROUP BY` under some conditions.
+    See [Skip Scan Range Access Method](range-optimization.html#range-access-skip-scan
+    "Skip Scan Range Access Method").
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些条件下，即使没有`GROUP BY`，也可以使用松散索引扫描。请参阅[跳过扫描范围访问方法](range-optimization.html#range-access-skip-scan
+    "跳过扫描范围访问方法")。
+- en: Loose Index Scan
+  id: totrans-8
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 松散索引扫描
+- en: 'The most efficient way to process `GROUP BY` is when an index is used to directly
+    retrieve the grouping columns. With this access method, MySQL uses the property
+    of some index types that the keys are ordered (for example, `BTREE`). This property
+    enables use of lookup groups in an index without having to consider all keys in
+    the index that satisfy all `WHERE` conditions. This access method considers only
+    a fraction of the keys in an index, so it is called a Loose Index Scan. When there
+    is no `WHERE` clause, a Loose Index Scan reads as many keys as the number of groups,
+    which may be a much smaller number than that of all keys. If the `WHERE` clause
+    contains range predicates (see the discussion of the [`range`](explain-output.html#jointype_range)
+    join type in [Section 10.8.1, “Optimizing Queries with EXPLAIN”](using-explain.html
+    "10.8.1 Optimizing Queries with EXPLAIN")), a Loose Index Scan looks up the first
+    key of each group that satisfies the range conditions, and again reads the smallest
+    possible number of keys. This is possible under the following conditions:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 处理`GROUP BY`最有效的方法是直接使用索引检索分组列。通过这种访问方法，MySQL使用某些索引类型的属性，即键是有序的（例如`BTREE`）。这种属性使得可以在索引中查找组，而无需考虑满足所有`WHERE`条件的所有键。这种访问方法只考虑索引中的一部分键，因此被称为松散索引扫描。当没有`WHERE`子句时，松散索引扫描读取与组数相同的键，这可能比所有键的数量要小得多。如果`WHERE`子句包含范围谓词（请参阅[第10.8.1节“使用EXPLAIN优化查询”](using-explain.html
+    "10.8.1 使用EXPLAIN优化查询")中对[`range`](explain-output.html#jointype_range)连接类型的讨论），松散索引扫描查找满足范围条件的每个组的第一个键，然后再次读取最小可能数量的键。这在以下条件下是可能的：
+- en: The query is over a single table.
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询只涉及单个表。
+- en: The `GROUP BY` names only columns that form a leftmost prefix of the index and
+    no other columns. (If, instead of `GROUP BY`, the query has a `DISTINCT` clause,
+    all distinct attributes refer to columns that form a leftmost prefix of the index.)
+    For example, if a table `t1` has an index on `(c1,c2,c3)`, Loose Index Scan is
+    applicable if the query has `GROUP BY c1, c2`. It is not applicable if the query
+    has `GROUP BY c2, c3` (the columns are not a leftmost prefix) or `GROUP BY c1,
+    c2, c4` (`c4` is not in the index).
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GROUP BY`仅命名了构成索引最左边前缀的列，没有其他列。（如果查询中有`DISTINCT`子句而不是`GROUP BY`，则所有不同的属性都指向构成索引最左边前缀的列。）例如，如果表`t1`在`(c1,c2,c3)`上有索引，如果查询中有`GROUP
+    BY c1, c2`，则可以应用松散索引扫描。如果查询中有`GROUP BY c2, c3`（列不是最左边前缀）或`GROUP BY c1, c2, c4`（`c4`不在索引中），则不适用。'
+- en: The only aggregate functions used in the select list (if any) are [`MIN()`](aggregate-functions.html#function_min)
+    and [`MAX()`](aggregate-functions.html#function_max), and all of them refer to
+    the same column. The column must be in the index and must immediately follow the
+    columns in the `GROUP BY`.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 选择列表中使用的唯一聚合函数（如果有）是[`MIN()`](aggregate-functions.html#function_min)和[`MAX()`](aggregate-functions.html#function_max)，并且它们都引用相同的列。该列必须在索引中，并且必须紧随`GROUP
+    BY`中的列之后。
+- en: Any other parts of the index than those from the `GROUP BY` referenced in the
+    query must be constants (that is, they must be referenced in equalities with constants),
+    except for the argument of [`MIN()`](aggregate-functions.html#function_min) or
+    [`MAX()`](aggregate-functions.html#function_max) functions.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询中除了`GROUP BY`引用的索引部分外，其他索引部分必须是常量（即，它们必须与常量相等），除了[`MIN()`](aggregate-functions.html#function_min)或[`MAX()`](aggregate-functions.html#function_max)函数的参数。
+- en: For columns in the index, full column values must be indexed, not just a prefix.
+    For example, with `c1 VARCHAR(20), INDEX (c1(10))`, the index uses only a prefix
+    of `c1` values and cannot be used for Loose Index Scan.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于索引中的列，必须对完整列值建立索引，而不仅仅是前缀。例如，对于`c1 VARCHAR(20), INDEX (c1(10))`，索引仅使用`c1`值的前缀，不能用于松散索引扫描。
+- en: If Loose Index Scan is applicable to a query, the [`EXPLAIN`](explain.html "15.8.2 EXPLAIN
+    Statement") output shows `Using index for group-by` in the `Extra` column.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果查询适用于松散索引扫描，则[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出中的`Extra`列显示`Using
+    index for group-by`。
+- en: 'Assume that there is an index `idx(c1,c2,c3)` on table `t1(c1,c2,c3,c4)`. The
+    Loose Index Scan access method can be used for the following queries:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设在表`t1(c1,c2,c3,c4)`上有索引`idx(c1,c2,c3)`。可以对以下查询使用松散索引扫描访问方法：
+- en: '[PRE0]'
+  id: totrans-17
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'The following queries cannot be executed with this quick select method, for
+    the reasons given:'
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下查询不能使用这种快速选择方法执行，原因如下：
+- en: 'There are aggregate functions other than [`MIN()`](aggregate-functions.html#function_min)
+    or [`MAX()`](aggregate-functions.html#function_max):'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 存在除了[`MIN()`](aggregate-functions.html#function_min)或[`MAX()`](aggregate-functions.html#function_max)之外的其他聚合函数：
+- en: '[PRE1]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The columns in the `GROUP BY` clause do not form a leftmost prefix of the index:'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GROUP BY`子句中的列不构成索引的最左边前缀：'
+- en: '[PRE2]'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'The query refers to a part of a key that comes after the `GROUP BY` part, and
+    for which there is no equality with a constant:'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询引用了`GROUP BY`部分之后的键的一部分，且没有与常量相等的情况：
+- en: '[PRE3]'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Were the query to include `WHERE c3 = *`const`*`, Loose Index Scan could be
+    used.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果查询包括`WHERE c3 = *`const`*`，则可以使用松散索引扫描。
+- en: 'The Loose Index Scan access method can be applied to other forms of aggregate
+    function references in the select list, in addition to the [`MIN()`](aggregate-functions.html#function_min)
+    and [`MAX()`](aggregate-functions.html#function_max) references already supported:'
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 松散索引扫描访问方法可以应用于选择列表中的其他形式的聚合函数引用，除了已经支持的[`MIN()`](aggregate-functions.html#function_min)和[`MAX()`](aggregate-functions.html#function_max)引用：
+- en: '[`AVG(DISTINCT)`](aggregate-functions.html#function_avg), [`SUM(DISTINCT)`](aggregate-functions.html#function_sum),
+    and [`COUNT(DISTINCT)`](aggregate-functions.html#function_count) are supported.
+    [`AVG(DISTINCT)`](aggregate-functions.html#function_avg) and [`SUM(DISTINCT)`](aggregate-functions.html#function_sum)
+    take a single argument. [`COUNT(DISTINCT)`](aggregate-functions.html#function_count)
+    can have more than one column argument.'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 支持[`AVG(DISTINCT)`](aggregate-functions.html#function_avg)、[`SUM(DISTINCT)`](aggregate-functions.html#function_sum)和[`COUNT(DISTINCT)`](aggregate-functions.html#function_count)。[`AVG(DISTINCT)`](aggregate-functions.html#function_avg)和[`SUM(DISTINCT)`](aggregate-functions.html#function_sum)接受单个参数。[`COUNT(DISTINCT)`](aggregate-functions.html#function_count)可以有多个列参数。
+- en: There must be no `GROUP BY` or `DISTINCT` clause in the query.
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 查询中不能包含`GROUP BY`或`DISTINCT`子句。
+- en: The Loose Index Scan limitations described previously still apply.
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 仍然适用前面描述的松散索引扫描限制。
+- en: 'Assume that there is an index `idx(c1,c2,c3)` on table `t1(c1,c2,c3,c4)`. The
+    Loose Index Scan access method can be used for the following queries:'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设在表`t1(c1,c2,c3,c4)`上有一个索引`idx(c1,c2,c3)`。松散索引扫描访问方法可用于以下查询：
+- en: '[PRE4]'
+  id: totrans-31
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Tight Index Scan
+  id: totrans-32
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: 紧凑索引扫描
+- en: A Tight Index Scan may be either a full index scan or a range index scan, depending
+    on the query conditions.
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 紧凑索引扫描可以是完整索引扫描或范围索引扫描，具体取决于查询条件。
+- en: When the conditions for a Loose Index Scan are not met, it still may be possible
+    to avoid creation of temporary tables for `GROUP BY` queries. If there are range
+    conditions in the `WHERE` clause, this method reads only the keys that satisfy
+    these conditions. Otherwise, it performs an index scan. Because this method reads
+    all keys in each range defined by the `WHERE` clause, or scans the whole index
+    if there are no range conditions, it is called a Tight Index Scan. With a Tight
+    Index Scan, the grouping operation is performed only after all keys that satisfy
+    the range conditions have been found.
+  id: totrans-34
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当不满足松散索引扫描的条件时，仍然可能避免为`GROUP BY`查询创建临时表。如果`WHERE`子句中存在范围条件，则此方法仅读取满足这些条件的键。否则，它执行索引扫描。因为此方法在`WHERE`子句定义的每个范围中读取所有键，或者如果没有范围条件则扫描整个索引，所以称为紧凑索引扫描。使用紧凑索引扫描，只有在找到满足范围条件的所有键之后才执行分组操作。
+- en: For this method to work, it is sufficient that there be a constant equality
+    condition for all columns in a query referring to parts of the key coming before
+    or in between parts of the `GROUP BY` key. The constants from the equality conditions
+    fill in any “gaps” in the search keys so that it is possible to form complete
+    prefixes of the index. These index prefixes then can be used for index lookups.
+    If the `GROUP BY` result requires sorting, and it is possible to form search keys
+    that are prefixes of the index, MySQL also avoids extra sorting operations because
+    searching with prefixes in an ordered index already retrieves all the keys in
+    order.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使这种方法起作用，查询中涉及到`GROUP BY`键的所有列都需要有一个常量相等条件，该条件位于`GROUP BY`键的前部或中间。相等条件中的常量填补了搜索键中的任何“间隙”，从而可以形成索引的完整前缀。然后可以使用这些索引前缀进行索引查找。如果`GROUP
+    BY`结果需要排序，并且可以形成索引的前缀搜索键，MySQL还会避免额外的排序操作，因为在有序索引中使用前缀搜索已经按顺序检索了所有键。
+- en: Assume that there is an index `idx(c1,c2,c3)` on table `t1(c1,c2,c3,c4)`. The
+    following queries do not work with the Loose Index Scan access method described
+    previously, but still work with the Tight Index Scan access method.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设在表`t1(c1,c2,c3,c4)`上有一个索引`idx(c1,c2,c3)`。前面描述的松散索引扫描访问方法无法处理以下查询，但仍可使用紧凑索引扫描访问方法。
+- en: 'There is a gap in the `GROUP BY`, but it is covered by the condition `c2 =
+    ''a''`:'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GROUP BY`中存在一个间隙，但被条件`c2 = ''a''`覆盖：'
+- en: '[PRE5]'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'The `GROUP BY` does not begin with the first part of the key, but there is
+    a condition that provides a constant for that part:'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GROUP BY`不是以键的第一部分开头，但有一个条件为该部分提供了一个常量：'
+- en: '[PRE6]'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'

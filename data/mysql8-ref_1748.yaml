@@ -1,0 +1,124 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-tde-implementation.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-tde-implementation.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-tde-implementation.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-tde-implementation.html)
+- en: 25.6.14.2 NDB File System Encryption Implementation
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 25.6.14.2 NDB 文件系统加密实现
+- en: For `NDB` Transparent Data Encryption (TDE), data nodes encrypt user data at
+    rest, with security provided by a password (file system password), which is used
+    to encrypt and decrypt a secrets file on each data node. The secrets file contains
+    a Node Master Key (NMK), a key used later to encrypt the different file types
+    used for persistence. `NDB` TDE encrypts user data files including LCP files,
+    redo log files, tablespace files, and undo log files.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于`NDB`透明数据加密（TDE），数据节点在静止状态下加密用户数据，安全性由密码（文件系统密码）提供，该密码用于加密和解密每个数据节点上的秘密文件。秘密文件包含一个节点主密钥（NMK），稍后用于加密用于持久性的不同文件类型。`NDB`
+    TDE加密用户数据文件，包括LCP文件、重做日志文件、表空间文件和撤销日志文件。
+- en: 'You can use the [**ndbxfrm**](mysql-cluster-programs-ndbxfrm.html "25.5.31 ndbxfrm
+    — Compress, Decompress, Encrypt, and Decrypt Files Created by NDB Cluster") utility
+    to see whether a file is encrypted, as shown here:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以使用[**ndbxfrm**](mysql-cluster-programs-ndbxfrm.html "25.5.31 ndbxfrm — Compress,
+    Decompress, Encrypt, and Decrypt Files Created by NDB Cluster")实用程序查看文件是否已加密，如下所示：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Beginning with NDB 8.0.31, it is possible to obtain the key from the secrets
+    file using the [**ndb_secretsfile_reader**](mysql-cluster-programs-ndb-secretsfile-reader.html
+    "25.5.24 ndb_secretsfile_reader — Obtain Key Information from an Encrypted NDB
+    Data File") program added in that release, like this:'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 从NDB 8.0.31开始，可以使用在该版本中添加的[**ndb_secretsfile_reader**](mysql-cluster-programs-ndb-secretsfile-reader.html
+    "25.5.24 ndb_secretsfile_reader — Obtain Key Information from an Encrypted NDB
+    Data File")程序从秘密文件中获取密钥，如下所示：
+- en: '[PRE1]'
+  id: totrans-6
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'The per-node key hierarchy can be represented as follows:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 每个节点的密钥层次结构可以表示如下：
+- en: A user-supplied passphrase (P) is processed by a key-derivation function using
+    a random salt to generate a unique passphase key (PK).
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 用户提供的口令（P）通过使用随机盐的密钥派生函数处理，生成一个唯一的口令密钥（PK）。
+- en: The PK (unique to each node) encrypts the data on each node in its own secrets
+    file.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: PK（对每个节点唯一）加密每个节点上的数据在其自己的秘密文件中。
+- en: The data in the secrets file includes a unique, randomly generated Node Master
+    Key (NMK).
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 秘密文件中的数据包括一个唯一的、随机生成的节点主密钥（NMK）。
+- en: The NMK encrypts (using wrapping) one or more randomly generated data encryption
+    key (DEK) values in the header of each encrypted file (including LCP and TS files,
+    and redo and undo logs).
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: NMK（使用包装）加密每个加密文件的头部中的一个或多个随机生成的数据加密密钥（DEK）值（包括LCP和TS文件以及重做和撤销日志）。
+- en: Data encryption key values (DEK[0], ..., DEK[n]) are used for encryption of
+    [subsets of] data in each file.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 数据加密密钥值（DEK[0]，...，DEK[n]）用于加密每个文件中的[子集的]数据。
+- en: The passphrase indirectly encrypts the secrets file containing the random NMK,
+    which encrypts a portion of the header of each encrypted file on the node. The
+    encrypted file header contains random data keys used for the data in that file.
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 口令间接加密包含随机 NMK 的秘密文件，该文件加密节点上每个加密文件的一部分头。加密文件头包含用于该文件中数据的随机数据密钥。
+- en: Encryption is implemented transparently by the [`NDBFS`](/doc/ndb-internals/en/ndb-internals-kernel-blocks-ndbfs.html)
+    layer within the data nodes. `NDBFS` internal client blocks operate on their files
+    as normal; `NDBFS` wraps the physical file with extra header and footer information
+    supporting encryption, and encrypts and decrypts data as it is read from and written
+    to the file. The wrapped file format is referred to as `ndbxfrm1`.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 加密由数据节点内的[`NDBFS`](/doc/ndb-internals/en/ndb-internals-kernel-blocks-ndbfs.html)层透明实现。`NDBFS`内部客户端块对其文件进行正常操作；`NDBFS`用额外的头部和尾部信息包装物理文件，支持加密，并在读取和写入文件时加密和解密数据。包装文件格式称为`ndbxfrm1`。
+- en: The node password is processed with PBKDF2 and the random salt to encrypt the
+    secrets file, which contains the randomly generated NMK which is used to encrypt
+    the randomly generated data encryption key in each encrypted file.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 节点密码通过PBKDF2和随机盐处理，用于加密包含用于加密每个加密文件中的随机生成数据加密密钥的秘密文件。
+- en: The work of encryption and decryption is performed in the NDBFS I/O threads
+    (rather than in signal execution threads such as main, tc, ldm, or rep). This
+    is similar to what happens with compressed LCPs and compressed backups, and normally
+    results in increased I/O thread CPU usage; you may wish to adjust [`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)
+    (if in use) with regard to the I/O threads.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 加密和解密工作是在NDBFS I/O线程中执行的（而不是在信号执行线程中，如主线程、tc线程、ldm线程或rep线程）。这类似于压缩的LCP和压缩的备份的处理方式，通常会导致增加I/O线程的CPU使用率；您可能希望根据I/O线程的情况调整[`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)。

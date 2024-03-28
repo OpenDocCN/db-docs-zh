@@ -1,0 +1,597 @@
+- en: 11.2.5 Function Name Parsing and Resolution
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 11.2.5 函数名称解析和解析
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/function-resolution.html](https://dev.mysql.com/doc/refman/8.0/en/function-resolution.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/function-resolution.html](https://dev.mysql.com/doc/refman/8.0/en/function-resolution.html)
+- en: MySQL supports built-in (native) functions, loadable functions, and stored functions.
+    This section describes how the server recognizes whether the name of a built-in
+    function is used as a function call or as an identifier, and how the server determines
+    which function to use in cases when functions of different types exist with a
+    given name.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL支持内置（本地）函数、可加载函数和存储函数。本节描述了服务器如何识别内置函数的名称是作为函数调用还是作为标识符使用，以及在存在具有给定名称的不同类型函数时服务器如何确定使用哪个函数。
+- en: '[Built-In Function Name Parsing](function-resolution.html#function-name-parsing
+    "Built-In Function Name Parsing")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[内置函数名称解析](function-resolution.html#function-name-parsing "内置函数名称解析")'
+- en: '[Function Name Resolution](function-resolution.html#function-name-resolution
+    "Function Name Resolution")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[函数名称解析](function-resolution.html#function-name-resolution "函数名称解析")'
+- en: Built-In Function Name Parsing
+  id: totrans-5
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 内置函数名称解析
+- en: The parser uses default rules for parsing names of built-in functions. These
+    rules can be changed by enabling the [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)
+    SQL mode.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 解析器使用默认规则解析内置函数的名称。这些规则可以通过启用[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)
+    SQL模式来更改。
+- en: 'When the parser encounters a word that is the name of a built-in function,
+    it must determine whether the name signifies a function call or is instead a nonexpression
+    reference to an identifier such as a table or column name. For example, in the
+    following statements, the first reference to `count` is a function call, whereas
+    the second reference is a table name:'
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当解析器遇到内置函数名称时，必须确定该名称是表示函数调用还是非表达式引用标识符（例如表或列名称）。例如，在以下语句中，对`count`的第一个引用是函数调用，而第二个引用是表名：
+- en: '[PRE0]'
+  id: totrans-8
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: The parser should recognize the name of a built-in function as indicating a
+    function call only when parsing what is expected to be an expression. That is,
+    in nonexpression context, function names are permitted as identifiers.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 解析器应仅在解析预期为表达式的内容时将内置函数名称识别为表示函数调用。也就是说，在非表达式上下文中，函数名称允许作为标识符。
+- en: 'However, some built-in functions have special parsing or implementation considerations,
+    so the parser uses the following rules by default to distinguish whether their
+    names are being used as function calls or as identifiers in nonexpression context:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 然而，一些内置函数具有特殊的解析或实现考虑因素，因此解析器默认使用以下规则来区分它们的名称是作为函数调用还是作为非表达式上下文中的标识符：
+- en: To use the name as a function call in an expression, there must be no whitespace
+    between the name and the following `(` parenthesis character.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要在表达式中使用名称作为函数调用，名称和后面的`(`括号字符之间不能有空格。
+- en: Conversely, to use the function name as an identifier, it must not be followed
+    immediately by a parenthesis.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 相反，要将函数名称用作标识符，必须不紧跟在括号后面。
+- en: 'The requirement that function calls be written with no whitespace between the
+    name and the parenthesis applies only to the built-in functions that have special
+    considerations. `COUNT` is one such name. The `sql/lex.h` source file lists the
+    names of these special functions for which following whitespace determines their
+    interpretation: names defined by the `SYM_FN()` macro in the `symbols[]` array.'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要求函数调用在名称和括号之间没有空格的规定仅适用于具有特殊考虑因素的内置函数。`COUNT`就是这样一个名称。`sql/lex.h`源文件列出了这些特殊函数的名称，后续空格决定了它们的解释：由`symbols[]`数组中的`SYM_FN()`宏定义的名称。
+- en: The following list names the functions in MySQL 8.0 that are affected by the
+    [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) setting and listed as special
+    in the `sql/lex.h` source file. You may find it easiest to treat the no-whitespace
+    requirement as applying to all function calls.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 下面列出了在MySQL 8.0中受[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)设置影响并在`sql/lex.h`源文件中列为特殊的函数列表。您可能会发现将无空格要求视为适用于所有函数调用最容易。
+- en: '`ADDDATE`'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`ADDDATE`'
+- en: '`BIT_AND`'
+  id: totrans-16
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`BIT_AND`'
+- en: '`BIT_OR`'
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`BIT_OR`'
+- en: '`BIT_XOR`'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`BIT_XOR`'
+- en: '`CAST`'
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CAST`'
+- en: '`COUNT`'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`COUNT`'
+- en: '`CURDATE`'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CURDATE`'
+- en: '`CURTIME`'
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`CURTIME`'
+- en: '`DATE_ADD`'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DATE_ADD`'
+- en: '`DATE_SUB`'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`DATE_SUB`'
+- en: '`EXTRACT`'
+  id: totrans-25
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`EXTRACT`'
+- en: '`GROUP_CONCAT`'
+  id: totrans-26
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`GROUP_CONCAT`'
+- en: '`MAX`'
+  id: totrans-27
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MAX`'
+- en: '`MID`'
+  id: totrans-28
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MID`'
+- en: '`MIN`'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`MIN`'
+- en: '`NOW`'
+  id: totrans-30
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`NOW`'
+- en: '`POSITION`'
+  id: totrans-31
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`POSITION`'
+- en: '`SESSION_USER`'
+  id: totrans-32
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SESSION_USER`'
+- en: '`STD`'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STD`'
+- en: '`STDDEV`'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STDDEV`'
+- en: '`STDDEV_POP`'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STDDEV_POP`'
+- en: '`STDDEV_SAMP`'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`STDDEV_SAMP`'
+- en: '`SUBDATE`'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUBDATE`'
+- en: '`SUBSTR`'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUBSTR`'
+- en: '`SUBSTRING`'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUBSTRING`'
+- en: '`SUM`'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SUM`'
+- en: '`SYSDATE`'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SYSDATE`'
+- en: '`SYSTEM_USER`'
+  id: totrans-42
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SYSTEM_USER`'
+- en: '`TRIM`'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`TRIM`'
+- en: '`VARIANCE`'
+  id: totrans-44
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`VARIANCE`'
+- en: '`VAR_POP`'
+  id: totrans-45
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`VAR_POP`'
+- en: '`VAR_SAMP`'
+  id: totrans-46
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`VAR_SAMP`'
+- en: 'For functions not listed as special in `sql/lex.h`, whitespace does not matter.
+    They are interpreted as function calls only when used in expression context and
+    may be used freely as identifiers otherwise. `ASCII` is one such name. However,
+    for these nonaffected function names, interpretation may vary in expression context:
+    `*`func_name`* ()` is interpreted as a built-in function if there is one with
+    the given name; if not, `*`func_name`* ()` is interpreted as a loadable function
+    or stored function if one exists with that name.'
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于在`sql/lex.h`中未列为特殊的函数，空格并不重要。只有在表达式上下文中使用时，它们才会被解释为函数调用，否则可以自由地用作标识符。`ASCII`就是这样一个名称。然而，对于这些未受影响的函数名称，在表达式上下文中的解释可能有所不同：如果存在具有给定名称的内置函数，则`*`func_name`*
+    ()`将被解释为内置函数；如果没有，则`*`func_name`* ()`将被解释为可加载函数或存储函数（如果存在具有该名称的函数）。
+- en: 'The [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) SQL mode can be used
+    to modify how the parser treats function names that are whitespace-sensitive:'
+  id: totrans-48
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) SQL 模式可用于修改解析器对对空格敏感的函数名称的处理方式：'
+- en: 'With [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) disabled, the parser
+    interprets the name as a function call when there is no whitespace between the
+    name and the following parenthesis. This occurs even when the function name is
+    used in nonexpression context:'
+  id: totrans-49
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 禁用[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)后，当函数名称和后续括号之间没有空格时，解析器将名称解释为函数调用。即使在非表达式上下文中使用函数名称也会发生这种情况：
+- en: '[PRE1]'
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'To eliminate the error and cause the name to be treated as an identifier, either
+    use whitespace following the name or write it as a quoted identifier (or both):'
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为了消除错误并使名称被视为标识符，可以在名称后面使用空格或将其写为带引号的标识符（或两者都使用）：
+- en: '[PRE2]'
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'With [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) enabled, the parser
+    loosens the requirement that there be no whitespace between the function name
+    and the following parenthesis. This provides more flexibility in writing function
+    calls. For example, either of the following function calls are legal:'
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 启用[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)后，解析器放宽了函数名称和后续括号之间不能有空格的要求。这样可以更灵活地编写函数调用。例如，以下任一函数调用都是合法的：
+- en: '[PRE3]'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'However, enabling [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) also
+    has the side effect that the parser treats the affected function names as reserved
+    words (see [Section 11.3, “Keywords and Reserved Words”](keywords.html "11.3 Keywords
+    and Reserved Words")). This means that a space following the name no longer signifies
+    its use as an identifier. The name can be used in function calls with or without
+    following whitespace, but causes a syntax error in nonexpression context unless
+    it is quoted. For example, with [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)
+    enabled, both of the following statements fail with a syntax error because the
+    parser interprets `count` as a reserved word:'
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 然而，启用[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)也会导致解析器将受影响的函数名称视为保留字（请参阅[第
+    11.3 节，“关键字和保留字”](keywords.html "11.3 关键字和保留字")）。这意味着名称后面的空格不再表示其用作标识符。该名称可以在带有或不带有后续空格的函数调用中使用，但在非表达式上下文中除非加引号，否则会导致语法错误。例如，启用[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)后，以下两个语句都会因解析器将`count`解释为保留字而导致语法错误：
+- en: '[PRE4]'
+  id: totrans-56
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'To use the function name in nonexpression context, write it as a quoted identifier:'
+  id: totrans-57
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要在非表达式上下文中使用函数名称，请将其写为带引号的标识符：
+- en: '[PRE5]'
+  id: totrans-58
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'To enable the [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) SQL mode,
+    use this statement:'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要启用[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) SQL 模式，请使用以下语句：
+- en: '[PRE6]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space) is also enabled by certain
+    other composite modes such as [`ANSI`](sql-mode.html#sqlmode_ansi) that include
+    it in their value:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)也被某些其他复合模式启用，例如[`ANSI`](sql-mode.html#sqlmode_ansi)将其包含在其值中：'
+- en: '[PRE7]'
+  id: totrans-62
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: Check [Section 7.1.11, “Server SQL Modes”](sql-mode.html "7.1.11 Server SQL
+    Modes"), to see which composite modes enable [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space).
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 查看[第 7.1.11 节，“服务器 SQL 模式”](sql-mode.html "7.1.11 服务器 SQL 模式")，以查看哪些复合模式启用了[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)。
+- en: 'To minimize the dependency of SQL code on the [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)
+    setting, use these guidelines:'
+  id: totrans-64
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 为了最大程度地减少 SQL 代码对[`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)设置的依赖，请遵循以下准则：
+- en: Avoid creating loadable functions or stored functions that have the same name
+    as a built-in function.
+  id: totrans-65
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 避免创建与内置函数同名的���加载函数或存储函数。
+- en: 'Avoid using function names in nonexpression context. For example, these statements
+    use `count` (one of the affected function names affected by [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)),
+    so they fail with or without whitespace following the name if [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)
+    is enabled:'
+  id: totrans-66
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 避免在非表达式上下文中使用函数名。例如，这些语句使用了 `count`（受 [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)
+    影响的函数名之一），因此如果启用了 [`IGNORE_SPACE`](sql-mode.html#sqlmode_ignore_space)，无论名称后是否有空格，它们都会失败：
+- en: '[PRE8]'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'If you must use a function name in nonexpression context, write it as a quoted
+    identifier:'
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果必须在非表达式上下文中使用函数名，请将其写为引号标识符：
+- en: '[PRE9]'
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: Function Name Resolution
+  id: totrans-70
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 函数名解析
+- en: 'The following rules describe how the server resolves references to function
+    names for function creation and invocation:'
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下规则描述了服务器如何解析函数名的引用以进行函数创建和调用：
+- en: Built-in functions and loadable functions
+  id: totrans-72
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 内置函数和可加载函数
+- en: An error occurs if you try to create a loadable function with the same name
+    as a built-in function.
+  id: totrans-73
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果尝试创建与内置函数同名的可加载函数，则会出现错误。
+- en: '`IF NOT EXISTS` (available beginning with MySQL 8.0.29) has no effect in such
+    cases. See [Section 15.7.4.1, “CREATE FUNCTION Statement for Loadable Functions”](create-function-loadable.html
+    "15.7.4.1 CREATE FUNCTION Statement for Loadable Functions"), for more information.'
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`IF NOT EXISTS`（从 MySQL 8.0.29 开始提供）在这种情况下没有效果。有关更多信息，请参阅 [Section 15.7.4.1,
+    “CREATE FUNCTION Statement for Loadable Functions”](create-function-loadable.html
+    "15.7.4.1 CREATE FUNCTION Statement for Loadable Functions")。'
+- en: Built-in functions and stored functions
+  id: totrans-75
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 内置函数和存储函数
+- en: It is possible to create a stored function with the same name as a built-in
+    function, but to invoke the stored function it is necessary to qualify it with
+    a schema name. For example, if you create a stored function named `PI` in the
+    `test` schema, invoke it as `test.PI()` because the server resolves [`PI()`](mathematical-functions.html#function_pi)
+    without a qualifier as a reference to the built-in function. The server generates
+    a warning if the stored function name collides with a built-in function name.
+    The warning can be displayed with [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW
+    WARNINGS Statement").
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以创建与内置函数同名的存储函数，但要调用存储函数，必须使用模式名称进行限定。例如，如果在 `test` 模式中创建了名为 `PI` 的存储函数，则调用时应为
+    `test.PI()`，因为服务器会将不带限定符的 [`PI()`](mathematical-functions.html#function_pi) 解析为对内置函数的引用。如果存储函数名与内置函数名冲突，服务器会生成警告。可以使用
+    [`SHOW WARNINGS`](show-warnings.html "15.7.7.42 SHOW WARNINGS Statement") 显示警告。
+- en: '`IF NOT EXISTS` (MySQL 8.0.29 and later) has no effect in such cases; see [Section 15.1.17,
+    “CREATE PROCEDURE and CREATE FUNCTION Statements”](create-procedure.html "15.1.17 CREATE
+    PROCEDURE and CREATE FUNCTION Statements").'
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`IF NOT EXISTS`（MySQL 8.0.29 及更高版本）在这种情况下没有效果；请参阅 [Section 15.1.17, “CREATE
+    PROCEDURE and CREATE FUNCTION Statements”](create-procedure.html "15.1.17 CREATE
+    PROCEDURE and CREATE FUNCTION Statements")。'
+- en: Loadable functions and stored functions
+  id: totrans-78
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 可加载函数和存储函数
+- en: It is possible to create a stored function with the same name as an existing
+    loadable function, or the other way around. The server generates a warning if
+    a proposed stored function name collides with an existing loadable function name,
+    or if a proposed loadable function name would be the same as that of an existing
+    stored function. In either case, once both functions exist, it is necessary thereafter
+    to qualify the stored function with a schema name when invoking it; the server
+    assumes in such cases that the unqualified name refers to the loadable function.
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以创建与现有可加载函数同名的存储函数，反之亦然。如果建议的存储函数名与现有可加载函数名冲突，或者建议的可加载函数名与现有存储函数名相同，则服务器会生成警告。在这两种情况下，一旦两个函数都存在，以后在调用存储函数时必须使用模式名称进行限定；在这种情况下，服务器假定未限定的名称指的是可加载函数。
+- en: Beginning with MySQL 8.0.29, `IF NOT EXISTS` is supported with [`CREATE FUNCTION`](create-function.html
+    "15.1.14 CREATE FUNCTION Statement") statements, but has no effect in such cases.
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从 MySQL 8.0.29 开始，`IF NOT EXISTS` 在 [`CREATE FUNCTION`](create-function.html
+    "15.1.14 CREATE FUNCTION Statement") 语句中得到支持，但在这种情况下没有效果。
+- en: 'Prior to MySQL 8.0.28, it was possible to create a stored function with the
+    same name as an existing loadable function, but not the other way around (Bug
+    #33301931 ).'
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '在 MySQL 8.0.28 之前，可以创建与现有可加载函数同名的存储函数，但反之则不行（Bug #33301931）。'
+- en: 'The preceding function name resolution rules have implications for upgrading
+    to versions of MySQL that implement new built-in functions:'
+  id: totrans-82
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前述函数名解析规则对于升级到实现新内置函数的 MySQL 版本具有影响：
+- en: If you have already created a loadable function with a given name and upgrade
+    MySQL to a version that implements a new built-in function with the same name,
+    the loadable function becomes inaccessible. To correct this, use [`DROP FUNCTION`](drop-function.html
+    "15.1.26 DROP FUNCTION Statement") to drop the loadable function and [`CREATE
+    FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION Statement") to re-create
+    the loadable function with a different nonconflicting name. Then modify any affected
+    code to use the new name.
+  id: totrans-83
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您已经创建了一个具有特定名称的可加载函数，并将 MySQL 升级到实现了同名新内置函数的版本，则该可加载函数将变得无法访问。为了纠正这个问题，使用
+    [`DROP FUNCTION`](drop-function.html "15.1.26 DROP FUNCTION Statement") 删除可加载函数，然后使用
+    [`CREATE FUNCTION`](create-function.html "15.1.14 CREATE FUNCTION Statement")
+    以不冲突的不同名称重新创建可加载函数。然后修改任何受影响的代码以使用新名称。
+- en: 'If a new version of MySQL implements a built-in function or loadable function
+    with the same name as an existing stored function, you have two choices: Rename
+    the stored function to use a nonconflicting name, or change any calls to the function
+    that do not do so already to use a schema qualifier (`*`schema_name`*.*`func_name`*()`
+    syntax). In either case, modify any affected code accordingly.'
+  id: totrans-84
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果 MySQL 的新版本实现了一个与现有存储函数同名的内置函数或可加载函数，你有两个选择：将存储函数重命名为不冲突的名称，或者修改任何尚未这样做的对该函数的调用以使用模式限定符（`*`schema_name`*.*`func_name`*()`
+    语法）。在任何情况下，相应地修改任何受影响的代码。

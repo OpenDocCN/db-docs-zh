@@ -1,0 +1,1825 @@
+- en: 25.7.12 NDB Cluster Replication Conflict Resolution
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.7.12 NDB Cluster复制冲突解决
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-conflict-resolution.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-conflict-resolution.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-conflict-resolution.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-replication-conflict-resolution.html)
+- en: '[Requirements](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-requirements
+    "Requirements")'
+  id: totrans-2
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[要求](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-requirements
+    "要求")'
+- en: '[Source Column Control](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-source-column
+    "Source Column Control")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[源列控制](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-source-column
+    "源列控制")'
+- en: '[Conflict Resolution Control](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-control
+    "Conflict Resolution Control")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[冲突解决控制](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-control
+    "冲突解决控制")'
+- en: '[Conflict Resolution Functions](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-functions
+    "Conflict Resolution Functions")'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[冲突解决函数](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-functions
+    "冲突解决函数")'
+- en: '[Conflict Resolution Exceptions Table](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-exceptions-table
+    "Conflict Resolution Exceptions Table")'
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[冲突解决异常表](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-exceptions-table
+    "冲突解决异常表")'
+- en: '[Conflict Detection Status Variables](mysql-cluster-replication-conflict-resolution.html#conflict-detection-statvars
+    "Conflict Detection Status Variables")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[冲突检测状态变量](mysql-cluster-replication-conflict-resolution.html#conflict-detection-statvars
+    "冲突检测状态变量")'
+- en: '[Examples](mysql-cluster-replication-conflict-resolution.html#conflict-detection-examples
+    "Examples")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[示例](mysql-cluster-replication-conflict-resolution.html#conflict-detection-examples
+    "示例")'
+- en: When using a replication setup involving multiple sources (including circular
+    replication), it is possible that different sources may try to update the same
+    row on the replica with different data. Conflict resolution in NDB Cluster Replication
+    provides a means of resolving such conflicts by permitting a user-defined resolution
+    column to be used to determine whether or not an update on a given source should
+    be applied on the replica.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在涉及多个源（包括循环复制）的复制设置中，可能会出现不同源尝试使用不同数据更新副本上相同行的情况。NDB Cluster复制中的冲突解决提供了一种通过允许使用用户定义的解决列来确定是否应在副本上应用给定源上的更新来解决此类冲突的方法。
+- en: Some types of conflict resolution supported by NDB Cluster (`NDB$OLD()`, `NDB$MAX()`,
+    and `NDB$MAX_DELETE_WIN()`; additionally, in NDB 8.0.30 and later, `NDB$MAX_INS()`
+    and `NDB$MAX_DEL_WIN_INS()`) implement this user-defined column as a “timestamp”
+    column (although its type cannot be [`TIMESTAMP`](datetime.html "13.2.2 The DATE,
+    DATETIME, and TIMESTAMP Types"), as explained later in this section). These types
+    of conflict resolution are always applied a row-by-row basis rather than a transactional
+    basis. The epoch-based conflict resolution functions `NDB$EPOCH()` and `NDB$EPOCH_TRANS()`
+    compare the order in which epochs are replicated (and thus these functions are
+    transactional). Different methods can be used to compare resolution column values
+    on the replica when conflicts occur, as explained later in this section; the method
+    used can be set to act on a single table, database, or server, or on a set of
+    one or more tables using pattern matching. See [Matching with wildcards](mysql-cluster-replication-schema.html#ndb-replication-wildcards
+    "Matching with wildcards"), for information about using pattern matches in the
+    `db`, `table_name`, and `server_id` columns of the `mysql.ndb_replication` table.
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB Cluster支持的一些冲突解决类型（`NDB$OLD()`、`NDB$MAX()`和`NDB$MAX_DELETE_WIN()`；此外，在NDB
+    8.0.30及更高版本中，还有`NDB$MAX_INS()`和`NDB$MAX_DEL_WIN_INS()`）将此用户定义列实现为“时间戳”列（尽管其类型不能是[`TIMESTAMP`](datetime.html
+    "13.2.2 日期、时间和时间戳类型")，如本节后面所述）。这些类型的冲突解决总是基于逐行而不是基于事务的。基于时代的冲突解决函数`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`比较了复制时代的顺序（因此这些函数是事务性的）。在冲突发生时，可以使用不同的方法来比较副本上的解决列值，如本节后面所述；所使用的方法可以设置为在单个表、数据库或服务器上操作，或者使用模式匹配在一个或多个表上操作。有关在`mysql.ndb_replication`表的`db`、`table_name`和`server_id`列中使用模式匹配的信息，请参见[使用通配符进行匹配](mysql-cluster-replication-schema.html#ndb-replication-wildcards
+    "使用通配符进行匹配")。
+- en: You should also keep in mind that it is the application's responsibility to
+    ensure that the resolution column is correctly populated with relevant values,
+    so that the resolution function can make the appropriate choice when determining
+    whether to apply an update.
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还应该记住，确保解析列正确填充相关值是应用程序的责任，以便解析函数在确定是否应用更新时可以做出适当选择。
+- en: Requirements
+  id: totrans-12
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 要求
+- en: 'Preparations for conflict resolution must be made on both the source and the
+    replica. These tasks are described in the following list:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 冲突解决的准备工作必须在源和副本上都进行。这些任务在以下列表中描述：
+- en: On the source writing the binary logs, you must determine which columns are
+    sent (all columns or only those that have been updated). This is done for the
+    MySQL Server as a whole by applying the [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") startup option [`--ndb-log-updated-only`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-updated-only)
+    (described later in this section), or on one or more specific tables by placing
+    the proper entries in the `mysql.ndb_replication` table (see [ndb_replication
+    Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication "ndb_replication
+    Table")).
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在写入二进制日志的源上，您必须确定要发送哪些列（所有列还是仅已更新的列）。这是通过在整个MySQL Server上应用[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")启动选项[`--ndb-log-updated-only`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-updated-only)（稍后在本节中描述）来完成的，或者通过在`mysql.ndb_replication`表中放置适当的条目来在一个或多个特定表上完成（参见[ndb_replication
+    Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication "ndb_replication
+    Table")）。
+- en: Note
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you are replicating tables with very large columns (such as [`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types") or [`BLOB`](blob.html "13.3.4 The BLOB and TEXT
+    Types") columns), [`--ndb-log-updated-only`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-updated-only)
+    can also be useful for reducing the size of the binary logs and avoiding possible
+    replication failures due to exceeding [`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet).
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您正在复制具有非常大列（如[`TEXT`](blob.html "13.3.4 The BLOB and TEXT Types")或[`BLOB`](blob.html
+    "13.3.4 The BLOB and TEXT Types")列）的表，[`--ndb-log-updated-only`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-updated-only)也可以用于减小二进制日志的大小，并避免由于超过[`max_allowed_packet`](server-system-variables.html#sysvar_max_allowed_packet)而导致的可能的复制失败。
+- en: See [Section 19.5.1.20, “Replication and max_allowed_packet”](replication-features-max-allowed-packet.html
+    "19.5.1.20 Replication and max_allowed_packet"), for more information about this
+    issue.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关此问题的更多信息，请参见[Section 19.5.1.20, “Replication and max_allowed_packet”](replication-features-max-allowed-packet.html
+    "19.5.1.20 Replication and max_allowed_packet")。
+- en: On the replica, you must determine which type of conflict resolution to apply
+    (“latest timestamp wins”, “same timestamp wins”, “primary wins”, “primary wins,
+    complete transaction”, or none). This is done using the `mysql.ndb_replication`
+    system table, and applies to one or more specific tables (see [ndb_replication
+    Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication "ndb_replication
+    Table")).
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在副本上，您必须确定要应用哪种冲突解决方法（“最新时间戳获胜”，“相同时间戳获胜”，“主要获胜”，“主要获胜，完成事务”或无）。这是通过使用`mysql.ndb_replication`系统表来完成的，并适用于一个或多个特定表（参见[ndb_replication
+    Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication "ndb_replication
+    Table")）。
+- en: NDB Cluster also supports read conflict detection, that is, detecting conflicts
+    between reads of a given row in one cluster and updates or deletes of the same
+    row in another cluster. This requires exclusive read locks obtained by setting
+    [`ndb_log_exclusive_reads`](mysql-cluster-options-variables.html#sysvar_ndb_log_exclusive_reads)
+    equal to 1 on the replica. All rows read by a conflicting read are logged in the
+    exceptions table. For more information, see [Read conflict detection and resolution](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-read-conflicts
+    "Read conflict detection and resolution").
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: NDB Cluster还支持读冲突检测，即检测一个集群中对给定行的读取与另一个集群中对同一行的更新或删除之间的冲突。这需要通过在副本上将[`ndb_log_exclusive_reads`](mysql-cluster-options-variables.html#sysvar_ndb_log_exclusive_reads)设置为1来获得独占读锁。所有被冲突读取的行都将被记录在异常表中。有关更多信息，请参见[读冲突检测和解决](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-read-conflicts
+    "Read conflict detection and resolution")。
+- en: Prior to NDB 8.0.30, `NDB` applied `WRITE_ROW` events strictly as inserts, requiring
+    that there was not already any such row; that is, an incoming write was always
+    rejected if the row already existed. (This is still the case when using any conflict
+    resolution function other than `NDB$MAX_INS()` or `NDB$MAX_DEL_WIN_INS()`.)
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在NDB 8.0.30之前，`NDB`严格将`WRITE_ROW`事件应用为插入操作，要求不存在这样的行；也就是说，如果行已经存在，则传入的写操作总是被拒绝。（当使用除`NDB$MAX_INS()`或`NDB$MAX_DEL_WIN_INS()`之外的任何冲突解决函数时，仍然如此。）
+- en: Beginning with NDB 8.0.30, when using `NDB$MAX_INS()` or `NDB$MAX_DEL_WIN_INS()`,
+    `NDB` can apply `WRITE_ROW` events idempotently, mapping such an event to an insert
+    when the incoming row does not already exist, or to an update if it does.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从NDB 8.0.30开始，当使用`NDB$MAX_INS()`或`NDB$MAX_DEL_WIN_INS()`时，`NDB`可以对`WRITE_ROW`事件进行幂等应用，将这样的事件映射到插入操作，当传入行不存在时，或者当传入行存在时映射到更新操作。
+- en: When using the functions `NDB$OLD()`, `NDB$MAX()`, and `NDB$MAX_DELETE_WIN()`
+    for timestamp-based conflict resolution (as well as `NDB$MAX_INS()` and `NDB$MAX_DEL_WIN_INS()`,
+    beginning with NDB 8.0.30), we often refer to the column used for determining
+    updates as a “timestamp” column. However, the data type of this column is never
+    [`TIMESTAMP`](datetime.html "13.2.2 The DATE, DATETIME, and TIMESTAMP Types");
+    instead, its data type should be [`INT`](integer-types.html "13.1.2 Integer Types
+    (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT") ([`INTEGER`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT")) or [`BIGINT`](integer-types.html "13.1.2 Integer Types (Exact Value)
+    - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT"). The “timestamp” column
+    should also be `UNSIGNED` and `NOT NULL`.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用函数`NDB$OLD()`，`NDB$MAX()`和`NDB$MAX_DELETE_WIN()`进行基于时间戳的冲突解决（以及从NDB 8.0.30开始使用`NDB$MAX_INS()`和`NDB$MAX_DEL_WIN_INS()`），我们通常将用于确定更新的列称为“时间戳”列。然而，此列的数据类型从不是[`TIMESTAMP`](datetime.html
+    "13.2.2 The DATE, DATETIME, and TIMESTAMP Types")；相反，其数据类型应为[`INT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT")（[`INTEGER`](integer-types.html "13.1.2 Integer Types (Exact Value) -
+    INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT, BIGINT")）或[`BIGINT`](integer-types.html
+    "13.1.2 Integer Types (Exact Value) - INTEGER, INT, SMALLINT, TINYINT, MEDIUMINT,
+    BIGINT")。 “时间戳”列还应为`UNSIGNED`和`NOT NULL`。
+- en: The `NDB$EPOCH()` and `NDB$EPOCH_TRANS()` functions discussed later in this
+    section work by comparing the relative order of replication epochs applied on
+    a primary and secondary NDB Cluster, and do not make use of timestamps.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节后面讨论的`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`函数通过比较应用在主要和次要NDB集群上的复制时期的相对顺序来工作，并不使用时间戳。
+- en: Source Column Control
+  id: totrans-24
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 源列控制
+- en: We can see update operations in terms of “before” and “after” images—that is,
+    the states of the table before and after the update is applied. Normally, when
+    updating a table with a primary key, the “before” image is not of great interest;
+    however, when we need to determine on a per-update basis whether or not to use
+    the updated values on a replica, we need to make sure that both images are written
+    to the source's binary log. This is done with the [`--ndb-log-update-as-write`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write)
+    option for [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server"), as described
+    later in this section.
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以根据“之前”和“之后”图像来看待更新操作——也就是说，在应用更新之前和之后的表状态。通常，当使用主键更新表时，“之前”图像并不是很重要；然而，当我们需要根据每次更新确定是否在副本上使用更新的值时，我们需要确保两个图像都写入源二进制日志。这是通过[`--ndb-log-update-as-write`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write)选项为[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")完成的，稍后在本节中描述。
+- en: Important
+  id: totrans-26
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: Whether logging of complete rows or of updated columns only is done is decided
+    when the MySQL server is started, and cannot be changed online; you must either
+    restart [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server"), or start
+    a new [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") instance with
+    different logging options.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 决定是记录完整行还是仅更新列是在启动MySQL服务器时完成的，无法在线更改；您必须重新启动[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")，或者使用不同的日志记录选项启动新的[**mysqld**](mysqld.html "6.3.1 mysqld —
+    The MySQL Server")实例。
+- en: Conflict Resolution Control
+  id: totrans-28
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 冲突解决控制
+- en: Conflict resolution is usually enabled on the server where conflicts can occur.
+    Like logging method selection, it is enabled by entries in the `mysql.ndb_replication`
+    table.
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 冲突解决通常在可能发生冲突的服务器上启用。与日志记录方法选择一样，它是通过`mysql.ndb_replication`表中的条目启用的。
+- en: '`NBT_UPDATED_ONLY_MINIMAL` and `NBT_UPDATED_FULL_MINIMAL` can be used with
+    `NDB$EPOCH()`, `NDB$EPOCH2()`, and `NDB$EPOCH_TRANS()`, because these do not require
+    “before” values of columns which are not primary keys. Conflict resolution algorithms
+    requiring the old values, such as `NDB$MAX()` and `NDB$OLD()`, do not work correctly
+    with these `binlog_type` values.'
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NBT_UPDATED_ONLY_MINIMAL`和`NBT_UPDATED_FULL_MINIMAL`可与`NDB$EPOCH()`、`NDB$EPOCH2()`和`NDB$EPOCH_TRANS()`一起使用，因为这些不需要非主键列的“之前”值。需要旧值的冲突解决算法，如`NDB$MAX()`和`NDB$OLD()`，与这些`binlog_type`值不正确地配合。'
+- en: Conflict Resolution Functions
+  id: totrans-31
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 冲突解决函数
+- en: This section provides detailed information about the functions which can be
+    used for conflict detection and resolution with NDB Replication.
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节提供了关于可用于NDB复制中冲突检测和解决的函数的详细信息。
+- en: '[NDB$OLD()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-old
+    "NDB$OLD()")'
+  id: totrans-33
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$OLD()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-old
+    "NDB$OLD()")'
+- en: '[NDB$MAX()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max
+    "NDB$MAX()")'
+  id: totrans-34
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$MAX()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max
+    "NDB$MAX()")'
+- en: '[NDB$MAX_DELETE_WIN()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-delete-win
+    "NDB$MAX_DELETE_WIN()")'
+  id: totrans-35
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$MAX_DELETE_WIN()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-delete-win
+    "NDB$MAX_DELETE_WIN()")'
+- en: '[NDB$MAX_INS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-ins
+    "NDB$MAX_INS()")'
+  id: totrans-36
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$MAX_INS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-ins
+    "NDB$MAX_INS()")'
+- en: '[NDB$MAX_DEL_WIN_INS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-del-win-ins
+    "NDB$MAX_DEL_WIN_INS()")'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$MAX_DEL_WIN_INS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-del-win-ins
+    "NDB$MAX_DEL_WIN_INS()")'
+- en: '[NDB$EPOCH()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch
+    "NDB$EPOCH()")'
+  id: totrans-38
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$EPOCH()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch
+    "NDB$EPOCH()")'
+- en: '[NDB$EPOCH_TRANS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch-trans
+    "NDB$EPOCH_TRANS()")'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$EPOCH_TRANS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch-trans
+    "NDB$EPOCH_TRANS()")'
+- en: '[NDB$EPOCH2()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch2
+    "NDB$EPOCH2()")'
+  id: totrans-40
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$EPOCH2()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch2
+    "NDB$EPOCH2()")'
+- en: '[NDB$EPOCH2_TRANS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch2-trans
+    "NDB$EPOCH2_TRANS()")'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[NDB$EPOCH2_TRANS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch2-trans
+    "NDB$EPOCH2_TRANS()")'
+- en: NDB$OLD()
+  id: totrans-42
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$OLD()
+- en: 'If the value of *`column_name`* is the same on both the source and the replica,
+    then the update is applied; otherwise, the update is not applied on the replica
+    and an exception is written to the log. This is illustrated by the following pseudocode:'
+  id: totrans-43
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果源数据和副本上的*`column_name`*的值相同，则应用更新；否则，在副本上不应用更新，并将异常写入日志。以下是伪代码示例：
+- en: '[PRE0]'
+  id: totrans-44
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: This function can be used for “same value wins” conflict resolution. This type
+    of conflict resolution ensures that updates are not applied on the replica from
+    the wrong source.
+  id: totrans-45
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此函数可用于“相同值获胜”冲突解决。这种冲突解决确保更新不会从错误的源应用于副本。
+- en: Important
+  id: totrans-46
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: The column value from the source's “before” image is used by this function.
+  id: totrans-47
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此函数使用源数据的“之前”图像中的列值。
+- en: NDB$MAX()
+  id: totrans-48
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$MAX()
+- en: 'For an update or delete operation, if the “timestamp” column value for a given
+    row coming from the source is higher than that on the replica, it is applied;
+    otherwise it is not applied on the replica. This is illustrated by the following
+    pseudocode:'
+  id: totrans-49
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于更新或删除操作，如果源数据中给定行的“时间戳”列值高于副本中的值，则应用该操作；否则不应用于副本。以下是伪代码示例：
+- en: '[PRE1]'
+  id: totrans-50
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: This function can be used for “greatest timestamp wins” conflict resolution.
+    This type of conflict resolution ensures that, in the event of a conflict, the
+    version of the row that was most recently updated is the version that persists.
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此函数可用于“最大时间戳获胜”冲突解决。这种冲突解决确保在冲突发生时，最近更新的行版本是持久的版本。
+- en: This function has no effects on conflicts between write operations, other than
+    that a write operation with the same primary key as a previous write is always
+    rejected; it is accepted and applied only if no write operation using the same
+    primary key already exists. Beginning with NDB 8.0.30, you can use `[NDB$MAX_INS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-ins
+    "NDB$MAX_INS()")` to handle conflict resolution between writes.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 除了拒绝具有与先前写操作相同主键的写操作外，此函数对写操作之间的冲突没有影响；仅当不存在使用相同主键的先前写操作时，才接受并应用该写操作。从NDB 8.0.30开始，您可以使用`[NDB$MAX_INS()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-ins
+    "NDB$MAX_INS()")`处理写操作之间的冲突解决。
+- en: Important
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: The column value from the sources's “after” image is used by this function.
+  id: totrans-54
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此函数使用源“after”图像的列值。
+- en: NDB$MAX_DELETE_WIN()
+  id: totrans-55
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$MAX_DELETE_WIN()
+- en: 'This is a variation on `NDB$MAX()`. Due to the fact that no timestamp is available
+    for a delete operation, a delete using `NDB$MAX()` is in fact processed as `NDB$OLD`,
+    but for some use cases, this is not optimal. For `NDB$MAX_DELETE_WIN()`, if the
+    “timestamp” column value for a given row adding or updating an existing row coming
+    from the source is higher than that on the replica, it is applied. However, delete
+    operations are treated as always having the higher value. This is illustrated
+    by the following pseudocode:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这是`NDB$MAX()`的变体。由于删除操作没有时间戳可用，因此使用`NDB$MAX()`进行的删除实际上被处理为`NDB$OLD`，但对于某些用例，这并不理想。对于`NDB$MAX_DELETE_WIN()`，如果来自源的添加或更新现有行的行的“时间戳”列值高于副本上的值，则应用该值。但是，删除操作始终被视为具有更高的值。如下伪代码所示：
+- en: '[PRE2]'
+  id: totrans-57
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: This function can be used for “greatest timestamp, delete wins” conflict resolution.
+    This type of conflict resolution ensures that, in the event of a conflict, the
+    version of the row that was deleted or (otherwise) most recently updated is the
+    version that persists.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此函数可用于“最大时间戳，删除获胜”冲突解决。这种冲突解决确保在冲突发生时，被删除或（其他方式）最近更新的行版本是持久的版本。
+- en: Note
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: As with `NDB$MAX()`, the column value from the source's “after” image is the
+    value used by this function.
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与`NDB$MAX()`一样，此函数使用源“after”图像的列值。
+- en: NDB$MAX_INS()
+  id: totrans-61
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$MAX_INS()
+- en: 'This function provides support for resolution of conflicting write operations.
+    Such conflicts are handled by “NDB$MAX_INS()” as follows:'
+  id: totrans-62
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此函数提供对冲突写操作的支持。这些冲突由“NDB$MAX_INS()”处理如下：
+- en: If there is no conflicting write, apply this one (this is the same as `NDB$MAX()`).
+  id: totrans-63
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果没有冲突写操作，则应用此操作（与`NDB$MAX()`相同）。
+- en: 'Otherwise, apply “greatest timestamp wins” conflict resolution, as follows:'
+  id: totrans-64
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 否则，应用“最大时间戳获胜”冲突解决，如下所示：
+- en: If the timestamp for the incoming write is greater than that of the conflicting
+    write, apply the incoming operation.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果传入写操作的时间戳大于冲突写操作的时间戳，则应用传入操作。
+- en: If the timestamp for the incoming write is *not* greater, reject the incoming
+    write operation.
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果传入写操作的时间戳*不*更大，则拒绝传入写操作。
+- en: 'When handling an insert operation, `NDB$MAX_INS()` compares timestamps from
+    the source and replica as illustrated by the following pseudocode:'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 处理插入操作时，`NDB$MAX_INS()`比较源和副本的时间戳，如下伪代码所示：
+- en: '[PRE3]'
+  id: totrans-68
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'For an update operation, the updated timestamp column value from the source
+    is compared with the replica''s timestamp column value, as shown here:'
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于更新操作，源的更新时间戳列值与副本的时间戳列值进行比较，如下所示：
+- en: '[PRE4]'
+  id: totrans-70
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: This is the same as performed by `[NDB$MAX()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max
+    "NDB$MAX()")`.
+  id: totrans-71
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这与`[NDB$MAX()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max
+    "NDB$MAX()")`执行的操作相同。
+- en: 'For delete operations, the handling is also the same as that performed by `NDB$MAX()`
+    (and thus the same as `NDB$OLD()`), and is done like this:'
+  id: totrans-72
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于删除操作，处理方式与`NDB$MAX()`（因此与`NDB$OLD()`）执行的操作相同，如下所示：
+- en: '[PRE5]'
+  id: totrans-73
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: '`NDB$MAX_INS()` was added in NDB 8.0.30.'
+  id: totrans-74
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$MAX_INS()`添加在NDB 8.0.30中。'
+- en: NDB$MAX_DEL_WIN_INS()
+  id: totrans-75
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$MAX_DEL_WIN_INS()
+- en: 'This function provides support for resolution of conflicting write operations,
+    along with “delete wins” resolution like that of `[NDB$MAX_DELETE_WIN()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-delete-win
+    "NDB$MAX_DELETE_WIN()")`. Write conflicts are handled by `NDB$MAX_DEL_WIN_INS()`
+    as shown here:'
+  id: totrans-76
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此函数提供对冲突写操作的支持，以及类似于`[NDB$MAX_DELETE_WIN()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-max-delete-win
+    "NDB$MAX_DELETE_WIN()")`的“删除获胜”解决方案。写冲突由`NDB$MAX_DEL_WIN_INS()`处理如下：
+- en: If there is no conflicting write, apply this one (this is the same as `NDB$MAX_DELETE_WIN()`).
+  id: totrans-77
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果没有冲突的写入，应用这个（与 `NDB$MAX_DELETE_WIN()` 相同）。
+- en: 'Otherwise, apply “greatest timestamp wins” conflict resolution, as follows:'
+  id: totrans-78
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 否则，应用“最大时间戳获胜”冲突解决，如下所示：
+- en: If the timestamp for the incoming write is greater than that of the conflicting
+    write, apply the incoming operation.
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果传入写入的时间戳大于冲突写入的时间戳，则应用传入操作。
+- en: If the timestamp for the incoming write is *not* greater, reject the incoming
+    write operation.
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果传入写入的时间戳*不*更大，则拒绝传入的写入操作。
+- en: 'Handling of insert operations as performed by `NDB$MAX_DEL_WIN_INS()` can be
+    represented in pseudocode as shown here:'
+  id: totrans-81
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$MAX_DEL_WIN_INS()` 执行插入操作的处理可以用伪代码表示如下：'
+- en: '[PRE6]'
+  id: totrans-82
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: 'For update operations, the source''s updated timestamp column value is compared
+    with replica''s timestamp column value, like this (again using pseudocode):'
+  id: totrans-83
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于更新操作，源的更新时间戳列值与副本的时间戳列值进行比较，如下所示（再次使用伪代码）：
+- en: '[PRE7]'
+  id: totrans-84
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Deletes are handled using a “delete always wins” strategy (the same as `NDB$MAX_DELETE_WIN()`);
+    a `DELETE` is always applied without any regard to any timestamp values, as illustrated
+    by this pseudocode:'
+  id: totrans-85
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 删除使用“删除始终获胜”策略处理（与 `NDB$MAX_DELETE_WIN()` 相同）；`DELETE` 总是应用，而不考虑任何时间戳值，如下所示的伪代码所示：
+- en: '[PRE8]'
+  id: totrans-86
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: For conflicts between update and delete operations, this function behaves identically
+    to `NDB$MAX_DELETE_WIN()`.
+  id: totrans-87
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于更新和删除操作之间的冲突，此函数的行为与 `NDB$MAX_DELETE_WIN()` 完全相同。
+- en: '`NDB$MAX_DEL_WIN_INS()` was added in NDB 8.0.30.'
+  id: totrans-88
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$MAX_DEL_WIN_INS()` 添加在 NDB 8.0.30 中。'
+- en: NDB$EPOCH()
+  id: totrans-89
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$EPOCH()
+- en: The `NDB$EPOCH()` function tracks the order in which replicated epochs are applied
+    on a replica cluster relative to changes originating on the replica. This relative
+    ordering is used to determine whether changes originating on the replica are concurrent
+    with any changes that originate locally, and are therefore potentially in conflict.
+  id: totrans-90
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH()` 函数跟踪在副本集群上应用的复制时期的顺序，相对于在副本上发起的更改。这种相对顺序用于确定在副本上发起的更改是否与本地发起的任何更改同时发生，因此可能存在冲突。'
+- en: Most of what follows in the description of `NDB$EPOCH()` also applies to `NDB$EPOCH_TRANS()`.
+    Any exceptions are noted in the text.
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 `NDB$EPOCH()` 的描述中接下来的大部分内容也适用于 `NDB$EPOCH_TRANS()`。任何异常情况在文本中有注明。
+- en: '`NDB$EPOCH()` is asymmetric, operating on one NDB Cluster in a bidirectional
+    replication configuration (sometimes referred to as “active-active” replication).
+    We refer here to cluster on which it operates as the primary, and the other as
+    the secondary. The replica on the primary is responsible for detecting and handling
+    conflicts, while the replica on the secondary is not involved in any conflict
+    detection or handling.'
+  id: totrans-92
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH()` 是不对称的，操作在一个 NDB 集群中的双向复制配置（有时称为“主动-主动”复制）。我们在这里将其操作的集群称为主集群，另一个称为从集群。主集群上的副本负责检测和处理冲突，而从集群上的副本不参与任何冲突检测或处理。'
+- en: 'When the replica on the primary detects conflicts, it injects events into its
+    own binary log to compensate for these; this ensures that the secondary NDB Cluster
+    eventually realigns itself with the primary and so keeps the primary and secondary
+    from diverging. This compensation and realignment mechanism requires that the
+    primary NDB Cluster always wins any conflicts with the secondary—that is, that
+    the primary''s changes are always used rather than those from the secondary in
+    event of a conflict. This “primary always wins” rule has the following implications:'
+  id: totrans-93
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当主集群上的副本检测到冲突时，它会向自己的二进制日志中注入事件来补偿这些冲突；这确保了从集群最终重新与主集群对齐，从而使主集群和从集群保持一致。这种补偿和重新对齐机制要求主集群始终在与从集群的冲突中获胜，即主集群的更改始终优先于从集群的更改。这个“主始终获胜”的规则有以下含义：
+- en: Operations that change data, once committed on the primary, are fully persistent
+    and are not undone or rolled back by conflict detection and resolution.
+  id: totrans-94
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 一旦在主集群上提交更改数据的操作是完全持久的，并且不会被冲突检测和解决所撤消或回滚。
+- en: Data read from the primary is fully consistent. Any changes committed on the
+    Primary (locally or from the replica) are not reverted later.
+  id: totrans-95
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从主集群读取的数据是完全一致的。在主集群上提交的任何更改（本地或来自副本）后来都不会被撤销。
+- en: Operations that change data on the secondary may later be reverted if the primary
+    determines that they are in conflict.
+  id: totrans-96
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在从集群上更改数据的操作可能会在主集群确定它们存在冲突时稍后被撤销。
+- en: Individual rows read on the secondary are self-consistent at all times, each
+    row always reflecting either a state committed by the secondary, or one committed
+    by the primary.
+  id: totrans-97
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在辅助节点上读取的各行始终自洽，每行始终反映出辅助节点提交的状态或主节点提交的状态之一。
+- en: Sets of rows read on the secondary may not necessarily be consistent at a given
+    single point in time. For `NDB$EPOCH_TRANS()`, this is a transient state; for
+    `NDB$EPOCH()`, it can be a persistent state.
+  id: totrans-98
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在辅助节点上读取的行集在给定的单个时间点上可能不一定一致。对于`NDB$EPOCH_TRANS()`来说，这是一个瞬时状态；对于`NDB$EPOCH()`来说，它可以是一个持久状态。
+- en: Assuming a period of sufficient length without any conflicts, all data on the
+    secondary NDB Cluster (eventually) becomes consistent with the primary's data.
+  id: totrans-99
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 假设在足够长的时间段内没有任何冲突，辅助NDB集群上的所有数据（最终）都会与主节点的数据保持一致。
+- en: '`NDB$EPOCH()` and `NDB$EPOCH_TRANS()` do not require any user schema modifications,
+    or application changes to provide conflict detection. However, careful thought
+    must be given to the schema used, and the access patterns used, to verify that
+    the complete system behaves within specified limits.'
+  id: totrans-100
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`不需要任何用户模式修改或应用更改来提供冲突检测。然而，必须仔细考虑所使用的模式和访问模式，以验证整个系统是否在指定的限制内运行。'
+- en: 'Each of the `NDB$EPOCH()` and `NDB$EPOCH_TRANS()` functions can take an optional
+    parameter; this is the number of bits to use to represent the lower 32 bits of
+    the epoch, and should be set to no less than the value calculated as shown here:'
+  id: totrans-101
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`函数中的每一个都可以接受一个可选参数；这是用来表示时代低32位的比特数，应设置为不少于如下计算所示的值：'
+- en: '[PRE9]'
+  id: totrans-102
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: For the default values of these configuration parameters (2000 and 100 milliseconds,
+    respectively), this gives a value of 5 bits, so the default value (6) should be
+    sufficient, unless other values are used for [`TimeBetweenGlobalCheckpoints`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenglobalcheckpoints),
+    [`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs),
+    or both. A value that is too small can result in false positives, while one that
+    is too large could lead to excessive wasted space in the database.
+  id: totrans-103
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于这些配置参数的默认值（分别为2000和100毫秒），这给出了一个值为5位，因此默认值（6）应该足够，除非为[`TimeBetweenGlobalCheckpoints`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenglobalcheckpoints)、[`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)或两者都使用了其他值。值太小可能导致误报，而值太大可能导致数据库中浪费的空间过多。
+- en: Both `NDB$EPOCH()` and `NDB$EPOCH_TRANS()` insert entries for conflicting rows
+    into the relevant exceptions tables, provided that these tables have been defined
+    according to the same exceptions table schema rules as described elsewhere in
+    this section (see [NDB$OLD()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-old
+    "NDB$OLD()")). You must create any exceptions table before creating the data table
+    with which it is to be used.
+  id: totrans-104
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`都会将冲突行的条目插入相关的异常表中，前提是这些表已根据本节其他地方描述的相同异常表模式规则进行了定义（参见[NDB$OLD()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-old
+    "NDB$OLD()")）。你必须在创建要使用的数据表之前创建任何异常表。'
+- en: As with the other conflict detection functions discussed in this section, `NDB$EPOCH()`
+    and `NDB$EPOCH_TRANS()` are activated by including relevant entries in the `mysql.ndb_replication`
+    table (see [ndb_replication Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication
+    "ndb_replication Table")). The roles of the primary and secondary NDB Clusters
+    in this scenario are fully determined by `mysql.ndb_replication` table entries.
+  id: totrans-105
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与本节讨论的其他冲突检测函数一样，通过在`mysql.ndb_replication`表中包含相关条目来激活`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`（参见[ndb_replication表](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication
+    "ndb_replication表")）。在这种情况下，主NDB集群和辅助NDB集群的角色完全由`mysql.ndb_replication`表中的条目确定。
+- en: Because the conflict detection algorithms employed by `NDB$EPOCH()` and `NDB$EPOCH_TRANS()`
+    are asymmetric, you must use different values for the `server_id` entries of the
+    primary and secondary replicas.
+  id: totrans-106
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`所采用的冲突检测算法是不对称的，你必须为主节点和辅助节点副本的`server_id`条目使用不同的值。
+- en: A conflict between `DELETE` operations alone is not sufficient to trigger a
+    conflict using `NDB$EPOCH()` or `NDB$EPOCH_TRANS()`, and the relative placement
+    within epochs does not matter.
+  id: totrans-107
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 仅仅DELETE操作之间的冲突不足以触发使用`NDB$EPOCH()`或`NDB$EPOCH_TRANS()`的冲突，而且时代内的相对位置并不重要。
+- en: '**Limitations on NDB$EPOCH()**'
+  id: totrans-108
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB$EPOCH()的限制**'
+- en: 'The following limitations currently apply when using `NDB$EPOCH()` to perform
+    conflict detection:'
+  id: totrans-109
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用`NDB$EPOCH()`执行冲突检测时，目前存在以下限制：
+- en: 'Conflicts are detected using NDB Cluster epoch boundaries, with granularity
+    proportional to [`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)
+    (default: 100 milliseconds). The minimum conflict window is the minimum time during
+    which concurrent updates to the same data on both clusters always report a conflict.
+    This is always a nonzero length of time, and is roughly proportional to `2 * (latency
+    + queueing + TimeBetweenEpochs)`. This implies that—assuming the default for [`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)
+    and ignoring any latency between clusters (as well as any queuing delays)—the
+    minimum conflict window size is approximately 200 milliseconds. This minimum window
+    should be considered when looking at expected application “race” patterns.'
+  id: totrans-110
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用NDB集群时代边界来检测冲突，粒度与[`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)成比例（默认值：100毫秒）。最小冲突窗口是同时在两个集群上对同一数据进行并发更新时始终报告冲突的最短时间。这始终是一个非零长度的时间，并且大致与`2
+    *（延迟+排队+TimeBetweenEpochs）`成比例。这意味着——假设默认为[`TimeBetweenEpochs`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-timebetweenepochs)并忽略集群之间的任何延迟（以及任何排队延迟）——最小冲突窗口大小约为200毫秒。在查看预期应用程序“竞争”模式时，应考虑这个最小窗口。
+- en: Additional storage is required for tables using the `NDB$EPOCH()` and `NDB$EPOCH_TRANS()`
+    functions; from 1 to 32 bits extra space per row is required, depending on the
+    value passed to the function.
+  id: totrans-111
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`函数的表需要额外的存储空间；每行需要额外的1到32位空间，具体取决于传递给函数的值。
+- en: Conflicts between delete operations may result in divergence between the primary
+    and secondary. When a row is deleted on both clusters concurrently, the conflict
+    can be detected, but is not recorded, since the row is deleted. This means that
+    further conflicts during the propagation of any subsequent realignment operations
+    are not detected, which can lead to divergence.
+  id: totrans-112
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 删除操作之间的冲突可能导致主要和次要之间的分歧。当同时在两个集群上删除一行时，冲突可以被检测到，但不会被记录，因为行已被删除。这意味着在任何后续重新对齐操作的传播过程中不会检测到进一步的冲突，这可能导致分歧。
+- en: Deletes should be externally serialized, or routed to one cluster only. Alternatively,
+    a separate row should be updated transactionally with such deletes and any inserts
+    that follow them, so that conflicts can be tracked across row deletes. This may
+    require changes in applications.
+  id: totrans-113
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 删除应该外部串行化，或者路由到一个集群。或者，应该在这些删除和随后的任何插入事务中事务更新一个单独的行，以便跟踪冲突。这可能需要应用程序的更改。
+- en: Only two NDB Clusters in a bidirectional “active-active” configuration are currently
+    supported when using `NDB$EPOCH()` or `NDB$EPOCH_TRANS()` for conflict detection.
+  id: totrans-114
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当使用`NDB$EPOCH()`或`NDB$EPOCH_TRANS()`进行冲突检测时，目前仅支持双向“主动-主动”配置中的两个NDB集群。
+- en: Tables having [`BLOB`](blob.html "13.3.4 The BLOB and TEXT Types") or [`TEXT`](blob.html
+    "13.3.4 The BLOB and TEXT Types") columns are not currently supported with `NDB$EPOCH()`
+    or `NDB$EPOCH_TRANS()`.
+  id: totrans-115
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 具有[`BLOB`](blob.html "13.3.4 BLOB和TEXT类型")或[`TEXT`](blob.html "13.3.4 BLOB和TEXT类型")列的表目前不支持使用`NDB$EPOCH()`或`NDB$EPOCH_TRANS()`。
+- en: NDB$EPOCH_TRANS()
+  id: totrans-116
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$EPOCH_TRANS()
+- en: '`NDB$EPOCH_TRANS()` extends the `NDB$EPOCH()` function. Conflicts are detected
+    and handled in the same way using the “primary wins all” rule (see [NDB$EPOCH()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch
+    "NDB$EPOCH()")) but with the extra condition that any other rows updated in the
+    same transaction in which the conflict occurred are also regarded as being in
+    conflict. In other words, where `NDB$EPOCH()` realigns individual conflicting
+    rows on the secondary, `NDB$EPOCH_TRANS()` realigns conflicting transactions.'
+  id: totrans-117
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH_TRANS()`扩展了`NDB$EPOCH()`函数。冲突使用“主要获胜”规则（参见[NDB$EPOCH()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch
+    "NDB$EPOCH()")）进行检测和处理，但额外条件是在发生冲突的同一事务中更新的任何其他行也被视为冲突。换句话说，`NDB$EPOCH()`在次要上重新对齐单个冲突行，而`NDB$EPOCH_TRANS()`在冲突事务上重新对齐。'
+- en: In addition, any transactions which are detectably dependent on a conflicting
+    transaction are also regarded as being in conflict, these dependencies being determined
+    by the contents of the secondary cluster's binary log. Since the binary log contains
+    only data modification operations (inserts, updates, and deletes), only overlapping
+    data modifications are used to determine dependencies between transactions.
+  id: totrans-118
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 此外，任何可检测依赖于冲突事务的事务也被视为冲突，这些依赖关系由次要集群的二进制日志内容确定。由于二进制日志仅包含数据修改操作（插入、更新和删除），因此只有重叠的数据修改用于确定事务之间的依赖关系。
+- en: '`NDB$EPOCH_TRANS()` is subject to the same conditions and limitations as `NDB$EPOCH()`,
+    and in addition requires that all transaction IDs are recorded in the secondary''s
+    binary log, using [`--ndb-log-transaction-id`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-id)
+    set to `ON`. This adds a variable amount of overhead (up to 13 bytes per row).'
+  id: totrans-119
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH_TRANS()`受到与`NDB$EPOCH()`相同的条件和限制，并且还要求所有事务ID都记录在次要的二进制日志中，使用[`--ndb-log-transaction-id`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-transaction-id)设置为`ON`。这会增加可变的开销量（每行最多13个字节）。'
+- en: The deprecated [`log_bin_use_v1_row_events`](replication-options-binary-log.html#sysvar_log_bin_use_v1_row_events)
+    system variable, which defaults to `OFF`, must *not* be set to `ON` with `NDB$EPOCH_TRANS()`.
+  id: totrans-120
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 废弃的[`log_bin_use_v1_row_events`](replication-options-binary-log.html#sysvar_log_bin_use_v1_row_events)系统变量，默认值为`OFF`，*不*应该与`NDB$EPOCH_TRANS()`一起设置为`ON`。
+- en: See [NDB$EPOCH()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch
+    "NDB$EPOCH()").
+  id: totrans-121
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 参见[NDB$EPOCH()](mysql-cluster-replication-conflict-resolution.html#mysql-cluster-replication-ndb-epoch
+    "NDB$EPOCH()")。
+- en: NDB$EPOCH2()
+  id: totrans-122
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$EPOCH2()
+- en: The `NDB$EPOCH2()` function is similar to `NDB$EPOCH()`, except that `NDB$EPOCH2()`
+    provides for delete-delete handling with a bidirectional replication topology.
+    In this scenario, primary and secondary roles are assigned to the two sources
+    by setting the [`ndb_slave_conflict_role`](mysql-cluster-options-variables.html#sysvar_ndb_slave_conflict_role)
+    system variable to the appropriate value on each source (usually one each of `PRIMARY`,
+    `SECONDARY`). When this is done, modifications made by the secondary are reflected
+    by the primary back to the secondary which then conditionally applies them.
+  id: totrans-123
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH2()`函数类似于`NDB$EPOCH()`，不同之处在于`NDB$EPOCH2()`提供了双向复制拓扑的删除-删除处理。在这种情况下，通过在每个源上设置[`ndb_slave_conflict_role`](mysql-cluster-options-variables.html#sysvar_ndb_slave_conflict_role)系统变量的适当值（通常一个`PRIMARY`，一个`SECONDARY`）来为两个源分配主要和次要角色。完成此操作后，次要所做的修改会由主要反映回次要，然后有条件地应用这些修改。'
+- en: NDB$EPOCH2_TRANS()
+  id: totrans-124
+  prefs:
+  - PREF_H5
+  type: TYPE_NORMAL
+  zh: NDB$EPOCH2_TRANS()
+- en: '`NDB$EPOCH2_TRANS()` extends the `NDB$EPOCH2()` function. Conflicts are detected
+    and handled in the same way, and assigning primary and secondary roles to the
+    replicating clusters, but with the extra condition that any other rows updated
+    in the same transaction in which the conflict occurred are also regarded as being
+    in conflict. That is, `NDB$EPOCH2()` realigns individual conflicting rows on the
+    secondary, while `NDB$EPOCH_TRANS()` realigns conflicting transactions.'
+  id: totrans-125
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH2_TRANS()`扩展了`NDB$EPOCH2()`函数。冲突的检测和处理方式相同，并为复制集群分配主要和次要角色，但额外条件是在发生冲突的同一事务中更新的任何其他行也被视为冲突。也就是说，`NDB$EPOCH2()`在次要上重新调整单个冲突行，而`NDB$EPOCH_TRANS()`重新调整冲突事务。'
+- en: Where `NDB$EPOCH()` and `NDB$EPOCH_TRANS()` use metadata that is specified per
+    row, per last modified epoch, to determine on the primary whether an incoming
+    replicated row change from the secondary is concurrent with a locally committed
+    change; concurrent changes are regarded as conflicting, with subsequent exceptions
+    table updates and realignment of the secondary. A problem arises when a row is
+    deleted on the primary so there is no longer any last-modified epoch available
+    to determine whether any replicated operations conflict, which means that conflicting
+    delete operations are not detected. This can result in divergence, an example
+    being a delete on one cluster which is concurrent with a delete and insert on
+    the other; this why delete operations can be routed to only one cluster when using
+    `NDB$EPOCH()` and `NDB$EPOCH_TRANS()`.
+  id: totrans-126
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`使用每行指定的元数据，每个最后修改的时代，在主键上确定来自辅助的复制行更改是否与本地提交的更改同时发生；同时发生的更改被视为冲突，随后的异常表更新和辅助的重新对齐。当主键上的行被删除时，不再有任何最后修改的时代可用来确定任何复制操作是否冲突，这意味着不会检测到冲突的删除操作。这可能导致分歧，例如一个集群上的删除与另一个集群上的删除和插入同时发生；这就是在使用`NDB$EPOCH()`和`NDB$EPOCH_TRANS()`时删除操作只能路由到一个集群的原因。'
+- en: '`NDB$EPOCH2()` bypasses the issue just described—storing information about
+    deleted rows on the PRIMARY—by ignoring any delete-delete conflict, and by avoiding
+    any potential resultant divergence as well. This is accomplished by reflecting
+    any operation successfully applied on and replicated from the secondary back to
+    the secondary. On its return to the secondary, it can be used to reapply an operation
+    on the secondary which was deleted by an operation originating from the primary.'
+  id: totrans-127
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$EPOCH2()`通过忽略任何删除-删除冲突的问题—在主键上存储有关已删除行的信息—并避免任何潜在的结果分歧。通过将成功应用并从辅助复制的任何操作反射回辅助，可以在辅助上重新应用由来自主键的操作删除的操作。'
+- en: When using `NDB$EPOCH2()`, you should keep in mind that the secondary applies
+    the delete from the primary, removing the new row until it is restored by a reflected
+    operation. In theory, the subsequent insert or update on the secondary conflicts
+    with the delete from the primary, but in this case, we choose to ignore this and
+    allow the secondary to “win”, in the interest of preventing divergence between
+    the clusters. In other words, after a delete, the primary does not detect conflicts,
+    and instead adopts the secondary's following changes immediately. Because of this,
+    the secondary's state can revisit multiple previous committed states as it progresses
+    to a final (stable) state, and some of these may be visible.
+  id: totrans-128
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用`NDB$EPOCH2()`时，您应该记住，辅助会应用从主键删除的操作，直到通过反射操作恢复新行。理论上，辅助上的后续插入或更新与主键上的删除冲突，但在这种情况下，我们选择忽略这一点，并允许辅助“获胜”，以防止集群之间的分歧。换句话说，在删除后，主键不会检测到冲突，而是立即采纳辅助的后续更改。因此，随着辅助向最终（稳定）状态前进，辅助的状态可以重新访问多个先前提交的状态，并且其中一些可能是可见的。
+- en: You should also be aware that reflecting all operations from the secondary back
+    to the primary increases the size of the primary's logbinary log, as well as demands
+    on bandwidth, CPU usage, and disk I/O.
+  id: totrans-129
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还应该意识到，将所有操作从辅助反射回主键会增加主键的logbinary日志大小，以及对带宽、CPU使用率和磁盘I/O的需求。
+- en: Application of reflected operations on the secondary depends on the state of
+    the target row on the secondary. Whether or not reflected changes are applied
+    on the secondary can be tracked by checking the [`Ndb_conflict_reflected_op_prepare_count`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_reflected_op_prepare_count)
+    and [`Ndb_conflict_reflected_op_discard_count`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_reflected_op_discard_count)
+    status variables. The number of changes applied is simply the difference between
+    these two values (note that `Ndb_conflict_reflected_op_prepare_count` is always
+    greater than or equal to `Ndb_conflict_reflected_op_discard_count`).
+  id: totrans-130
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 应用在辅助上的反射操作取决于辅助上目标行的状态。可以通过检查[`Ndb_conflict_reflected_op_prepare_count`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_reflected_op_prepare_count)和[`Ndb_conflict_reflected_op_discard_count`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_reflected_op_discard_count)状态变量来跟踪在辅助上是否应用了反射更改。应用的更改数量简单地是这两个值之间的差异（请注意`Ndb_conflict_reflected_op_prepare_count`始终大于或等于`Ndb_conflict_reflected_op_discard_count`）。
+- en: 'Events are applied if and only if both of the following conditions are true:'
+  id: totrans-131
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事件仅在以下两个条件都为真时应用：
+- en: The existence of the row—that is, whether or not it exists—is in accordance
+    with the type of event. For delete and update operations, the row must already
+    exist. For insert operations, the row must *not* exist.
+  id: totrans-132
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 行的存在与否，即它是否存在，与事件类型一致。对于删除和更新操作，行必须已经存在。对于插入操作，行必须*不存在*。
+- en: The row was last modified by the primary. It is possible that the modification
+    was accomplished through the execution of a reflected operation.
+  id: totrans-133
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 行是由主要操作修改的。可能是通过执行反射操作完成修改的。
+- en: If both of these conditions are not met, the reflected operation is discarded
+    by the secondary.
+  id: totrans-134
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果这两个条件不满足，则次要操作将被次要方丢弃。
+- en: Conflict Resolution Exceptions Table
+  id: totrans-135
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 冲突解决异常表
+- en: 'To use the `NDB$OLD()` conflict resolution function, it is also necessary to
+    create an exceptions table corresponding to each [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") table for which this type of conflict resolution is to be employed.
+    This is also true when using `NDB$EPOCH()` or `NDB$EPOCH_TRANS()`. The name of
+    this table is that of the table for which conflict resolution is to be applied,
+    with the string `$EX` appended. (For example, if the name of the original table
+    is `mytable`, the name of the corresponding exceptions table name should be `mytable$EX`.)
+    The syntax for creating the exceptions table is as shown here:'
+  id: totrans-136
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要使用`NDB$OLD()`冲突解决函数，还需要为每个要使用此类冲突解决的[`NDB`](mysql-cluster.html "第25章 MySQL
+    NDB Cluster 8.0")表创建一个对应的异常表。当使用`NDB$EPOCH()`或`NDB$EPOCH_TRANS()`时也是如此。这个表的名称与要应用冲突解决的表的名称相同，只是在末尾添加了字符串`$EX`。（例如，如果原始表的名称是`mytable`，则相应的异常表名称应为`mytable$EX`。）创建异常表的语法如下所示：
+- en: '[PRE10]'
+  id: totrans-137
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: The first four columns are required. The names of the first four columns and
+    the columns matching the original table's primary key columns are not critical;
+    however, we suggest for reasons of clarity and consistency, that you use the names
+    shown here for the `server_id`, `source_server_id`, `source_epoch`, and `count`
+    columns, and that you use the same names as in the original table for the columns
+    matching those in the original table's primary key.
+  id: totrans-138
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 前四列是必需的。前四列的名称和与原始表主键列匹配的列的名称并不重要；但是，出于清晰和一致性的原因，我们建议您使用此处显示的`server_id`、`source_server_id`、`source_epoch`和`count`列的名称，并且对于与原始表主键匹配的列，使用与原始表中相同的名称。
+- en: If the exceptions table uses one or more of the optional columns `NDB$OP_TYPE`,
+    `NDB$CFT_CAUSE`, or `NDB$ORIG_TRANSID` discussed later in this section, then each
+    of the required columns must also be named using the prefix `NDB$`. If desired,
+    you can use the `NDB$` prefix to name the required columns even if you do not
+    define any optional columns, but in this case, all four of the required columns
+    must be named using the prefix.
+  id: totrans-139
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果异常表使用本节后面讨论的一个或多个可选列`NDB$OP_TYPE`、`NDB$CFT_CAUSE`或`NDB$ORIG_TRANSID`，则每个必需列也必须使用前缀`NDB$`命名。如果需要，即使您不定义任何可选列，也可以使用`NDB$`前缀命名必需列，但在这种情况下，所有四个必需列必须使用前缀命名。
+- en: Following these columns, the columns making up the original table's primary
+    key should be copied in the order in which they are used to define the primary
+    key of the original table. The data types for the columns duplicating the primary
+    key columns of the original table should be the same as (or larger than) those
+    of the original columns. A subset of the primary key columns may be used.
+  id: totrans-140
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这些列之后，应按照用于定义原始表主键的顺序复制构成原始表主键的列。复制原始表主键列的列的数据类型应与原始列相同（或更大）。可以使用主键列的子集。
+- en: The exceptions table must use the [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") storage engine. (An example that uses `NDB$OLD()` with an exceptions
+    table is shown later in this section.)
+  id: totrans-141
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 异常表必须使用[`NDB`](mysql-cluster.html "第25章 MySQL NDB Cluster 8.0")存储引擎。（本节后面将展示使用带有异常表的`NDB$OLD()`的示例。）
+- en: Additional columns may optionally be defined following the copied primary key
+    columns, but not before any of them; any such extra columns cannot be `NOT NULL`.
+    NDB Cluster supports three additional, predefined optional columns `NDB$OP_TYPE`,
+    `NDB$CFT_CAUSE`, and `NDB$ORIG_TRANSID`, which are described in the next few paragraphs.
+  id: totrans-142
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 可以在复制的主键列后面选择性地定义其他列，但不能在它们之前；任何此类额外列都不能为 `NOT NULL`。NDB 集群支持三个额外的预定义可选列 `NDB$OP_TYPE`、`NDB$CFT_CAUSE`
+    和 `NDB$ORIG_TRANSID`，这些列在接下来的几段中描述。
+- en: '`NDB$OP_TYPE`: This column can be used to obtain the type of operation causing
+    the conflict. If you use this column, define it as shown here:'
+  id: totrans-143
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$OP_TYPE`：此列可用于获取导致冲突的操作类型。如果使用此列，请按以下所示定义：'
+- en: '[PRE11]'
+  id: totrans-144
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: The `WRITE_ROW`, `UPDATE_ROW`, and `DELETE_ROW` operation types represent user-initiated
+    operations. `REFRESH_ROW` operations are operations generated by conflict resolution
+    in compensating transactions sent back to the originating cluster from the cluster
+    that detected the conflict. `READ_ROW` operations are user-initiated read tracking
+    operations defined with exclusive row locks.
+  id: totrans-145
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`WRITE_ROW`、`UPDATE_ROW` 和 `DELETE_ROW` 操作类型代表用户发起的操作。`REFRESH_ROW` 操作是由冲突解决在补偿事务中生成的操作，从检测到冲突的集群发送回原始集群。`READ_ROW`
+    操作是由用户发起的读跟踪操作，使用独占行锁定义。'
+- en: '`NDB$CFT_CAUSE`: You can define an optional column `NDB$CFT_CAUSE` which provides
+    the cause of the registered conflict. This column, if used, is defined as shown
+    here:'
+  id: totrans-146
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$CFT_CAUSE`：您可以定义一个可选列 `NDB$CFT_CAUSE`，提供注册冲突的原因。如果使用此列，则应按以下所示定义该列：'
+- en: '[PRE12]'
+  id: totrans-147
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: '`ROW_DOES_NOT_EXIST` can be reported as the cause for `UPDATE_ROW` and `WRITE_ROW`
+    operations; `ROW_ALREADY_EXISTS` can be reported for `WRITE_ROW` events. `DATA_IN_CONFLICT`
+    is reported when a row-based conflict function detects a conflict; `TRANS_IN_CONFLICT`
+    is reported when a transactional conflict function rejects all of the operations
+    belonging to a complete transaction.'
+  id: totrans-148
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ROW_DOES_NOT_EXIST` 可以报告为 `UPDATE_ROW` 和 `WRITE_ROW` 操作的原因；`ROW_ALREADY_EXISTS`
+    可以报告为 `WRITE_ROW` 事件的原因。当基于行的冲突函数检测到冲突时，报告 `DATA_IN_CONFLICT`；当事务冲突函数拒绝完整事务的所有操作时，报告
+    `TRANS_IN_CONFLICT`。'
+- en: '`NDB$ORIG_TRANSID`: The `NDB$ORIG_TRANSID` column, if used, contains the ID
+    of the originating transaction. This column should be defined as follows:'
+  id: totrans-149
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$ORIG_TRANSID`：如果使用 `NDB$ORIG_TRANSID` 列，则该列包含原始事务的 ID。应按以下方式定义此列：'
+- en: '[PRE13]'
+  id: totrans-150
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: '`NDB$ORIG_TRANSID` is a 64-bit value generated by `NDB`. This value can be
+    used to correlate multiple exceptions table entries belonging to the same conflicting
+    transaction from the same or different exceptions tables.'
+  id: totrans-151
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`NDB$ORIG_TRANSID` 是由 `NDB` 生成的 64 位值。此值可用于关联属于相同冲突事务的多个异常表条目，这些条目来自相同或不同的异常表。'
+- en: Additional reference columns which are not part of the original table's primary
+    key can be named `*`colname`*$OLD` or `*`colname`*$NEW`. `*`colname`*$OLD` references
+    old values in update and delete operations—that is, operations containing `DELETE_ROW`
+    events. `*`colname`*$NEW` can be used to reference new values in insert and update
+    operations—in other words, operations using `WRITE_ROW` events, `UPDATE_ROW` events,
+    or both types of events. Where a conflicting operation does not supply a value
+    for a given reference column that is not a primary key, the exceptions table row
+    contains either `NULL`, or a defined default value for that column.
+  id: totrans-152
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 附加的参考列，不是原始表的主键的一部分，可以命名为 `*`colname`*$OLD` 或 `*`colname`*$NEW`。 `*`colname`*$OLD`
+    引用更新和删除操作中的旧值，即包含 `DELETE_ROW` 事件的操作。 `*`colname`*$NEW` 可用于引用插入和更新操作中的新值，换句话说，使用
+    `WRITE_ROW` 事件、`UPDATE_ROW` 事件或两种事件的操作。如果冲突操作未为给定的非主键参考列提供值，则异常表行包含 `NULL` 或该列的定义默认值。
+- en: Important
+  id: totrans-153
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要
+- en: The `mysql.ndb_replication` table is read when a data table is set up for replication,
+    so the row corresponding to a table to be replicated must be inserted into `mysql.ndb_replication`
+    *before* the table to be replicated is created.
+  id: totrans-154
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当数据表设置为复制时，将读取 `mysql.ndb_replication` 表，因此在创建要复制的表之前，必须将对应于要复制的表的行插入到 `mysql.ndb_replication`
+    中。
+- en: Conflict Detection Status Variables
+  id: totrans-155
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 冲突检测状态变量
+- en: Several status variables can be used to monitor conflict detection. You can
+    see how many rows have been found in conflict by `NDB$EPOCH()` since this replica
+    was last restarted from the current value of the [`Ndb_conflict_fn_epoch`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch)
+    system status variable.
+  id: totrans-156
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 几个状态变量可用于监视冲突检测。您可以通过[`Ndb_conflict_fn_epoch`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch)系统状态变量的当前值，查看自此副本上次从头启动以来，由`NDB$EPOCH()`发现的冲突行数。
+- en: '[`Ndb_conflict_fn_epoch_trans`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch_trans)
+    provides the number of rows that have been found directly in conflict by `NDB$EPOCH_TRANS()`.
+    [`Ndb_conflict_fn_epoch2`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch2)
+    and [`Ndb_conflict_fn_epoch2_trans`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch2_trans)
+    show the number of rows found in conflict by `NDB$EPOCH2()` and `NDB$EPOCH2_TRANS()`,
+    respectively. The number of rows actually realigned, including those affected
+    due to their membership in or dependency on the same transactions as other conflicting
+    rows, is given by [`Ndb_conflict_trans_row_reject_count`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_trans_row_reject_count).'
+  id: totrans-157
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`Ndb_conflict_fn_epoch_trans`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch_trans)提供了由`NDB$EPOCH_TRANS()`直接发现的冲突行数。[`Ndb_conflict_fn_epoch2`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch2)和[`Ndb_conflict_fn_epoch2_trans`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_epoch2_trans)分别显示了由`NDB$EPOCH2()`和`NDB$EPOCH2_TRANS()`发现的冲突行数。实际重新对齐的行数，包括由于它们属于或依赖于与其他冲突行相同事务的行受到影响的行数，由[`Ndb_conflict_trans_row_reject_count`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_trans_row_reject_count)给出。'
+- en: Another server status variable [`Ndb_conflict_fn_max`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max)
+    provides a count of the number of times that a row was not applied on the current
+    SQL node due to “greatest timestamp wins” conflict resolution since the last time
+    that [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") was started.
+    [`Ndb_conflict_fn_max_del_win`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max_del_win)
+    provides a count of the number of times that conflict resolution based on the
+    outcome of `NDB$MAX_DELETE_WIN()` has been applied.
+  id: totrans-158
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另一个服务器状态变量[`Ndb_conflict_fn_max`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max)提供了自上次[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")启动以来，由于“最大时间戳获胜”冲突解决而未在当前 SQL 节点上应用的行数。[`Ndb_conflict_fn_max_del_win`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max_del_win)提供了基于`NDB$MAX_DELETE_WIN()`结果的冲突解决已应用的次数。
+- en: NDB 8.0.30 and later provides [`Ndb_conflict_fn_max_ins`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max_ins)
+    for tracking the number of times that “greater timestamp wins” handling has been
+    applied to write operations (using `NDB$MAX_INS()`); a count of the number of
+    times that “same timestamp wins” handling of writes has been applied (as implemented
+    by `NDB$MAX_DEL_WIN_INS()`), is provided by the status variable [`Ndb_conflict_fn_max_del_win_ins`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max_del_win_ins).
+  id: totrans-159
+  prefs: []
+  type: TYPE_NORMAL
+  zh: NDB 8.0.30及更高版本提供了[`Ndb_conflict_fn_max_ins`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max_ins)，用于跟踪“更大时间戳获胜”处理已应用于写操作的次数（使用`NDB$MAX_INS()`）；由状态变量[`Ndb_conflict_fn_max_del_win_ins`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_max_del_win_ins)提供了“相同时间戳获胜”写操作处理已应用的次数（由`NDB$MAX_DEL_WIN_INS()`实现）。
+- en: The number of times that a row was not applied as the result of “same timestamp
+    wins” conflict resolution on a given [**mysqld**](mysqld.html "6.3.1 mysqld —
+    The MySQL Server") since the last time it was restarted is given by the global
+    status variable [`Ndb_conflict_fn_old`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_old).
+    In addition to incrementing [`Ndb_conflict_fn_old`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_old),
+    the primary key of the row that was not used is inserted into an exceptions table,
+    as explained elsewhere in this section.
+  id: totrans-160
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 自上次[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")重新启动以来，由于“相同时间戳获胜”冲突解决而未应用的行数由全局状态变量[`Ndb_conflict_fn_old`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_old)给出。除了递增[`Ndb_conflict_fn_old`](mysql-cluster-options-variables.html#statvar_Ndb_conflict_fn_old)外，未使用的行的主键被插入到异常表中，如本节其他地方所述。
+- en: See also [Section 25.4.3.9.3, “NDB Cluster Status Variables”](mysql-cluster-options-variables.html#mysql-cluster-status-variables
+    "25.4.3.9.3 NDB Cluster Status Variables").
+  id: totrans-161
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 另请参阅 [Section 25.4.3.9.3, “NDB Cluster Status Variables”](mysql-cluster-options-variables.html#mysql-cluster-status-variables
+    "25.4.3.9.3 NDB Cluster Status Variables")。
+- en: Examples
+  id: totrans-162
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 示例
+- en: The following examples assume that you have already a working NDB Cluster replication
+    setup, as described in [Section 25.7.5, “Preparing the NDB Cluster for Replication”](mysql-cluster-replication-preparation.html
+    "25.7.5 Preparing the NDB Cluster for Replication"), and [Section 25.7.6, “Starting
+    NDB Cluster Replication (Single Replication Channel)”](mysql-cluster-replication-starting.html
+    "25.7.6 Starting NDB Cluster Replication (Single Replication Channel)").
+  id: totrans-163
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下示例假定您已经有一个正常工作的 NDB Cluster 复制设置，如 [Section 25.7.5, “Preparing the NDB Cluster
+    for Replication”](mysql-cluster-replication-preparation.html "25.7.5 Preparing
+    the NDB Cluster for Replication") 和 [Section 25.7.6, “Starting NDB Cluster Replication
+    (Single Replication Channel)”](mysql-cluster-replication-starting.html "25.7.6 Starting
+    NDB Cluster Replication (Single Replication Channel)") 中所述。
+- en: '**NDB$MAX() example. ** Suppose you wish to enable “greatest timestamp wins”
+    conflict resolution on table `test.t1`, using column `mycol` as the “timestamp”.
+    This can be done using the following steps:'
+  id: totrans-164
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB$MAX() 示例。** 假设你希望在表 `test.t1` 上启用“最大时间戳获胜”冲突解决，使用列 `mycol` 作为“时间戳”。可以通过以下步骤完成：'
+- en: Make sure that you have started the source [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") with [`--ndb-log-update-as-write=OFF`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write).
+  id: totrans-165
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 确保你已经使用 [`--ndb-log-update-as-write=OFF`](mysql-cluster-options-variables.html#option_mysqld_ndb-log-update-as-write)
+    启动了源 [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")。
+- en: 'On the source, perform this [`INSERT`](insert.html "15.2.7 INSERT Statement")
+    statement:'
+  id: totrans-166
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源上执行这个 [`INSERT`](insert.html "15.2.7 INSERT Statement") 语句：
+- en: '[PRE14]'
+  id: totrans-167
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: Note
+  id: totrans-168
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If the `ndb_replication` table does not already exist, you must create it. See
+    [ndb_replication Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication
+    "ndb_replication Table").
+  id: totrans-169
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果 `ndb_replication` 表尚不存在，则必须创建它。请参阅 [ndb_replication Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication
+    "ndb_replication Table")。
+- en: Inserting a 0 into the `server_id` column indicates that all SQL nodes accessing
+    this table should use conflict resolution. If you want to use conflict resolution
+    on a specific [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") only,
+    use the actual server ID.
+  id: totrans-170
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将 0 插入到 `server_id` 列中表示所有访问该表的 SQL 节点应该使用冲突解决。如果你只想在特定的 [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") 上使用冲突解决，使用实际的服务器 ID。
+- en: Inserting `NULL` into the `binlog_type` column has the same effect as inserting
+    0 (`NBT_DEFAULT`); the server default is used.
+  id: totrans-171
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 将 `NULL` 插入到 `binlog_type` 列中与插入 0 (`NBT_DEFAULT`) 具有相同的效果；使用服务器默认值。
+- en: 'Create the `test.t1` table:'
+  id: totrans-172
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 创建 `test.t1` 表：
+- en: '[PRE15]'
+  id: totrans-173
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: Now, when updates are performed on this table, conflict resolution is applied,
+    and the version of the row having the greatest value for `mycol` is written to
+    the replica.
+  id: totrans-174
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 现在，当对该表执行更新时，将应用冲突解决，并将具有 `mycol` 最大值的行版本写入副本。
+- en: Note
+  id: totrans-175
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: Other `binlog_type` options such as `NBT_UPDATED_ONLY_USE_UPDATE` (`6`) should
+    be used to control logging on the source using the `ndb_replication` table rather
+    than by using command-line options.
+  id: totrans-176
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 其他 `binlog_type` 选项，如 `NBT_UPDATED_ONLY_USE_UPDATE` (`6`)，应该使用 `ndb_replication`
+    表来控制源上的日志记录，而不是使用命令行选项。
+- en: '**NDB$OLD() example. ** Suppose an [`NDB`](mysql-cluster.html "Chapter 25 MySQL
+    NDB Cluster 8.0") table such as the one defined here is being replicated, and
+    you wish to enable “same timestamp wins” conflict resolution for updates to this
+    table:'
+  id: totrans-177
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**NDB$OLD() 示例。** 假设正在复制一个 [`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB
+    Cluster 8.0") 表，如此处定义的表，并且你希望为更新到该表的“相同时间戳获胜”冲突解决启用：'
+- en: '[PRE16]'
+  id: totrans-178
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'The following steps are required, in the order shown:'
+  id: totrans-179
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 需要按照以下顺序执行以下步骤：
+- en: 'First—and *prior* to creating `test.t2`—you must insert a row into the [`mysql.ndb_replication`](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication
+    "ndb_replication Table") table, as shown here:'
+  id: totrans-180
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 首先——*在*创建 `test.t2` 之前——你必须像这样向 [`mysql.ndb_replication`](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication
+    "ndb_replication Table") 表中插入一行：
+- en: '[PRE17]'
+  id: totrans-181
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: Possible values for the `binlog_type` column are shown earlier in this section;
+    in this case, we use `0` to specify that the server default logging behavior be
+    used. The value `'NDB$OLD(mycol)'` should be inserted into the `conflict_fn` column.
+  id: totrans-182
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`binlog_type` 列的可能值在本节中已经显示；在这种情况下，我们使用 `0` 来指定使用服务器默认的日志记录行为。值 `''NDB$OLD(mycol)''`
+    应该插入到 `conflict_fn` 列中。'
+- en: Create an appropriate exceptions table for `test.t2`. The table creation statement
+    shown here includes all required columns; any additional columns must be declared
+    following these columns, and before the definition of the table's primary key.
+  id: totrans-183
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 为`test.t2`创建一个适当的异常表。此处显示的表创建语句包括所有必需列；任何额外列必须在这些列之后声明，并在表的主键定义之前。
+- en: '[PRE18]'
+  id: totrans-184
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE18]'
+- en: 'We can include additional columns for information about the type, cause, and
+    originating transaction ID for a given conflict. We are also not required to supply
+    matching columns for all primary key columns in the original table. This means
+    you can create the exceptions table like this:'
+  id: totrans-185
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 我们可以为给定冲突的类型、原因和起始事务ID包含额外列。我们也不需要为原始表中的所有主键列提供匹配列。这意味着您可以像这样创建异常表：
+- en: '[PRE19]'
+  id: totrans-186
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE19]'
+- en: Note
+  id: totrans-187
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: The `NDB$` prefix is required for the four required columns since we included
+    at least one of the columns `NDB$OP_TYPE`, `NDB$CFT_CAUSE`, or `NDB$ORIG_TRANSID`
+    in the table definition.
+  id: totrans-188
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于我们在表定义中至少包含了`NDB$OP_TYPE`、`NDB$CFT_CAUSE`或`NDB$ORIG_TRANSID`中的一个列，因此四个必需列需要使用`NDB$`前缀。
+- en: Create the table `test.t2` as shown previously.
+  id: totrans-189
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如前所示创建`test.t2`表。
+- en: These steps must be followed for every table for which you wish to perform conflict
+    resolution using `NDB$OLD()`. For each such table, there must be a corresponding
+    row in `mysql.ndb_replication`, and there must be an exceptions table in the same
+    database as the table being replicated.
+  id: totrans-190
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 这些步骤必须针对每个要使用`NDB$OLD()`执行冲突解决的表进行遵循。对于每个这样的表，必须在`mysql.ndb_replication`中有一个相应的行，并且在被复制的表所在的同一数据库中必须有一个异常表。
+- en: '**Read conflict detection and resolution. ** NDB Cluster also supports tracking
+    of read operations, which makes it possible in circular replication setups to
+    manage conflicts between reads of a given row in one cluster and updates or deletes
+    of the same row in another. This example uses `employee` and `department` tables
+    to model a scenario in which an employee is moved from one department to another
+    on the source cluster (which we refer to hereafter as cluster *A*) while the replica
+    cluster (hereafter *B*) updates the employee count of the employee''s former department
+    in an interleaved transaction.'
+  id: totrans-191
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**阅读冲突检测和解决。** NDB Cluster还支持跟踪读操作，这使得在循环复制设置中可以管理一个集群中给定行的读取与另一个集群中相同行的更新或删除之间的冲突。此示例使用`employee`和`department`表来模拟这样一种情况：在源集群（以下简称为集群*A*）中将员工从一个部门移动到另一个部门，而副本集群（以下简称为*B*）在交错事务中更新员工以前部门的员工计数。'
+- en: 'The data tables have been created using the following SQL statements:'
+  id: totrans-192
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 数据表已使用以下SQL语句创建：
+- en: '[PRE20]'
+  id: totrans-193
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE20]'
+- en: 'The contents of the two tables include the rows shown in the (partial) output
+    of the following [`SELECT`](select.html "15.2.13 SELECT Statement") statements:'
+  id: totrans-194
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 两个表的内容包括以下[`SELECT`](select.html "15.2.13 SELECT Statement")语句的（部分）输出中显示的行：
+- en: '[PRE21]'
+  id: totrans-195
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE21]'
+- en: 'We assume that we are already using an exceptions table that includes the four
+    required columns (and these are used for this table''s primary key), the optional
+    columns for operation type and cause, and the original table''s primary key column,
+    created using the SQL statement shown here:'
+  id: totrans-196
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们假设我们已经在使用包含四个必需列（并且这些列用于此表的主键）的异常表，操作类型和原因的可选列，以及原始表的主键列，使用此处显示的SQL语句创建：
+- en: '[PRE22]'
+  id: totrans-197
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE22]'
+- en: 'Suppose there occur the two simultaneous transactions on the two clusters.
+    On cluster *A*, we create a new department, then move employee number 999 into
+    that department, using the following SQL statements:'
+  id: totrans-198
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设在两个集群上发生了两个同时事务。在集群*A*上，我们创建一个新部门，然后将员工编号999移入该部门，使用以下SQL语句：
+- en: '[PRE23]'
+  id: totrans-199
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE23]'
+- en: 'At the same time, on cluster *B*, another transaction reads from `employee`,
+    as shown here:'
+  id: totrans-200
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与此同时，在集群*B*上，另一个事务从`employee`中读取，如下所示：
+- en: '[PRE24]'
+  id: totrans-201
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE24]'
+- en: The conflicting transactions are not normally detected by the conflict resolution
+    mechanism, since the conflict is between a read (`SELECT`) and an update operation.
+    You can circumvent this issue by executing [`SET`](set-variable.html "15.7.6.1 SET
+    Syntax for Variable Assignment") [`ndb_log_exclusive_reads`](mysql-cluster-options-variables.html#sysvar_ndb_log_exclusive_reads)
+    `= 1` on the replica cluster. Acquiring exclusive read locks in this way causes
+    any rows read on the source to be flagged as needing conflict resolution on the
+    replica cluster. If we enable exclusive reads in this way prior to the logging
+    of these transactions, the read on cluster *B* is tracked and sent to cluster
+    *A* for resolution; the conflict on the employee row is subsequently detected
+    and the transaction on cluster *B* is aborted.
+  id: totrans-202
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 冲突解决机制通常不会检测到冲突的事务，因为冲突是在读取（`SELECT`）和更新操作之间。您可以通过在复制集群上执行[`SET`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") [`ndb_log_exclusive_reads`](mysql-cluster-options-variables.html#sysvar_ndb_log_exclusive_reads)
+    `= 1`来解决此问题。以这种方式获取独占读锁会导致在源上读取的任何行在复制集群上被标记为需要冲突解决。如果在记录这些事务之前以这种方式启用独占读取，则在集群*B*上的读取将被跟踪并发送到集群*A*进行解决；随后检测到员工行上的冲突，并且在集群*B*上的事务被中止。
+- en: 'The conflict is registered in the exceptions table (on cluster *A*) as a `READ_ROW`
+    operation (see [Conflict Resolution Exceptions Table](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-exceptions-table
+    "Conflict Resolution Exceptions Table"), for a description of operation types),
+    as shown here:'
+  id: totrans-203
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 冲突在异常表（在集群*A*上）中注册为`READ_ROW`操作（参见[冲突解决异常表](mysql-cluster-replication-conflict-resolution.html#conflict-resolution-exceptions-table
+    "Conflict Resolution Exceptions Table")，了解操作类型的描述），如下所示：
+- en: '[PRE25]'
+  id: totrans-204
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE25]'
+- en: 'Any existing rows found in the read operation are flagged. This means that
+    multiple rows resulting from the same conflict may be logged in the exception
+    table, as shown by examining the effects a conflict between an update on cluster
+    *A* and a read of multiple rows on cluster *B* from the same table in simultaneous
+    transactions. The transaction executed on cluster *A* is shown here:'
+  id: totrans-205
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在读操作中找到的任何现有行都会被标记。这意味着由于同一冲突导致的多行可能会在异常表中记录，如通过检查在同时事务中在集群*A*上进行更新和在集群*B*上从相同表读取多行之间的冲突的影响所示。在集群*A*上执行的事务如下所示：
+- en: '[PRE26]'
+  id: totrans-206
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE26]'
+- en: 'Concurrently a transaction containing the statements shown here runs on cluster
+    *B*:'
+  id: totrans-207
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 同时，在集群*B*上运行包含以下语句的事务：
+- en: '[PRE27]'
+  id: totrans-208
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE27]'
+- en: 'In this case, all three rows matching the `WHERE` condition in the second transaction''s
+    `SELECT` are read, and are thus flagged in the exceptions table, as shown here:'
+  id: totrans-209
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这种情况下，第二个事务的`SELECT`中匹配`WHERE`条件的所有三行都被读取，并因此在异常表中标记，如下所示：
+- en: '[PRE28]'
+  id: totrans-210
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE28]'
+- en: Read tracking is performed on the basis of existing rows only. A read based
+    on a given condition track conflicts only of any rows that are *found* and not
+    of any rows that are inserted in an interleaved transaction. This is similar to
+    how exclusive row locking is performed in a single instance of NDB Cluster.
+  id: totrans-211
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 读跟踪仅基于现有行执行。基于给定条件的读取仅跟踪*找到*的任何行的冲突，而不是插入在交错事务中的任何行。这类似于在单个NDB集群实例中执行独占行锁定的方式。
+- en: '**Insert conflict detection and resolution example (NDB 8.0.30 and later). **
+    The following example illustrates the use of the insert conflict detection functions
+    added in NDB 8.0.30\. We assume that we are replicating two tables `t1` and `t2`
+    in database `test`, and that we wish to use insert conflict detection with `NDB$MAX_INS()`
+    for `t1` and `NDB$MAX_DEL_WIN_INS()` for `t2`. The two data tables are not created
+    until later in the setup process.'
+  id: totrans-212
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**插入冲突检测和解决示例（NDB 8.0.30及更高版本）。** 以下示例说明了在NDB 8.0.30中添加的插入冲突检测功能的使用。我们假设我们正在复制数据库`test`中的两个表`t1`和`t2`，并且希望对`t1`使用`NDB$MAX_INS()`进行插入冲突检测，对`t2`使用`NDB$MAX_DEL_WIN_INS()`进行插入冲突检测。这两个数据表直到设置过程的后期才会创建。'
+- en: 'Setting up insert conflict resolution is similar to setting up other conflict
+    detection and resolution algorithms as shown in the previous examples. If the
+    `mysql.ndb_replication` table used to configure binary logging and conflict resolution,
+    does not already exist, it is first necessary to create it, as shown here:'
+  id: totrans-213
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 设置插入冲突解决类似于设置其他冲突检测和解决算法，如前面的示例所示。如果用于配置二进制日志记录和冲突解决的`mysql.ndb_replication`表尚不存在，则首先需要创建它，如下所示：
+- en: '[PRE29]'
+  id: totrans-214
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE29]'
+- en: 'The `ndb_replication` table acts on a per-table basis; that is, we need to
+    insert a row containing table information, a `binlog_type` value, the conflict
+    resolution function to be employed, and the name of the timestamp column (`X`)
+    for each table to be set up, like this:'
+  id: totrans-215
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ndb_replication`表是基于每个表的基础操作的；也就是说，我们需要插入一行包含表信息、`binlog_type`值、要使用的冲突解决函数以及时间戳列（`X`）的名称，就像这样：'
+- en: '[PRE30]'
+  id: totrans-216
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE30]'
+- en: Here we have set the binlog_type as `NBT_FULL_USE_UPDATE` (`7`) which means
+    that full rows are always logged. See [ndb_replication Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication
+    "ndb_replication Table"), for other possible values.
+  id: totrans-217
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在这里，我们将binlog_type设置为`NBT_FULL_USE_UPDATE`（`7`），这意味着始终记录完整行。有关其他可能值，请参见[ndb_replication
+    Table](mysql-cluster-replication-schema.html#ndb-replication-ndb-replication "ndb_replication
+    Table")。
+- en: 'You can also create an exceptions table corresponding to each `NDB` table for
+    which conflict resolution is to be employed. An exceptions table records all rows
+    rejected by the conflict resolution function for a given table. Exceptions tables
+    for replication conflict detection for tables `t1` and `t2` can be created using
+    the following two SQL statements:'
+  id: totrans-218
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以为每个需要使用冲突解决的`NDB`表创建一个异常表。异常表记录由给定表的冲突解决函数拒绝的所有行。可以使用以下两个SQL语句为表`t1`和`t2`创建用于复制冲突检测的异常表：
+- en: '[PRE31]'
+  id: totrans-219
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE31]'
+- en: 'Finally, after creating the exception tables just shown, you can create the
+    data tables to be replicated and subject to conflict resolution control, using
+    the following two SQL statements:'
+  id: totrans-220
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最后，在刚刚显示的创建异常表之后，您可以创建要复制并受冲突解决控制的数据表，使用以下两个SQL语句：
+- en: '[PRE32]'
+  id: totrans-221
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE32]'
+- en: For each table, the `X` column is used as the timestamp column.
+  id: totrans-222
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于每个表，`X`列被用作时间戳列。
+- en: Once created on the source, `t1` and `t2` are replicated and can be assumed
+    to exist on both the source and the replica. In the remainder of this example,
+    we use `mysqlS>` to indicate a [**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client") client connected to the source, and `mysqlR>` to indicate
+    a [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client
+    running on the replica.
+  id: totrans-223
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 一旦在源上创建了`t1`和`t2`，它们就会被复制并假定存在于源和副本上。在本示例的其余部分中，我们使用`mysqlS>`表示连接到源的[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")客户端，使用`mysqlR>`表示在副本上运行的[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")客户端。
+- en: 'First we insert one row each into the tables on the source, like this:'
+  id: totrans-224
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先，我们在源上分别插入一行到每个表中，就像这样：
+- en: '[PRE33]'
+  id: totrans-225
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE33]'
+- en: 'We can be certain that these two rows are replicated without causing any conflicts,
+    since the tables on the replica did not contain any rows prior to issuing the
+    [`INSERT`](insert.html "15.2.7 INSERT Statement") statements on the source. We
+    can verify this by selecting from the tables on the replica as shown here:'
+  id: totrans-226
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们可以确定这两行在不引起任何冲突的情况下被复制，因为在在源上发出[`INSERT`](insert.html "15.2.7 INSERT Statement")语句之前，副本上的表不包含任何行。我们可以通过从副本中的表中选择来验证这一点，就像这样：
+- en: '[PRE34]'
+  id: totrans-227
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE34]'
+- en: 'Next, we insert new rows into the tables on the replica, like this:'
+  id: totrans-228
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来，我们在副本中插入新行到表中，就像这样：
+- en: '[PRE35]'
+  id: totrans-229
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE35]'
+- en: 'Now we insert conflicting rows into the tables on the source having greater
+    timestamp (`X`) column values, using the statements shown here:'
+  id: totrans-230
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们在源上插入具有更大时间戳（`X`）列值的冲突行，使用下面显示的语句：
+- en: '[PRE36]'
+  id: totrans-231
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE36]'
+- en: 'Now we observe the results by selecting (again) from both tables on the replica,
+    as shown here:'
+  id: totrans-232
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 现在我们通过再次从副本上的两个表中选择来观察结果，就像这样：
+- en: '[PRE37]'
+  id: totrans-233
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE37]'
+- en: 'The rows inserted on the source, having greater timestamps than those in the
+    conflicting rows on the replica, have replaced those rows. On the replica, we
+    next insert two new rows which do not conflict with any existing rows in `t1`
+    or `t2`, like this:'
+  id: totrans-234
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在源上插入的行，其时间戳大于副本中冲突行的时间戳，已替换了那些行。在副本上，我们接下来插入两行新行，这些行不与`t1`或`t2`中的任何现有行冲突，就像这样：
+- en: '[PRE38]'
+  id: totrans-235
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE38]'
+- en: Inserting more rows on the source with the same primary key value (`3`) brings
+    about conflicts as before, but this time we use a value for the timestamp column
+    less than that in same column in the conflicting rows on the replica.
+  id: totrans-236
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在源上插入具有相同主键值（`3`）的更多行会引起冲突，但这次我们使用时间戳列中小于副本中冲突行中相同列中的时间戳的值。
+- en: '[PRE39]'
+  id: totrans-237
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE39]'
+- en: 'We can see by querying the tables that both inserts from the source were rejected
+    by the replica, and the rows inserted on the replica previously have not been
+    overwritten, as shown here in the [**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client") client on the replica:'
+  id: totrans-238
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 通过查询表格，我们可以看到源端插入的两行都被副本端拒绝了，并且副本端之前插入的行也没有被覆盖，就像在副本端的[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")客户端中所展示的那样：
+- en: '[PRE40]'
+  id: totrans-239
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE40]'
+- en: 'You can see information about the rows that were rejected in the exception
+    tables, as shown here:'
+  id: totrans-240
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您可以在异常表中查看被拒绝的行的信息，如下所示：
+- en: '[PRE41]'
+  id: totrans-241
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE41]'
+- en: As we saw earlier, no other rows inserted on the source were rejected by the
+    replica, only those rows having a lesser timestamp value than the rows in conflict
+    on the replica.
+  id: totrans-242
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 正如我们之前所看到的，源端插入的其他行并没有被副本端拒绝，只有那些时间戳值较小于副本端冲突行的行被拒绝。

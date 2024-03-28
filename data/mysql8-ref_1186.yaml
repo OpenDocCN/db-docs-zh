@@ -1,0 +1,415 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html](https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html)
+- en: 17.7.2.1 Transaction Isolation Levels
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 17.7.2.1 事务隔离级别
+- en: Transaction isolation is one of the foundations of database processing. Isolation
+    is the I in the acronym [ACID](glossary.html#glos_acid "ACID"); the isolation
+    level is the setting that fine-tunes the balance between performance and reliability,
+    consistency, and reproducibility of results when multiple transactions are making
+    changes and performing queries at the same time.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 事务隔离是数据库处理的基础之一。隔离是缩写[ACID](glossary.html#glos_acid "ACID")中的I；隔离级别是在多个事务同时进行更改和执行查询时，微调性能和可靠性、一致性和结果可重现性之间平衡的设置。
+- en: '`InnoDB` offers all four transaction isolation levels described by the SQL:1992
+    standard: [`READ UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted),
+    [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed),
+    [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read),
+    and [`SERIALIZABLE`](innodb-transaction-isolation-levels.html#isolevel_serializable).
+    The default isolation level for `InnoDB` is [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read).'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`提供了SQL:1992标准描述的四种事务隔离级别：[`READ UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted),
+    [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed),
+    [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)和[`SERIALIZABLE`](innodb-transaction-isolation-levels.html#isolevel_serializable)。`InnoDB`的默认隔离级别是[`REPEATABLE
+    READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)。'
+- en: A user can change the isolation level for a single session or for all subsequent
+    connections with the [`SET TRANSACTION`](set-transaction.html "15.3.7 SET TRANSACTION
+    Statement") statement. To set the server's default isolation level for all connections,
+    use the [`--transaction-isolation`](server-options.html#option_mysqld_transaction-isolation)
+    option on the command line or in an option file. For detailed information about
+    isolation levels and level-setting syntax, see [Section 15.3.7, “SET TRANSACTION
+    Statement”](set-transaction.html "15.3.7 SET TRANSACTION Statement").
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用户可以使用[`SET TRANSACTION`](set-transaction.html "15.3.7 SET TRANSACTION Statement")语句更改单个会话或所有后续连接的隔离级别。要为所有连接设置服务器的默认隔离级别，请在命令行或选项文件中使用[`--transaction-isolation`](server-options.html#option_mysqld_transaction-isolation)选项。有关隔离级别和级别设置语法的详细信息，请参见[Section 15.3.7,
+    “SET TRANSACTION Statement”](set-transaction.html "15.3.7 SET TRANSACTION Statement")。
+- en: '`InnoDB` supports each of the transaction isolation levels described here using
+    different [locking](glossary.html#glos_locking "locking") strategies. You can
+    enforce a high degree of consistency with the default [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)
+    level, for operations on crucial data where [ACID](glossary.html#glos_acid "ACID")
+    compliance is important. Or you can relax the consistency rules with [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)
+    or even [`READ UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted),
+    in situations such as bulk reporting where precise consistency and repeatable
+    results are less important than minimizing the amount of overhead for locking.
+    [`SERIALIZABLE`](innodb-transaction-isolation-levels.html#isolevel_serializable)
+    enforces even stricter rules than [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read),
+    and is used mainly in specialized situations, such as with [XA](glossary.html#glos_xa
+    "XA") transactions and for troubleshooting issues with concurrency and [deadlocks](glossary.html#glos_deadlock
+    "deadlock").'
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`InnoDB`使用不同的[锁定](glossary.html#glos_locking "locking")策略支持这里描述的每个事务隔离级别。您可以使用默认的[`REPEATABLE
+    READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)级别强制执行高度一致性，用于关键数据的操作，其中[ACID](glossary.html#glos_acid
+    "ACID")合规性很重要。或者您可以通过[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)甚至[`READ
+    UNCOMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-uncommitted)放宽一致性规则，用于诸如大量报告之类的情况，其中精确一致性和可重复结果不如最小化锁定开销重要。[`SERIALIZABLE`](innodb-transaction-isolation-levels.html#isolevel_serializable)比[`REPEATABLE
+    READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)甚至更严格，主要用于专门情况，例如[XA](glossary.html#glos_xa
+    "XA")事务和用于解决并发和[死锁](glossary.html#glos_deadlock "deadlock")问题。'
+- en: The following list describes how MySQL supports the different transaction levels.
+    The list goes from the most commonly used level to the least used.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下列表描述了MySQL支持不同事务级别的方式。列表从最常用的级别到最不常用的级别。
+- en: '`REPEATABLE READ`'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`REPEATABLE READ`'
+- en: This is the default isolation level for `InnoDB`. [Consistent reads](glossary.html#glos_consistent_read
+    "consistent read") within the same transaction read the [snapshot](glossary.html#glos_snapshot
+    "snapshot") established by the first read. This means that if you issue several
+    plain (nonlocking) [`SELECT`](select.html "15.2.13 SELECT Statement") statements
+    within the same transaction, these [`SELECT`](select.html "15.2.13 SELECT Statement")
+    statements are consistent also with respect to each other. See [Section 17.7.2.3,
+    “Consistent Nonlocking Reads”](innodb-consistent-read.html "17.7.2.3 Consistent
+    Nonlocking Reads").
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这是`InnoDB`的默认隔离级别。在同一事务中进行[一致性读取](glossary.html#glos_consistent_read "consistent
+    read")时，读取的是第一次读取时建立的[快照](glossary.html#glos_snapshot "snapshot")。这意味着如果您在同一事务中发出几个普通（非锁定）[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句，这些[`SELECT`](select.html "15.2.13 SELECT Statement")语句在彼此之间也是一致的。请参阅[Section 17.7.2.3,
+    “Consistent Nonlocking Reads”](innodb-consistent-read.html "17.7.2.3 Consistent
+    Nonlocking Reads")。
+- en: For [locking reads](glossary.html#glos_locking_read "locking read") ([`SELECT`](select.html
+    "15.2.13 SELECT Statement") with `FOR UPDATE` or `FOR SHARE`), [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement"), and [`DELETE`](delete.html "15.2.2 DELETE Statement")
+    statements, locking depends on whether the statement uses a unique index with
+    a unique search condition, or a range-type search condition.
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于[锁定读取](glossary.html#glos_locking_read "locking read")（带有`FOR UPDATE`或`FOR
+    SHARE`的[`SELECT`](select.html "15.2.13 SELECT Statement")）、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")语句，锁定取决于语句是否使用具有唯一搜索条件的唯一索引，或范围类型的搜索条件。
+- en: For a unique index with a unique search condition, `InnoDB` locks only the index
+    record found, not the [gap](glossary.html#glos_gap "gap") before it.
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于具有唯一搜索条件的唯一索引，`InnoDB`仅锁定找到的索引记录，而不是其前面的[间隙](glossary.html#glos_gap "gap")。
+- en: For other search conditions, `InnoDB` locks the index range scanned, using [gap
+    locks](glossary.html#glos_gap_lock "gap lock") or [next-key locks](glossary.html#glos_next_key_lock
+    "next-key lock") to block insertions by other sessions into the gaps covered by
+    the range. For information about gap locks and next-key locks, see [Section 17.7.1,
+    “InnoDB Locking”](innodb-locking.html "17.7.1 InnoDB Locking").
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于其他搜索条件，`InnoDB`锁定扫描的索引范围，使用[间隙锁](glossary.html#glos_gap_lock "gap lock")或[下一个键锁](glossary.html#glos_next_key_lock
+    "next-key lock")来阻止其他会话在范围覆盖的间隙中插入。有关间隙锁和下一个键锁的信息，请参阅[Section 17.7.1, “InnoDB
+    Locking”](innodb-locking.html "17.7.1 InnoDB Locking")。
+- en: '`READ COMMITTED`'
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`READ COMMITTED`'
+- en: Each consistent read, even within the same transaction, sets and reads its own
+    fresh snapshot. For information about consistent reads, see [Section 17.7.2.3,
+    “Consistent Nonlocking Reads”](innodb-consistent-read.html "17.7.2.3 Consistent
+    Nonlocking Reads").
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 每个一致性读取，即使在同一事务中，也会设置并读取自己的新快照。有关一致性读取的信息，请参阅[Section 17.7.2.3, “Consistent
+    Nonlocking Reads”](innodb-consistent-read.html "17.7.2.3 Consistent Nonlocking
+    Reads")。
+- en: For locking reads ([`SELECT`](select.html "15.2.13 SELECT Statement") with `FOR
+    UPDATE` or `FOR SHARE`), [`UPDATE`](update.html "15.2.17 UPDATE Statement") statements,
+    and [`DELETE`](delete.html "15.2.2 DELETE Statement") statements, `InnoDB` locks
+    only index records, not the gaps before them, and thus permits the free insertion
+    of new records next to locked records. Gap locking is only used for foreign-key
+    constraint checking and duplicate-key checking.
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于锁定读取（带有`FOR UPDATE`或`FOR SHARE`的[`SELECT`](select.html "15.2.13 SELECT Statement")）、[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")和[`DELETE`](delete.html "15.2.2 DELETE Statement")语句，`InnoDB`仅锁定索引记录，而不是它们之前的间隙，因此允许在锁定记录旁边自由插入新记录。间隙锁仅用于外键约束检查和重复键检查。
+- en: Because gap locking is disabled, phantom row problems may occur, as other sessions
+    can insert new rows into the gaps. For information about phantom rows, see [Section 17.7.4,
+    “Phantom Rows”](innodb-next-key-locking.html "17.7.4 Phantom Rows").
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 由于间隙锁定已禁用，可能会出现幻影行问题，因为其他会话可以在间隙中插入新行。有关幻影行的信息，请参阅[Section 17.7.4, “Phantom
+    Rows”](innodb-next-key-locking.html "17.7.4 Phantom Rows")。
+- en: Only row-based binary logging is supported with the `READ COMMITTED` isolation
+    level. If you use `READ COMMITTED` with [`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format),
+    the server automatically uses row-based logging.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 仅支持基于行的二进制日志记录与`READ COMMITTED`隔离级别。如果您在[`binlog_format=MIXED`](replication-options-binary-log.html#sysvar_binlog_format)下使用`READ
+    COMMITTED`，服务器会自动使用基于行的日志记录。
+- en: 'Using `READ COMMITTED` has additional effects:'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用`READ COMMITTED`还有额外的影响：
+- en: For [`UPDATE`](update.html "15.2.17 UPDATE Statement") or [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") statements, `InnoDB` holds locks only for rows that
+    it updates or deletes. Record locks for nonmatching rows are released after MySQL
+    has evaluated the `WHERE` condition. This greatly reduces the probability of deadlocks,
+    but they can still happen.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于[`UPDATE`](update.html "15.2.17 UPDATE Statement")或[`DELETE`](delete.html
+    "15.2.2 DELETE Statement")语句，`InnoDB`仅为更新或删除的行保持锁定。对于不匹配的行，MySQL在评估`WHERE`条件后释放记录锁。这极大地降低了死锁的概率，但仍然可能发生。
+- en: For [`UPDATE`](update.html "15.2.17 UPDATE Statement") statements, if a row
+    is already locked, `InnoDB` performs a “semi-consistent” read, returning the latest
+    committed version to MySQL so that MySQL can determine whether the row matches
+    the `WHERE` condition of the [`UPDATE`](update.html "15.2.17 UPDATE Statement").
+    If the row matches (must be updated), MySQL reads the row again and this time
+    `InnoDB` either locks it or waits for a lock on it.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于[`UPDATE`](update.html "15.2.17 UPDATE Statement")语句，如果一行已被锁定，`InnoDB`执行“半一致性”读取，将最新提交版本返回给MySQL，以便MySQL确定该行是否与[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")的`WHERE`条件匹配。如果行匹配（必须更新），MySQL再次读取该行，这时`InnoDB`要么锁定它，要么等待锁定。
+- en: 'Consider the following example, beginning with this table:'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 考虑以下示例，从这个表开始：
+- en: '[PRE0]'
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: In this case, the table has no indexes, so searches and index scans use the
+    hidden clustered index for record locking (see [Section 17.6.2.1, “Clustered and
+    Secondary Indexes”](innodb-index-types.html "17.6.2.1 Clustered and Secondary
+    Indexes")) rather than indexed columns.
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在这种情况下，表没有索引，因此搜索和索引扫描使用隐藏的聚簇索引进行记录锁定（参见[第17.6.2.1节，“聚簇索引和辅助索引”](innodb-index-types.html
+    "17.6.2.1 Clustered and Secondary Indexes")），而不是索引列。
+- en: 'Suppose that one session performs an [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement") using these statements:'
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 假设一个会话执行以下语句进行[`UPDATE`](update.html "15.2.17 UPDATE Statement")：
+- en: '[PRE1]'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Suppose also that a second session performs an [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement") by executing these statements following those of the first session:'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 还假设第二个会话执行以下语句来执行[`UPDATE`](update.html "15.2.17 UPDATE Statement")，紧随第一个会话之后：
+- en: '[PRE2]'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: As [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    executes each [`UPDATE`](update.html "15.2.17 UPDATE Statement"), it first acquires
+    an exclusive lock for each row, and then determines whether to modify it. If [`InnoDB`](innodb-storage-engine.html
+    "Chapter 17 The InnoDB Storage Engine") does not modify the row, it releases the
+    lock. Otherwise, [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") retains the lock until the end of the transaction. This affects
+    transaction processing as follows.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")执行每个[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")时，首先为每一行获取独占锁，然后确定是否修改它。如果[`InnoDB`](innodb-storage-engine.html
+    "第17章 InnoDB存储引擎")不修改该行，则释放锁。否则，[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")将保留该锁直到事务结束。这会影响事务处理如下。
+- en: 'When using the default `REPEATABLE READ` isolation level, the first [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") acquires an x-lock on each row that it reads and does
+    not release any of them:'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 当使用默认的`REPEATABLE READ`隔离级别时，第一个[`UPDATE`](update.html "15.2.17 UPDATE Statement")在读取每一行时获取x锁，并且不释放任何一个：
+- en: '[PRE3]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'The second [`UPDATE`](update.html "15.2.17 UPDATE Statement") blocks as soon
+    as it tries to acquire any locks (because first update has retained locks on all
+    rows), and does not proceed until the first [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement") commits or rolls back:'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 第二个[`UPDATE`](update.html "15.2.17 UPDATE Statement")在尝试获取任何锁定时立即阻塞（因为第一个更新已保留了所有行的锁定），并且在第一个[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")提交或回滚之前不会继续进行：
+- en: '[PRE4]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'If `READ COMMITTED` is used instead, the first [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement") acquires an x-lock on each row that it reads and releases those for
+    rows that it does not modify:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果改用`READ COMMITTED`，第一个[`UPDATE`](update.html "15.2.17 UPDATE Statement")在读取每一行时获取x锁，并释放那些它不修改的行：
+- en: '[PRE5]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: 'For the second `UPDATE`, `InnoDB` does a “semi-consistent” read, returning
+    the latest committed version of each row that it reads to MySQL so that MySQL
+    can determine whether the row matches the `WHERE` condition of the [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement"):'
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于第二个`UPDATE`，`InnoDB`进行了“半一致性”读取，将其读取的每一行的最新提交版本返回给MySQL，以便MySQL确定该行是否与[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")的`WHERE`条件匹配：
+- en: '[PRE6]'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: However, if the `WHERE` condition includes an indexed column, and `InnoDB` uses
+    the index, only the indexed column is considered when taking and retaining record
+    locks. In the following example, the first [`UPDATE`](update.html "15.2.17 UPDATE
+    Statement") takes and retains an x-lock on each row where b = 2\. The second [`UPDATE`](update.html
+    "15.2.17 UPDATE Statement") blocks when it tries to acquire x-locks on the same
+    records, as it also uses the index defined on column b.
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 然而，如果`WHERE`条件包括一个索引列，并且`InnoDB`使用了该索引，那么在获取和保留记录锁时只考虑索引列。在下面的例子中，第一个[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")在b = 2的每一行上获取并保留x锁。当第二个[`UPDATE`](update.html "15.2.17 UPDATE
+    Statement")尝试在相同记录上获取x锁时，由于它也使用了在列b上定义的索引，它会被阻塞。
+- en: '[PRE7]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: The `READ COMMITTED` isolation level can be set at startup or changed at runtime.
+    At runtime, it can be set globally for all sessions, or individually per session.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`READ COMMITTED`隔离级别可以在启动时设置或在运行时更改。在运行时，它可以全局设置给所有会话，或者针对每个会话单独设置。'
+- en: '`READ UNCOMMITTED`'
+  id: totrans-39
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`READ UNCOMMITTED`'
+- en: '[`SELECT`](select.html "15.2.13 SELECT Statement") statements are performed
+    in a nonlocking fashion, but a possible earlier version of a row might be used.
+    Thus, using this isolation level, such reads are not consistent. This is also
+    called a [dirty read](glossary.html#glos_dirty_read "dirty read"). Otherwise,
+    this isolation level works like [`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed).'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`SELECT`](select.html "15.2.13 SELECT Statement")语句以非锁定方式执行，但可能使用较早版本的行。因此，在这个隔离级别下，这样的读取是不一致的。这也被称为[脏读](glossary.html#glos_dirty_read
+    "脏读")。否则，这个隔离级别的工作方式类似于[`READ COMMITTED`](innodb-transaction-isolation-levels.html#isolevel_read-committed)。'
+- en: '`SERIALIZABLE`'
+  id: totrans-41
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`SERIALIZABLE`'
+- en: This level is like [`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read),
+    but `InnoDB` implicitly converts all plain [`SELECT`](select.html "15.2.13 SELECT
+    Statement") statements to [`SELECT ... FOR SHARE`](select.html "15.2.13 SELECT
+    Statement") if [`autocommit`](server-system-variables.html#sysvar_autocommit)
+    is disabled. If [`autocommit`](server-system-variables.html#sysvar_autocommit)
+    is enabled, the [`SELECT`](select.html "15.2.13 SELECT Statement") is its own
+    transaction. It therefore is known to be read only and can be serialized if performed
+    as a consistent (nonlocking) read and need not block for other transactions. (To
+    force a plain [`SELECT`](select.html "15.2.13 SELECT Statement") to block if other
+    transactions have modified the selected rows, disable [`autocommit`](server-system-variables.html#sysvar_autocommit).)
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这个级别类似于[`REPEATABLE READ`](innodb-transaction-isolation-levels.html#isolevel_repeatable-read)，但如果[`autocommit`](server-system-variables.html#sysvar_autocommit)被禁用，`InnoDB`会隐式地将所有普通的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")语句转换为[`SELECT ... FOR SHARE`](select.html "15.2.13 SELECT
+    Statement")。如果[`autocommit`](server-system-variables.html#sysvar_autocommit)被启用，[`SELECT`](select.html
+    "15.2.13 SELECT Statement")就是它自己的事务。因此，它被认为是只读的，如果作为一致的（非锁定的）读取执行，可以进行序列化，不需要为其他事务阻塞。（要强制普通的[`SELECT`](select.html
+    "15.2.13 SELECT Statement")在其他事务修改了所选行时阻塞，禁用[`autocommit`](server-system-variables.html#sysvar_autocommit)。）
+- en: Note
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: As of MySQL 8.0.22, DML operations that read data from MySQL grant tables (through
+    a join list or subquery) but do not modify them do not acquire read locks on the
+    MySQL grant tables, regardless of the isolation level. For more information, see
+    [Grant Table Concurrency](grant-tables.html#grant-tables-concurrency "Grant Table
+    Concurrency").
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从MySQL 8.0.22开始，从MySQL授权表中读取数据的DML操作（通过连接列表或子查询）但不修改它们的操作不会获取MySQL授权表的读锁，无论隔离级别如何。更多信息，请参阅[授权表并发性](grant-tables.html#grant-tables-concurrency
+    "授权表并发性")。

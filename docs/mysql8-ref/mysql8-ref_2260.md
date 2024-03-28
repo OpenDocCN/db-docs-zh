@@ -1,0 +1,9 @@
+# 32.4 MySQL 企业审计概述
+
+> 原文：[`dev.mysql.com/doc/refman/8.0/en/mysql-enterprise-audit.html`](https://dev.mysql.com/doc/refman/8.0/en/mysql-enterprise-audit.html)
+
+MySQL 企业版包括使用服务器插件实现的 MySQL 企业审计。MySQL 企业审计使用开放的 MySQL 审计 API，可以对特定 MySQL 服务器上执行的连接和查询活动进行标准、基于策略的监控和记录。MySQL 企业审计旨在满足 Oracle 审计规范，为受内部和外部监管指导的应用程序提供了一个开箱即用、易于使用的审计和合规解决方案。
+
+安装后，审计插件使 MySQL 服务器能够生成一个包含服务器活动审计记录的日志文件。日志内容包括客户端连接和断开的时间，以及连接时执行的操作，例如访问哪些数据库和表。
+
+更多信息，请参阅 第 8.4.5 节，“MySQL 企业审计”.

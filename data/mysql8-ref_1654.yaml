@@ -1,0 +1,921 @@
+- en: 25.3.7 Upgrading and Downgrading NDB Cluster
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 25.3.7 NDB Cluster 的升级和降级
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-upgrade-downgrade.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-upgrade-downgrade.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-upgrade-downgrade.html](https://dev.mysql.com/doc/refman/8.0/en/mysql-cluster-upgrade-downgrade.html)
+- en: '[Versions Supported for Upgrade to NDB 8.0](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "Versions Supported for Upgrade to NDB 8.0")'
+  id: totrans-2
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[升级到 NDB 8.0 支持的版本](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "升级到 NDB 8.0 支持的版本")'
+- en: '[Reverting an NDB Cluster 8.0 Upgrade](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "Reverting an NDB Cluster 8.0 Upgrade")'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[回滚 NDB Cluster 8.0 升级](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "回滚 NDB Cluster 8.0 升级")'
+- en: '[Known Issues When Upgrading or Downgrading NDB Cluster](mysql-cluster-upgrade-downgrade.html#mysql-cluster-updowngrade-issues
+    "Known Issues When Upgrading or Downgrading NDB Cluster")'
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[升级或降级 NDB Cluster 时已知问题](mysql-cluster-upgrade-downgrade.html#mysql-cluster-updowngrade-issues
+    "升级或降级 NDB Cluster 时已知问题")'
+- en: This section provides information about NDB Cluster software and compatibility
+    between different NDB Cluster 8.0 releases with regard to performing upgrades
+    and downgrades. You should already be familiar with installing and configuring
+    NDB Cluster prior to attempting an upgrade or downgrade. See [Section 25.4, “Configuration
+    of NDB Cluster”](mysql-cluster-configuration.html "25.4 Configuration of NDB Cluster").
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节提供有关 NDB Cluster 软件以及不同 NDB Cluster 8.0 版本之间的兼容性信息，涉及执行升级和降级操作。在尝试升级或降级之前，您应该已经熟悉安装和配置
+    NDB Cluster。请参阅[第 25.4 节，“NDB Cluster 配置”](mysql-cluster-configuration.html "25.4 NDB
+    Cluster 配置")。
+- en: Important
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: Online upgrades and downgrades between minor releases of the `NDB` storage engine
+    are supported within NDB 8.0\. In-place upgrades of the included MySQL Server
+    (SQL node [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")) are also
+    supported; with multiple SQL nodes, it is possible to keep an SQL application
+    online while individual [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")
+    processes are restarted. In-place downgrades of the included MySQL Server are
+    *not* supported (see [Chapter 4, *Downgrading MySQL*](downgrading.html "Chapter 4 Downgrading
+    MySQL")).
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在 NDB 8.0 中支持 `NDB` 存储引擎的小版本之间的在线升级和降级。支持包含的 MySQL Server（SQL 节点[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL Server")）的原地升级；对于多个 SQL 节点，可以在重新启动单个[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL Server") 进程的同时保持 SQL 应用在线。不支持包含的 MySQL Server 的原地降级（参见[第
+    4 章，“降级 MySQL”](downgrading.html "第 4 章 降级 MySQL")）。
+- en: It may be possible in some cases to revert a recent upgrade from one NDB 8.0
+    minor release version to a later one, and to restore the needed states of any
+    MySQL Server instances running as SQL nodes. Against the event that this becomes
+    desirable or necessary, you are strongly advised to take a complete backup of
+    each SQL node prior to upgrading NDB Cluster. For the same reason, you should
+    also start the [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") binaries
+    from the new version with [`--ndb-schema-dist-upgrade-allowed=0`](mysql-cluster-options-variables.html#sysvar_ndb_schema_dist_upgrade_allowed),
+    and not allow it to be set back to 1 until you are sure any likelihood of reverting
+    to an older version is past. For more information, see [Reverting an NDB Cluster
+    8.0 Upgrade](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "Reverting an NDB Cluster 8.0 Upgrade").
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在某些情况下，可能会将最近的 NDB 8.0 小版本升级回到较新版本，并恢复运行为 SQL 节点的任何 MySQL Server 实例的所需状态。如果出现这种需求或必要性，强烈建议在升级
+    NDB Cluster 之前对每个 SQL 节点进行完整备份。出于同样的原因，您还应该使用新版本的[`--ndb-schema-dist-upgrade-allowed=0`](mysql-cluster-options-variables.html#sysvar_ndb_schema_dist_upgrade_allowed)启动[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL Server")二进制文件，并在确保不会回退到旧版本之前不允许将其设置为 1。有关更多信息，请参阅[回滚 NDB
+    Cluster 8.0 升级](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "回滚 NDB Cluster 8.0 升级")。
+- en: For information about upgrades to NDB 8.0 from versions previous to 8.0, see
+    [Versions Supported for Upgrade to NDB 8.0](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "Versions Supported for Upgrade to NDB 8.0").
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关从 8.0 之前版本升级到 NDB 8.0 的信息，请参阅[升级到 NDB 8.0 支持的版本](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "升级到 NDB 8.0 支持的版本")。
+- en: For information about known issues and problems encountered when upgrading or
+    downgrading NDB 8.0, see [Known Issues When Upgrading or Downgrading NDB Cluster](mysql-cluster-upgrade-downgrade.html#mysql-cluster-updowngrade-issues
+    "Known Issues When Upgrading or Downgrading NDB Cluster").
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关升级或降级 NDB 8.0 时遇到的已知问题和问题的信息，请参见[升级或降级 NDB Cluster 时的已知问题](mysql-cluster-upgrade-downgrade.html#mysql-cluster-updowngrade-issues
+    "升级或降级 NDB Cluster 时的已知问题")。
+- en: Versions Supported for Upgrade to NDB 8.0
+  id: totrans-11
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 支持升级至 NDB 8.0 的版本
+- en: 'The following versions of NDB Cluster are supported for upgrades to GA releases
+    of NDB Cluster 8.0 (8.0.19 and later):'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 支持将以下版本的 NDB Cluster 升级至 GA 版本的 NDB Cluster 8.0（8.0.19 及更高版本）：
+- en: 'NDB Cluster 7.6: NDB 7.6.4 and later'
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: NDB Cluster 7.6：NDB 7.6.4 及更高版本
+- en: 'NDB Cluster 7.5: NDB 7.5.4 and later'
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: NDB Cluster 7.5：NDB 7.5.4 及更高版本
+- en: 'NDB Cluster 7.4: NDB 7.4.6 and later'
+  id: totrans-15
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: NDB Cluster 7.4：NDB 7.4.6 及更高版本
+- en: To upgrade from a release series previous to NDB 7.4, you must upgrade in stages,
+    first to one of the versions just listed, and then from that version to the latest
+    NDB 8.0 release. In such cases, upgrading to the latest NDB 7.6 release is recommended
+    as the first step. For information about upgrades to NDB 7.6 from previous versions,
+    see [Upgrading and Downgrading NDB 7.6](/doc/refman/5.7/en/mysql-cluster-upgrade-downgrade-7-6.html).
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要从 NDB 7.4 之前的版本系列升级，必须分阶段升级，首先升级到刚列出的版本之一，然后从该版本升级到最新的 NDB 8.0 版本。在这种情况下，建议首先升级至最新的
+    NDB 7.6 版本。有关从旧版本升级至 NDB 7.6 的信息，请参见[升级和降级 NDB 7.6](/doc/refman/5.7/en/mysql-cluster-upgrade-downgrade-7-6.html)。
+- en: Reverting an NDB Cluster 8.0 Upgrade
+  id: totrans-17
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 撤销 NDB Cluster 8.0 升级
+- en: Following a recent software upgrade of an NDB Cluster to an NDB 8.0 release,
+    it is possible to revert the `NDB` software back to the earlier version, provided
+    certain conditions are met before the upgrade, during the time the cluster is
+    running the newer version, and after the NDB Cluster software is reverted to the
+    earlier version. Specifics depend on local conditions; this section provides general
+    information about what should be done at each of the points in the upgrade and
+    rollback process just described.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 最近将 NDB Cluster 软件升级至 NDB 8.0 版本后，可以将 `NDB` 软件回滚到较早版本，前提是在升级之前、集群运行较新版本期间以及将
+    NDB Cluster 软件回滚到较早版本之后满足某些条件。具体取决于当地情况；本节提供了关于在上述升级和回滚过程中每个点应该做什么的一般信息。
+- en: 'In most cases, upgrading and downgrading the data nodes can be done without
+    issue, as described elsewhere; see [Section 25.6.5, “Performing a Rolling Restart
+    of an NDB Cluster”](mysql-cluster-rolling-restart.html "25.6.5 Performing a Rolling
+    Restart of an NDB Cluster"). (Prior to performing an upgrade or downgrade, you
+    should perform an `NDB` backup; see [Section 25.6.8, “Online Backup of NDB Cluster”](mysql-cluster-backup.html
+    "25.6.8 Online Backup of NDB Cluster"), for information about how to do this.)
+    Downgrading SQL nodes online is not supported, due to the following issues:'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在大多数情况下，可以无问题地升级和降级数据节点，如其他地方所述；请参见[第 25.6.5 节，“执行 NDB Cluster 的滚动重启”](mysql-cluster-rolling-restart.html
+    "25.6.5 执行 NDB Cluster 的滚动重启")。（在执行升级或降级之前，您应执行 `NDB` 备份；有关如何执行此操作，请参见[第 25.6.8
+    节，“NDB Cluster 的在线备份”](mysql-cluster-backup.html "25.6.8 NDB Cluster 的在线备份")。）不支持在线降级
+    SQL 节点，原因如下：
+- en: '[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") from a version
+    8.0 release cannot start if it detects a file system from a later version of MySQL.'
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从 8.0 版本开始的[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")如果检测到来自较新版本的
+    MySQL 的文件系统，则无法启动。
+- en: In many cases, [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") cannot
+    open tables that were created or modified by a later version of MySQL.
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在许多情况下，[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器") 无法打开由较新版本的 MySQL
+    创建或修改的表。
+- en: In most if not all cases, [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server") cannot read binary log files that were created or modified in a later
+    version of MySQL.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在大多数情况下，[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL 服务器")无法读取由较新版本的 MySQL
+    创建或修改的二进制日志文件。
+- en: The procedure outlined next provides the basic steps necessary to upgrade a
+    cluster from version *`X`* to version *`Y`* while allowing for a possible future
+    rollback to *`X`*. (The procedure for reverting the upgraded cluster to version
+    *`X`* follows later in this section.) For this purpose, version *`X`* is any NDB
+    8.0 GA release, or any previous NDB release supported for upgrade to NDB 8.0 (see
+    [Versions Supported for Upgrade to NDB 8.0](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "Versions Supported for Upgrade to NDB 8.0")), and version *`Y`* is an NDB 8.0
+    release which is later than *`X`*.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 接下来概述的过程提供了升级集群从版本*X*到版本*Y*所需的基本步骤，同时允许将来可能回滚到*X*版本。 （将升级后的集群恢复到*X*版本的过程稍后在本节中介绍。）为此，版本*X*是任何NDB
+    8.0 GA版本，或任何支持升级到NDB 8.0的先前NDB版本（请参阅[支持升级到NDB 8.0的版本](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "Versions Supported for Upgrade to NDB 8.0")），而版本*Y*是晚于*X*的NDB 8.0版本。
+- en: '*Prior to upgrade*: Take backups of NDB *`X`* SQL node states. This can be
+    accomplished as one or more of the following:'
+  id: totrans-24
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*升级前*：备份NDB *X* SQL节点状态。可以通过以下一种或多种方式完成：'
+- en: A copy of the version *`X`* SQL node file system in a quiescent state using
+    one or more system tools such as **cp**, **rsync**, **fwbackups**, Amanda, and
+    so forth.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用诸如**cp**、**rsync**、**fwbackups**、Amanda等一个或多个系统工具在静止状态下复制版本*X* SQL节点文件系统的副本。
+- en: A dump of any version *`X`* tables not stored in `NDB`. You can generate this
+    dump using [**mysqldump**](mysqldump.html "6.5.4 mysqldump — A Database Backup
+    Program").
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 未存储在`NDB`中的任何版本*X*表的转储。您可以使用[**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program")生成此转储。
+- en: A backup created using MySQL Enterprise Backup; see [Section 32.1, “MySQL Enterprise
+    Backup Overview”](mysql-enterprise-backup.html "32.1 MySQL Enterprise Backup Overview"),
+    for more information.
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用MySQL Enterprise Backup创建的备份；有关更多信息，请参见[第32.1节，“MySQL Enterprise Backup概述”](mysql-enterprise-backup.html
+    "32.1 MySQL Enterprise Backup Overview")。
+- en: Backing up the SQL nodes is recommended prior to any upgrade, whether or not
+    you later intend to revert the cluster to the previous `NDB` version.
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在任何升级之前建议备份SQL节点，无论您是否打算将集群恢复到先前的`NDB`版本。
+- en: '*Upgrade to NDB *`Y`**: All NDB *`Y`* [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") binaries must be started with [`--ndb-schema-dist-upgrade-allowed=0`](mysql-cluster-options-variables.html#sysvar_ndb_schema_dist_upgrade_allowed)
+    to prevent any automatic schema upgrade. (Once any possibility of a downgrade
+    is past, you can safely change the corresponding system variable `ndb_schema_dist_upgrade_allowed`
+    back to 1, the default, in the [**mysql**](mysql.html "6.5.1 mysql — The MySQL
+    Command-Line Client") client.) When each NDB *`Y`* SQL node starts, it connects
+    to the cluster and synchronizes its `NDB` table schemas. After this, you can restore
+    MySQL table and state data from backup.'
+  id: totrans-29
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*升级到NDB *Y*：所有NDB *Y* [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")二进制文件必须使用[`--ndb-schema-dist-upgrade-allowed=0`](mysql-cluster-options-variables.html#sysvar_ndb_schema_dist_upgrade_allowed)启动，以防止任何自动模式升级。（一旦降级的可能性过去，您可以安全地将相应的系统变量`ndb_schema_dist_upgrade_allowed`更改回默认值1，在[**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client")客户端中。）当每个NDB *Y* SQL节点启动时，它会连接到集群并同步其`NDB`表模式。之后，您可以从备份中恢复MySQL表和状态数据。'
+- en: 'To assure continuity of NDB replication, it is necessary to upgrade the cluster''s
+    SQL nodes in such a way that at least one [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server") is acting as the replication source at any given point in
+    time during the upgrade. With two SQL nodes *`A`* and *`B`*, you can do so like
+    this:'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 为确保NDB复制的连续性，有必要以一种方式升级集群的SQL节点，以便在升级过程中任何给定时间点至少有一个[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")充当复制源。有两个SQL节点*A*和*B*，您可以这样做：
+- en: While using SQL node *`B`* as the replication channel, upgrade SQL node *`A`*
+    from NDB version *`X`* to version *`Y`*. This results in a gap in the binary log
+    on *`A`* at epoch *`E1`*.
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在使用SQL节点*B*作为复制通道时，将SQL节点*A*从NDB版本*X*升级到版本*Y*。这将导致*A*上的二进制日志在时期*E1*处出现间隙。
+- en: After all replication appliers have consumed the binary log from SQL node *`B`*
+    past epoch *`E1`*, switch the replication channel to use SQL node *`A`*.
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在所有复制应用程序消耗了SQL节点*B*过去时期*E1*的二进制日志后，将复制通道切换到使用SQL节点*A*。
+- en: Upgrade SQL node *`B`* to NDB version *`Y`*. This results in a gap in the binary
+    log on *`B`* at epoch *`E2`*.
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将SQL节点*B*升级到NDB版本*Y*。这将导致*B*上的二进制日志在时期*E2*处出现间隙。
+- en: After all replication appliers have consumed the binary log from SQL node *`A`*
+    past epoch *`E2`*, you can once again switch the replication channel to use either
+    SQL node as desired.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在所有复制应用程序消耗了SQL节点*`A`*过去时期*`E2`*的二进制日志后，您可以再次根据需要切换复制通道以使用任一SQL节点。
+- en: Do not use [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    on any existing `NDB` tables; do not create any new `NDB` tables which cannot
+    be safely dropped prior to downgrading.
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 不要对任何现有的`NDB`表使用[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE语句")；在降级之前不要创建任何无法安全删除的新`NDB`表。
+- en: The following procedure shows the basic steps needed to roll back (revert) an
+    NDB Cluster from version *`X`* to version *`Y`* after an upgrade performed as
+    just described. Here, version *`X`* is any NDB 8.0 GA release, or any previous
+    NDB release supported for upgrade to NDB 8.0 (see [Versions Supported for Upgrade
+    to NDB 8.0](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "Versions Supported for Upgrade to NDB 8.0")); version *`Y`* is an NDB 8.0 release
+    which is later than *`X`*.
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下过程展示了在执行如上所述的升级后，从版本*`X`*回滚（恢复）到版本*`Y`*的NDB集群所需的基本步骤。这里，版本*`X`*是任何NDB 8.0
+    GA版本，或任何支持升级到NDB 8.0的先前NDB版本（请参见[支持升级到NDB 8.0的版本](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "支持升级到NDB 8.0的版本")）；版本*`Y`*是晚于*`X`*的NDB 8.0版本。
+- en: '*Prior to rollback*: Gather any [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server") state information from the NDB *`Y`* SQL nodes that should be retained.
+    In most cases, you can do this using [**mysqldump**](mysqldump.html "6.5.4 mysqldump
+    — A Database Backup Program").'
+  id: totrans-37
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*回滚之前*：从应保留的NDB *`Y`* SQL节点中收集任何[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器")状态信息。在大多数情况下，您可以使用[**mysqldump**](mysqldump.html
+    "6.5.4 mysqldump — 数据库备份程序")来执行此操作。'
+- en: After backing up the state data, drop all `NDB` tables which have been created
+    or altered since the upgrade took place.
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在备份状态数据后，删除自升级以来已创建或更改的所有`NDB`表。
+- en: Backing up the SQL nodes is always recommended prior to any NDB Cluster software
+    version change.
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在进行任何NDB集群软件版本更改之前，始终建议备份SQL节点。
+- en: 'You must provide a file system compatible with MySQL *`X`* for each [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") (SQL node). You can use either of the following
+    two methods:'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您必须为每个[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器")（SQL节点）提供与MySQL *`X`*兼容的文件系统。您可以使用以下两种方法之一：
+- en: Create a new, compatible file system state by reinitializing the on-disk state
+    of the version *`X`* SQL node. You can do this by removing the SQL node file system,
+    then running [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") [`--initialize`](server-options.html#option_mysqld_initialize).
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 通过重新初始化版本*`X`* SQL节点的磁盘状态，创建一个新的兼容文件系统状态。您可以通过删除SQL节点文件系统，然后运行[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器") [`--initialize`](server-options.html#option_mysqld_initialize)来实现这一点。
+- en: Restore a file system that is compatible from a backup taken prior to the upgrade
+    (see [Section 9.4, “Using mysqldump for Backups”](using-mysqldump.html "9.4 Using
+    mysqldump for Backups")).
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从升级前的备份中恢复一个兼容的文件系统（参见[第9.4节，“使用mysqldump进行备份”](using-mysqldump.html "9.4 使用mysqldump进行备份")）。
+- en: '*Following `NDB` downgrade*: After downgrading the data nodes to NDB *`X`*,
+    start the version *`X`* SQL nodes (instances of [**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")). Restore or repair any other local state information needed
+    on each SQL node. The MySQLD state can be aligned as necessary with some combination
+    (0 or more) of the following actions:'
+  id: totrans-43
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '*在`NDB`降级后*：将数据节点降级为NDB *`X`*后，启动版本*`X`* SQL节点（[**mysqld**](mysqld.html "6.3.1 mysqld
+    — MySQL服务器")的实例）。在每个SQL节点上恢复或修复任何其他所需的本地状态信息。可以通过以下操作的某种组合（0个或多个）将MySQLD状态调整为必要的状态：'
+- en: Initialization commands such as [**mysqld**](mysqld.html "6.3.1 mysqld — The
+    MySQL Server") `--initialize`.
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 初始化命令，如[**mysqld**](mysqld.html "6.3.1 mysqld — MySQL服务器") `--initialize`。
+- en: Restore any desired or required state information captured from the version
+    *`X`* SQL node.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 恢复从版本*`X`* SQL节点捕获的任何所需或必要的状态信息。
+- en: Restore any desired or required state information captured from the version
+    *`Y`* SQL node.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 恢复从版本*`Y`* SQL节点捕获的任何所需或必要的状态信息。
+- en: Perform cleanup such as deleting stale logs such as binary logs, or relay logs,
+    and removing any time-dependent state which is no longer valid.
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行清理操作，例如删除过时的日志，如二进制日志或中继日志，并删除任何不再有效的时间相关状态。
+- en: 'As when upgrading, it is necessary when downgrading to maintain continuity
+    of NDB replication to downgrade the cluster''s SQL nodes in such a way that at
+    least one [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") is acting
+    as the replication source at any given point in time during the downgrade process.
+    This can be done in a manner very similar to that described previously for upgrading
+    the SQL nodes. With two SQL nodes *`A`* and *`B`*, you can maintain binary logging
+    without any gaps during the downgrade like this:'
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在降级时，为了保持 NDB 复制的连续性，需要以一种方式降级集群的 SQL 节点，以确保在降级过程中至少有一个[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")在任何给定时间点充当复制源。这可以通过与升级 SQL 节点类似的方式来完成。有两个 SQL
+    节点 *`A`* 和 *`B`*，你可以在降级过程中保持二进制日志没有任何间隙，就像这样：
+- en: With SQL node *`B`* acting as the replication channel, downgrade SQL node *`A`*
+    from NDB version *`Y`* to version *`X`*. This results in a gap in the binary log
+    on *`A`* at epoch *`F1`*.
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 以 SQL 节点 *`B`* 充当复制通道，将 SQL 节点 *`A`* 从 NDB 版本 *`Y`* 降级到版本 *`X`。这会导致在时期 *`F1`*
+    上的 SQL 节点 *`A`* 上的二进制日志中出现间隙。
+- en: After all replication appliers have consumed the binary log from SQL node *`B`*
+    past epoch *`F1`*, switch the replication channel to use SQL node *`A`*.
+  id: totrans-50
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在所有复制应用程序消耗了 SQL 节点 *`B`* 过去时期 *`F1`* 的二进制日志后，切换复制通道以使用 SQL 节点 *`A`*。
+- en: Downgrade SQL node *`B`* to NDB version *`X`*. This results in a gap in the
+    binary log on *`B`* at epoch *`F2`*.
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将 SQL 节点 *`B`* 降级到 NDB 版本 *`X`*。这会导致在时期 *`F2`* 上的 SQL 节点 *`B`* 上的二进制日志中出现间隙。
+- en: After all replication appliers have consumed the binary log from SQL node *`A`*
+    past epoch *`F2`*, redundancy of binary logging is restored, and you can again
+    use either SQL node as the replication channel as desired.
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在所有复制应用程序消耗了 SQL 节点 *`A`* 过去时期 *`F2`* 的二进制日志后，二进制日志的冗余性得以恢复，你可以根据需要再次使用任一 SQL
+    节点作为复制通道。
+- en: See also [Section 25.7.7, “Using Two Replication Channels for NDB Cluster Replication”](mysql-cluster-replication-two-channels.html
+    "25.7.7 Using Two Replication Channels for NDB Cluster Replication").
+  id: totrans-53
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另请参阅 [Section 25.7.7, “Using Two Replication Channels for NDB Cluster Replication”](mysql-cluster-replication-two-channels.html
+    "25.7.7 Using Two Replication Channels for NDB Cluster Replication")。
+- en: Known Issues When Upgrading or Downgrading NDB Cluster
+  id: totrans-54
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 升级或降级 NDB 集群时已知的问题
+- en: In this section, provide information about issues known to occur when upgrading
+    or downgrading to, from, or between NDB 8.0 releases.
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在本节中，提供关于升级或降级到、从或在 NDB 8.0 版本之间发生的已知问题的信息。
+- en: 'We recommend that you not attempt any schema changes during any NDB Cluster
+    software upgrade or downgrade. Some of the reasons for this are listed here:'
+  id: totrans-56
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 我们建议您在任何 NDB 集群软件升级或降级期间不要尝试进行模式更改。以下是其中一些原因：
+- en: DDL statements on `NDB` tables are not possible during some phases of data node
+    startup.
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在某些数据节点启动阶段，不允许对 `NDB` 表执行 DDL 语句。
+- en: DDL statements on `NDB` tables may be rejected if any data nodes are stopped
+    during execution; stopping each data node binary (so it can be replaced with a
+    binary from the target version) is required as part of the upgrade or downgrade
+    process.
+  id: totrans-58
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果在执行过程中停止任何数据节点，则可能会拒绝对 `NDB` 表的 DDL 语句；停止每个数据节点的二进制文件（以便用目标版本的二进制文件替换）是升级或降级过程的一部分。
+- en: DDL statements on `NDB` tables are not allowed while there are data nodes in
+    the same cluster running different release versions of the NDB Cluster software.
+  id: totrans-59
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在同一集群中运行不同版本的 NDB Cluster 软件的数据节点时，不允许对 `NDB` 表执行 DDL 语句。
+- en: For additional information regarding the rolling restart procedure used to perform
+    an online upgrade or downgrade of the data nodes, see [Section 25.6.5, “Performing
+    a Rolling Restart of an NDB Cluster”](mysql-cluster-rolling-restart.html "25.6.5 Performing
+    a Rolling Restart of an NDB Cluster").
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关执行数据节点在线升级或降级的滚动重启过程的更多信息，请参阅 [Section 25.6.5, “Performing a Rolling Restart
+    of an NDB Cluster”](mysql-cluster-rolling-restart.html "25.6.5 Performing a Rolling
+    Restart of an NDB Cluster")。
+- en: You should be aware of the issues in the following list when you perform an
+    online upgrade between minor versions of NDB 8.0. These issues also apply when
+    upgrading from a previous major version of NDB Cluster to any of the NDB 8.0 releases
+    stated.
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在执行 NDB 8.0 的次要版本之间的在线升级时，应注意以下列表中的问题。这些问题也适用于从 NDB Cluster 的先前主要版本升级到任何已声明的
+    NDB 8.0 版本。
+- en: 'NDB 8.0.22 adds support for IPv6 addressing for management nodes and data nodes
+    in the `config.ini` file. To begin using IPv6 addresses as part of an upgrade,
+    perform the following steps:'
+  id: totrans-62
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: NDB 8.0.22 为 `config.ini` 文件中的管理节点和数据节点添加了对 IPv6 地址的支持。要在升级过程中开始使用 IPv6 地址，请执行以下步骤：
+- en: Perform an upgrade of the cluster to version 8.0.22 or a later version of the
+    NDB Cluster software in the usual manner.
+  id: totrans-63
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 以通常方式将集群升级到版本 8.0.22 或更高版本的 NDB Cluster 软件。
+- en: Change the addresses used in the `config.ini` file to IPv6 addresses.
+  id: totrans-64
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将 `config.ini` 文件中使用的地址更改为 IPv6 地址。
+- en: Perform a system restart of the cluster.
+  id: totrans-65
+  prefs:
+  - PREF_IND
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 执行集群的系统重启。
+- en: 'A known issue on Linux platforms when running NDB 8.0.22 and later was that
+    the operating system kernel was required to provide IPv6 support, even when no
+    IPv6 addresses were in use. This issue is fixed in NDB 8.0.34 and later (Bug #33324817,
+    Bug #33870642).'
+  id: totrans-66
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '在 Linux 平台上运行 NDB 8.0.22 及更高版本时，已知问题是即使没有使用任何 IPv6 地址，操作系统内核也需要提供 IPv6 支持。此问题在
+    NDB 8.0.34 及更高版本中已修复（Bug #33324817，Bug #33870642）。'
+- en: 'If you are using an affected version and wish to disable support for IPv6 on
+    the system (because you do not plan to use any IPv6 addresses for NDB Cluster
+    nodes), do so after booting the system, like this:'
+  id: totrans-67
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果您使用的是受影响的版本，并希望在系统上禁用对IPv6的支持（因为您不打算为NDB Cluster节点使用任何IPv6地址），请在系统启动后执行以下操作：
+- en: '[PRE0]'
+  id: totrans-68
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: (Alternatively, you can add the corresponding lines to `/etc/sysctl.conf`.)
+    In NDB Cluster 8.0.34 and later, the preceding is not necessary, and you can simply
+    disable IPv6 support in the Linux kernel if you do not want or need it.
+  id: totrans-69
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: （或者，您可以将相应行添加到 `/etc/sysctl.conf` 中。）在 NDB Cluster 8.0.34 及更高版本中，前述操作是不必要的，如果您不需要或不想要
+    IPv6 支持，可以简单地在 Linux 内核中禁用 IPv6 支持。
+- en: 'Due to changes in the internal `mysql.ndb_schema` table, if you upgrade to
+    an NDB 8.0 release prior to 8.0.24, then you are advised to use [`--ndb-schema-dist-upgrade-allowed
+    = 0`](mysql-cluster-options-variables.html#sysvar_ndb_schema_dist_upgrade_allowed)
+    to avoid unexpected outages (Bug #30876990, Bug #31016905).'
+  id: totrans-70
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '由于内部 `mysql.ndb_schema` 表的更改，如果您升级到 8.0.24 之前的 NDB 8.0 版本，则建议您使用 [`--ndb-schema-dist-upgrade-allowed
+    = 0`](mysql-cluster-options-variables.html#sysvar_ndb_schema_dist_upgrade_allowed)
+    来避免意外的中断（Bug #30876990，Bug #31016905）。'
+- en: In addition, if there is any possibility that you may revert to a previous version
+    of NDB Cluster following an upgrade to a newer version, you must start all [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") processes from the newer version with `--ndb-schema-dist-upgrade-allowed
+    = 0` to prevent changes incompatible with the older version from being made to
+    the `ndb_schema` table. See [Reverting an NDB Cluster 8.0 Upgrade](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "Reverting an NDB Cluster 8.0 Upgrade"), for information about how to do this.
+  id: totrans-71
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 另外，如果有可能在升级到新版本后恢复到以前的NDB Cluster版本，您必须从新版本启动所有[**mysqld**](mysqld.html "6.3.1 mysqld
+    — The MySQL Server")进程，并使用 `--ndb-schema-dist-upgrade-allowed = 0` 来防止对`ndb_schema`表进行与旧版本不兼容的更改。有关如何执行此操作，请参阅[回滚
+    NDB Cluster 8.0 升级](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "Reverting an NDB Cluster 8.0 Upgrade")。
+- en: The [`EncryptedFileSystem`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-encryptedfilesystem)
+    configuration parameter, introduced in NDB 8.0.29, could in some cases cause undo
+    log files to be encrypted, even when set explicitly to `0`, which could lead to
+    issues when using Disk Data tables and attempting to upgrade or downgrade to NDB
+    8.0.29\. In such cases, you can work around the problem by performing initial
+    restarts of the data nodes as part of the rolling restart process.
+  id: totrans-72
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`EncryptedFileSystem`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-encryptedfilesystem)
+    配置参数在 NDB 8.0.29 中引入，有时可能会导致撤消日志文件被加密，即使明确设置为 `0`，这可能会在使用 Disk Data 表并尝试升级或降级到
+    NDB 8.0.29 时出现问题。在这种情况下，您可以通过在滚动重启过程中执行数据节点的初始重启来解决问题。'
+- en: If you are using multithreaded data nodes ([**ndbmtd**](mysql-cluster-programs-ndbmtd.html
+    "25.5.3 ndbmtd — The NDB Cluster Data Node Daemon (Multi-Threaded)")) and the
+    [`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)
+    configuration parameter, you may need to make changes in the value set for this
+    in the `config.ini` file when upgrading from a previous release to NDB 8.0.30
+    or later. When upgrading from NDB 8.0.23 or earlier, any usage of `main`, `rep`,
+    `recv`, or `ldm` threads that was implicit in the earlier version must be explicitly
+    set. When upgrading from NDB 8.0.23 or later to NDB 8.0.30 or later, any usage
+    of `recv` threads must be set explicitly in the `ThreadConfig` string. In addition,
+    to avoid using `main`, `rep`, or `ldm` threads in NDB 8.0.30 or later, you must
+    set the thread count for the given type to `0` explicitly.
+  id: totrans-73
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '如果您正在使用多线程数据节点（[**ndbmtd**](mysql-cluster-programs-ndbmtd.html "25.5.3 ndbmtd
+    — NDB Cluster数据节点守护程序（多线程）")）和[`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)配置参数，则在从先前版本升级到NDB
+    8.0.30或更高版本时，可能需要更改`config.ini`文件中为其设置的值。在从NDB 8.0.23或更早版本升级时，必须显式设置在先前版本中隐含的`main`、`rep`、`recv`或`ldm`线程的任何使用。在从NDB
+    8.0.23或更高版本升级到NDB 8.0.30或更高版本时，必须在`ThreadConfig`字符串中显式设置任何`recv`线程的使用。此外，为了避免在NDB
+    8.0.30或更高版本中使用`main`、`rep`或`ldm`线程，必须显式将给定类型的线程计数设置为`0`。 '
+- en: An example follows.
+  id: totrans-74
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 以下是一个示例。
+- en: '*NDB 8.0.22 and earlier*:'
+  id: totrans-75
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*NDB 8.0.22及更早版本*：'
+- en: '`config.ini` file contains `ThreadConfig=ldm`.'
+  id: totrans-76
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`config.ini`文件包含`ThreadConfig=ldm`。'
+- en: This is interpreted by these versions of `NDB` as `ThreadConfig=main,ldm,recv,rep`.
+  id: totrans-77
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在这些版本的`NDB`中，这被解释为`ThreadConfig=main,ldm,recv,rep`。
+- en: 'Required in `config.ini` to match effect in NDB 8.0.30 or later: `ThreadConfig=main,ldm,recv,rep`.'
+  id: totrans-78
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`config.ini`中需要设置以下内容以匹配NDB 8.0.30或更高版本的效果：`ThreadConfig=main,ldm,recv,rep`。
+- en: '*NDB 8.0.23—8.0.29*:'
+  id: totrans-79
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '*NDB 8.0.23—8.0.29*：'
+- en: '`config.ini` file contains `ThreadConfig=ldm`.'
+  id: totrans-80
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`config.ini`文件包含`ThreadConfig=ldm`。'
+- en: This is interpreted by these versions of `NDB` as `ThreadConfig=ldm,recv`.
+  id: totrans-81
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在这些版本的`NDB`中，这被解释为`ThreadConfig=ldm,recv`。
+- en: 'Required in `config.ini` to match effect in NDB 8.0.30 or later: `ThreadConfig=main={count=0},ldm,recv,rep={count=0}`.'
+  id: totrans-82
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在`config.ini`中需要设置以下内容以匹配NDB 8.0.30或更高版本的效果：`ThreadConfig=main={count=0},ldm,recv,rep={count=0}`。
+- en: For more information, see the description of the [`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)
+    configuration parameter.
+  id: totrans-83
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更多信息，请参阅[`ThreadConfig`](mysql-cluster-ndbd-definition.html#ndbparam-ndbmtd-threadconfig)配置参数的描述。
+- en: 'Upgrades from previous major versions of NDB Cluster (7.4, 7.5, 7.6) to NDB
+    8.0 are supported; see [Versions Supported for Upgrade to NDB 8.0](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "Versions Supported for Upgrade to NDB 8.0"), for specific versions. Such upgrades
+    are subject to the issues listed here:'
+  id: totrans-84
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 支持从NDB Cluster的先前主要版本（7.4、7.5、7.6）升级到NDB 8.0；请参阅[升级到NDB 8.0支持的版本](mysql-cluster-upgrade-downgrade.html#mysql-cluster-upgrade-versions
+    "升级到NDB 8.0支持的版本")，以获取具体版本信息。此类升级受到以下问题的影响：
+- en: In NDB 8.0, the default value for [`log_bin`](replication-options-binary-log.html#sysvar_log_bin)
+    is 1, a change from earlier releases. In addition, as of NDB 8.0.16, the default
+    value for [`ndb_log_bin`](mysql-cluster-options-variables.html#sysvar_ndb_log_bin)
+    changed from 1 to 0, which means that `ndb_log_bin` must be set explicitly to
+    1 to enable binary logging in this and later versions.
+  id: totrans-85
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在NDB 8.0中，[`log_bin`](replication-options-binary-log.html#sysvar_log_bin)的默认值为1，与之前版本有所改变。此外，从NDB
+    8.0.16开始，[`ndb_log_bin`](mysql-cluster-options-variables.html#sysvar_ndb_log_bin)的默认值从1改为0，这意味着必须显式设置`ndb_log_bin`为1才能在此版本及以后的版本中启用二进制日志记录。
+- en: 'Distributed privileges shared between MySQL servers as implemented in prior
+    release series (see [Distributed Privileges Using Shared Grant Tables](/doc/refman/5.7/en/mysql-cluster-privilege-distribution.html))
+    are not supported in NDB Cluster 8.0\. When started, the [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") supplied with NDB 8.0 and later checks for
+    the existence of any grant tables which use the `NDB` storage engine; if it finds
+    any, it creates local copies (“shadow tables”) of these using `InnoDB`. This is
+    true for each MySQL server connected to NDB Cluster. After this has been performed
+    on all MySQL servers acting as NDB Cluster SQL nodes, the `NDB` grant tables may
+    be safely removed using the [**ndb_drop_table**](mysql-cluster-programs-ndb-drop-table.html
+    "25.5.11 ndb_drop_table — Drop an NDB Table") utility supplied with the NDB Cluster
+    distribution, like this:'
+  id: totrans-86
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在先前的发布系列中实现的MySQL服务器之间共享的分布式权限（请参见[使用共享授权表进行分布式权限](/doc/refman/5.7/en/mysql-cluster-privilege-distribution.html)）在NDB
+    Cluster 8.0中不受支持。在启动时，NDB 8.0及更高版本提供的[**mysqld**](mysqld.html "6.3.1 mysqld —
+    MySQL服务器")会检查是否存在使用`NDB`存储引擎的任何授权表；如果找到任何授权表，它将使用`InnoDB`创建本地副本（“影子表”）。对于每个连接到NDB
+    Cluster的MySQL服务器都是如此。在所有作为NDB Cluster SQL节点的MySQL服务器上执行此操作后，可以使用NDB Cluster发行版提供的[**ndb_drop_table**](mysql-cluster-programs-ndb-drop-table.html
+    "25.5.11 ndb_drop_table — 删除NDB表")实用程序安全地删除`NDB`授权表，如下所示：
+- en: '[PRE1]'
+  id: totrans-87
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: It is safe to retain the `NDB` grant tables, but they are not used for access
+    control and are effectively ignored.
+  id: totrans-88
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以保留`NDB`授权表，但它们不用于访问控制，实际上被忽略。
+- en: For more information about the MySQL privileges system used in NDB 8.0, see
+    [Section 25.6.13, “Privilege Synchronization and NDB_STORED_USER”](mysql-cluster-privilege-synchronization.html
+    "25.6.13 Privilege Synchronization and NDB_STORED_USER"), as well as [Section 8.2.3,
+    “Grant Tables”](grant-tables.html "8.2.3 Grant Tables").
+  id: totrans-89
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关NDB 8.0中使用的MySQL权限系统的更多信息，请参见[第25.6.13节，“权限同步和NDB_STORED_USER”](mysql-cluster-privilege-synchronization.html
+    "25.6.13 权限同步和NDB_STORED_USER")，以及[第8.2.3节，“授权表”](grant-tables.html "8.2.3 授权表")。
+- en: It is necessary to restart all data nodes with [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    when upgrading any release prior to NDB 7.6 to any NDB 8.0 release. This is due
+    to the addition of support for increased numbers of nodes in NDB 8.0.
+  id: totrans-90
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在将任何NDB 7.6之前的版本升级到任何NDB 8.0版本时，需要使用[`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)重新启动所有数据节点。这是因为NDB
+    8.0增加了对节点数量的支持。
+- en: 'Issues encountered when trying to downgrade from NDB 8.0 to a previous major
+    version can be found in the following list:'
+  id: totrans-91
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 尝试从NDB 8.0降级到以前的主要版本时遇到的问题可以在以下列表中找到：
+- en: Tables created in NDB 8.0 are not backwards compatible with NDB 7.6 and earlier
+    releases due to a change in usage of the extra metadata property implemented by
+    `NDB` tables to provide full support for the MySQL data dictionary. This means
+    that it is necessary to take extra steps to preserve any desired state information
+    from the cluster's SQL nodes prior to the downgrade, and then to restore it afterwards.
+  id: totrans-92
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 由于NDB 8.0中对`NDB`表实现的额外元数据属性的使用方式发生了变化，导致与NDB 7.6和更早版本不兼容，因此在降级之前需要采取额外步骤来保留集群SQL节点的任何所需状态信息，然后在降级后进行恢复。
+- en: More specifically, online downgrades of the `NDBCLUSTER` storage engine—that
+    is, of the data nodes—are supported, but SQL nodes cannot be downgraded online.
+    This is because a MySQL Server ([**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL
+    Server")) of a given MySQL 8.0 or earlier version cannot use system files from
+    a (later) 8.0 version, and cannot open tables that were created in the later version.
+    It may be possible to roll back a cluster that has recently been upgraded from
+    a previous NDB release; see [Reverting an NDB Cluster 8.0 Upgrade](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "Reverting an NDB Cluster 8.0 Upgrade"), for information regarding when and how
+    this can be done.
+  id: totrans-93
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 更具体地说，支持`NDBCLUSTER`存储引擎的在线降级，即数据节点的降级，但SQL节点无法在线降级。这是因为给定MySQL 8.0或更早版本的MySQL服务器（[**mysqld**](mysqld.html
+    "6.3.1 mysqld — MySQL服务器")）无法使用来自（稍后的）8.0版本的系统文件，并且无法打开在稍后版本中创建的表。可能可以回滚最近从以前的NDB版本升级的集群；有关何时以及如何执行此操作，请参见[回滚NDB
+    Cluster 8.0升级](mysql-cluster-upgrade-downgrade.html#mysql-cluster-revert-upgrade
+    "回滚NDB Cluster 8.0升级")。
+- en: For additional information relating to these issues, see [Changes in NDB table
+    extra metadata](mysql-cluster-what-is-new.html#mysql-cluster-what-is-new-8-0-extra-metadata
+    "Changes in NDB table extra metadata"); see also [Chapter 16, *MySQL Data Dictionary*](data-dictionary.html
+    "Chapter 16 MySQL Data Dictionary").
+  id: totrans-94
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关这些问题的更多信息，请参见 [NDB 表额外元数据的更改](mysql-cluster-what-is-new.html#mysql-cluster-what-is-new-8-0-extra-metadata
+    "NDB 表额外元数据的更改")；另请参见 [第 16 章，*MySQL 数据字典*](data-dictionary.html "第 16 章 MySQL
+    数据字典")。
+- en: In NDB 8.0, the binary configuration file format has been enhanced to provide
+    support for greater numbers of nodes than in previous versions. The new format
+    is not accessible to nodes running older versions of `NDB`, although newer management
+    servers can detect older nodes and communicate with them using the appropriate
+    format.
+  id: totrans-95
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在 NDB 8.0 中，二进制配置文件格式已经改进，以支持比以前版本更多的节点。新格式对于运行旧版本`NDB`的节点不可访问，尽管新的管理服务器可以检测到旧节点并使用适当的格式与它们通信。
+- en: While upgrades to NDB 8.0 should not be problematic in this regard, older management
+    servers cannot read the newer binary configuration file format, so that some manual
+    intervention is required when downgrading from NDB 8.0 to a previous major version.
+    When performing such a downgrade, it is necessary to remove any cached binary
+    configuration files prior to starting the management using the older `NDB` software
+    version, and to have the plaintext configuration file available for the management
+    server to read. Alternatively, you can start the older management server using
+    the [`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial)
+    option (again, it is necessary to have the `config.ini` available). If the cluster
+    uses multiple management servers, one of these two things must be done for each
+    management server binary.
+  id: totrans-96
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 升级到 NDB 8.0 在这方面不应该有问题，但是旧的管理服务器无法读取更新的二进制配置文件格式，因此在从 NDB 8.0 降级到之前的主要版本时需要一些手动干预。在执行这样的降级时，需要在使用旧版`NDB`软件版本启动管理之前删除任何缓存的二进制配置文件，并确保管理服务器可以读取明文配置文件。或者，您可以使用
+    [`--initial`](mysql-cluster-programs-ndb-mgmd.html#option_ndb_mgmd_initial) 选项启动旧的管理服务器（同样，需要有`config.ini`可用）。如果集群使用多个管理服务器，则必须为每个管理服务器二进制文件执行这两个操作。
+- en: Also in connection with support for increased numbers of nodes, and due to incompatible
+    changes implemented in NDB 8.0 in the data node LCP `Sysfile`, it is necessary,
+    when performing an online downgrade from NDB 8.0 to a prior major version, to
+    restart all data nodes using the [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial)
+    option.
+  id: totrans-97
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 与支持增加节点数量有关，由于在数据节点 LCP `Sysfile` 中实施的不兼容更改，因此在从 NDB 8.0 在线降级到先前的主要版本时，需要重新启动所有数据节点并使用
+    [`--initial`](mysql-cluster-programs-ndbd.html#option_ndbd_initial) 选项。
+- en: Online downgrades of clusters running more than 48 data nodes, or with data
+    nodes using node IDs greater than 48, to earlier NDB Cluster releases from NDB
+    8.0 are not supported. It is necessary in such cases to reduce the number of data
+    nodes, to change the configurations for all data nodes such that they use node
+    IDs less than or equal to 48, or both, as required not to exceed the old maximums.
+  id: totrans-98
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不支持将运行超过 48 个数据节点的集群或使用大于 48 的节点 ID 的数据节点在线降级到 NDB 8.0 之前的 NDB Cluster 版本。在这种情况下，需要减少数据节点的数量，更改所有数据节点的配置，使它们使用小于或等于
+    48 的节点 ID，或者根据需要同时执行这两个操作，以确保不超过旧的最大限制。
+- en: If you are downgrading from NDB 8.0 to NDB 7.5 or NDB 7.4, you must set an explicit
+    value for [`IndexMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-indexmemory)
+    in the cluster configuration file if none is already present. This is because
+    NDB 8.0 does not use this parameter (which was removed in NDB 7.6) and sets it
+    to 0 by default, whereas it is required in NDB 7.5 and NDB 7.4, in both of which
+    the cluster refuses to start with Invalid configuration received from Management
+    Server... if `IndexMemory` is not set to a nonzero value.
+  id: totrans-99
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果要从 NDB 8.0 降级到 NDB 7.5 或 NDB 7.4，则必须在集群配置文件中为 [`IndexMemory`](mysql-cluster-ndbd-definition.html#ndbparam-ndbd-indexmemory)
+    设置一个显式值，如果尚未设置。这是因为 NDB 8.0 不使用此参数（在 NDB 7.6 中已删除），并默认将其设置为 0，而在 NDB 7.5 和 NDB
+    7.4 中，集群要求`IndexMemory`设置为非零值，否则集群将拒绝启动并显示来自管理服务器的无效配置...。
+- en: Setting `IndexMemory` is *not* required for downgrades from NDB 8.0 to NDB 7.6.
+  id: totrans-100
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 从 NDB 8.0 降级到 NDB 7.6 *不* 需要设置`IndexMemory`。

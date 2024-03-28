@@ -1,0 +1,339 @@
+- en: 9.6.3 How to Repair MyISAM Tables
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 9.6.3 如何修复MyISAM表
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-repair.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-repair.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/myisam-repair.html](https://dev.mysql.com/doc/refman/8.0/en/myisam-repair.html)
+- en: The discussion in this section describes how to use [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") on `MyISAM` tables (extensions
+    `.MYI` and `.MYD`).
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节讨论了如何在`MyISAM`表（扩展名为`.MYI`和`.MYD`）上使用[**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")。
+- en: You can also use the [`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE
+    Statement") and [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")
+    statements to check and repair `MyISAM` tables. See [Section 15.7.3.2, “CHECK
+    TABLE Statement”](check-table.html "15.7.3.2 CHECK TABLE Statement"), and [Section 15.7.3.5,
+    “REPAIR TABLE Statement”](repair-table.html "15.7.3.5 REPAIR TABLE Statement").
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以使用[`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE Statement")和[`REPAIR
+    TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")语句来检查和修复`MyISAM`表。请参阅[Section 15.7.3.2,
+    “CHECK TABLE Statement”](check-table.html "15.7.3.2 CHECK TABLE Statement")和[Section 15.7.3.5,
+    “REPAIR TABLE Statement”](repair-table.html "15.7.3.5 REPAIR TABLE Statement")。
+- en: 'Symptoms of corrupted tables include queries that abort unexpectedly and observable
+    errors such as these:'
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 损坏表的症状包括意外中止的查询和可观察到的错误，例如：
+- en: 'Can''t find file `*`tbl_name`*.MYI` (Errcode: *`nnn`*)'
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 找不到文件`*`tbl_name`*.MYI`（错误代码：*`nnn`*）
+- en: Unexpected end of file
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 文件意外结束
+- en: Record file is crashed
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 记录文件已崩溃
+- en: Got error *`nnn`* from table handler
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 从表处理程序得到错误*`nnn`*
+- en: 'To get more information about the error, run [**perror**](perror.html "6.8.2 perror
+    — Display MySQL Error Message Information") *`nnn`*, where *`nnn`* is the error
+    number. The following example shows how to use [**perror**](perror.html "6.8.2 perror
+    — Display MySQL Error Message Information") to find the meanings for the most
+    common error numbers that indicate a problem with a table:'
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要获取有关错误的更多信息，请运行[**perror**](perror.html "6.8.2 perror — Display MySQL Error
+    Message Information") *`nnn`*，其中*`nnn`*是错误编号。以下示例显示如何使用[**perror**](perror.html
+    "6.8.2 perror — Display MySQL Error Message Information")查找指示表存在问题的最常见错误编号的含义：
+- en: '[PRE0]'
+  id: totrans-10
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Note that error 135 (no more room in record file) and error 136 (no more room
+    in index file) are not errors that can be fixed by a simple repair. In this case,
+    you must use [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    to increase the `MAX_ROWS` and `AVG_ROW_LENGTH` table option values:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 请注意，错误135（记录文件中没有更多空间）和错误136（索引文件中没有更多空间）不是简单修复的错误。在这种情况下，您必须使用[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement")来增加`MAX_ROWS`和`AVG_ROW_LENGTH`表选项值：
+- en: '[PRE1]'
+  id: totrans-12
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: If you do not know the current table option values, use [`SHOW CREATE TABLE`](show-create-table.html
+    "15.7.7.10 SHOW CREATE TABLE Statement").
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您不知道当前的表选项值，请使用[`SHOW CREATE TABLE`](show-create-table.html "15.7.7.10 SHOW
+    CREATE TABLE Statement")。
+- en: For the other errors, you must repair your tables. [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") can usually detect and fix
+    most problems that occur.
+  id: totrans-14
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于其他错误，您必须修复您的表。[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")通常可以检测和修复大多数出现的问题。
+- en: The repair process involves up to three stages, described here. Before you begin,
+    you should change location to the database directory and check the permissions
+    of the table files. On Unix, make sure that they are readable by the user that
+    [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") runs as (and to you,
+    because you need to access the files you are checking). If it turns out you need
+    to modify files, they must also be writable by you.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 修复过程包括最多三个阶段，这里进行描述。在开始之前，您应该切换到数据库目录并检查表文件的权限。在Unix上，请确保它们可被[**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server")运行的用户（以及您，因为您需要访问正在检查的文件）读取。如果您需要修改文件，它们也必须可被您写入。
+- en: This section is for the cases where a table check fails (such as those described
+    in [Section 9.6.2, “How to Check MyISAM Tables for Errors”](myisam-check.html
+    "9.6.2 How to Check MyISAM Tables for Errors")), or you want to use the extended
+    features that [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") provides.
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 本节适用于表检查失败的情况（例如[Section 9.6.2, “How to Check MyISAM Tables for Errors”](myisam-check.html
+    "9.6.2 How to Check MyISAM Tables for Errors")中描述的情况），或者您想要使用[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")提供的扩展功能。
+- en: The [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") options used for table maintenance with are described in [Section 6.6.4,
+    “myisamchk — MyISAM Table-Maintenance Utility”](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility"). [**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") also has variables that you can set to control
+    memory allocation that may improve performance. See [Section 6.6.4.6, “myisamchk
+    Memory Usage”](myisamchk-memory.html "6.6.4.6 myisamchk Memory Usage").
+  id: totrans-17
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 用于表维护的[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")选项在[第6.6.4节“myisamchk — MyISAM Table-Maintenance Utility”](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")中有描述。[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")还有一些变量，您可以设置以控制可能改善性能的内存分配。请参阅[第6.6.4.6节“myisamchk内存使用”](myisamchk-memory.html
+    "6.6.4.6 myisamchk Memory Usage")。
+- en: If you are going to repair a table from the command line, you must first stop
+    the [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") server. Note that
+    when you do [**mysqladmin shutdown**](mysqladmin.html "6.5.2 mysqladmin — A MySQL
+    Server Administration Program") on a remote server, the [**mysqld**](mysqld.html
+    "6.3.1 mysqld — The MySQL Server") server is still available for a while after
+    [**mysqladmin**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program") returns, until all statement-processing has stopped and all index changes
+    have been flushed to disk.
+  id: totrans-18
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果要从命令行修复表，必须先停止[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")服务器。请注意，当在远程服务器上执行[**mysqladmin
+    shutdown**](mysqladmin.html "6.5.2 mysqladmin — A MySQL Server Administration
+    Program")时，[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")服务器在[**mysqladmin**](mysqladmin.html
+    "6.5.2 mysqladmin — A MySQL Server Administration Program")返回后仍可用一段时间，直到所有语句处理停止并所有索引更改已刷新到磁盘。
+- en: '**Stage 1: Checking your tables**'
+  id: totrans-19
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第一阶段：检查您的表**'
+- en: Run [**myisamchk *.MYI**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") or [**myisamchk -e *.MYI**](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") if you have more time. Use the `-s` (silent) option
+    to suppress unnecessary information.
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 运行[**myisamchk *.MYI**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")或[**myisamchk -e *.MYI**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")如果时间充裕。使用`-s`（静默）选项以抑制不必要的信息。
+- en: If the [**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server") server is
+    stopped, you should use the [`--update-state`](myisamchk-check-options.html#option_myisamchk_update-state)
+    option to tell [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") to mark the table as “checked.”
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果[**mysqld**](mysqld.html "6.3.1 mysqld — The MySQL Server")服务器已停止，应使用[`--update-state`](myisamchk-check-options.html#option_myisamchk_update-state)选项告诉[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")将表标记为“已检查”。
+- en: You have to repair only those tables for which [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility") announces an error. For
+    such tables, proceed to Stage 2.
+  id: totrans-22
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只需修复[**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")报告错误的那些表。对于这样的表，继续进行第二阶段。
+- en: If you get unexpected errors when checking (such as `out of memory` errors),
+    or if [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") crashes, go to Stage 3.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在检查时遇到意外错误（例如`内存不足`错误），或者[**myisamchk**](myisamchk.html "6.6.4 myisamchk —
+    MyISAM Table-Maintenance Utility")崩溃，请转到第三阶段。
+- en: '**Stage 2: Easy safe repair**'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第二阶段：简单安全修复**'
+- en: 'First, try [**myisamchk -r -q *`tbl_name`***](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility") (`-r -q` means “quick recovery mode”). This
+    attempts to repair the index file without touching the data file. If the data
+    file contains everything that it should and the delete links point at the correct
+    locations within the data file, this should work, and the table is fixed. Start
+    repairing the next table. Otherwise, use the following procedure:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 首先尝试[**myisamchk -r -q *`tbl_name`***](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility")（`-r -q`表示“快速恢复模式”）。这将尝试修复索引文件而不触及数据文件。如果数据文件包含应有的所有内容，并且删除链接指向数据文件内的正确位置，则应该可以工作，并且表已修复。开始修复下一个表。否则，请使用以下过程：
+- en: Make a backup of the data file before continuing.
+  id: totrans-26
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在继续之前备份数据文件。
+- en: Use [**myisamchk -r *`tbl_name`***](myisamchk.html "6.6.4 myisamchk — MyISAM
+    Table-Maintenance Utility") (`-r` means “recovery mode”). This removes incorrect
+    rows and deleted rows from the data file and reconstructs the index file.
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用[**myisamchk -r *`tbl_name`***](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")（`-r`表示“恢复模式”）。这将从数据文件中删除不正确的行和已删除的行，并重建索引文件。
+- en: If the preceding step fails, use [**myisamchk --safe-recover *`tbl_name`***](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility"). Safe recovery mode uses
+    an old recovery method that handles a few cases that regular recovery mode does
+    not (but is slower).
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果前面的步骤失败，请使用[**myisamchk --safe-recover *`tbl_name`***](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")。安全恢复模式使用一种旧的恢复方法，处理一些常规恢复模式无法处理的情况（但速度较慢）。
+- en: Note
+  id: totrans-29
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: If you want a repair operation to go much faster, you should set the values
+    of the [`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)
+    and [`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size) variables
+    each to about 25% of your available memory when running [**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility").
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您希望修复操作更快完成，应将[`sort_buffer_size`](server-system-variables.html#sysvar_sort_buffer_size)和[`key_buffer_size`](server-system-variables.html#sysvar_key_buffer_size)变量的值分别设置为可用内存的约25%，当运行[**myisamchk**](myisamchk.html
+    "6.6.4 myisamchk — MyISAM Table-Maintenance Utility")时。
+- en: If you get unexpected errors when repairing (such as `out of memory` errors),
+    or if [**myisamchk**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility") crashes, go to Stage 3.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果在修复过程中遇到意外错误（如`内存不足`错误），或者[**myisamchk**](myisamchk.html "6.6.4 myisamchk
+    — MyISAM Table-Maintenance Utility")崩溃，请进入第三阶段。
+- en: '**Stage 3: Difficult repair**'
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**第三阶段：困难修复**'
+- en: 'You should reach this stage only if the first 16KB block in the index file
+    is destroyed or contains incorrect information, or if the index file is missing.
+    In this case, it is necessary to create a new index file. Do so as follows:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 只有在索引文件中的第一个16KB块被破坏或包含不正确信息，或者索引文件丢失时，才应该达到这个阶段。在这种情况下，需要创建一个新的索引文件。操作如下：
+- en: Move the data file to a safe place.
+  id: totrans-34
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将数据文件移至安全位置。
+- en: 'Use the table description file to create new (empty) data and index files:'
+  id: totrans-35
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 使用表描述文件创建新的（空）数据和索引文件：
+- en: '[PRE2]'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: '[PRE3]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: Copy the old data file back onto the newly created data file. (Do not just move
+    the old file back onto the new file. You want to retain a copy in case something
+    goes wrong.)
+  id: totrans-38
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 将旧数据文件复制回新创建的数据文件。（不要只是将旧文件移回新文件。您希望保留一份副本以防出现问题。）
+- en: Important
+  id: totrans-39
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 重要提示
+- en: If you are using replication, you should stop it prior to performing the above
+    procedure, since it involves file system operations, and these are not logged
+    by MySQL.
+  id: totrans-40
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您正在使用复制功能，应在执行上述过程之前停止复制，因为这涉及文件系统操作，而MySQL不会记录这些操作。
+- en: Go back to Stage 2\. [**myisamchk -r -q**](myisamchk.html "6.6.4 myisamchk —
+    MyISAM Table-Maintenance Utility") should work. (This should not be an endless
+    loop.)
+  id: totrans-41
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 返回到第二阶段。[**myisamchk -r -q**](myisamchk.html "6.6.4 myisamchk — MyISAM Table-Maintenance
+    Utility")应该可以工作。（这不应该是一个无限循环。）
+- en: You can also use the `REPAIR TABLE *`tbl_name`* USE_FRM` SQL statement, which
+    performs the whole procedure automatically. There is also no possibility of unwanted
+    interaction between a utility and the server, because the server does all the
+    work when you use [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement").
+    See [Section 15.7.3.5, “REPAIR TABLE Statement”](repair-table.html "15.7.3.5 REPAIR
+    TABLE Statement").
+  id: totrans-42
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 您还可以使用`REPAIR TABLE *`tbl_name`* USE_FRM` SQL语句，该语句会自动执行整个过程。由于服务器在使用[`REPAIR
+    TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE Statement")时会完成所有工作，因此不会出现工具与服务器之间的意外交互。请参阅[Section 15.7.3.5,
+    “REPAIR TABLE Statement”](repair-table.html "15.7.3.5 REPAIR TABLE Statement")。

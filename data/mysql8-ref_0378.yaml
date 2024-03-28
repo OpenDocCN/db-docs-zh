@@ -1,0 +1,527 @@
+- en: 8.2.18 Multifactor Authentication
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 8.2.18 多因素认证
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/multifactor-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/multifactor-authentication.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/multifactor-authentication.html](https://dev.mysql.com/doc/refman/8.0/en/multifactor-authentication.html)
+- en: Authentication involves one party establishing its identity to the satisfaction
+    of a second party. Multifactor authentication (MFA) is the use of multiple authentication
+    values (or “factors”) during the authentication process. MFA provides greater
+    security than one-factor/single-factor authentication (1FA/SFA), which uses only
+    one authentication method such as a password. MFA enables additional authentication
+    methods, such as authentication using multiple passwords, or authentication using
+    devices like smart cards, security keys, and biometric readers.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证涉及一方向第二方证明其身份。多因素认证（MFA）是在认证过程中使用多个认证值（或“因素”）的方法。MFA 比单因素认证（1FA）提供更高的安全性，单因素认证仅使用一种认证方法，比如密码。MFA
+    可以启用额外的认证方法，比如使用多个密码进行认证，或者使用智能卡、安全密钥和生物识别读卡器进行认证。
+- en: MySQL 8.0.27 and higher includes support for multifactor authentication. This
+    capability includes forms of MFA that require up to three authentication values.
+    That is, MySQL account management supports accounts that use 2FA or 3FA, in addition
+    to the existing 1FA support.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 8.0.27 及更高版本支持多因素认证。该功能包括需要最多三个认证值的 MFA 形式。也就是说，MySQL 账户管理支持使用 2FA 或 3FA
+    的账户，除了现有的 1FA 支持。
+- en: When a client attempts a connection to the MySQL server using a single-factor
+    account, the server invokes the authentication plugin indicated by the account
+    definition and accepts or rejects the connection depending on whether the plugin
+    reports success or failure.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当客户端尝试使用单因素账户连接到 MySQL 服务器时，服务器调用账户定义中指定的认证插件，并根据插件报告的成功或失败来接受或拒绝连接。
+- en: For an account that has multiple authentication factors, the process is similar.
+    The server invokes authentication plugins in the order listed in the account definition.
+    If a plugin reports success, the server either accepts the connection if the plugin
+    is the last one, or proceeds to invoke the next plugin if any remain. If any plugin
+    reports failure, the server rejects the connection.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 对于具有多个认证因素的账户，流程类似。服务器按照账户定义中列出的顺序调用认证插件。如果插件报告成功，服务器会接受连接（如果插件是最后一个），或者如果还有插件剩余，则继续调用下一个插件。如果任何插件报告失败，服务器将拒绝连接。
+- en: The following sections cover multifactor authentication in MySQL in more detail.
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 以下章节详细介绍了 MySQL 中的多因素认证。
+- en: '[Elements of Multifactor Authentication Support](multifactor-authentication.html#multifactor-authentication-elements
+    "Elements of Multifactor Authentication Support")'
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[多因素认证支持的元素](multifactor-authentication.html#multifactor-authentication-elements
+    "多因素认证支持的元素")'
+- en: '[Configuring the Multifactor Authentication Policy](multifactor-authentication.html#multifactor-authentication-policy
+    "Configuring the Multifactor Authentication Policy")'
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[配置多因素认证策略](multifactor-authentication.html#multifactor-authentication-policy
+    "配置多因素认证策略")'
+- en: '[Getting Started with Multifactor Authentication](multifactor-authentication.html#multifactor-authentication-getting-started
+    "Getting Started with Multifactor Authentication")'
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[开始使用多因素认证](multifactor-authentication.html#multifactor-authentication-getting-started
+    "开始使用多因素认证")'
+- en: Elements of Multifactor Authentication Support
+  id: totrans-10
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 多因素认证支持的元素
+- en: 'Authentication factors commonly include these types of information:'
+  id: totrans-11
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 认证因素通常包括以下类型的信息：
+- en: Something you know, such as a secret password or passphrase.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你知道的东西，比如秘密密码或口令。
+- en: Something you have, such as a security key or smart card.
+  id: totrans-13
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你拥有的东西，比如安全密钥或智能卡。
+- en: Something you are; that is, a biometric characteristic such as a fingerprint
+    or facial scan.
+  id: totrans-14
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 你的生物特征；比如指纹或面部扫描。
+- en: 'The “something you know” factor type relies on information that is kept secret
+    on both sides of the authentication process. Unfortunately, secrets may be subject
+    to compromise: Someone might see you enter your password or fool you with a phishing
+    attack, a password stored on the server side might be exposed by a security breach,
+    and so forth. Security can be improved by using multiple passwords, but each may
+    still be subject to compromise. Use of the other factor types enables improved
+    security with less risk of compromise.'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: “你所知道的”因素类型依赖于在身份验证过程的双方都保密的信息。不幸的是，秘密可能会受到威胁：有人可能看到你输入密码，或者用网络钓鱼攻击欺骗你，服务器端存储的密码可能会在安全漏洞中暴露等。使用多个密码可以提高安全性，但每个密码仍然可能会受到威胁。使用其他因素类型可以在减少威胁的情况下提高安全性。
+- en: 'Implementation of multifactor authentication in MySQL comprises these elements:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL 中多因素身份验证的实现包括以下元素：
+- en: The [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    system variable controls how many authentication factors can be used and the types
+    of authentication permitted for each factor. That is, it places constraints on
+    [`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") and [`ALTER
+    USER`](alter-user.html "15.7.1.1 ALTER USER Statement") statements with respect
+    to multifactor authentication.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    系统变量控制可以使用多少身份验证因素以及每个因素允许的身份验证类型。也就是说，它对于 [`CREATE USER`](create-user.html "15.7.1.3 CREATE
+    USER Statement") 和 [`ALTER USER`](alter-user.html "15.7.1.1 ALTER USER Statement")
+    语句在多因素身份验证方面施加了约束。'
+- en: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") and [`ALTER
+    USER`](alter-user.html "15.7.1.1 ALTER USER Statement") have syntax enabling multiple
+    authentication methods to be specified for new accounts, and for adding, modifying,
+    or dropping authentication methods for existing accounts. If an account uses 2FA
+    or 3FA, the `mysql.user` system table stores information about the additional
+    authentication factors in the `User_attributes` column.'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`CREATE USER`](create-user.html "15.7.1.3 CREATE USER Statement") 和 [`ALTER
+    USER`](alter-user.html "15.7.1.1 ALTER USER Statement") 具有语法，允许为新帐户指定多个身份验证方法，并为现有帐户添加、修改或删除身份验证方法。如果帐户使用
+    2FA 或 3FA，`mysql.user` 系统表会在 `User_attributes` 列中存储有关额外身份验证因素的信息。'
+- en: To enable authentication to the MySQL server using accounts that require multiple
+    passwords, client programs have [`--password1`](connection-options.html#option_general_password1),
+    [`--password2`](connection-options.html#option_general_password2), and [`--password3`](connection-options.html#option_general_password3)
+    options that permit up to three passwords to be specified. For applications that
+    use the C API, the `MYSQL_OPT_USER_PASSWORD` option for the [`mysql_options4()`](/doc/c-api/8.0/en/mysql-options4.html)
+    C API function enables the same capability.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 为了启用使用需要多个密码的帐户进行 MySQL 服务器身份验证，客户端程序具有 [`--password1`](connection-options.html#option_general_password1)、[`--password2`](connection-options.html#option_general_password2)
+    和 [`--password3`](connection-options.html#option_general_password3) 选项，允许指定最多三个密码。对于使用
+    C API 的应用程序，[`mysql_options4()`](/doc/c-api/8.0/en/mysql-options4.html) C API
+    函数的 `MYSQL_OPT_USER_PASSWORD` 选项可以实现相同的功能。
+- en: The server-side `authentication_fido` plugin (deprecated) enables authentication
+    using devices. This server-side FIDO authentication plugin is included only in
+    MySQL Enterprise Edition distributions. It is not included in MySQL community
+    distributions. However, the client-side `authentication_fido_client` plugin (deprecated)
+    is included in all distributions, including community distributions. This enables
+    clients from any distribution to connect to accounts that use `authentication_fido`
+    to authenticate on a server that has that plugin loaded. See [Section 8.4.1.11,
+    “FIDO Pluggable Authentication”](fido-pluggable-authentication.html "8.4.1.11 FIDO
+    Pluggable Authentication").
+  id: totrans-20
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 服务器端的 `authentication_fido` 插件（已弃用）允许使用设备进行身份验证。这个服务器端的 FIDO 身份验证插件仅包含在 MySQL
+    Enterprise Edition 发行版中。它不包含在 MySQL 社区发行版中。然而，客户端的 `authentication_fido_client`
+    插件（已弃用）包含在所有发行版中，包括社区发行版。这使得来自任何发行版的客户端可以连接到使用 `authentication_fido` 在加载了该插件的服务器上进行身份验证的帐户。参见
+    [Section 8.4.1.11, “FIDO Pluggable Authentication”](fido-pluggable-authentication.html
+    "8.4.1.11 FIDO Pluggable Authentication")。
+- en: '`authentication_fido` also enables passwordless authentication, if it is the
+    only authentication plugin used by an account. See [FIDO Passwordless Authentication](fido-pluggable-authentication.html#fido-pluggable-authentication-passwordless
+    "FIDO Passwordless Authentication").'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`authentication_fido` 还可以实现免密码认证，如果它是账户唯一使用的认证插件。查看[FIDO免密码认证](fido-pluggable-authentication.html#fido-pluggable-authentication-passwordless
+    "FIDO免密码认证")。'
+- en: Multifactor authentication can use non-FIDO MySQL authentication methods, the
+    FIDO authentication method, or a combination of both.
+  id: totrans-22
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 多因素认证可以使用非FIDO MySQL认证方法、FIDO认证方法或两者的组合。
+- en: 'These privileges enable users to perform certain restricted multifactor authentication-related
+    operations:'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 这些权限使用户能够执行某些受限的多因素认证相关操作：
+- en: A user who has the [`AUTHENTICATION_POLICY_ADMIN`](privileges-provided.html#priv_authentication-policy-admin)
+    privilege is not subject to the constraints imposed by the [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    system variable. (A warning does occur for statements that otherwise would not
+    be permitted.)
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 拥有[`AUTHENTICATION_POLICY_ADMIN`](privileges-provided.html#priv_authentication-policy-admin)
+    权限的用户不受[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    系统变量强加的限制。 （对于否则不允许的语句会发出警告。）
+- en: The [`PASSWORDLESS_USER_ADMIN`](privileges-provided.html#priv_passwordless-user-admin)
+    privilege enables creation of passwordless-authentication accounts and replication
+    of operations on them.
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '[`PASSWORDLESS_USER_ADMIN`](privileges-provided.html#priv_passwordless-user-admin)
+    权限允许创建免密码认证账户并对其进行操作复制。'
+- en: Configuring the Multifactor Authentication Policy
+  id: totrans-26
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 配置多因素认证策略
+- en: The [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    system variable defines the multifactor authentication policy. Specifically, it
+    defines how many authentication factors accounts may have (or are required to
+    have) and the authentication methods that can be used for each factor.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    系统变量定义了多因素认证策略。 具体来说，它定义了账户可以拥有（或需要拥有）多少认证因素以及可以用于每个因素的认证方法。'
+- en: 'The value of [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    is a list of 1, 2, or 3 comma-separated elements. Each element in the list corresponds
+    to an authentication factor and can be an authentication plugin name, an asterisk
+    (`*`), empty, or missing. (Exception: Element 1 cannot be empty or missing.) The
+    entire list is enclosed in single quotes. For example, the following [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    value includes an asterisk, an authentication plugin name, and an empty element:'
+  id: totrans-28
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    的值是一个由1、2或3个逗号分隔的元素组成的列表。 列表中的每个元素对应一个认证因素，可以是认证插件名称、星号（`*`）、空或缺失。 （例外：元素1不能是空或缺失。）
+    整个列表用单引号括起来。 例如，以下[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    值包括一个星号、一个认证插件名称和一个空元素：'
+- en: '[PRE0]'
+  id: totrans-29
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: An asterisk (`*`) indicates that an authentication method is required but any
+    method is permitted. An empty element indicates that an authentication method
+    is optional and any method is permitted. A missing element (no asterisk, empty
+    element, or authentication plugin name) indicates that an authentication method
+    is not permitted. When a plugin name is specified, that authentication method
+    is required for the respective factor when creating or modifying an account.
+  id: totrans-30
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 星号（`*`）表示需要认证方法，但允许任何方法。 空元素表示认证方法是可选的，且允许任何方法。 缺失的元素（没有星号、空元素或认证插件名称）表示不允许认证方法。
+    当指定插件名称时，创建或修改账户时需要该认证方法作为相应因素的必需方法。
+- en: The default [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    value is `'*,,'` (an asterisk and two empty elements), which requires a first
+    factor, and optionally permits second and third factors. The default [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    value is thus backward compatible with existing 1FA accounts, but also permits
+    creation or modification of accounts to use 2FA or 3FA.
+  id: totrans-31
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    值为`'*,,'`（一个星号和两个空元素），需要第一因素，并可选择允许第二和第三因素。 因此，默认[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    值与现有的1FA账户向后兼容，但也允许创建或修改账户以使用2FA或3FA。
+- en: A user who has the [`AUTHENTICATION_POLICY_ADMIN`](privileges-provided.html#priv_authentication-policy-admin)
+    privilege is not subject to the constraints imposed by the [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    setting. (A warning occurs for statements that otherwise would not be permitted.)
+  id: totrans-32
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 拥有[`AUTHENTICATION_POLICY_ADMIN`](privileges-provided.html#priv_authentication-policy-admin)权限的用户不受[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)设置所施加的约束。
+    （对于否则不允许的语句会发出警告。）
+- en: '[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    values can be defined in an option file or specified using a [`SET GLOBAL`](set-variable.html
+    "15.7.6.1 SET Syntax for Variable Assignment") statement:'
+  id: totrans-33
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)值可以在选项文件中定义或使用[`SET
+    GLOBAL`](set-variable.html "15.7.6.1 变量赋值的SET语法")语句指定：'
+- en: '[PRE1]'
+  id: totrans-34
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: There are several rules that govern how the [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    value can be defined. Refer to the [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    system variable description for a compete account of those rules. The following
+    table provides several [`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)
+    example values and the policy established by each.
+  id: totrans-35
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有几条规则规定了如何定义[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)值。请参考[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)系统变量描述，了解这些规则的完整说明。以下表格提供了几个[`authentication_policy`](server-system-variables.html#sysvar_authentication_policy)示例值及其所建立的策略。
+- en: '**Table 8.11 Example authentication_policy Values**'
+  id: totrans-36
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '**表 8.11 示例 authentication_policy 值**'
+- en: '| authentication_policy Value | Effective Policy |'
+  id: totrans-37
+  prefs: []
+  type: TYPE_TB
+  zh: '| authentication_policy 值 | 有效策略 |'
+- en: '| `''*''` | Permit only creating or altering accounts with one factor. |'
+  id: totrans-38
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*''` | 仅允许创建或更改具有一个因素的帐户。'
+- en: '| `''*,*''` | Permit only creating or altering accounts with two factors. |'
+  id: totrans-39
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*,*''` | 仅允许创建或更改具有两个因素的帐户。'
+- en: '| `''*,*,*''` | Permit only creating or altering accounts with three factors.
+    |'
+  id: totrans-40
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*,*,*''` | 仅允许创建或更改具有三个因素的帐户。'
+- en: '| `''*,''` | Permit creating or altering accounts with one or two factors.
+    |'
+  id: totrans-41
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*,''` | 允许创建或更改具有一或两个因素的帐户。'
+- en: '| `''*,,''` | Permit creating or altering accounts with one, two, or three
+    factors. |'
+  id: totrans-42
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*,,''` | 允许创建或更改具有一、两或三个因素的帐户。'
+- en: '| `''*,*,''` | Permit creating or altering accounts with two or three factors.
+    |'
+  id: totrans-43
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*,*,''` | 允许创建或更改具有两个或三个因素的帐户。'
+- en: '| `''*,*`auth_plugin`*''` | Permit creating or altering accounts with two factors,
+    where the first factor can be any authentication method, and the second factor
+    must be the named plugin. |'
+  id: totrans-44
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*,*`auth_plugin`*''` | 允许创建或更改具有两个因素的帐户，其中第一个因素可以是任何认证方法，第二个因素必须是指定的插件。'
+- en: '| `''*`auth_plugin`*,*,''` | Permit creating or altering accounts with two
+    or three factors, where the first factor must be the named plugin. |'
+  id: totrans-45
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*`auth_plugin`*,*,''` | 允许创建或更改具有两个或三个因素的帐户，其中第一个因素必须是指定的插件。'
+- en: '| `''*`auth_plugin`*,''` | Permit creating or altering accounts with one or
+    two factors, where the first factor must be the named plugin. |'
+  id: totrans-46
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*`auth_plugin`*,''` | 允许创建或更改具有一或两个因素的帐户，其中第一个因素必须是指定的插件。'
+- en: '| `''*`auth_plugin`*,*`auth_plugin`*,*`auth_plugin`*''` | Permits creating
+    or altering accounts with three factors, where the factors must use the named
+    plugins. |'
+  id: totrans-47
+  prefs: []
+  type: TYPE_TB
+  zh: '| `''*`auth_plugin`*,*`auth_plugin`*,*`auth_plugin`*''` | 允许创建或更改具有三个因素的帐户，其中因素必须使用指定的插件。'
+- en: '| authentication_policy Value | Effective Policy |'
+  id: totrans-48
+  prefs: []
+  type: TYPE_TB
+  zh: '| authentication_policy 值 | 有效策略 |'
+- en: Getting Started with Multifactor Authentication
+  id: totrans-49
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 开始使用多因素认证
+- en: By default, MySQL uses a multifactor authentication policy that permits any
+    authentication plugin for the first factor, and optionally permits second and
+    third authentication factors. This policy is configurable; for details, see [Configuring
+    the Multifactor Authentication Policy](multifactor-authentication.html#multifactor-authentication-policy
+    "Configuring the Multifactor Authentication Policy").
+  id: totrans-50
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认情况下，MySQL使用一个多因素认证策略，允许任何认证插件作为第一个因素，并可选择允许第二和第三个认证因素。此策略是可配置的；有关详细信息，请参阅[配置多因素认证策略](multifactor-authentication.html#multifactor-authentication-policy
+    "配置多因素认证策略")。
+- en: Note
+  id: totrans-51
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 注意
+- en: It is not permitted to use any internal credential storage plugins (`caching_sha2_password`
+    or `mysql_native_password`) for factor 2 or 3.
+  id: totrans-52
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 不允许使用任何内部凭据存储插件（`caching_sha2_password`或`mysql_native_password`）作为第2或第3因素。
+- en: 'Suppose that you want an account to authenticate first using the `caching_sha2_password`
+    plugin, then using the `authentication_ldap_sasl` SASL LDAP plugin. (This assumes
+    that LDAP authentication is already set up as described in [Section 8.4.1.7, “LDAP
+    Pluggable Authentication”](ldap-pluggable-authentication.html "8.4.1.7 LDAP Pluggable
+    Authentication"), and that the user has an entry in the LDAP directory corresponding
+    to the authentication string shown in the example.) Create the account using a
+    statement like this:'
+  id: totrans-53
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您希望一个账户首先使用 `caching_sha2_password` 插件进行认证，然后再使用 `authentication_ldap_sasl`
+    SASL LDAP 插件进行认证。（这假设 LDAP 认证已经按照 [Section 8.4.1.7, “LDAP Pluggable Authentication”](ldap-pluggable-authentication.html
+    "8.4.1.7 LDAP Pluggable Authentication") 中描述的设置完成，并且用户在 LDAP 目录中有一个与示例中显示的认证字符串对应的条目。）使用以下语句创建账户：
+- en: '[PRE2]'
+  id: totrans-54
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'To connect, the user must supply two passwords. To enable authentication to
+    the MySQL server using accounts that require multiple passwords, client programs
+    have [`--password1`](connection-options.html#option_general_password1), [`--password2`](connection-options.html#option_general_password2),
+    and [`--password3`](connection-options.html#option_general_password3) options
+    that permit up to three passwords to be specified. These options are similar to
+    the [`--password`](connection-options.html#option_general_password) option in
+    that they can take a password value following the option on the command line (which
+    is insecure) or if given without a password value cause the user to be prompted
+    for one. For the account just created, factors 1 and 2 take passwords, so invoke
+    the [**mysql**](mysql.html "6.5.1 mysql — The MySQL Command-Line Client") client
+    with the [`--password1`](mysql-command-options.html#option_mysql_password1) and
+    [`--password2`](mysql-command-options.html#option_mysql_password2) options. [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") prompts for each password in turn:'
+  id: totrans-55
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要连接，用户必须提供两个密码。为了启用使用需要多个密码的账户连接到 MySQL 服务器的认证，客户端程序具有 [`--password1`](connection-options.html#option_general_password1)、[`--password2`](connection-options.html#option_general_password2)
+    和 [`--password3`](connection-options.html#option_general_password3) 选项，允许指定最多三个密码。这些选项类似于
+    [`--password`](connection-options.html#option_general_password) 选项，可以在命令行上跟随选项后面输入密码值（这是不安全的），或者如果没有密码值，则会提示用户输入密码。对于刚创建的账户，因素
+    1 和 2 需要密码，因此使用 [`--password1`](mysql-command-options.html#option_mysql_password1)
+    和 [`--password2`](mysql-command-options.html#option_mysql_password2) 选项调用 [**mysql**](mysql.html
+    "6.5.1 mysql — The MySQL Command-Line Client") 客户端。[**mysql**](mysql.html "6.5.1 mysql
+    — The MySQL Command-Line Client") 依次提示输入每个密码：
+- en: '[PRE3]'
+  id: totrans-56
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Suppose you want to add a third authentication factor. This can be achieved
+    by dropping and recreating the user with a third factor or by using [`ALTER USER
+    *`user`* ADD *`factor`*`](alter-user.html "15.7.1.1 ALTER USER Statement") syntax.
+    Both methods are shown below:'
+  id: totrans-57
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设您想要添加第三个认证因素。可以通过删除并重新创建具有第三个因素的用户，或者使用 [`ALTER USER *`user`* ADD *`factor`*`](alter-user.html
+    "15.7.1.1 ALTER USER Statement") 语法来实现。以下两种方法都显示如下：
+- en: '[PRE4]'
+  id: totrans-58
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: '`ADD *`factor`*` syntax includes the factor number and `FACTOR` keyword:'
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ADD *`factor`*` 语法包括因素编号和 `FACTOR` 关键字：'
+- en: '[PRE5]'
+  id: totrans-60
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: '[`ALTER USER *`user`* DROP *`factor`*`](alter-user.html "15.7.1.1 ALTER USER
+    Statement") syntax permits dropping a factor. The following example drops the
+    third factor (`authentication_fido`) that was added in the previous example:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`ALTER USER *`user`* DROP *`factor`*`](alter-user.html "15.7.1.1 ALTER USER
+    Statement") 语法允许删除一个因素。以下示例删除了前一个示例中添加的第三个因素（`authentication_fido`）：'
+- en: '[PRE6]'
+  id: totrans-62
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: '[`ALTER USER *`user`* MODIFY *`factor`*`](alter-user.html "15.7.1.1 ALTER USER
+    Statement") syntax permits changing the plugin or authentication string for a
+    particular factor, provided that the factor exists. The following example modifies
+    the second factor, changing the authentication method from `authentication_ldap_sasl`
+    to `authetication_fido`:'
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`ALTER USER *`user`* MODIFY *`factor`*`](alter-user.html "15.7.1.1 ALTER USER
+    Statement") 语法允许更改特定因素的插件或认证字符串，前提是该因素存在。以下示例修改了第二个因素，将认证方法从 `authentication_ldap_sasl`
+    更改为 `authetication_fido`：'
+- en: '[PRE7]'
+  id: totrans-64
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'Use [`SHOW CREATE USER`](show-create-user.html "15.7.7.12 SHOW CREATE USER
+    Statement") to view the authentication methods defined for an account:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用 [`SHOW CREATE USER`](show-create-user.html "15.7.7.12 SHOW CREATE USER Statement")
+    查看为账户定义的认证方法：
+- en: '[PRE8]'
+  id: totrans-66
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE8]'

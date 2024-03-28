@@ -1,0 +1,190 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/function-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/function-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/function-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/function-optimization.html)
+- en: 10.2.1.20 Function Call Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.20 函数调用优化
+- en: 'MySQL functions are tagged internally as deterministic or nondeterministic.
+    A function is nondeterministic if, given fixed values for its arguments, it can
+    return different results for different invocations. Examples of nondeterministic
+    functions: [`RAND()`](mathematical-functions.html#function_rand), [`UUID()`](miscellaneous-functions.html#function_uuid).'
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL函数在内部被标记为确定性或非确定性。如果给定其参数的固定值，函数在不同调用中可以返回不同结果，则该函数是非确定性的。非确定性函数的示例：[`RAND()`](mathematical-functions.html#function_rand)，[`UUID()`](miscellaneous-functions.html#function_uuid)。
+- en: If a function is tagged nondeterministic, a reference to it in a `WHERE` clause
+    is evaluated for every row (when selecting from one table) or combination of rows
+    (when selecting from a multiple-table join).
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果一个函数被标记为非确定性，在`WHERE`子句中对其进行引用会对每一行（从一个表中选择）或每一行组合（从多表连接中选择）进行评估。
+- en: MySQL also determines when to evaluate functions based on types of arguments,
+    whether the arguments are table columns or constant values. A deterministic function
+    that takes a table column as argument must be evaluated whenever that column changes
+    value.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL还根据参数类型确定何时评估函数，参数是表列还是常量值。将表列作为参数的确定性函数必须在该列更改值时进行评估。
+- en: Nondeterministic functions may affect query performance. For example, some optimizations
+    may not be available, or more locking might be required. The following discussion
+    uses [`RAND()`](mathematical-functions.html#function_rand) but applies to other
+    nondeterministic functions as well.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非确定性函数可能会影响查询性能。例如，某些优化可能不可用，或者可能需要更多的锁定。以下讨论使用[`RAND()`](mathematical-functions.html#function_rand)，但也适用于其他非确定性函数。
+- en: 'Suppose that a table `t` has this definition:'
+  id: totrans-6
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设表`t`有以下定义：
+- en: '[PRE0]'
+  id: totrans-7
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'Consider these two queries:'
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 考虑以下两个查询：
+- en: '[PRE1]'
+  id: totrans-9
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: 'Both queries appear to use a primary key lookup because of the equality comparison
+    against the primary key, but that is true only for the first of them:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 由于对主键的等式比较，这两个查询似乎都使用主键查找，但这只对第一个查询是真的：
+- en: The first query always produces a maximum of one row because [`POW()`](mathematical-functions.html#function_pow)
+    with constant arguments is a constant value and is used for index lookup.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第一个查询始终最多生成一行，因为具有常量参数的[`POW()`](mathematical-functions.html#function_pow)是一个常量值，并用于索引查找。
+- en: The second query contains an expression that uses the nondeterministic function
+    [`RAND()`](mathematical-functions.html#function_rand), which is not constant in
+    the query but in fact has a new value for every row of table `t`. Consequently,
+    the query reads every row of the table, evaluates the predicate for each row,
+    and outputs all rows for which the primary key matches the random value. This
+    might be zero, one, or multiple rows, depending on the `id` column values and
+    the values in the [`RAND()`](mathematical-functions.html#function_rand) sequence.
+  id: totrans-12
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 第二个查询包含一个使用非确定性函数[`RAND()`](mathematical-functions.html#function_rand)的表达式，该函数在查询中不是常量，而是实际上对表`t`的每一行都有一个新值。因此，查询读取表的每一行，为每一行评估谓词，并输出所有主键与随机值匹配的行。这可能是零行、一行或多行，取决于`id`列值和[`RAND()`](mathematical-functions.html#function_rand)序列中的值。
+- en: 'The effects of nondeterminism are not limited to [`SELECT`](select.html "15.2.13 SELECT
+    Statement") statements. This [`UPDATE`](update.html "15.2.17 UPDATE Statement")
+    statement uses a nondeterministic function to select rows to be modified:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 非确定性的影响不仅限于[`SELECT`](select.html "15.2.13 SELECT Statement")语句。此[`UPDATE`](update.html
+    "15.2.17 UPDATE Statement")语句使用非确定性函数选择要修改的行：
+- en: '[PRE2]'
+  id: totrans-14
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: Presumably the intent is to update at most a single row for which the primary
+    key matches the expression. However, it might update zero, one, or multiple rows,
+    depending on the `id` column values and the values in the [`RAND()`](mathematical-functions.html#function_rand)
+    sequence.
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 大概意图是更新与表达式匹配的主键最多一行。但是，根据`id`列值和[`RAND()`](mathematical-functions.html#function_rand)序列中的值，可能会更新零行、一行或多行。
+- en: 'The behavior just described has implications for performance and replication:'
+  id: totrans-16
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 刚才描述的行为对性能和复制有影响：
+- en: Because a nondeterministic function does not produce a constant value, the optimizer
+    cannot use strategies that might otherwise be applicable, such as index lookups.
+    The result may be a table scan.
+  id: totrans-17
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 因为非确定性函数不会产生常量值，优化器无法使用可能适用的策略，如索引查找。结果可能是表扫描。
+- en: '`InnoDB` might escalate to a range-key lock rather than taking a single row
+    lock for one matching row.'
+  id: totrans-18
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`InnoDB`可能会升级为范围键锁，而不是为一个匹配行获取单行锁。'
+- en: Updates that do not execute deterministically are unsafe for replication.
+  id: totrans-19
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不确定性地执行的更新对复制是不安全的。
+- en: 'The difficulties stem from the fact that the [`RAND()`](mathematical-functions.html#function_rand)
+    function is evaluated once for every row of the table. To avoid multiple function
+    evaluations, use one of these techniques:'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 困难源于[`RAND()`](mathematical-functions.html#function_rand)函数对表中每一行都进行一次评估。为避免多次函数评估，可以使用以下技术之一：
+- en: 'Move the expression containing the nondeterministic function to a separate
+    statement, saving the value in a variable. In the original statement, replace
+    the expression with a reference to the variable, which the optimizer can treat
+    as a constant value:'
+  id: totrans-21
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将包含非确定性函数的表达式移动到单独的语句中，并将值保存在变量中。在原始语句中，用对变量的引用替换表达式，优化器可以将其视为常量值：
+- en: '[PRE3]'
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: 'Assign the random value to a variable in a derived table. This technique causes
+    the variable to be assigned a value, once, prior to its use in the comparison
+    in the `WHERE` clause:'
+  id: totrans-23
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将随机值分配给派生表中的变量。这种技术会导致变量在比较`WHERE`子句中使用之前被分配一个值，仅一次：
+- en: '[PRE4]'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: 'As mentioned previously, a nondeterministic expression in the `WHERE` clause
+    might prevent optimizations and result in a table scan. However, it may be possible
+    to partially optimize the `WHERE` clause if other expressions are deterministic.
+    For example:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如前所述，在`WHERE`子句中的非确定性表达式可能会阻止优化并导致表扫描。然而，如果其他表达式是确定性的，可能可以部分优化`WHERE`子句。例如：
+- en: '[PRE5]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: If the optimizer can use `partial_key` to reduce the set of rows selected, [`RAND()`](mathematical-functions.html#function_rand)
+    is executed fewer times, which diminishes the effect of nondeterminism on optimization.
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果优化器可以使用`partial_key`来减少选择的行集，那么[`RAND()`](mathematical-functions.html#function_rand)的执行次数会减少，从而减少非确定性对优化的影响。

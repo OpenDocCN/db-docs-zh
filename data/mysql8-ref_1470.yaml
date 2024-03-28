@@ -1,0 +1,291 @@
+- en: 19.5.3 Upgrading a Replication Topology
+  id: totrans-0
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+  zh: 19.5.3 升级复制拓扑
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-upgrade.html](https://dev.mysql.com/doc/refman/8.0/en/replication-upgrade.html)
+  id: totrans-1
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/replication-upgrade.html](https://dev.mysql.com/doc/refman/8.0/en/replication-upgrade.html)
+- en: When you upgrade servers that participate in a replication topology, you need
+    to take into account each server's role in the topology and look out for issues
+    specific to replication. For general information and instructions for upgrading
+    a MySQL Server instance, see [Chapter 3, *Upgrading MySQL*](upgrading.html "Chapter 3 Upgrading
+    MySQL").
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当您升级参与复制拓扑的服务器时，您需要考虑每个服务器在拓扑中的角色，并注意与复制相关的问题。有关升级 MySQL 服务器实例的一般信息和说明，请参阅[第
+    3 章，*升级 MySQL*](upgrading.html "第 3 章 升级 MySQL")。
+- en: As explained in [Section 19.5.2, “Replication Compatibility Between MySQL Versions”](replication-compatibility.html
+    "19.5.2 Replication Compatibility Between MySQL Versions"), MySQL supports replication
+    from a source running one release series to a replica running the next higher
+    release series, but does not support replication from a source running a later
+    release to a replica running an earlier release. A replica at an earlier release
+    might not have the required capability to process transactions that can be handled
+    by the source at a later release. You must therefore upgrade all of the replicas
+    in a replication topology to the target MySQL Server release, before you upgrade
+    the source server to the target release. In this way you will never be in the
+    situation where a replica still at the earlier release is attempting to handle
+    transactions from a source at the later release.
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如[第 19.5.2 节，“MySQL 版本之间的复制兼容性”](replication-compatibility.html "19.5.2 复制兼容性")中所解释的，MySQL
+    支持从运行一个发布系列的源到运行下一个更高发布系列的副本的复制，但不支持从运行较新发布的源到运行较早发布的副本的复制。较早发布的副本可能没有处理源在较新发布中可以处理的事务所需的能力。因此，在升级源服务器到目标发布之前，您必须将复制拓扑中的所有副本升级到目标
+    MySQL 服务器版本。这样，您永远不会出现仍在较早发布的副本尝试处理来自较新发布源的事务的情况。
+- en: In a replication topology where there are multiple sources (multi-source replication),
+    the use of more than two MySQL Server versions is not supported, regardless of
+    the number of source or replica MySQL servers. This restriction applies not only
+    to release series, but to version numbers within the same release series as well.
+    For example, you cannot use MySQL 8.0.22, MySQL 8.0.24, and MySQL 8.0.28 concurrently
+    in such a setup, although you could use any two of these releases together.
+  id: totrans-4
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在存在多个源（多源复制）的复制拓扑中，不支持使用两个以上的 MySQL 服务器版本，无论源或副本 MySQL 服务器的数量如何。此限制不仅适用于发布系列，还适用于同一发布系列中的版本号。例如，在这样的设置中，您不能同时使用
+    MySQL 8.0.22、MySQL 8.0.24 和 MySQL 8.0.28，尽管您可以同时使用这些版本中的任意两个。
+- en: If you need to downgrade the servers in a replication topology, the source must
+    be downgraded before the replicas are downgraded. On the replicas, you must ensure
+    that the binary log and relay log have been fully processed, and remove them before
+    proceeding with the downgrade.
+  id: totrans-5
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您需要降级复制拓扑中的服务器，则必须在降级副本之前降级源。在副本上，您必须确保二进制日志和中继日志已完全处理，并在继续降级之前将其删除。
+- en: Behavior Changes Between Releases
+  id: totrans-6
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 发行版之间的行为变化
+- en: Although this upgrade sequence is correct, it is possible to still encounter
+    replication difficulties when replicating from a source at an earlier release
+    that has not yet been upgraded, to a replica at a later release that has been
+    upgraded. This can happen if the source uses statements or relies on behavior
+    that is no longer supported in the later release installed on the replica. You
+    can use MySQL Shell's upgrade checker utility `util.checkForServerUpgrade()` to
+    check MySQL 5.7 server instances or MySQL 8.0 server instances for upgrade to
+    a GA MySQL 8.0 release. The utility identifies anything that needs to be fixed
+    for that server instance so that it does not cause an issue after the upgrade,
+    including features and behaviors that are no longer available in the later release.
+    See [Upgrade Checker Utility](/doc/mysql-shell/8.0/en/mysql-shell-utilities-upgrade.html)
+    for information on the upgrade checker utility.
+  id: totrans-7
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 虽然这个升级顺序是正确的，但在从一个尚未升级的早期版本源复制到一个已经升级的后续版本副本时，仍然可能遇到复制困难。如果源使用了在副本上安装的后续版本中不再支持的语句或依赖行为，这种情况可能发生。您可以使用MySQL
+    Shell的升级检查工具`util.checkForServerUpgrade()`来检查MySQL 5.7服务器实例或MySQL 8.0服务器实例是否可以升级到GA
+    MySQL 8.0版本。该工具识别需要修复的任何内容，以确保在升级后不会出现问题，包括在后续版本中不再可用的功能和行为。有关升级检查工具的信息，请参见[升级检查工具](/doc/mysql-shell/8.0/en/mysql-shell-utilities-upgrade.html)。
+- en: If you are upgrading an existing replication setup from a version of MySQL that
+    does not support global transaction identifiers (GTIDs) to a version that does,
+    only enable GTIDs on the source and the replicas when you have made sure that
+    the setup meets all the requirements for GTID-based replication. See [Section 19.1.3.4,
+    “Setting Up Replication Using GTIDs”](replication-gtids-howto.html "19.1.3.4 Setting
+    Up Replication Using GTIDs") for information about converting binary log file
+    position based replication setups to use GTID-based replication.
+  id: totrans-8
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 如果您正在将现有的MySQL版本不支持全局事务标识符（GTID）的复制设置升级到支持GTID的版本，则只有在确保设置符合基于GTID的复制的所有要求时，才在源和副本上启用GTID。有关将基于二进制日志文件位置的复制设置转换为使用基于GTID的复制的信息，请参见[Section 19.1.3.4,
+    “Setting Up Replication Using GTIDs”](replication-gtids-howto.html "19.1.3.4 Setting
+    Up Replication Using GTIDs")。
+- en: Changes affecting operations in strict SQL mode ([`STRICT_TRANS_TABLES`](sql-mode.html#sqlmode_strict_trans_tables)
+    or [`STRICT_ALL_TABLES`](sql-mode.html#sqlmode_strict_all_tables)) may result
+    in replication failure on an upgraded replica. If you use statement-based logging
+    ([`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)),
+    if a replica is upgraded before the source, the source executes statements which
+    succeed there but which may fail on the replica and so cause replication to stop.
+    To deal with this, stop all new statements on the source and wait until the replicas
+    catch up, then upgrade the replicas. Alternatively, if you cannot stop new statements,
+    temporarily change to row-based logging on the source ([`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format))
+    and wait until all replicas have processed all binary logs produced up to the
+    point of this change, then upgrade the replicas.
+  id: totrans-9
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在严格SQL模式下（[`STRICT_TRANS_TABLES`](sql-mode.html#sqlmode_strict_trans_tables)或[`STRICT_ALL_TABLES`](sql-mode.html#sqlmode_strict_all_tables)）影响操作的更改可能导致升级后副本的复制失败。如果使用基于语句的日志记录（[`binlog_format=STATEMENT`](replication-options-binary-log.html#sysvar_binlog_format)），如果副本在源之前升级，源执行的语句在那里成功，但在副本上可能失败，从而导致复制停止。为了解决这个问题，停止源上的所有新语句，并等待副本赶上，然后升级副本。或者，如果无法停止新语句，暂时在源上切换到基于行的日志记录（[`binlog_format=ROW`](replication-options-binary-log.html#sysvar_binlog_format)），并等待所有副本处理到达此更改点之前产生的所有二进制日志，然后升级副本。
+- en: 'The default character set has changed from `latin1` to `utf8mb4` in MySQL 8.0\.
+    In a replicated setting, when upgrading from MySQL 5.7 to 8.0, it is advisable
+    to change the default character set back to the character set used in MySQL 5.7
+    before upgrading. After the upgrade is completed, the default character set can
+    be changed to `utf8mb4`. Assuming that the previous defaults were used, one way
+    to preserve them is to start the server with these lines in the `my.cnf` file:'
+  id: totrans-10
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 默认字符集从`latin1`更改为`utf8mb4`在MySQL 8.0中。在复制设置中，当从MySQL 5.7升级到8.0时，建议在升级之前将默认字符集更改回MySQL
+    5.7中使用的字符集。升级完成后，可以将默认字符集更改为`utf8mb4`。假设之前使用了默认设置，保留它们的一种方法是在`my.cnf`文件中使用以下行启动服务器：
+- en: '[PRE0]'
+  id: totrans-11
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: Standard Upgrade Procedure
+  id: totrans-12
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 标准升级程序
+- en: 'To upgrade a replication topology, follow the instructions in [Chapter 3, *Upgrading
+    MySQL*](upgrading.html "Chapter 3 Upgrading MySQL") for each individual MySQL
+    Server instance, using this overall procedure:'
+  id: totrans-13
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要升级复制拓扑，请按照[第3章“*升级MySQL*”](upgrading.html "第3章 升级MySQL")中的说明为每个单独的MySQL服务器实例执行此整体过程：
+- en: 'Upgrade the replicas first. On each replica instance:'
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 首先升级副本。在每个副本实例上：
+- en: Carry out the preliminary checks and steps described in [Section 3.6, “Preparing
+    Your Installation for Upgrade”](upgrade-prerequisites.html "3.6 Preparing Your
+    Installation for Upgrade").
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 执行[第3.6节“准备升级安装”](upgrade-prerequisites.html "3.6 准备升级安装")中描述的初步检查和步骤。
+- en: Shut down MySQL Server.
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 关闭MySQL服务器。
+- en: Upgrade the MySQL Server binaries or packages.
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 升级MySQL服务器二进制文件或软件包。
+- en: Restart MySQL Server.
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 重新启动MySQL服务器。
+- en: If you have upgraded to a release earlier than MySQL 8.0.16, invoke [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables") manually to upgrade the
+    system tables and schemas. When the server is running with global transaction
+    identifiers (GTIDs) enabled ([`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)),
+    do not enable binary logging by [**mysql_upgrade**](mysql-upgrade.html "6.4.5 mysql_upgrade
+    — Check and Upgrade MySQL Tables") (so do not use the [`--write-binlog`](mysql-upgrade.html#option_mysql_upgrade_write-binlog)
+    option). Then shut down and restart the server.
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您已升级到早于MySQL 8.0.16的版本，请手动调用[**mysql_upgrade**](mysql-upgrade.html "6.4.5
+    mysql_upgrade — 检查和升级MySQL表")来升级系统表和模式。当服务器以全局事务标识符（GTIDs）启用时（[`gtid_mode=ON`](replication-options-gtids.html#sysvar_gtid_mode)），不要通过[**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — 检查和升级MySQL表")启用二进制日志记录（因此不要使用[`--write-binlog`](mysql-upgrade.html#option_mysql_upgrade_write-binlog)选项）。然后关闭并重新启动服务器。
+- en: If you have upgraded to MySQL 8.0.16 or later, do not invoke [**mysql_upgrade**](mysql-upgrade.html
+    "6.4.5 mysql_upgrade — Check and Upgrade MySQL Tables"). From that release, MySQL
+    Server performs the entire MySQL upgrade procedure, disabling binary logging during
+    the upgrade.
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 如果您已升级到MySQL 8.0.16或更高版本，请不要调用[**mysql_upgrade**](mysql-upgrade.html "6.4.5
+    mysql_upgrade — 检查和升级MySQL表")。从该版本开始，MySQL服务器将执行整个MySQL升级过程，在升级过程中禁用二进制日志记录。
+- en: Restart replication using a [`START REPLICA`](start-replica.html "15.4.2.6 START
+    REPLICA Statement") or [`START SLAVE`](start-slave.html "15.4.2.7 START SLAVE
+    Statement") statement.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用[`START REPLICA`](start-replica.html "15.4.2.6 START REPLICA语句")或[`START SLAVE`](start-slave.html
+    "15.4.2.7 START SLAVE语句")语句重新启动复制。
+- en: When all the replicas have been upgraded, follow the same steps to upgrade and
+    restart the source server, with the exception of the [`START REPLICA`](start-replica.html
+    "15.4.2.6 START REPLICA Statement") or [`START SLAVE`](start-slave.html "15.4.2.7 START
+    SLAVE Statement") statement. If you made a temporary change to row-based logging
+    or to the default character set, you can revert the change now.
+  id: totrans-22
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 当所有副本都已升级时，按照相同步骤升级和重新启动源服务器，但不包括[`START REPLICA`](start-replica.html "15.4.2.6
+    START REPLICA语句")或[`START SLAVE`](start-slave.html "15.4.2.7 START SLAVE语句")语句。如果您对基于行的日志记录或默认字符集进行了临时更改，现在可以恢复更改。
+- en: Upgrade Procedure With Table Repair Or Rebuild
+  id: totrans-23
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 使用表修复或重建的升级过程
+- en: 'Some upgrades may require that you drop and re-create database objects when
+    you move from one MySQL series to the next. For example, collation changes might
+    require that table indexes be rebuilt. Such operations, if necessary, are detailed
+    at [Section 3.5, “Changes in MySQL 8.0”](upgrading-from-previous-series.html "3.5 Changes
+    in MySQL 8.0"). It is safest to perform these operations separately on the replicas
+    and the source, and to disable replication of these operations from the source
+    to the replica. To achieve this, use the following procedure:'
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在从一个MySQL系列移动到下一个系列时，某些升级可能需要您删除并重新创建数据库对象。例如，排序规则更改可能需要重建表索引。如果需要这样的操作，则在[第3.5节“MySQL
+    8.0中的更改”](upgrading-from-previous-series.html "3.5 MySQL 8.0中的更改")中有详细说明。最安全的做法是在副本和源上分别执行这些操作，并禁用从源到副本的这些操作的复制。为此，请使用以下过程：
+- en: Stop all the replicas and upgrade the binaries or packages. Restart them with
+    the [`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)
+    option, or from MySQL 8.0.24, the [`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)
+    system variable, so that they do not connect to the source. Perform any table
+    repair or rebuilding operations needed to re-create database objects, such as
+    use of `REPAIR TABLE` or `ALTER TABLE`, or dumping and reloading tables or triggers.
+  id: totrans-25
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 停止所有复制实例并升级二进制文件或软件包。使用[`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)选项或从MySQL
+    8.0.24开始，使用[`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)系统变量重新启动它们，以便它们不连接到源。执行任何需要重新创建数据库对象的表修复或重建操作，例如使用`REPAIR
+    TABLE`或`ALTER TABLE`，或者转储和重新加载表或触发器。
+- en: Disable the binary log on the source. To do this without restarting the source,
+    execute a `SET sql_log_bin = OFF` statement. Alternatively, stop the source and
+    restart it with the [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)
+    option. If you restart the source, you might also want to disallow client connections.
+    For example, if all clients connect using TCP/IP, enable the [`skip_networking`](server-system-variables.html#sysvar_skip_networking)
+    system variable when you restart the source.
+  id: totrans-26
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源上禁用二进制日志。要在不重新启动源的情况下执行此操作，请执行`SET sql_log_bin = OFF`语句。或者，停止源并使用[`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)选项重新启动它。如果重新启动源，则可能还希望禁止客户端连接。例如，如果所有客户端都使用TCP/IP连接，请在重新启动源时启用[`skip_networking`](server-system-variables.html#sysvar_skip_networking)系统变量。
+- en: With the binary log disabled, perform any table repair or rebuilding operations
+    needed to re-create database objects. The binary log must be disabled during this
+    step to prevent these operations from being logged and sent to the replicas later.
+  id: totrans-27
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 禁用二进制日志后，执行任何需要重新创建数据库对象的表修复或重建操作。在此步骤中必须禁用二进制日志，以防止这些操作被记录并稍后发送到复制实例。
+- en: Re-enable the binary log on the source. If you set [`sql_log_bin`](replication-options-binary-log.html#sysvar_sql_log_bin)
+    to `OFF` earlier, execute a `SET sql_log_bin = ON` statement. If you restarted
+    the source to disable the binary log, restart it without [`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin),
+    and without enabling the [`skip_networking`](server-system-variables.html#sysvar_skip_networking)
+    system variable so that clients and replicas can connect.
+  id: totrans-28
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 在源上重新启用二进制日志。如果之前将[`sql_log_bin`](replication-options-binary-log.html#sysvar_sql_log_bin)设置为`OFF`，则执行`SET
+    sql_log_bin = ON`语句。如果重新启动源以禁用二进制日志，请在不使用[`--skip-log-bin`](replication-options-binary-log.html#option_mysqld_log-bin)的情况下重新启动，并且不启用[`skip_networking`](server-system-variables.html#sysvar_skip_networking)系统变量，以便客户端和复制实例可以连接。
+- en: Restart the replicas, this time without the [`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)
+    option or [`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)
+    system variable.
+  id: totrans-29
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 重新启动复制实例，这次不使用[`--skip-slave-start`](replication-options-replica.html#option_mysqld_skip-slave-start)选项或[`skip_slave_start`](replication-options-replica.html#sysvar_skip_slave_start)系统变量。

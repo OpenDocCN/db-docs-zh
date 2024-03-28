@@ -1,0 +1,203 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-condition-pushdown-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/index-condition-pushdown-optimization.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/index-condition-pushdown-optimization.html](https://dev.mysql.com/doc/refman/8.0/en/index-condition-pushdown-optimization.html)
+- en: 10.2.1.6 Index Condition Pushdown Optimization
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 10.2.1.6 索引条件推送优化
+- en: Index Condition Pushdown (ICP) is an optimization for the case where MySQL retrieves
+    rows from a table using an index. Without ICP, the storage engine traverses the
+    index to locate rows in the base table and returns them to the MySQL server which
+    evaluates the `WHERE` condition for the rows. With ICP enabled, and if parts of
+    the `WHERE` condition can be evaluated by using only columns from the index, the
+    MySQL server pushes this part of the `WHERE` condition down to the storage engine.
+    The storage engine then evaluates the pushed index condition by using the index
+    entry and only if this is satisfied is the row read from the table. ICP can reduce
+    the number of times the storage engine must access the base table and the number
+    of times the MySQL server must access the storage engine.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引条件推送（ICP）是一种优化，用于MySQL使用索引从表中检索行的情况。没有ICP，存储引擎遍历索引以定位基表中的行，并将它们返回给MySQL服务器，MySQL服务器评估行的`WHERE`条件。启用ICP后，如果`WHERE`条件的部分可以仅通过索引列进行评估，MySQL服务器将此部分`WHERE`条件向下推送到存储引擎。然后存储引擎通过使用索引条目评估推送的索引条件，仅当满足条件时才从表中读取行。ICP可以减少存储引擎必须访问基表的次数，以及MySQL服务器必须访问存储引擎的次数。
+- en: 'Applicability of the Index Condition Pushdown optimization is subject to these
+    conditions:'
+  id: totrans-3
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引条件推送优化的适用性取决于以下条件：
+- en: ICP is used for the [`range`](explain-output.html#jointype_range), [`ref`](explain-output.html#jointype_ref),
+    [`eq_ref`](explain-output.html#jointype_eq_ref), and [`ref_or_null`](explain-output.html#jointype_ref_or_null)
+    access methods when there is a need to access full table rows.
+  id: totrans-4
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 当需要访问完整表行时，ICP用于[`range`](explain-output.html#jointype_range)、[`ref`](explain-output.html#jointype_ref)、[`eq_ref`](explain-output.html#jointype_eq_ref)和[`ref_or_null`](explain-output.html#jointype_ref_or_null)访问方法。
+- en: ICP can be used for [`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB
+    Storage Engine") and [`MyISAM`](myisam-storage-engine.html "18.2 The MyISAM Storage
+    Engine") tables, including partitioned `InnoDB` and `MyISAM` tables.
+  id: totrans-5
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: ICP可用于[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")和[`MyISAM`](myisam-storage-engine.html
+    "第18.2章 MyISAM存储引擎")表，包括分区的`InnoDB`和`MyISAM`表。
+- en: For `InnoDB` tables, ICP is used only for secondary indexes. The goal of ICP
+    is to reduce the number of full-row reads and thereby reduce I/O operations. For
+    `InnoDB` clustered indexes, the complete record is already read into the `InnoDB`
+    buffer. Using ICP in this case does not reduce I/O.
+  id: totrans-6
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 对于`InnoDB`表，ICP仅用于辅助索引。ICP的目标是减少完整行读取的次数，从而减少I/O操作。对于`InnoDB`聚簇索引，完整记录已经读入`InnoDB`缓冲区。在这种情况下使用ICP不会减少I/O。
+- en: ICP is not supported with secondary indexes created on virtual generated columns.
+    `InnoDB` supports secondary indexes on virtual generated columns.
+  id: totrans-7
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: ICP不支持在虚拟生成列上创建的辅助索引。`InnoDB`支持虚拟生成列上的辅助索引。
+- en: Conditions that refer to subqueries cannot be pushed down.
+  id: totrans-8
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不能向下推送涉及子查询的条件。
+- en: Conditions that refer to stored functions cannot be pushed down. Storage engines
+    cannot invoke stored functions.
+  id: totrans-9
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 不能向涉及存储函数的条件推送。存储引擎无法调用存储函数。
+- en: Triggered conditions cannot be pushed down. (For information about triggered
+    conditions, see [Section 10.2.2.3, “Optimizing Subqueries with the EXISTS Strategy”](subquery-optimization-with-exists.html
+    "10.2.2.3 Optimizing Subqueries with the EXISTS Strategy").)
+  id: totrans-10
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 触发条件无法向下推送。（有关触发条件的信息，请参见[第10.2.2.3节，“使用EXISTS策略优化子查询”](subquery-optimization-with-exists.html
+    "10.2.2.3 Optimizing Subqueries with the EXISTS Strategy")。）
+- en: (*MySQL 8.0.30 and later*:) Conditions cannot be pushed down to derived tables
+    containing references to system variables.
+  id: totrans-11
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: （*MySQL 8.0.30及更高版本*：）条件无法向包含对系统变量引用的派生表推送。
+- en: 'To understand how this optimization works, first consider how an index scan
+    proceeds when Index Condition Pushdown is not used:'
+  id: totrans-12
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 要了解这种优化如何工作，首先考虑当未使用索引条件推送优化时索引扫描的进行方式：
+- en: Get the next row, first by reading the index tuple, and then by using the index
+    tuple to locate and read the full table row.
+  id: totrans-13
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 首先通过读取索引元组获取下一行，然后使用索引元组定位并读取完整的表行。
+- en: Test the part of the `WHERE` condition that applies to this table. Accept or
+    reject the row based on the test result.
+  id: totrans-14
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 测试适用于此表的`WHERE`条件部分。根据测试结果接受或拒绝行。
+- en: 'Using Index Condition Pushdown, the scan proceeds like this instead:'
+  id: totrans-15
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用索引条件下推，扫描如下进行：
+- en: Get the next row's index tuple (but not the full table row).
+  id: totrans-16
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 获取下一行的索引元组（但不是完整的表行）。
+- en: Test the part of the `WHERE` condition that applies to this table and can be
+    checked using only index columns. If the condition is not satisfied, proceed to
+    the index tuple for the next row.
+  id: totrans-17
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 测试适用于此表且仅可以使用索引列进行检查的`WHERE`条件的部分。如果条件不满足，则继续到下一行的索引元组。
+- en: If the condition is satisfied, use the index tuple to locate and read the full
+    table row.
+  id: totrans-18
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 如果条件满足，使用索引元组定位并读取完整的表行。
+- en: Test the remaining part of the `WHERE` condition that applies to this table.
+    Accept or reject the row based on the test result.
+  id: totrans-19
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+  zh: 测试适用于此表的`WHERE`条件的剩余部分。根据测试结果接受或拒绝行。
+- en: '[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement") output shows `Using index
+    condition` in the `Extra` column when Index Condition Pushdown is used. It does
+    not show `Using index` because that does not apply when full table rows must be
+    read.'
+  id: totrans-20
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当使用索引条件下推时，[`EXPLAIN`](explain.html "15.8.2 EXPLAIN Statement")输出在`Extra`列中显示`Using
+    index condition`。它不显示`Using index`，因为当必须读取完整的表行时，这不适用。
+- en: 'Suppose that a table contains information about people and their addresses
+    and that the table has an index defined as `INDEX (zipcode, lastname, firstname)`.
+    If we know a person''s `zipcode` value but are not sure about the last name, we
+    can search like this:'
+  id: totrans-21
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 假设一个表包含有关人员及其地址的信息，并且该表具有定义为`INDEX (zipcode, lastname, firstname)`的索引。如果我们知道一个人的`zipcode`值，但不确定姓氏，我们可以这样搜索：
+- en: '[PRE0]'
+  id: totrans-22
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: MySQL can use the index to scan through people with `zipcode='95054'`. The second
+    part (`lastname LIKE '%etrunia%'`) cannot be used to limit the number of rows
+    that must be scanned, so without Index Condition Pushdown, this query must retrieve
+    full table rows for all people who have `zipcode='95054'`.
+  id: totrans-23
+  prefs: []
+  type: TYPE_NORMAL
+  zh: MySQL可以使用索引扫描具有`zipcode='95054'`的人员。第二部分（`lastname LIKE '%etrunia%'`）无法用于限制必须扫描的行数，因此没有索引条件下推，此查询必须检索所有具有`zipcode='95054'`的人员的完整表行。
+- en: With Index Condition Pushdown, MySQL checks the `lastname LIKE '%etrunia%'`
+    part before reading the full table row. This avoids reading full rows corresponding
+    to index tuples that match the `zipcode` condition but not the `lastname` condition.
+  id: totrans-24
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 使用索引条件下推，MySQL在读取完整的表行之前检查`lastname LIKE '%etrunia%'`部分。这避免了读取与`zipcode`条件匹配但不匹配`lastname`条件的索引元组对应的完整行。
+- en: 'Index Condition Pushdown is enabled by default. It can be controlled with the
+    [`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch) system
+    variable by setting the [`index_condition_pushdown`](switchable-optimizations.html#optflag_index-condition-pushdown)
+    flag:'
+  id: totrans-25
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 索引条件下推默认启用。可以通过设置[`optimizer_switch`](server-system-variables.html#sysvar_optimizer_switch)系统变量来控制，设置[`index_condition_pushdown`](switchable-optimizations.html#optflag_index-condition-pushdown)标志：
+- en: '[PRE1]'
+  id: totrans-26
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: See [Section 10.9.2, “Switchable Optimizations”](switchable-optimizations.html
+    "10.9.2 Switchable Optimizations").
+  id: totrans-27
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 参见[第10.9.2节，“可切换优化”](switchable-optimizations.html "10.9.2 Switchable Optimizations")。

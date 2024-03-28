@@ -1,0 +1,592 @@
+- en: 原文：[https://dev.mysql.com/doc/refman/8.0/en/alter-table-partition-operations.html](https://dev.mysql.com/doc/refman/8.0/en/alter-table-partition-operations.html)
+  id: totrans-0
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+  zh: 原文：[https://dev.mysql.com/doc/refman/8.0/en/alter-table-partition-operations.html](https://dev.mysql.com/doc/refman/8.0/en/alter-table-partition-operations.html)
+- en: 15.1.9.1 ALTER TABLE Partition Operations
+  id: totrans-1
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+  zh: 15.1.9.1 修改表分区操作
+- en: Partitioning-related clauses for [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") can be used with partitioned tables for repartitioning, to add,
+    drop, discard, import, merge, and split partitions, and to perform partitioning
+    maintenance.
+  id: totrans-2
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 与分区表相关的[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")的分区相关子句可用于对分区表进行重新分区，添加、删除、丢弃、导入、合并和拆分分区，以及执行分区维护。
+- en: 'Simply using a *`partition_options`* clause with [`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE Statement") on a partitioned table repartitions the table
+    according to the partitioning scheme defined by the *`partition_options`*. This
+    clause always begins with `PARTITION BY`, and follows the same syntax and other
+    rules as apply to the *`partition_options`* clause for [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") (for more detailed information, see [Section 15.1.20,
+    “CREATE TABLE Statement”](create-table.html "15.1.20 CREATE TABLE Statement")),
+    and can also be used to partition an existing table that is not already partitioned.
+    For example, consider a (nonpartitioned) table defined as shown here:'
+  id: totrans-3
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 在分区表上简单地使用带有[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")的*`partition_options`*子句会根据*`partition_options`*定义的分区方案重新分区表。该子句始终以`PARTITION
+    BY`开头，并遵循与[`CREATE TABLE`](create-table.html "15.1.20 CREATE TABLE Statement")的*`partition_options`*子句相同的语法和其他规则（有关更详细信息，请参见[第15.1.20节，“CREATE
+    TABLE Statement”](create-table.html "15.1.20 CREATE TABLE Statement")），也可用于对尚未分区的现有表进行分区。例如，考虑一个（非分区的）表定义如下：
+- en: '[PRE0]'
+  id: totrans-4
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE0]'
+- en: 'This table can be partitioned by `HASH`, using the `id` column as the partitioning
+    key, into 8 partitions by means of this statement:'
+  id: totrans-5
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 可以使用以下语句将此表按`HASH`进行分区，使用`id`列作为分区键，分为8个分区：
+- en: '[PRE1]'
+  id: totrans-6
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE1]'
+- en: MySQL supports an `ALGORITHM` option with `[SUB]PARTITION BY [LINEAR] KEY`.
+    `ALGORITHM=1` causes the server to use the same key-hashing functions as MySQL
+    5.1 when computing the placement of rows in partitions; `ALGORITHM=2` means that
+    the server employs the key-hashing functions implemented and used by default for
+    new `KEY` partitioned tables in MySQL 5.5 and later. (Partitioned tables created
+    with the key-hashing functions employed in MySQL 5.5 and later cannot be used
+    by a MySQL 5.1 server.) Not specifying the option has the same effect as using
+    `ALGORITHM=2`. This option is intended for use chiefly when upgrading or downgrading
+    `[LINEAR] KEY` partitioned tables between MySQL 5.1 and later MySQL versions,
+    or for creating tables partitioned by `KEY` or `LINEAR KEY` on a MySQL 5.5 or
+    later server which can be used on a MySQL 5.1 server.
+  id: totrans-7
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: MySQL支持与`[SUB]PARTITION BY [LINEAR] KEY`一起使用的`ALGORITHM`选项。`ALGORITHM=1`使服务器在计算行在分区中的放置时使用与MySQL
+    5.1相同的键哈希函数；`ALGORITHM=2`表示服务器使用MySQL 5.5及更高版本中新的`KEY`分区表默认实现和使用的键哈希函数。 （使用MySQL
+    5.5及更高版本中实施的键哈希函数创建的分区表不能被MySQL 5.1服务器使用。）不指定该选项与使用`ALGORITHM=2`具有相同效果。该选项主要用于在MySQL
+    5.1及更高版本之间升级或降级`[LINEAR] KEY`分区表，或者在MySQL 5.5或更高版本服务器上创建由`KEY`或`LINEAR KEY`分区的表，该表可在MySQL
+    5.1服务器上使用。
+- en: The table that results from using an `ALTER TABLE ... PARTITION BY` statement
+    must follow the same rules as one created using `CREATE TABLE ... PARTITION BY`.
+    This includes the rules governing the relationship between any unique keys (including
+    any primary key) that the table might have, and the column or columns used in
+    the partitioning expression, as discussed in [Section 26.6.1, “Partitioning Keys,
+    Primary Keys, and Unique Keys”](partitioning-limitations-partitioning-keys-unique-keys.html
+    "26.6.1 Partitioning Keys, Primary Keys, and Unique Keys"). The `CREATE TABLE
+    ... PARTITION BY` rules for specifying the number of partitions also apply to
+    `ALTER TABLE ... PARTITION BY`.
+  id: totrans-8
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 使用`ALTER TABLE ... PARTITION BY`语句得到的表必须遵循与使用`CREATE TABLE ... PARTITION BY`创建的表相同的规则。这包括表可能具有的任何唯一键（包括任何主键）与用于分区表达式的列之间的关系规则，如[第26.6.1节，“分区键、主键和唯一键”](partitioning-limitations-partitioning-keys-unique-keys.html
+    "26.6.1 Partitioning Keys, Primary Keys, and Unique Keys")中所讨论的。指定分区数量的`CREATE
+    TABLE ... PARTITION BY`规则也适用于`ALTER TABLE ... PARTITION BY`。
+- en: 'The *`partition_definition`* clause for `ALTER TABLE ADD PARTITION` supports
+    the same options as the clause of the same name for the [`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement") statement. (See [Section 15.1.20, “CREATE TABLE
+    Statement”](create-table.html "15.1.20 CREATE TABLE Statement"), for the syntax
+    and description.) Suppose that you have the partitioned table created as shown
+    here:'
+  id: totrans-9
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`ALTER TABLE ADD PARTITION` 的 *`partition_definition`* 子句支持与[`CREATE TABLE`](create-table.html
+    "15.1.20 CREATE TABLE Statement")语句中同名子句相同的选项。 （有关语法和描述，请参见[Section 15.1.20, “CREATE
+    TABLE Statement”](create-table.html "15.1.20 CREATE TABLE Statement")。）假设您已按此处所示创建了分区表：'
+- en: '[PRE2]'
+  id: totrans-10
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE2]'
+- en: 'You can add a new partition `p3` to this table for storing values less than
+    `2002` as follows:'
+  id: totrans-11
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 您可以按以下方式向此表添加一个新的分区 `p3`，用于存储小于 `2002` 的值：
+- en: '[PRE3]'
+  id: totrans-12
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE3]'
+- en: '`DROP PARTITION` can be used to drop one or more `RANGE` or `LIST` partitions.
+    This statement cannot be used with `HASH` or `KEY` partitions; instead, use `COALESCE
+    PARTITION` (see later in this section). Any data that was stored in the dropped
+    partitions named in the *`partition_names`* list is discarded. For example, given
+    the table `t1` defined previously, you can drop the partitions named `p0` and
+    `p1` as shown here:'
+  id: totrans-13
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`DROP PARTITION` 可用于删除一个或多个 `RANGE` 或 `LIST` 分区。此语句不能与 `HASH` 或 `KEY` 分区一起使用；而应使用
+    `COALESCE PARTITION`（请参见本节后面的内容）。丢弃在 *`partition_names`* 列表中命名的已删除分区中存储的任何数据。例如，给定先前定义的表
+    `t1`，您可以按如下所示删除命名为 `p0` 和 `p1` 的分区：'
+- en: '[PRE4]'
+  id: totrans-14
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE4]'
+- en: Note
+  id: totrans-15
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: '`DROP PARTITION` does not work with tables that use the [`NDB`](mysql-cluster.html
+    "Chapter 25 MySQL NDB Cluster 8.0") storage engine. See [Section 26.3.1, “Management
+    of RANGE and LIST Partitions”](partitioning-management-range-list.html "26.3.1 Management
+    of RANGE and LIST Partitions"), and [Section 25.2.7, “Known Limitations of NDB
+    Cluster”](mysql-cluster-limitations.html "25.2.7 Known Limitations of NDB Cluster").'
+  id: totrans-16
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`DROP PARTITION` 不能用于使用[`NDB`](mysql-cluster.html "Chapter 25 MySQL NDB Cluster
+    8.0")存储引擎的表。请参阅[Section 26.3.1, “RANGE和LIST分区的管理”](partitioning-management-range-list.html
+    "26.3.1 RANGE和LIST分区的管理")，以及[Section 25.2.7, “NDB Cluster的已知限制”](mysql-cluster-limitations.html
+    "25.2.7 NDB Cluster的已知限制")。'
+- en: '`ADD PARTITION` and `DROP PARTITION` do not currently support `IF [NOT] EXISTS`.'
+  id: totrans-17
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`ADD PARTITION` 和 `DROP PARTITION` 目前不支持 `IF [NOT] EXISTS`。'
+- en: 'The [`DISCARD PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER TABLE
+    Statement") and [`IMPORT PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") options extend the [Transportable Tablespace](glossary.html#glos_transportable_tablespace
+    "transportable tablespace") feature to individual `InnoDB` table partitions. Each
+    `InnoDB` table partition has its own tablespace file (`.ibd` file). The [Transportable
+    Tablespace](glossary.html#glos_transportable_tablespace "transportable tablespace")
+    feature makes it easy to copy the tablespaces from a running MySQL server instance
+    to another running instance, or to perform a restore on the same instance. Both
+    options take a comma-separated list of one or more partition names. For example:'
+  id: totrans-18
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`DISCARD PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    和 [`IMPORT PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    选项将[可传输表空间](glossary.html#glos_transportable_tablespace "可传输表空间")功能扩展到单个 `InnoDB`
+    表分区。每个 `InnoDB` 表分区都有自己的表空间文件（`.ibd` 文件）。[可传输表空间](glossary.html#glos_transportable_tablespace
+    "可传输表空间")功能使得从一个运行中的 MySQL 服务器实例复制表空间到另一个运行实例，或在同一实例上执行还原变得容易。这两个选项都接受一个逗号分隔的一个或多个分区名称列表。例如：'
+- en: '[PRE5]'
+  id: totrans-19
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE5]'
+- en: '[PRE6]'
+  id: totrans-20
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE6]'
+- en: When running [`DISCARD PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") and [`IMPORT PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") on subpartitioned tables, both partition and subpartition names
+    are allowed. When a partition name is specified, subpartitions of that partition
+    are included.
+  id: totrans-21
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在对子分区表运行[`DISCARD PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")和[`IMPORT PARTITION ... TABLESPACE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement")时，允许使用分区和子分区名称。当指定分区名称时，将包括该分区的子分区。
+- en: The [Transportable Tablespace](glossary.html#glos_transportable_tablespace "transportable
+    tablespace") feature also supports copying or restoring partitioned `InnoDB` tables.
+    For more information, see [Section 17.6.1.3, “Importing InnoDB Tables”](innodb-table-import.html
+    "17.6.1.3 Importing InnoDB Tables").
+  id: totrans-22
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[可传输表空间](glossary.html#glos_transportable_tablespace "可传输表空间")功能还支持复制或还原分区的
+    `InnoDB` 表。有关更多信息，请参阅[Section 17.6.1.3, “导入InnoDB表”](innodb-table-import.html
+    "17.6.1.3 导入InnoDB表")。'
+- en: Renames of partitioned tables are supported. You can rename individual partitions
+    indirectly using `ALTER TABLE ... REORGANIZE PARTITION`; however, this operation
+    copies the partition's data.
+  id: totrans-23
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 支持对分区表进行重命名。您可以间接地使用`ALTER TABLE ... REORGANIZE PARTITION`重命名单个分区；但是，此操作会复制分区的数据。
+- en: 'To delete rows from selected partitions, use the `TRUNCATE PARTITION` option.
+    This option takes a list of one or more comma-separated partition names. Consider
+    the table `t1` created by this statement:'
+  id: totrans-24
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要从选定的分区中删除行，请使用`TRUNCATE PARTITION`选项。此选项接受一个或多个逗号分隔的分区名称列表。考虑通过此语句创建的表`t1`：
+- en: '[PRE7]'
+  id: totrans-25
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE7]'
+- en: 'To delete all rows from partition `p0`, use the following statement:'
+  id: totrans-26
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要从分区`p0`中删除所有行，请使用以下语句：
+- en: '[PRE8]'
+  id: totrans-27
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE8]'
+- en: 'The statement just shown has the same effect as the following [`DELETE`](delete.html
+    "15.2.2 DELETE Statement") statement:'
+  id: totrans-28
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 刚刚显示的语句具有与以下[`DELETE`](delete.html "15.2.2 DELETE Statement")语句相同的效果：
+- en: '[PRE9]'
+  id: totrans-29
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE9]'
+- en: 'When truncating multiple partitions, the partitions do not have to be contiguous:
+    This can greatly simplify delete operations on partitioned tables that would otherwise
+    require very complex `WHERE` conditions if done with [`DELETE`](delete.html "15.2.2 DELETE
+    Statement") statements. For example, this statement deletes all rows from partitions
+    `p1` and `p3`:'
+  id: totrans-30
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 在截断多个分区时，分区不必是连续的：这可以极大简化对分区表的删除操作，否则如果使用[`DELETE`](delete.html "15.2.2 DELETE
+    Statement")语句进行操作，则需要非常复杂的`WHERE`条件。例如，此语句删除分区`p1`和`p3`中的所有行：
+- en: '[PRE10]'
+  id: totrans-31
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE10]'
+- en: 'An equivalent [`DELETE`](delete.html "15.2.2 DELETE Statement") statement is
+    shown here:'
+  id: totrans-32
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 这里显示了一个等效的[`DELETE`](delete.html "15.2.2 DELETE Statement")语句：
+- en: '[PRE11]'
+  id: totrans-33
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE11]'
+- en: If you use the `ALL` keyword in place of the list of partition names, the statement
+    acts on all table partitions.
+  id: totrans-34
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 如果在分区名单的位置使用`ALL`关键字，则该语句将作用于所有表分区。
+- en: '`TRUNCATE PARTITION` merely deletes rows; it does not alter the definition
+    of the table itself, or of any of its partitions.'
+  id: totrans-35
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`TRUNCATE PARTITION`仅删除行；它不会改变表本身的定义，也不会改变任何分区的定义。'
+- en: 'To verify that the rows were dropped, check the `INFORMATION_SCHEMA.PARTITIONS`
+    table, using a query such as this one:'
+  id: totrans-36
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要验证行是否已删除，请检查`INFORMATION_SCHEMA.PARTITIONS`表，使用类似于以下查询的查询：
+- en: '[PRE12]'
+  id: totrans-37
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE12]'
+- en: '`COALESCE PARTITION` can be used with a table that is partitioned by `HASH`
+    or `KEY` to reduce the number of partitions by *`number`*. Suppose that you have
+    created table `t2` as follows:'
+  id: totrans-38
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '`COALESCE PARTITION`可用于由`HASH`或`KEY`分区的表，以减少*`number`*个分区的数量。假设您已创建表`t2`如下所示：'
+- en: '[PRE13]'
+  id: totrans-39
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE13]'
+- en: 'To reduce the number of partitions used by `t2` from 6 to 4, use the following
+    statement:'
+  id: totrans-40
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要将`t2`使用的分区数量从6减少到4，请使用以下语句：
+- en: '[PRE14]'
+  id: totrans-41
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+  zh: '[PRE14]'
+- en: The data contained in the last *`number`* partitions is merged into the remaining
+    partitions. In this case, partitions 4 and 5 are merged into the first 4 partitions
+    (the partitions numbered 0, 1, 2, and 3).
+  id: totrans-42
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 最后*`number`*个分区中包含的数据合并到剩余分区中。在这种情况下，分区4和5合并到前4个分区（编号为0、1、2和3的分区）。
+- en: 'To change some but not all the partitions used by a partitioned table, you
+    can use `REORGANIZE PARTITION`. This statement can be used in several ways:'
+  id: totrans-43
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 要更改分区表中使用的一些但不是所有分区，可以使用`REORGANIZE PARTITION`。此语句可以以几种方式使用：
+- en: To merge a set of partitions into a single partition. This is done by naming
+    several partitions in the *`partition_names`* list and supplying a single definition
+    for *`partition_definition`*.
+  id: totrans-44
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将一组分区合并为单个分区。通过在*`partition_names`*列表中命名多个分区并提供*`partition_definition`*的单个定义来完成此操作。
+- en: To split an existing partition into several partitions. Accomplish this by naming
+    a single partition for *`partition_names`* and providing multiple *`partition_definitions`*.
+  id: totrans-45
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 将现有分区分割为多个分区。通过为*`partition_names`*命名单个分区并提供多个*`partition_definitions`*来实现此目的。
+- en: To change the ranges for a subset of partitions defined using `VALUES LESS THAN`
+    or the value lists for a subset of partitions defined using `VALUES IN`.
+  id: totrans-46
+  prefs:
+  - PREF_IND
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 更改使用`VALUES LESS THAN`定义的一部分分区的范围，或者更改使用`VALUES IN`定义的一部分分区的值列表。
+- en: Note
+  id: totrans-47
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 注意
+- en: For partitions that have not been explicitly named, MySQL automatically provides
+    the default names `p0`, `p1`, `p2`, and so on. The same is true with regard to
+    subpartitions.
+  id: totrans-48
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于未明确命名的分区，MySQL会自动提供默认名称`p0`、`p1`、`p2`等。关于子分区也是如此。
+- en: For more detailed information about and examples of `ALTER TABLE ... REORGANIZE
+    PARTITION` statements, see [Section 26.3.1, “Management of RANGE and LIST Partitions”](partitioning-management-range-list.html
+    "26.3.1 Management of RANGE and LIST Partitions").
+  id: totrans-49
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 有关`ALTER TABLE ... REORGANIZE PARTITION`语句的更详细信息和示例，请参见[第26.3.1节，“RANGE和LIST分区的管理”](partitioning-management-range-list.html
+    "26.3.1 Management of RANGE and LIST Partitions")。
+- en: To exchange a table partition or subpartition with a table, use the `ALTER TABLE
+    ... EXCHANGE PARTITION` statement—that is, to move any existing rows in the partition
+    or subpartition to the nonpartitioned table, and any existing rows in the nonpartitioned
+    table to the table partition or subpartition.
+  id: totrans-50
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 要与表交换分区或子分区，请使用`ALTER TABLE ... EXCHANGE PARTITION`语句——即将分区或子分区中的任何现有行移动到非分区表中，并将非分区表中的任何现有行移动到表分区或子分区中。
+- en: Once one or more columns have been added to a partitioned table using `ALGORITHM=INSTANT`,
+    it is no longer possible to exchange partitions with that table.
+  id: totrans-51
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 一旦使用`ALGORITHM=INSTANT`向分区表添加了一个或多个列，就不再可能与该表交换分区。
+- en: For usage information and examples, see [Section 26.3.3, “Exchanging Partitions
+    and Subpartitions with Tables”](partitioning-management-exchange.html "26.3.3 Exchanging
+    Partitions and Subpartitions with Tables").
+  id: totrans-52
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 查看用法信息和示例，请参见[第26.3.3节，“使用表交换分区和子分区”](partitioning-management-exchange.html
+    "26.3.3 使用表交换分区和子分区")。
+- en: Several options provide partition maintenance and repair functionality analogous
+    to that implemented for nonpartitioned tables by statements such as [`CHECK TABLE`](check-table.html
+    "15.7.3.2 CHECK TABLE Statement") and [`REPAIR TABLE`](repair-table.html "15.7.3.5 REPAIR
+    TABLE Statement") (which are also supported for partitioned tables; for more information,
+    see [Section 15.7.3, “Table Maintenance Statements”](table-maintenance-statements.html
+    "15.7.3 Table Maintenance Statements")). These include `ANALYZE PARTITION`, `CHECK
+    PARTITION`, `OPTIMIZE PARTITION`, `REBUILD PARTITION`, and `REPAIR PARTITION`.
+    Each of these options takes a *`partition_names`* clause consisting of one or
+    more names of partitions, separated by commas. The partitions must already exist
+    in the target table. You can also use the `ALL` keyword in place of *`partition_names`*,
+    in which case the statement acts on all table partitions. For more information
+    and examples, see [Section 26.3.4, “Maintenance of Partitions”](partitioning-maintenance.html
+    "26.3.4 Maintenance of Partitions").
+  id: totrans-53
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 几个选项提供了类似于非分区表通过[`CHECK TABLE`](check-table.html "15.7.3.2 CHECK TABLE语句")和[`REPAIR
+    TABLE`](repair-table.html "15.7.3.5 REPAIR TABLE语句")实现的分区维护和修复功能（这些语句也支持分区表；有关更多信息，请参见[第15.7.3节，“表维护语句”](table-maintenance-statements.html
+    "15.7.3 表维护语句")）。这些包括`ANALYZE PARTITION`、`CHECK PARTITION`、`OPTIMIZE PARTITION`、`REBUILD
+    PARTITION`和`REPAIR PARTITION`。每个选项都需要一个*`partition_names`*子句，由一个或多个分区名称组成，用逗号分隔。这些分区必须已经存在于目标表中。您还可以在*`partition_names`*的位置使用`ALL`关键字，此时该语句将作用于所有表分区。有关更多信息和示例，请参见[第26.3.4节，“分区维护”](partitioning-maintenance.html
+    "26.3.4 分区维护")。
+- en: '[`InnoDB`](innodb-storage-engine.html "Chapter 17 The InnoDB Storage Engine")
+    does not currently support per-partition optimization; `ALTER TABLE ... OPTIMIZE
+    PARTITION` causes the entire table to rebuilt and analyzed, and an appropriate
+    warning to be issued. (Bug #11751825, Bug #42822) To work around this problem,
+    use `ALTER TABLE ... REBUILD PARTITION` and `ALTER TABLE ... ANALYZE PARTITION`
+    instead.'
+  id: totrans-54
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: '[`InnoDB`](innodb-storage-engine.html "第17章 InnoDB存储引擎")目前不支持按分区进行优化；`ALTER
+    TABLE ... OPTIMIZE PARTITION`会导致整个表被重建和分析，并发出适当的警告。（Bug #11751825，Bug #42822）为解决此问题，请改用`ALTER
+    TABLE ... REBUILD PARTITION`和`ALTER TABLE ... ANALYZE PARTITION`。'
+- en: The `ANALYZE PARTITION`, `CHECK PARTITION`, `OPTIMIZE PARTITION`, and `REPAIR
+    PARTITION` options are not supported for tables which are not partitioned.
+  id: totrans-55
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+  zh: 对于未分区的表，不支持`ANALYZE PARTITION`、`CHECK PARTITION`、`OPTIMIZE PARTITION`和`REPAIR
+    PARTITION`选项。
+- en: '`REMOVE PARTITIONING` enables you to remove a table''s partitioning without
+    otherwise affecting the table or its data. This option can be combined with other
+    [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") options such
+    as those used to add, drop, or rename columns or indexes.'
+  id: totrans-56
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: '`REMOVE PARTITIONING`使您可以删除表的分区，而不影响表或其数据。此选项可以与其他[`ALTER TABLE`](alter-table.html
+    "15.1.9 ALTER TABLE语句")选项结合使用，例如用于添加、删除或重命名列或索引的选项。'
+- en: Using the `ENGINE` option with [`ALTER TABLE`](alter-table.html "15.1.9 ALTER
+    TABLE Statement") changes the storage engine used by the table without affecting
+    the partitioning. The target storage engine must provide its own partitioning
+    handler. Only the `InnoDB` and `NDB` storage engines have native partitioning
+    handlers; `NDB` is not currently supported in MySQL 8.0.
+  id: totrans-57
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+  zh: 使用`ENGINE`选项与[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE语句")一起，可以更改表使用的存储引擎，而不影响分区。目标存储引擎必须提供自己的分区处理程序。只有`InnoDB`和`NDB`存储引擎具有本机分区处理程序；`NDB`目前不受MySQL
+    8.0支持。
+- en: It is possible for an [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement")
+    statement to contain a `PARTITION BY` or `REMOVE PARTITIONING` clause in an addition
+    to other alter specifications, but the `PARTITION BY` or `REMOVE PARTITIONING`
+    clause must be specified last after any other specifications.
+  id: totrans-58
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '[`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 语句可以包含 `PARTITION
+    BY` 或 `REMOVE PARTITIONING` 子句以及其他修改规范，但 `PARTITION BY` 或 `REMOVE PARTITIONING`
+    子句必须在任何其他规范之后指定。'
+- en: The `ADD PARTITION`, `DROP PARTITION`, `COALESCE PARTITION`, `REORGANIZE PARTITION`,
+    `ANALYZE PARTITION`, `CHECK PARTITION`, and `REPAIR PARTITION` options cannot
+    be combined with other alter specifications in a single `ALTER TABLE`, since the
+    options just listed act on individual partitions. For more information, see [Section 15.1.9.1,
+    “ALTER TABLE Partition Operations”](alter-table-partition-operations.html "15.1.9.1 ALTER
+    TABLE Partition Operations").
+  id: totrans-59
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`ADD PARTITION`、`DROP PARTITION`、`COALESCE PARTITION`、`REORGANIZE PARTITION`、`ANALYZE
+    PARTITION`、`CHECK PARTITION` 和 `REPAIR PARTITION` 选项不能与其他修改规范组合在单个 `ALTER TABLE`
+    中，因为上述列出的选项作用于单个分区。有关更多信息，请参见 [Section 15.1.9.1, “ALTER TABLE Partition Operations”](alter-table-partition-operations.html
+    "15.1.9.1 ALTER TABLE Partition Operations")。'
+- en: 'Only a single instance of any one of the following options can be used in a
+    given [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") statement:
+    `PARTITION BY`, `ADD PARTITION`, `DROP PARTITION`, `TRUNCATE PARTITION`, `EXCHANGE
+    PARTITION`, `REORGANIZE PARTITION`, or `COALESCE PARTITION`, `ANALYZE PARTITION`,
+    `CHECK PARTITION`, `OPTIMIZE PARTITION`, `REBUILD PARTITION`, `REMOVE PARTITIONING`.'
+  id: totrans-60
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在给定的 [`ALTER TABLE`](alter-table.html "15.1.9 ALTER TABLE Statement") 语句中，只能使用以下选项中的任何一个的单个实例：`PARTITION
+    BY`、`ADD PARTITION`、`DROP PARTITION`、`TRUNCATE PARTITION`、`EXCHANGE PARTITION`、`REORGANIZE
+    PARTITION`、`COALESCE PARTITION`、`ANALYZE PARTITION`、`CHECK PARTITION`、`OPTIMIZE
+    PARTITION`、`REBUILD PARTITION` 或 `REMOVE PARTITIONING`。
+- en: 'For example, the following two statements are invalid:'
+  id: totrans-61
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 例如，以下两个语句是无效的：
+- en: '[PRE15]'
+  id: totrans-62
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE15]'
+- en: 'In the first case, you can analyze partitions `p1` and `p2` of table `t1` concurrently
+    using a single statement with a single `ANALYZE PARTITION` option that lists both
+    of the partitions to be analyzed, like this:'
+  id: totrans-63
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第一种情况下，你可以使用单个语句并列出要分析的分区 `p1` 和 `p2` 的表 `t1`，同时并行分析这两个分区，如下所示：
+- en: '[PRE16]'
+  id: totrans-64
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE16]'
+- en: 'In the second case, it is not possible to perform `ANALYZE` and `CHECK` operations
+    on different partitions of the same table concurrently. Instead, you must issue
+    two separate statements, like this:'
+  id: totrans-65
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 在第二种情况下，不可能同时对同一表的不同分区执行 `ANALYZE` 和 `CHECK` 操作。相反，你必须发出两个单独的语句，如下所示：
+- en: '[PRE17]'
+  id: totrans-66
+  prefs: []
+  type: TYPE_PRE
+  zh: '[PRE17]'
+- en: '`REBUILD` operations are currently unsupported for subpartitions. The `REBUILD`
+    keyword is expressly disallowed with subpartitions, and causes `ALTER TABLE` to
+    fail with an error if so used.'
+  id: totrans-67
+  prefs: []
+  type: TYPE_NORMAL
+  zh: '`REBUILD` 操作目前不支持子分区。`REBUILD` 关键字明确禁止与子分区一起使用，并且如果这样使用会导致 `ALTER TABLE` 失败并显示错误。'
+- en: '`CHECK PARTITION` and `REPAIR PARTITION` operations fail when the partition
+    to be checked or repaired contains any duplicate key errors.'
+  id: totrans-68
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 当要检查或修复的分区包含任何重复键错误时，`CHECK PARTITION` 和 `REPAIR PARTITION` 操作将失败。
+- en: For more information about these statements, see [Section 26.3.4, “Maintenance
+    of Partitions”](partitioning-maintenance.html "26.3.4 Maintenance of Partitions").
+  id: totrans-69
+  prefs: []
+  type: TYPE_NORMAL
+  zh: 有关这些语句的更多信息，请参见 [Section 26.3.4, “Maintenance of Partitions”](partitioning-maintenance.html
+    "26.3.4 Maintenance of Partitions")。
