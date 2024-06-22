@@ -1,0 +1,218 @@
+# 1\. 简介
+
+> 原文：[`sqlite.com/partialindex.html`](https://sqlite.com/partialindex.html)
+
+部分索引是对表的行子集进行索引。
+
+在普通索引中，每个表中的行都有一个索引条目。在部分索引中，只有表中的一些行具有相应的索引条目。例如，部分索引可能省略了被索引列为 NULL 的条目。合理使用部分索引可以导致更小的数据库文件，同时提升查询和写入性能。
+
+# 2\. 创建部分索引
+
+通过在普通的创建索引语句的末尾添加一个 WHERE 子句来创建部分索引。
+
+**创建索引语句:**
+
+<svg class="pikchr" viewBox="0 0 907.43 232.632"><text x="74" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CREATE</text> <text x="194" y="41" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNIQUE</text> <text x="307" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">INDEX</text> <text x="393" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">IF</text> <text x="457" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text> <text x="542" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXISTS</text> <text x="92" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">模式名</text> <text x="193" y="109" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text> <text x="299" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">索引名</text> <text x="395" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">在</text> <text x="491" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表名</text> <text x="582" y="109" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">（</text> <text x="705" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">被索引列</text> <text x="828" y="109" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">）</text> <text x="705" y="147" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">，</text> <text x="709" y="215" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当</text> <text x="796" y="215" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text></svg>
+
+**表达式:**
+
+`<svg class="pikchr" viewBox="0 0 963.96 1068.77"><text x="101" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">literal-value</text> <text x="116" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">bind-parameter</text> <text x="108" y="115" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">schema-name</text> <text x="210" y="115" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text> <text x="313" y="115" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-name</text> <text x="404" y="115" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text> <text x="518" y="115" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">column-name</text> <text x="114" y="153" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">unary-operator</text> <text x="231" y="153" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="69" y="191" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="189" y="191" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">binary-operator</text> <text x="308" y="191" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="111" y="230" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">function-name</text> <text x="209" y="230" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="348" y="230" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">function-arguments</text> <text x="488" y="230" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="597" y="260" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">filter-clause</text> <text x="783" y="260" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">over-clause</text> <text x="60" y="306" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="136" y="306" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="211" y="306" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="136" y="269" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="74" y="343" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CAST</text> <text x="141" y="343" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="204" y="343" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="269" y="343" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text> <text x="358" y="343" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">type-name</text> <text x="446" y="343" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="69" y="381" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="164" y="381" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text> <text x="302" y="381" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text> <text x="69" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="155" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text> <text x="261" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LIKE</text> <text x="264" y="457" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">GLOB</text> <text x="276" y="495" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">REGEXP</text> <text x="274" y="532" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">MATCH</text> <text x="403" y="495" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="403" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="506" y="449" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ESCAPE</text> <text x="595" y="449" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="69" y="570" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="170" y="570" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ISNULL</text> <text x="180" y="608" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOTNULL</text> <text x="155" y="646" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text> <text x="234" y="646" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULL</text> <text x="69" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="132" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">IS</text> <text x="209" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text> <text x="355" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DISTINCT</text> <text x="473" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FROM</text> <text x="566" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="69" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="155" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text> <text x="268" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BETWEEN</text> <text x="367" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text
+
+**filter-clause:**
+
+<svg class="pikchr" viewBox="0 0 422.381 34.56"><text x="70" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FILTER</text> <text x="146" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="224" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">WHERE</text> <text x="312" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="374" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text></svg>
+
+**function-arguments:**
+
+<svg class="pikchr" viewBox="0 0 456.566 223.344"><text x="116" y="26" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DISTINCT</text> <text x="278" y="56" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="278" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="228" y="192" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text> <text x="127" y="117" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ORDER</text> <text x="199" y="117" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text> <text x="310" y="117" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ordering-term</text> <text x="310" y="154" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text></svg>
+
+**ordering-term:**
+
+<svg class="pikchr" viewBox="0 0 798.451 99.576"><text x="56" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="158" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text> <text x="296" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text> <text x="477" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DESC</text> <text x="471" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ASC</text> <text x="627" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text> <text x="718" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FIRST</text> <text x="627" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text> <text x="714" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LAST</text></svg>
+
+**literal-value:**
+
+<svg class="pikchr" viewBox="0 0 341.376 336.96"><text x="159" y="319" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前时间戳</text> <text x="119" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">数值文本</text> <text x="109" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">字符串文本</text> <text x="103" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">二进制大对象文本</text> <text x="81" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">空值</text> <text x="81" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">真值</text> <text x="85" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">假值</text> <text x="128" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前时间</text> <text x="129" y="281" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前日期</text></svg>
+
+**over-clause:**
+
+<svg class="pikchr" viewBox="0 0 600.706 418.392"><text x="62" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">OVER</text> <text x="192" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">窗口名称</text> <text x="149" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="292" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">基础窗口名称</text> <text x="261" y="157" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">按</text> <text x="356" y="157" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="434" y="157" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">分区</text> <text x="434" y="195" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="244" y="271" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">按</text> <text x="321" y="271" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排序</text> <text x="439" y="271" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排序条件</text> <text x="439" y="309" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="258" y="384" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">窗口规范</text> <text x="534" y="384" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text></svg>
+
+**frame-spec:**
+
+<svg class="pikchr" viewBox="0 0 1039.65 522.72"><text x="93" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">组</text> <text x="258" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">在</text> <text x="417" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">无界</text> <text x="559" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之间</text> <text x="685" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">和</text> <text x="817" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">无界</text> <text x="961" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之后</text> <text x="87" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">范围</text> <text x="83" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="272" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">无界</text> <text x="420" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之前</text> <text x="231" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="338" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之前</text> <text x="257" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="357" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="375" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="482" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之前</text> <text x="401" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="501" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="375" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="484" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之后</text> <text x="776" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="883" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之前</text> <text x="802" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="902" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="776" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="885" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">之后</text> <text x="495" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="617" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="717" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="495" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="604" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">组</text> <text x="495" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="593" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">绑定</text> <text x="495" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="586" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">无</text> <text x="672" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">其他</text></svg>
+
+**ordering-term:**
+
+<svg class="pikchr" viewBox="0 0 798.451 99.576"><text x="56" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="158" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text> <text x="296" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text> <text x="477" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DESC</text> <text x="471" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ASC</text> <text x="627" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text> <text x="718" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FIRST</text> <text x="627" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text> <text x="714" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LAST</text></svg>
+
+**raise-function:**
+
+<svg class="pikchr" viewBox="0 0 627.302 147.96"><text x="65" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">RAISE</text> <text x="135" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="246" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROLLBACK</text> <text x="351" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="456" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">error-message</text> <text x="579" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="233" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">IGNORE</text> <text x="228" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ABORT</text> <text x="218" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FAIL</text></svg>
+
+**select-stmt:**
+
+<svg class="pikchr" viewBox="0 0 669.677 1162.3"><text x="76" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">WITH</text> <text x="210" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">RECURSIVE</text> <text x="471" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">common-table-expression</text> <text x="471" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="167" y="129" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">SELECT</text> <text x="299" y="159" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DISTINCT</text> <text x="481" y="129" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">result-column</text> <text x="481" y="166" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="272" y="197" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ALL</text> <text x="186" y="272" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FROM</text> <text x="371" y="272" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-or-subquery</text> <text x="371" y="346" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">join-clause</text> <text x="371" y="309" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="193" y="422" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">WHERE</text> <text x="280" y="422" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="190" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">GROUP</text> <text x="267" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text> <text x="345" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="493" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">HAVING</text> <text x="582" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="345" y="558" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="200" y="634" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">WINDOW</text> <text x="346" y="634" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">window-name</text> <text x="450" y="634" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text> <text x="550" y="634" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">window-defn</text> <text x="446" y="671" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="168" y="785" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">VALUES</text> <text x="260" y="785" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="336" y="785" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="412" y="785" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="336" y="747" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="336" y="823" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="336" y="876" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">compound-operator</text> <text x="667" y="275" text-anchor="middle" font-style="italic" fill="rgb(128,128,128)" transform="rotate(-90 667,285)" dominant-baseline="central">select-core</text> <text x="190" y="951" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ORDER</text> <text x="268" y="951" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text> <text x="185" y="1057" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LIMIT</text> <text x="264" y="1057" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="395" y="951" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ordering-term</text> <text x="395" y="989" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="389" y="1087" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">OFFSET</text> <text x="477" y="1087" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="363" y="1125" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="426" y="1125" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text></svg>
+
+**公共表达式:**
+
+<svg class="pikchr" viewBox="0 0 638.525 167.4"><text x="85" y="29" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表名</text> <text x="211" y="29" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="348" y="29" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">列名</text> <text x="461" y="29" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="49" y="150" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text> <text x="137" y="119" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text> <text x="278" y="119" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">MATERIALIZED</text> <text x="410" y="150" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="500" y="150" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">select-stmt</text> <text x="591" y="150" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="348" y="66" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text></svg>
+
+**复合操作符:**
+
+<svg class="pikchr" viewBox="0 0 293.842 147.96"><text x="105" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNION</text> <text x="105" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNION</text> <text x="125" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">INTERSECT</text> <text x="109" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCEPT</text> <text x="187" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ALL</text></svg>
+
+**连接子句:**
+
+<svg class="pikchr" viewBox="0 0 793.282 84.24"><text x="112" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表或子查询</text> <text x="319" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">连接操作符</text> <text x="483" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表或子查询</text> <text x="654" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">连接约束条件</text></svg>
+
+**连接约束条件:**
+
+<svg class="pikchr" viewBox="0 0 483.336 126.576"><text x="85" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">使用</text> <text x="158" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="271" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">列名</text> <text x="384" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text> <text x="271" y="92" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="70" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">在</text> <text x="137" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式上</text></svg>
+
+**连接运算符：**
+
+<svg class="pikchr" viewBox="0 0 620.333 255.312"><text x="99" y="71" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">自然</text> <text x="259" y="71" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">左</text> <text x="415" y="71" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">外连接</text> <text x="543" y="41" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">连接</text> <text x="310" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="265" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">右</text> <text x="260" y="147" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">全</text> <text x="267" y="192" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">内</text> <text x="267" y="238" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">交叉</text></svg>
+
+**排序项：**
+
+<svg class="pikchr" viewBox="0 0 798.451 99.576"><text x="56" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="158" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text> <text x="296" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排序名称</text> <text x="477" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">降序</text> <text x="471" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">升序</text> <text x="627" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">空值排列第</text> <text x="718" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">优先</text> <text x="627" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">空值排列最</text> <text x="714" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">后</text></svg>
+
+**结果列：**
+
+<svg class="pikchr" viewBox="0 0 398.054 163.08"><text x="69" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="153" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text> <text x="265" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">column-alias</text> <text x="66" y="108" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text> <text x="103" y="145" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表名</text> <text x="194" y="145" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text> <text x="247" y="145" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text></svg>
+
+**表或子查询：**
+
+**window-defn:**
+
+**窗口定义:**
+
+<svg class="pikchr" viewBox="0 0 479.765 380.592"><text x="47" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text x="190" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">base-window-name</text> <text x="159" y="120" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PARTITION</text> <text x="254" y="120" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text> <text x="332" y="120" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="332" y="157" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="141" y="233" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ORDER</text> <text x="219" y="233" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text> <text x="337" y="233" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ordering-term</text> <text x="337" y="271" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text x="156" y="346" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">frame-spec</text> <text x="432" y="346" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text></svg>
+
+**帧规范:**
+
+<svg class="pikchr" viewBox="0 0 1039.65 522.72"><text x="93" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">组</text> <text x="258" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BETWEEN</text> <text x="417" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text> <text x="559" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text> <text x="685" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AND</text> <text x="817" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text> <text x="961" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text> <text x="87" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">范围</text> <text x="83" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="272" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text> <text x="420" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text> <text x="231" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="338" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text> <text x="257" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="357" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="375" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="482" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text> <text x="401" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="501" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="375" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="484" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text> <text x="776" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="883" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text> <text x="802" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="902" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="776" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="885" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text> <text x="495" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="617" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">当前</text> <text x="717" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">行</text> <text x="495" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="604" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">分组</text> <text x="495" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="593" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">平局</text> <text x="495" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">排除</text> <text x="586" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">无</text> <text x="672" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">其他</text></svg>
+
+**类型名称:**
+
+<svg class="pikchr" viewBox="0 0 661.008 110.16"><text x="74" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">名称</text> <text x="180" y="92" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">（</text> <text x="281" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">有符号数</text> <text x="382" y="92" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">，</text> <text x="484" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">有符号数</text> <text x="585" y="92" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">）</text> <text x="180" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">（</text> <text x="281" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">有符号数</text> <text x="382" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">）</text></svg>
+
+**有符号数:**
+
+<svg class="pikchr" viewBox="0 0 292.013 99.576"><text x="66" y="44" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">+</text> <text x="191" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">数字文字</text> <text x="66" y="82" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">-</text></svg>
+
+**索引列:**
+
+<svg class="pikchr" viewBox="0 0 696.36 102.6"><text x="113" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">列名</text> <text x="293" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text> <text x="426" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">校对名称</text> <text x="597" y="85" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">降序</text> <text x="75" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">表达式</text> <text x="591" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">升序</text></svg>
+
+任何包括 WHERE 子句的索引都被视为部分索引。 省略 WHERE 子句的索引（或者在 CREATE TABLE 语句中由 UNIQUE 或 PRIMARY KEY 约束创建的索引）都是普通的完整索引。
+
+WHERE 子句后面的表达式可能包含操作符、文字值和表中被索引的列名。 WHERE 子句不得包含子查询、对其他表的引用、非确定性函数或绑定参数。
+
+仅在 WHERE 子句评估为 true 的表行包括在索引中。如果 WHERE 子句表达式对表的某些行评估为 NULL 或 false，则这些行将从索引中省略。
+
+部分索引的 WHERE 子句中引用的列可以是表中的任何列，而不仅仅是已索引的列。然而，部分索引的 WHERE 子句表达式通常是对正在索引的列上的简单表达式。以下是一个典型的例子：
+
+```sql
+CREATE INDEX po_parent ON purchaseorder(parent_po) WHERE parent_po IS NOT NULL;
+
+```
+
+在上面的示例中，如果大多数采购订单没有“父”采购订单，那么大多数 parent_po 值将为 NULL。这意味着采购订单表中只有一个小的子集将被索引。因此，索引占用的空间要小得多。并且对原始采购订单表的更改将运行得更快，因为只需更新那些 parent_po 不为 NULL 的特殊行的 po_parent 索引。但是该索引对查询仍然是有用的。特别是，如果想要知道特定采购订单“子”的所有内容"?1"，则查询将是：
+
+```sql
+SELECT po_num FROM purchaseorder WHERE parent_po=?1;
+
+```
+
+由于 po_parent 索引包含所有感兴趣的行的条目，上述查询将使用 po_parent 索引来帮助找到答案。请注意，由于 po_parent 比完整索引要小，因此查询可能运行得更快。
+
+## 2.1\. 唯一部分索引
+
+部分索引定义可以包括 UNIQUE 关键字。如果包括，则 SQLite 要求索引中的每个条目*都是唯一的*。这提供了在表的某个子集上强制唯一性的机制。
+
+例如，假设您有一个大型组织成员的数据库，每个人都分配给特定的“团队”。每个团队都有一个“领导”，他也是该团队的成员。表可能看起来像这样：
+
+```sql
+CREATE TABLE person(
+  person_id       INTEGER PRIMARY KEY,
+  team_id         INTEGER REFERENCES team,
+  is_team_leader  BOOLEAN,
+  -- other fields elided
+);
+
+```
+
+因为通常同一个团队上会有多个人，所以 team_id 字段不能是唯一的。不能将 team_id 和 is_team_leader 的组合设为唯一，因为通常每个团队还有多个非领导成员。强制每个团队只有一个领导者的解决方案是在 team_id 上创建一个唯一索引，但仅限于 is_team_leader 为 true 的条目：
+
+```sql
+CREATE UNIQUE INDEX team_leader ON person(team_id) WHERE is_team_leader;
+
+```
+
+巧合的是，同一索引对于查找特定团队的团队领导也是有用的：
+
+```sql
+SELECT person_id FROM person WHERE is_team_leader AND team_id=?1;
+
+```
+
+# 3\. 使用部分索引的查询
+
+设 X 是部分索引的 WHERE 子句中的表达式，W 是使用已索引表的查询的 WHERE 子句。然后，如果 W⇒X，查询可以使用部分索引，其中⇒运算符（通常发音为“implies”）是逻辑运算符，等效于“X 或不 W”。因此，确定部分索引是否可在特定查询中使用归结为在一阶逻辑中证明一个定理。
+
+SQLite 没有复杂的定理证明器来确定 W⇒X。相反，SQLite 使用两条简单规则来找到 W⇒X 为真的常见情况，并假设所有其他情况为假。SQLite 使用的规则如下：
+
+1.  如果 **W** 是与连接的术语，**X** 是或连接的术语，且 **W** 中的任何术语出现在 **X** 中，则部分索引是可用的。
+
+    例如，让索引为
+
+    ```sql
+    CREATE INDEX ex1 ON tab1(a,b) WHERE a=5 OR b=6;
+
+    ```
+
+    让查询为：
+
+    ```sql
+    SELECT * FROM tab1 WHERE b=6 AND a=7; *-- uses partial index*
+
+    ```
+
+    因此，该查询可以使用该索引，因为 "b=6" 术语在索引定义和查询中均有出现。记住：索引中的术语应为或连接，而查询中的术语应为与连接。
+
+    **W** 和 **X** 中的术语必须完全匹配。SQLite 不会进行代数运算来尝试使它们看起来相同。术语 "b=6" 不会匹配 "b=3+3" 或 "b-6=0" 或 "b BETWEEN 6 AND 6"。只要索引中有 "b=6"，而查询中有 "6=b"，它们就会匹配。如果索引中出现形式为 "6=b" 的术语，它将永远不会匹配任何内容。
+
+1.  如果 **X** 中的术语是 "z IS NOT NULL" 形式，并且 **W** 中的术语是对 "z" 的非 "IS" 比较运算符，则这些术语匹配。
+
+    示例：让索引为
+
+    ```sql
+    CREATE INDEX ex2 ON tab2(b,c) WHERE c IS NOT NULL;
+
+    ```
+
+    然后，任何使用列 "c" 上的运算符 =、<、>、<=、>=、<>、IN、LIKE 或 GLOB 的查询都可以使用部分索引，因为这些比较运算符仅在 "c" 不为 NULL 时为真。因此，以下查询可以使用部分索引：
+
+    ```sql
+    SELECT * FROM tab2 WHERE b=456 AND c<>0;  *-- uses partial index*
+
+    ```
+
+    但下一个查询无法使用部分索引：
+
+    ```sql
+    SELECT * FROM tab2 WHERE b=456;  *-- cannot use partial index*
+
+    ```
+
+    后一个查询无法使用部分索引，因为表中可能有 b=456 且 c 为 NULL 的行。但这些行不会在部分索引中。
+
+这两条规则描述了截至目前（2013-08-01）SQLite 的查询规划器的工作方式。上述规则将始终被遵守。然而，未来的 SQLite 版本可能会集成更好的定理证明器，能够找到 W⇒X 为真的其他情况，并因此找到更多部分索引可用的实例。
+
+# 4\. 支持的版本
+
+自 版本 3.8.0（2013-08-26）起，SQLite 支持部分索引。
+
+包含部分索引的数据库文件无法被 SQLite 3.8.0 之前的版本读取或写入。然而，由 SQLite 3.8.0 创建的数据库文件在其架构不包含部分索引的情况下，仍可被先前版本读取和写入。通过对部分索引运行 DROP INDEX，可以使遗留版本的 SQLite 能够读取无法读取的数据库。
