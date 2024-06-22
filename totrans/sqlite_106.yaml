@@ -1,11 +1,15 @@
 - en: The Virtual Database Engine of SQLite
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: SQLite的虚拟数据库引擎
 - en: 原文：[https://sqlite.com/vdbe.html](https://sqlite.com/vdbe.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/vdbe.html](https://sqlite.com/vdbe.html)
 - en: '**Obsolete Documentation Warning:** This document describes the virtual machine
     used in SQLite version 2.8.0\. The virtual machine in SQLite version 3.0 and 3.1
     is similar in concept but is now register-based instead of stack-based, has five
@@ -13,17 +17,21 @@
     those shown below. See the [virtual machine instructions](opcode.html) document
     for the current set of VDBE opcodes and a brief overview of how the VDBE operates.
     This document is retained as an historical reference.'
+  id: totrans-2
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '**过时文档警告：**本文档描述了SQLite版本2.8.0中使用的虚拟机。SQLite版本3.0和3.1中的虚拟机在概念上类似，但现在是基于寄存器而不是基于堆栈的，每个操作码有五个操作数而不是三个，并且具有与下文所示不同的操作码集。请参阅[虚拟机指令](opcode.html)文档，了解当前的VDBE操作码集及其简要操作概述。本文档作为历史参考而保留。'
 - en: If you want to know how the SQLite library works internally, you need to begin
     with a solid understanding of the Virtual Database Engine or VDBE. The VDBE occurs
     right in the middle of the processing stream (see the [architecture diagram](arch.html))
     and so it seems to touch most parts of the library. Even parts of the code that
     do not directly interact with the VDBE are usually in a supporting role. The VDBE
     really is the heart of SQLite.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果您想了解SQLite库的内部工作原理，您需要从对虚拟数据库引擎或VDBE的扎实理解开始。VDBE出现在处理流程的中间位置（参见[架构图](arch.html)），因此似乎涉及到库的大部分部分。即使不直接与VDBE交互的代码部分通常也起支持作用。VDBE确实是SQLite的核心。
 - en: This article is a brief introduction to how the VDBE works and in particular
     how the various VDBE instructions (documented [here](opcode.html)) work together
     to do useful things with the database. The style is tutorial, beginning with simple
@@ -31,18 +39,24 @@
     visit most submodules in the SQLite library. After completing this tutorial, you
     should have a pretty good understanding of how SQLite works and will be ready
     to begin studying the actual source code.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文简要介绍了VDBE的工作原理，特别是各种VDBE指令（在此处[文档化](opcode.html)）如何共同处理数据库以执行有用操作。风格为教程，从简单任务开始，逐步解决更复杂的问题。在此过程中，我们将访问SQLite库中的大多数子模块。完成本教程后，您应该对SQLite的工作原理有相当好的理解，并准备开始研究实际的源代码。
 - en: Preliminaries
+  id: totrans-5
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 初步工作
 - en: The VDBE implements a virtual computer that runs a program in its virtual machine
     language. The goal of each program is to interrogate or change the database. Toward
     this end, the machine language that the VDBE implements is specifically designed
     to search, read, and modify databases.
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: VDBE实现了一个虚拟计算机，以其虚拟机语言运行程序。每个程序的目标是查询或修改数据库。为此，VDBE实现的机器语言专门设计用于搜索、读取和修改数据库。
 - en: Each instruction of the VDBE language contains an opcode and three operands
     labeled P1, P2, and P3\. Operand P1 is an arbitrary integer. P2 is a non-negative
     integer. P3 is a pointer to a data structure or zero-terminated string, possibly
@@ -51,42 +65,59 @@
     at all but instead take their data and store their results on the execution stack.
     The details of what each instruction does and which operands it uses are described
     in the separate [opcode description](opcode.html) document.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: VDBE 语言的每条指令包含一个操作码和三个操作数标签为 P1、P2 和 P3。操作数 P1 是任意整数。P2 是非负整数。P3 是指向数据结构或零结尾字符串的指针，可能为空。只有少数
+    VDBE 指令使用所有三个操作数。许多指令仅使用一个或两个操作数。大部分指令根本不使用操作数，而是在执行堆栈上接收其数据并存储其结果。每条指令的具体操作和使用的操作数在单独的[操作码描述](opcode.html)文档中有详细描述。
 - en: A VDBE program begins execution on instruction 0 and continues with successive
     instructions until it either (1) encounters a fatal error, (2) executes a Halt
     instruction, or (3) advances the program counter past the last instruction of
     the program. When the VDBE completes execution, all open database cursors are
     closed, all memory is freed, and everything is popped from the stack. So there
     are never any worries about memory leaks or undeallocated resources.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: VDBE 程序从指令 0 开始执行，并继续执行直到遇到致命错误、执行 Halt 指令或将程序计数器推进到程序的最后一条指令之后。当 VDBE 完成执行时，所有打开的数据库游标都将关闭，所有内存将被释放，并且堆栈中的所有内容都将被弹出。因此，不必担心内存泄漏或未分配的资源。
 - en: If you have done any assembly language programming or have worked with any kind
     of abstract machine before, all of these details should be familiar to you. So
     let's jump right in and start looking as some code.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果您有过汇编语言编程经验或之前使用过任何抽象机器，那么所有这些细节对您来说应该很熟悉。所以让我们直接开始看一些代码。
 - en: Inserting Records Into The Database
+  id: totrans-10
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 将记录插入数据库
 - en: 'We begin with a problem that can be solved using a VDBE program that is only
     a few instructions long. Suppose we have an SQL table that was created like this:'
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们首先解决一个可以用几条指令解决的 VDBE 程序问题。假设我们有一个像这样创建的 SQL 表：
 - en: '[PRE0]'
+  id: totrans-12
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'In words, we have a database table named "examp" that has two columns of data
     named "one" and "two". Now suppose we want to insert a single record into this
     table. Like this:'
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 简单来说，我们有一个名为“examp”的数据库表，其中包含名为“one”和“two”的两列数据。现在假设我们想向此表中插入一条记录。如下所示：
 - en: '[PRE1]'
+  id: totrans-14
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'We can see the VDBE program that SQLite uses to implement this INSERT using
     the **sqlite** command-line utility. First start up **sqlite** on a new, empty
     database, then create the table. Next change the output format of **sqlite** to
@@ -94,8 +125,10 @@
     command. Finally, enter the [INSERT] statement shown above, but precede the [INSERT]
     with the special keyword [EXPLAIN]. The [EXPLAIN] keyword will cause **sqlite**
     to print the VDBE program rather than execute it. We have:'
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以通过**sqlite**命令行实用程序查看SQLite用来实现这个INSERT的VDBE程序。首先在一个新的空数据库上启动**sqlite**，然后创建表。接下来通过输入".explain"命令将**sqlite**的输出格式更改为与VDBE程序转储配合使用的形式。最后，在上面显示的[INSERT]语句前加上特殊关键字[EXPLAIN]。[EXPLAIN]关键字将导致**sqlite**打印VDBE程序而不是执行它。我们有：
 - en: '`$ **sqlite test_database_1** sqlite> **CREATE TABLE examp(one text, two int);**
     sqlite> **.explain** sqlite> **EXPLAIN INSERT INTO examp VALUES(''Hello, World!'',99);**
     addr  opcode        p1     p2     p3                                       ----  ------------  -----  -----  -----------------------------------
@@ -106,21 +139,28 @@
     8     MakeRecord    2      0                                          9     PutIntKey     0      1                                         
     10    Close         0      0                                          11    Commit        0      0                                         
     12    Halt          0      0`'
+  id: totrans-16
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`$ **sqlite test_database_1** sqlite>'
 - en: As you can see above, our simple insert statement is implemented in 12 instructions.
     The first 3 and last 2 instructions are a standard prologue and epilogue, so the
     real work is done in the middle 7 instructions. There are no jumps, so the program
     executes once through from top to bottom. Let's now look at each instruction in
     detail.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 如上所示，我们的简单插入语句由 12 条指令实现。前 3 条和后 2 条指令是标准的序言和结尾，因此实际工作在中间的 7 条指令中完成。没有跳转，因此程序从头到尾执行一次。现在让我们详细看看每条指令。
 - en: '`0     Transaction   0      0                                          1     VerifyCookie  0      81                                        
     2     Transaction   1      0`'
+  id: totrans-18
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`0     Transaction   0      0                                          1     VerifyCookie  0      81                                        
+    2     Transaction   1      0`'
 - en: The instruction [Transaction](opcode.html#Transaction) begins a transaction.
     The transaction ends when a Commit or Rollback opcode is encountered. P1 is the
     index of the database file on which the transaction is started. Index 0 is the
@@ -128,34 +168,49 @@
     is started. No other process can read or write the file while the transaction
     is underway. Starting a transaction also creates a rollback journal. A transaction
     must be started before any changes can be made to the database.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [Transaction](opcode.html#Transaction) 开始一个事务。遇到 Commit 或 Rollback 操作码时事务结束。P1
+    是启动事务的数据库文件的索引。索引 0 是主数据库文件。启动事务时会获得数据库文件的写锁。在事务进行期间，没有其他进程可以读取或写入该文件。开始事务还会创建一个回滚日志。在对数据库进行任何更改之前必须启动事务。
 - en: The instruction [VerifyCookie](opcode.html#VerifyCookie) checks cookie 0 (the
     database schema version) to make sure it is equal to P2 (the value obtained when
     the database schema was last read). P1 is the database number (0 for the main
     database). This is done to make sure the database schema hasn't been changed by
     another thread, in which case it has to be reread.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [VerifyCookie](opcode.html#VerifyCookie) 检查 cookie 0（数据库模式版本）是否等于 P2（最后读取数据库模式时的值）。P1
+    是数据库编号（主数据库为 0）。这是为了确保数据库模式没有被其他线程更改，如果被更改则需要重新读取。
 - en: The second [Transaction](opcode.html#Transaction) instruction begins a transaction
     and starts a rollback journal for database 1, the database used for temporary
     tables.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二个 [Transaction](opcode.html#Transaction) 指令开始一个事务，并为数据库 1 开始一个回滚日志，该数据库用于临时表使用。
 - en: '`3     Integer       0      0                                     4     OpenWrite     0      3      examp`'
+  id: totrans-22
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`3     Integer       0      0                                     4     OpenWrite     0      3      examp`'
 - en: 'The instruction [Integer](opcode.html#Integer) pushes the integer value P1
     (0) onto the stack. Here 0 is the number of the database to use in the following
     OpenWrite instruction. If P3 is not NULL then it is a string representation of
     the same integer. Afterwards the stack looks like this:'
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [Integer](opcode.html#Integer) 将整数值 P1 (0) 推入堆栈。这里的 0 是在接下来的 OpenWrite 指令中要使用的数据库编号。如果
+    P3 不为 NULL，则它是相同整数的字符串表示。之后堆栈的情况如下：
 - en: '| (integer) 0 |'
+  id: totrans-24
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (integer) 0 |'
 - en: The instruction [OpenWrite](opcode.html#OpenWrite) opens a new read/write cursor
     with handle P1 (0 in this case) on table "examp", whose root page is P2 (3, in
     this database file). Cursor handles can be any non-negative integer. But the VDBE
@@ -165,81 +220,120 @@
     being opened, but this is unused, and only generated to make the code easier to
     read. This instruction pops the database number to use (0, the main database)
     from the top of the stack, so afterwards the stack is empty again.
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [OpenWrite](opcode.html#OpenWrite) 在表 "examp" 上打开一个新的读/写游标，其句柄为 P1（在本例中为
+    0），该表的根页面为 P2（在这个数据库文件中为 3）。游标句柄可以是任何非负整数，但 VDBE 会在一个数组中分配游标，数组的大小比最大游标大一。因此，为了节省内存，最好从零开始顺序递增地使用句柄。在这里，P3（"examp"）是要打开的表的名称，但是这是未使用的，仅用于使代码更易于阅读。此指令从堆栈顶部弹出要使用的数据库编号（主数据库为
+    0），因此执行后堆栈再次为空。
 - en: '`5     NewRecno      0      0`'
+  id: totrans-26
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`5     NewRecno      0      0`'
 - en: 'The instruction [NewRecno](opcode.html#NewRecno) creates a new integer record
     number for the table pointed to by cursor P1\. The record number is one not currently
     used as a key in the table. The new record number is pushed onto the stack. Afterwards
     the stack looks like this:'
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [NewRecno](opcode.html#NewRecno) 为游标 P1 指向的表创建一个新的整数记录编号。记录编号是表中当前未用作键的一个。新的记录编号被推入堆栈。执行后堆栈如下所示：
 - en: '| (integer) new record key |'
+  id: totrans-28
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (integer) new record key |'
 - en: '`6     String        0      0      Hello, World!`'
+  id: totrans-29
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`6     String        0      0      Hello, World!`'
 - en: 'The instruction [String](opcode.html#String) pushes its P3 operand onto the
     stack. Afterwards the stack looks like this:'
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [String](opcode.html#String) 将其 P3 操作数推入堆栈。执行后堆栈如下所示：
 - en: '| (string) "Hello, World!" |'
+  id: totrans-31
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (string) "Hello, World!" |'
 - en: '| (integer) new record key |'
+  id: totrans-32
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (integer) new record key |'
 - en: '`7     Integer       99     0      99`'
+  id: totrans-33
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`7     Integer       99     0      99`'
 - en: 'The instruction [Integer](opcode.html#Integer) pushes its P1 operand (99) onto
     the stack. Afterwards the stack looks like this:'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [Integer](opcode.html#Integer) 将其 P1 操作数 (99) 推入堆栈。执行后堆栈如下所示：
 - en: '| (integer) 99 |'
+  id: totrans-35
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (integer) 99 |'
 - en: '| (string) "Hello, World!" |'
+  id: totrans-36
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (string) "Hello, World!" |'
 - en: '| (integer) new record key |'
+  id: totrans-37
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (integer) new record key |'
 - en: '`8     MakeRecord    2      0`'
+  id: totrans-38
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`8     MakeRecord    2      0`'
 - en: 'The instruction [MakeRecord](opcode.html#MakeRecord) pops the top P1 elements
     off the stack (2 in this case) and converts them into the binary format used for
     storing records in a database file. (See the [file format](fileformat.html) description
     for details.) The new record generated by the MakeRecord instruction is pushed
     back onto the stack. Afterwards the stack looks like this:'
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [MakeRecord](opcode.html#MakeRecord) 弹出堆栈顶部的 P1 元素（在本例中为 2 个），并将它们转换为数据库文件中存储记录的二进制格式。新生成的记录由
+    MakeRecord 指令推回到堆栈上。执行后堆栈如下所示：
 - en: '| (record) "Hello, World!", 99 |'
+  id: totrans-40
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (record) "Hello, World!", 99 |'
 - en: '| (integer) new record key |'
+  id: totrans-41
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '|（整数）新记录键|'
 - en: '`9     PutIntKey     0      1`'
+  id: totrans-42
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`9     PutIntKey     0      1`'
 - en: The instruction [PutIntKey](opcode.html#PutIntKey) uses the top 2 stack entries
     to write an entry into the table pointed to by cursor P1\. A new entry is created
     if it doesn't already exist or the data for an existing entry is overwritten.
@@ -248,52 +342,73 @@
     count is incremented and the rowid is stored for subsequent return by the sqlite_last_insert_rowid()
     function. If P2 is 0 the row change count is unmodified. This instruction is where
     the insert actually occurs.
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令[PutIntKey](opcode.html#PutIntKey)使用栈顶的两个条目将一个条目写入由游标P1指向的表中。如果条目不存在，则创建新条目；如果存在，则覆盖现有条目的数据。记录数据是栈顶条目，键是下面的条目。该指令使堆栈弹出两次。由于操作数P2为1，行更改计数增加，并且行ID被存储，以便稍后由sqlite_last_insert_rowid()函数返回。如果P2为0，则行更改计数不会改变。这条指令实际上是插入操作的地方。
 - en: '`10    Close         0      0`'
+  id: totrans-44
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`10    Close         0      0`'
 - en: The instruction [Close](opcode.html#Close) closes a cursor previously opened
     as P1 (0, the only open cursor). If P1 is not currently open, this instruction
     is a no-op.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令[Close](opcode.html#Close)关闭先前作为P1（0，唯一打开的游标）打开的游标。如果P1当前未打开，则此指令无效。
 - en: '`11    Commit        0      0`'
+  id: totrans-46
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`11    Commit        0      0`'
 - en: The instruction [Commit](opcode.html#Commit) causes all modifications to the
     database that have been made since the last Transaction to actually take effect.
     No additional modifications are allowed until another transaction is started.
     The Commit instruction deletes the journal file and releases the write lock on
     the database. A read lock continues to be held if there are still cursors open.
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令[Commit](opcode.html#Commit)导致自上次事务以来对数据库的所有修改实际生效。在启动另一个事务之前，不允许进行其他修改。Commit指令删除日志文件并释放对数据库的写锁。如果仍然有游标打开，则继续保持读锁。
 - en: '`12    Halt          0      0`'
+  id: totrans-48
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`12    Halt          0      0`'
 - en: The instruction [Halt](opcode.html#Halt) causes the VDBE engine to exit immediately.
     All open cursors, Lists, Sorts, etc are closed automatically. P1 is the result
     code returned by sqlite_exec(). For a normal halt, this should be SQLITE_OK (0).
     For errors, it can be some other value. The operand P2 is only used when there
     is an error. There is an implied "Halt 0 0 0" instruction at the end of every
     program, which the VDBE appends when it prepares a program to run.
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令[Halt](opcode.html#Halt)使VDBE引擎立即退出。所有打开的游标、列表、排序等都将自动关闭。P1是由sqlite_exec()返回的结果代码。对于正常的停止，这应该是SQLITE_OK（0）。对于错误，可能是其他值。只有在有错误时才使用操作数P2。每个程序的末尾都有一个隐含的"Halt
+    0 0 0"指令，VDBE在准备程序运行时附加它。
 - en: Tracing VDBE Program Execution
+  id: totrans-50
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 追踪VDBE程序执行
 - en: 'If the SQLite library is compiled without the NDEBUG preprocessor macro, then
     the PRAGMA [vdbe_trace](pragma.html#pragma_vdbe_trace) causes the VDBE to trace
     the execution of programs. Though this feature was originally intended for testing
     and debugging, it can also be useful in learning about how the VDBE operates.
     Use "`PRAGMA vdbe_trace=ON;`" to turn tracing on and "`PRAGMA vdbe_trace=OFF`"
     to turn tracing back off. Like this:'
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果 SQLite 库在编译时没有使用 NDEBUG 预处理宏，则 PRAGMA [vdbe_trace](pragma.html#pragma_vdbe_trace)
+    会导致 VDBE 追踪程序的执行。尽管此功能最初用于测试和调试，但也可用于了解 VDBE 的操作方式。使用 "`PRAGMA vdbe_trace=ON;`"
+    开启追踪，并使用 "`PRAGMA vdbe_trace=OFF`" 关闭追踪。示例如下：
 - en: '`sqlite> **PRAGMA vdbe_trace=ON;**    0 Halt            0    0 sqlite> **INSERT INTO examp VALUES(''Hello, World!'',99);**
        0 Transaction     0    0    1 VerifyCookie    0   81    2 Transaction     1    0
        3 Integer         0    0 Stack: i:0    4 OpenWrite       0    3 examp    5 NewRecno        0    0
@@ -301,14 +416,24 @@
        7 Integer        99    0 99 Stack: si:99 t[Hello,.World!] i:2    8 MakeRecord      2    0
     Stack: s[...Hello,.World!.99] i:2    9 PutIntKey       0    1   10 Close           0    0
       11 Commit          0    0   12 Halt            0    0`'
+  id: totrans-52
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`sqlite> **PRAGMA vdbe_trace=ON;**    0 Halt            0    0 sqlite> **INSERT INTO examp VALUES(''Hello, World!'',99);**
+       0 Transaction     0    0    1 VerifyCookie    0   81    2 Transaction     1    0
+       3 Integer         0    0 栈：i:0    4 OpenWrite       0    3 examp    5 NewRecno        0    0
+    栈：i:2    6 String          0    0 Hello, World! 栈：t[Hello,.World!] i:2    7 Integer        99    0 99
+    栈：si:99 t[Hello,.World!] i:2    8 MakeRecord      2    0 栈：s[...Hello,.World!.99] i:2
+       9 PutIntKey       0    1   10 Close           0    0   11 Commit          0    0
+      12 Halt            0    0`'
 - en: With tracing mode on, the VDBE prints each instruction prior to executing it.
     After the instruction is executed, the top few entries in the stack are displayed.
     The stack display is omitted if the stack is empty.
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 在追踪模式下，VDBE 在执行每条指令之前打印该指令。执行指令后，显示栈顶部几个条目。如果栈为空，则省略栈显示。
 - en: 'On the stack display, most entries are shown with a prefix that tells the datatype
     of that stack entry. Integers begin with "`i:`". Floating point values begin with
     "`r:`". (The "r" stands for "real-number".) Strings begin with either "`s:`",
@@ -323,24 +448,39 @@
     only other datatype that can be stored on the VDBE stack is a NULL, which is display
     without prefix as simply "`NULL`". If an integer has been placed on the stack
     as both an integer and a string, its prefix is "`si:`".'
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 在堆栈显示中，大多数条目都带有前缀，用于指示该堆栈条目的数据类型。整数以 "`i:`" 开头。浮点数值以 "`r:`" 开头（其中 "r" 表示 "real-number"）。字符串以
+    "`s:`"、"`t:`"、"`e:`" 或 "`z:`" 开头。字符串前缀的区别是由它们的内存分配方式引起的。`z:` 字符串存储在通过 **malloc()**
+    获得的内存中。`t:` 字符串是静态分配的。`e:` 字符串是短暂的。所有其他字符串都带有 `s:` 前缀。这对于观察者（你）并无差别，但对于 VDBE 来说非常重要，因为
+    `z:` 字符串在弹出时需要传递给 **free()** 以避免内存泄漏。注意，只显示字符串值的前 10 个字符，并且二进制值（如 MakeRecord 指令的结果）被视为字符串。VDBE
+    堆栈上唯一可以存储的其他数据类型是 NULL，它以简单的 "`NULL`" 形式显示，没有前缀。如果整数既以整数形式又以字符串形式放置在堆栈上，则其前缀为
+    "`si:`"。
 - en: Simple Queries
+  id: totrans-55
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 简单查询
 - en: 'At this point, you should understand the basics of how the VDBE writes to a
     database. Now let''s look at how it does queries. We will use the following simple
     SELECT statement as our example:'
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在，你应该了解 VDBE 如何向数据库写入的基础知识了。现在让我们看看它如何执行查询。我们将使用以下简单的 SELECT 语句作为示例：
 - en: '[PRE2]'
+  id: totrans-57
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'The VDBE program generated for this SQL statement is as follows:'
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 为此 SQL 语句生成的 VDBE 程序如下所示：
 - en: '`sqlite> **EXPLAIN SELECT * FROM examp;** addr  opcode        p1     p2     p3                                 
     ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one                                
     1     ColumnName    1      0      two                                 2     Integer       0      0                                         
@@ -349,19 +489,33 @@
     7     Column        0      1                                          8     Callback      2      0                                         
     9     Next          0      6                                          10    Close         0      0                                         
     11    Halt          0      0`'
+  id: totrans-59
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`sqlite> **EXPLAIN SELECT * FROM examp;** addr  opcode        p1     p2     p3                                 
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one                                
+    1     ColumnName    1      0      two                                 2     Integer       0      0                                         
+    3     OpenRead      0      3      examp                               4     VerifyCookie  0      81                                        
+    5     Rewind        0      10                                         6     Column        0      0                                         
+    7     Column        0      1                                          8     Callback      2      0                                         
+    9     Next          0      6                                          10    Close         0      0                                         
+    11    Halt          0      0`'
 - en: 'Before we begin looking at this problem, let''s briefly review how queries
     work in SQLite so that we will know what we are trying to accomplish. For each
     row in the result of a query, SQLite will invoke a callback function with the
     following prototype:'
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 在我们开始查看这个问题之前，让我们简要回顾一下 SQLite 中查询的工作方式，这样我们就会知道我们要达成什么目标。对于查询结果中的每一行，SQLite
+    将调用一个具有以下原型的回调函数：
 - en: '[PRE3]'
+  id: totrans-61
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: The SQLite library supplies the VDBE with a pointer to the callback function
     and the **pUserData** pointer. (Both the callback and the user data were originally
     passed in as arguments to the **sqlite_exec()** API function.) The job of the
@@ -369,48 +523,68 @@
     **nColumn** is the number of columns in the results, of course. **azColumnName[]**
     is an array of strings where each string is the name of one of the result columns.
     **azData[]** is an array of strings holding the actual data.
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 库向 VDBE 提供了指向回调函数和 **pUserData** 指针。（回调函数和用户数据最初作为参数传递给 **sqlite_exec()**
+    API 函数。）VDBE 的任务是为 **nColumn**、**azData[]** 和 **azColumnName[]** 提供值。**nColumn**
+    当然是结果中的列数。**azColumnName[]** 是一个字符串数组，其中每个字符串是一个结果列的名称。**azData[]** 是一个字符串数组，其中包含实际数据。
 - en: '`0     ColumnName    0      0      one                                 1     ColumnName    1      0      two`'
+  id: totrans-63
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`0     ColumnName    0      0      one                                 1     ColumnName    1      0      two`'
 - en: The first two instructions in the VDBE program for our query are concerned with
     setting up values for **azColumn**. The [ColumnName](opcode.html#ColumnName) instructions
     tell the VDBE what values to fill in for each element of the **azColumnName[]**
     array. Every query will begin with one ColumnName instruction for each column
     in the result, and there will be a matching Column instruction for each one later
     in the query.
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于我们查询的VDBE程序中的前两条指令，主要是设置**azColumn**的值。[ColumnName](opcode.html#ColumnName)指令告诉VDBE要为**azColumnName[]**数组的每个元素填入什么值。每个查询都将以一个ColumnName指令开始，对应于结果中的每一列，而后面的每个查询中将会有一个匹配的Column指令。
 - en: '`2     Integer       0      0                                          3     OpenRead      0      3      examp                              
     4     VerifyCookie  0      81`'
+  id: totrans-65
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`2     Integer       0      0                                          3     OpenRead      0      3      examp                              
+    4     VerifyCookie  0      81`'
 - en: Instructions 2 and 3 open a read cursor on the database table that is to be
     queried. This works the same as the OpenWrite instruction in the INSERT example
     except that the cursor is opened for reading this time instead of for writing.
     Instruction 4 verifies the database schema as in the INSERT example.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令2和3在数据库表上打开了一个读取游标，这与插入示例中的OpenWrite指令相同，不同之处在于这次游标是用于读取的而不是写入。指令4验证了数据库模式，就像插入示例中那样。
 - en: '`5     Rewind        0      10`'
+  id: totrans-67
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`5     Rewind        0      10`'
 - en: The [Rewind](opcode.html#Rewind) instruction initializes a loop that iterates
     over the "examp" table. It rewinds the cursor P1 to the first entry in its table.
     This is required by the Column and Next instructions, which use the cursor to
     iterate through the table. If the table is empty, then jump to P2 (10), which
     is the instruction just past the loop. If the table is not empty, fall through
     to the following instruction at 6, which is the beginning of the loop body.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: '[倒带](opcode.html#Rewind)指令初始化一个循环，迭代“examp”表。它将游标P1倒回到其表中的第一个条目。这是列和下一步指令所必需的，它们使用游标来遍历表格。如果表格为空，则跳到P2（10），即循环结束后的指令。如果表格不为空，则顺序执行以下指令6，这是循环体的开始。'
 - en: '`6     Column        0      0                                          7     Column        0      1                                         
     8     Callback      2      0`'
+  id: totrans-69
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`6     Column        0      0                                          7     Column        0      1                                         
+    8     Callback      2      0`'
 - en: The instructions 6 through 8 form the body of the loop that will execute once
     for each record in the database file. The [Column](opcode.html#Column) instructions
     at addresses 6 and 7 each take the P2-th column from the P1-th cursor and push
@@ -420,41 +594,57 @@
     at address 8 invokes the callback() function. The P1 operand to Callback becomes
     the value for **nColumn**. The Callback instruction pops P1 values from the stack
     and uses them to fill the **azData[]** array.
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令6到8形成了循环体，每个指令对数据库文件中的每条记录执行一次。地址为6和7的[Column](opcode.html#Column) 指令分别从游标P1处获取第P2列，并将其推送到堆栈上。在这个例子中，第一个Column指令将列“one”的值推送到堆栈上，第二个Column指令则是将列“two”的值推送上去。地址为8的[Callback](opcode.html#Callback)
+    指令调用了callback() 函数。Callback的操作数P1成为了**nColumn**的值。Callback指令从堆栈中弹出P1个值，并用它们填充**azData[]**数组。
 - en: '`9     Next          0      6`'
+  id: totrans-71
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`9     Next          0      6`'
 - en: The instruction at address 9 implements the branching part of the loop. Together
     with the Rewind at address 5 it forms the loop logic. This is a key concept that
     you should pay close attention to. The [Next](opcode.html#Next) instruction advances
     the cursor P1 to the next record. If the cursor advance was successful, then jump
     immediately to P2 (6, the beginning of the loop body). If the cursor was at the
     end, then fall through to the following instruction, which ends the loop.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令9实现了循环的分支部分。与地址5处的Rewind一起，形成了循环逻辑。这是一个你应该特别注意的关键概念。[Next](opcode.html#Next)
+    指令将游标P1推进到下一条记录。如果游标推进成功，立即跳转到P2（6，循环体的开始）。如果游标已经到达末尾，则继续执行下一条指令，结束循环。
 - en: '`10    Close         0      0                                          11    Halt          0      0`'
+  id: totrans-73
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`10    Close         0      0                                          11    Halt          0      0`'
 - en: The Close instruction at the end of the program closes the cursor that points
     into the table "examp". It is not really necessary to call Close here since all
     cursors will be automatically closed by the VDBE when the program halts. But we
     needed an instruction for the Rewind to jump to so we might as well go ahead and
     have that instruction do something useful. The Halt instruction ends the VDBE
     program.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 程序末尾的Close指令关闭了指向表“examp”的游标。在程序停止时，VDBE会自动关闭所有游标，因此其实不需要在此处调用Close。但我们需要一个Rewind跳转到的指令，所以我们可以让该指令做一些实际有用的事情。Halt指令结束了VDBE程序。
 - en: Note that the program for this SELECT query didn't contain the Transaction and
     Commit instructions used in the INSERT example. Because the SELECT is a read operation
     that doesn't alter the database, it doesn't require a transaction.
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，此SELECT查询的程序中未包含用于INSERT示例中的Transaction和Commit指令。因为SELECT是一个读操作，不会改变数据库，所以不需要事务。
 - en: A Slightly More Complex Query
+  id: totrans-76
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 稍微复杂一点的查询
 - en: 'The key points of the previous example were the use of the Callback instruction
     to invoke the callback function, and the use of the Next instruction to implement
     a loop over all records of the database file. This example attempts to drive home
@@ -462,12 +652,16 @@
     columns of output, some of which are computed values, and a WHERE clause that
     limits which records actually make it to the callback function. Consider this
     query:'
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 前一个示例的关键点在于使用Callback指令调用回调函数，并使用Next指令实现对数据库文件所有记录的循环。这个示例试图通过展示一个稍微复杂的查询来进一步阐明这些思想，该查询涉及更多的输出列，其中一些是计算值，并且有一个WHERE子句来限制哪些记录实际上传递到回调函数。考虑以下查询：
 - en: '[PRE4]'
+  id: totrans-78
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'This query is perhaps a bit contrived, but it does serve to illustrate our
     points. The result will have three column with names "one", "two", and "both".
     The first two columns are direct copies of the two columns in the table and the
@@ -475,8 +669,10 @@
     of the table. Finally, the WHERE clause says that we will only chose rows for
     the results where the "one" column begins with an "H". Here is what the VDBE program
     looks like for this query:'
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个查询可能有些牵强，但它确实能够说明我们的观点。结果将有三列，名称分别为"one"、"two"和"both"。前两列直接复制自表格中的两列，第三列的结果是通过连接表格的第一列和第二列形成的字符串。最后，WHERE子句表示我们只选择以"H"开头的行作为结果。下面是此查询的VDBE程序示例：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one
     1     ColumnName    1      0      two 2     ColumnName    2      0      both 3     Integer       0      0
@@ -486,9 +682,19 @@
     11    Column        0      0 12    Column        0      1 13    Column        0      0
     14    Column        0      1 15    Concat        2      0 16    Callback      3      0
     17    Next          0      7 18    Close         0      0 19    Halt          0      0`'
+  id: totrans-80
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one
+    1     ColumnName    1      0      two 2     ColumnName    2      0      both 3     Integer       0      0
+    4     OpenRead      0      3      examp 5     VerifyCookie  0      81 6     Rewind        0      18
+    7     String        0      0      H%                                       8     Column        0      0
+    9     Function      2      0      ptr(0x7f1ac0) 10    IfNot         1      17
+    11    Column        0      0 12    Column        0      1 13    Column        0      0
+    14    Column        0      1 15    Concat        2      0 16    Callback      3      0
+    17    Next          0      7 18    Close         0      0 19    Halt          0      0`'
 - en: Except for the WHERE clause, the structure of the program for this example is
     very much like the prior example, just with an extra column. There are now 3 columns,
     instead of 2 as before, and there are three ColumnName instructions. A cursor
@@ -497,8 +703,10 @@
     records of the table. The Close instruction at the end is there to give the Rewind
     instruction something to jump to when it is done. All of this is just like in
     the first query demonstration.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了WHERE子句之外，此示例的程序结构与先前的示例非常相似，只是多了一列。现在有3列，而不是之前的2列，并且有三个ColumnName指令。使用OpenRead指令打开游标，就像先前的示例一样。地址6处的Rewind指令和地址17处的Next形成了对表中所有记录的循环。末尾的Close指令是为了在完成时为Rewind指令提供跳转目标。所有这些都与第一个查询演示中的情况完全相同。
 - en: The Callback instruction in this example has to generate data for three result
     columns instead of two, but is otherwise the same as in the first query. When
     the Callback instruction is invoked, the left-most column of the result should
@@ -508,8 +716,10 @@
     in the result. The two Column instructions at 13 and 14 pull in the values needed
     to compute the third result column and the Concat instruction at 15 joins them
     together into a single entry on the stack.
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个例子中，回调指令需要生成三个结果列的数据，而不是两个，但除此之外与第一个查询中的相同。当调用回调指令时，结果的最左列应为堆栈中的最低值，而最右列应为堆栈的顶部值。我们可以看到在地址11到15之间堆栈被设置成这种方式。地址11和12处的列指令推送结果的前两列的值。地址13和14处的两个列指令获取计算第三个结果列所需的值，地址15处的Concat指令将它们连接成堆栈上的单个条目。
 - en: The only thing that is really new about the current example is the WHERE clause
     which is implemented by instructions at addresses 7 through 10\. Instructions
     at address 7 and 8 push onto the stack the value of the "one" column from the
@@ -521,8 +731,13 @@
     jump effectively skips the callback, which is the whole point of the WHERE clause.
     If the result of the comparison is true, the jump is not taken and control falls
     through to the Callback instruction below.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 当前示例真正新的是实现 WHERE 子句的部分，其指令在地址 7 到 10 中实现。地址 7 和 8 的指令将表中的 "one" 列的值和字面字符串 "H%"
+    推送到堆栈上。地址 9 的 [Function](opcode.html#Function) 指令从堆栈中弹出这两个值，并将 LIKE() 函数的结果再次推送到堆栈上。地址
+    10 的 [IfNot](opcode.html#IfNot) 指令弹出堆栈的顶部值，并且如果顶部值为假（*不*像字面字符串 "H%" ），则立即跳转到下一条指令。执行这一跳转会有效地跳过回调，这正是
+    WHERE 子句的意义所在。如果比较的结果为真，则不执行跳转，控制将流转到下面的回调指令。
 - en: Notice how the LIKE operator is implemented. It is a user-defined function in
     SQLite, so the address of its function definition is specified in P3\. The operand
     P1 is the number of function arguments for it to take from the stack. In this
@@ -530,73 +745,104 @@
     in reverse order (right-to-left), so the pattern to match is the top stack element,
     and the next element is the data to compare. The return value is pushed onto the
     stack.
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意 LIKE 操作符的实现方式。在 SQLite 中，它是一个用户定义的函数，因此其函数定义的地址在 P3 中指定。操作数 P1 是从堆栈中取出的参数数量。在这种情况下，LIKE()
+    函数需要 2 个参数。参数是以逆序（从右到左）从堆栈中取出的，因此要匹配的模式是堆栈顶部的元素，下一个元素是要比较的数据。返回值被推送到堆栈上。
 - en: A Template For SELECT Programs
+  id: totrans-85
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: SELECT 程序的模板
 - en: 'The first two query examples illustrate a kind of template that every SELECT
     program will follow. Basically, we have:'
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 前两个查询示例展示了每个 SELECT 程序都会遵循的一种模板。基本上，我们有：
 - en: Initialize the **azColumnName[]** array for the callback.
+  id: totrans-87
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 初始化回调的 **azColumnName[]** 数组。
 - en: Open a cursor into the table to be queried.
+  id: totrans-88
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开一个游标进入要查询的表中。
 - en: 'For each record in the table, do:'
+  id: totrans-89
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对于表中的每条记录，执行：
 - en: If the WHERE clause evaluates to FALSE, then skip the steps that follow and
     continue to the next record.
+  id: totrans-90
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果 WHERE 子句评估为 FALSE，则跳过后续步骤并继续到下一条记录。
 - en: Compute all columns for the current row of the result.
+  id: totrans-91
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 计算结果的当前行的所有列。
 - en: Invoke the callback function for the current row of the result.
+  id: totrans-92
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 调用当前结果行的回调函数。
 - en: Close the cursor.
+  id: totrans-93
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 关闭游标。
 - en: This template will be expanded considerably as we consider additional complications
     such as joins, compound selects, using indices to speed the search, sorting, and
     aggregate functions with and without GROUP BY and HAVING clauses. But the same
     basic ideas will continue to apply.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 随着我们考虑到诸如连接、复合选择、使用索引加速搜索、排序以及带有和不带有GROUP BY和HAVING子句的聚合函数等额外复杂情况，此模板将被大幅扩展。但是相同的基本思想仍然适用。
 - en: UPDATE And DELETE Statements
+  id: totrans-95
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 更新和删除语句
 - en: 'The UPDATE and DELETE statements are coded using a template that is very similar
     to the SELECT statement template. The main difference, of course, is that the
     end action is to modify the database rather than invoke a callback function. Because
     it modifies the database it will also use transactions. Let''s begin by looking
     at a DELETE statement:'
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 更新和删除语句使用的模板与SELECT语句模板非常相似。当然，主要区别在于最终的动作是修改数据库而不是调用回调函数。因为它修改数据库，所以也会使用事务。让我们从查看DELETE语句开始：
 - en: '[PRE5]'
+  id: totrans-97
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'This DELETE statement will remove every record from the "examp" table where
     the "two" column is less than 50. The code generated to do this is as follows:'
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 这条DELETE语句将从“examp”表中删除所有“two”列小于50的记录。生成的代码如下：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0
     1     Transaction   0      0 2     VerifyCookie  0      178 3     Integer       0      0
@@ -607,9 +853,20 @@
     16    ListRead      0      20 17    NotExists     0      19 18    Delete        0      1
     19    Goto          0      16 20    ListReset     0      0 21    Close         0      0
     22    Commit        0      0 23    Halt          0      0`'
+  id: totrans-99
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0
+    1     Transaction   0      0 2     VerifyCookie  0      178 3     Integer       0      0
+    4     OpenRead      0      3      examp 5     Rewind        0      12 6     Column        0      1
+    7     Integer       50     0      50 8     Ge            1      11 9     Recno         0      0
+    10    ListWrite     0      0 11    Next          0      6 12    Close         0      0
+    13    ListRewind    0      0 14    Integer       0      0 15    OpenWrite     0      3
+    16    ListRead      0      20 17    NotExists     0      19 18    Delete        0      1
+    19    Goto          0      16 20    ListReset     0      0 21    Close         0      0
+    22    Commit        0      0 23    Halt          0      0`'
 - en: Here is what the program must do. First it has to locate all of the records
     in the table "examp" that are to be deleted. This is done using a loop very much
     like the loop used in the SELECT examples above. Once all records have been located,
@@ -619,71 +876,103 @@
     the scan order after a delete operation. And if the scan order changes in the
     middle of the scan, some records might be visited more than once and other records
     might not be visited at all.
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 程序必须执行以下操作。首先，它必须定位表 "examp" 中所有将被删除的记录。这通过一个循环来完成，其结构与上述 SELECT 示例中使用的循环非常相似。一旦找到所有记录，我们就可以逐个删除它们。请注意，我们不能在找到记录后立即删除每条记录。我们必须先找到所有记录，然后再进行删除。这是因为
+    SQLite 数据库后端在删除操作后可能会改变扫描顺序。如果扫描顺序在扫描中间改变，某些记录可能会被多次访问，而其他记录可能根本不会被访问。
 - en: So the implementation of DELETE is really in two loops. The first loop (instructions
     5 through 11) locates the records that are to be deleted and saves their keys
     onto a temporary list, and the second loop (instructions 16 through 19) uses the
     key list to delete the records one by one.
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，DELETE 的实现实际上分为两个循环。第一个循环（指令 5 到 11）定位将要删除的记录，并将它们的键保存到一个临时列表中，第二个循环（指令 16
+    到 19）使用键列表逐个删除记录。
 - en: '`0     Transaction   1      0 1     Transaction   0      0 2     VerifyCookie  0      178
     3     Integer       0      0 4     OpenRead      0      3      examp`'
+  id: totrans-102
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`0     Transaction   1      0 1     Transaction   0      0 2     VerifyCookie  0      178
+    3     Integer       0      0 4     OpenRead      0      3      examp`'
 - en: Instructions 0 though 4 are as in the INSERT example. They start transactions
     for the main and temporary databases, verify the database schema for the main
     database, and open a read cursor on the table "examp". Notice that the cursor
     is opened for reading, not writing. At this stage of the program we are only going
     to be scanning the table, not changing it. We will reopen the same table for writing
     later, at instruction 15.
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 0 到 4 与 INSERT 示例中一样。它们为主数据库和临时数据库启动事务，验证主数据库的数据库模式，并在 "examp" 表上打开读取游标。请注意，游标仅用于读取，而不是写入。在程序的这个阶段，我们只会扫描表，而不会修改它。我们将在指令
+    15 后重新打开相同的表进行写入。
 - en: '`5     Rewind        0      12`'
+  id: totrans-104
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`5     Rewind        0      12`'
 - en: As in the SELECT example, the [Rewind](opcode.html#Rewind) instruction rewinds
     the cursor to the beginning of the table, readying it for use in the loop body.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 如同 SELECT 示例中一样，[倒带](opcode.html#Rewind) 指令将游标倒回表的开头，为循环体做好准备。
 - en: '`6     Column        0      1 7     Integer       50     0      50 8     Ge            1      11`'
+  id: totrans-106
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`6     Column        0      1 7     Integer       50     0      50 8     Ge            1      11`'
 - en: The WHERE clause is implemented by instructions 6 through 8. The job of the
     where clause is to skip the ListWrite if the WHERE condition is false. To this
     end, it jumps ahead to the Next instruction if the "two" column (extracted by
     the Column instruction) is greater than or equal to 50.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: WHERE 子句由指令 6 到 8 实现。WHERE 子句的作用是在“two”列（由列指令提取）大于或等于 50 时跳过 ListWrite。为此，它会跳转到
+    Next 指令。
 - en: 'As before, the Column instruction uses cursor P1 and pushes the data record
     in column P2 (1, column "two") onto the stack. The Integer instruction pushes
     the value 50 onto the top of the stack. After these two instructions the stack
     looks like:'
+  id: totrans-108
   prefs: []
   type: TYPE_NORMAL
+  zh: 与之前一样，Column 指令使用游标 P1，并将列 P2（1，列“two”）的数据记录推送到堆栈中。Integer 指令将值 50 推送到堆栈的顶部。执行完这两个指令后，堆栈如下所示：
 - en: '| (integer) 50 |'
+  id: totrans-109
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (整数) 50 |'
 - en: '| (record) current record for column "two" |'
+  id: totrans-110
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| (记录) 列“two”的当前记录 |'
 - en: The [Ge](opcode.html#Ge) operator compares the top two elements on the stack,
     pops them, and then branches based on the result of the comparison. If the second
     element is >= the top element, then jump to address P2 (the Next instruction at
     the end of the loop). Because P1 is true, if either operand is NULL (and thus
     the result is NULL) then take the jump. If we don't jump, just advance to the
     next instruction.
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: '[Ge](opcode.html#Ge) 运算符比较堆栈顶部的两个元素，将它们弹出，并根据比较结果进行分支。如果第二个元素大于等于顶部元素，则跳转到地址
+    P2（循环结束时的 Next 指令）。因为 P1 为真，如果任一操作数为 NULL（因此结果为 NULL），则执行跳转。如果不跳转，则继续执行下一条指令。'
 - en: '`9     Recno         0      0 10    ListWrite     0      0`'
+  id: totrans-112
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`9     Recno         0      0 10    ListWrite     0      0`'
 - en: The [Recno](opcode.html#Recno) instruction pushes onto the stack an integer
     which is the first 4 bytes of the key to the current entry in a sequential scan
     of the table pointed to by cursor P1. The [ListWrite](opcode.html#ListWrite) instruction
@@ -691,41 +980,62 @@
     the top element. This is the important work of this loop, to store the keys of
     the records to be deleted so we can delete them in the second loop. After this
     ListWrite instruction the stack is empty again.
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: '[Recno](opcode.html#Recno) 指令将整数推送到堆栈中，这个整数是指针 P1 指向的表的当前条目的键的前 4 个字节。[ListWrite](opcode.html#ListWrite)
+    指令将堆栈顶部的整数写入临时存储列表，并弹出顶部元素。这是循环的重要工作，用于存储待删除记录的键，以便在第二个循环中删除它们。执行完这个 ListWrite
+    指令后，堆栈再次为空。'
 - en: '`11    Next          0      6 12    Close         0      0`'
+  id: totrans-114
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`11    Next          0      6 12    Close         0      0`'
 - en: The Next instruction increments the cursor to point to the next element in the
     table pointed to by cursor P0, and if it was successful branches to P2 (6, the
     beginning of the loop body). The Close instruction closes cursor P1\. It doesn't
     affect the temporary storage list because it isn't associated with cursor P1;
     it is instead a global working list (which can be saved with ListPush).
+  id: totrans-115
   prefs: []
   type: TYPE_NORMAL
+  zh: 下一条指令将游标增加到由游标 P0 指向的表中的下一个元素，并且如果成功则跳转到 P2（即循环体的开始）。Close 指令关闭了游标 P1。它不影响临时存储列表，因为它与游标
+    P1 无关；相反，它是一个全局的工作列表（可以通过 ListPush 保存）。
 - en: '`13    ListRewind    0      0`'
+  id: totrans-116
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`13    ListRewind    0      0`'
 - en: The [ListRewind](opcode.html#ListRewind) instruction rewinds the temporary storage
     list to the beginning. This prepares it for use in the second loop.
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: '[ListRewind](opcode.html#ListRewind) 指令将临时存储列表倒回到开始位置，为第二个循环做准备。'
 - en: '`14    Integer       0      0 15    OpenWrite     0      3`'
+  id: totrans-118
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`14    Integer       0      0 15    OpenWrite     0      3`'
 - en: As in the INSERT example, we push the database number P1 (0, the main database)
     onto the stack and use OpenWrite to open the cursor P1 on table P2 (base page
     3, "examp") for modification.
+  id: totrans-119
   prefs: []
   type: TYPE_NORMAL
+  zh: 就像 INSERT 示例中一样，我们将数据库编号 P1（主数据库，编号为 0）推送到堆栈上，并使用 OpenWrite 打开表 P2（基页 3，"examp"）上的游标
+    P1 以进行修改。
 - en: '`16    ListRead      0      20 17    NotExists     0      19 18    Delete        0      1
     19    Goto          0      16`'
+  id: totrans-120
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`16    ListRead      0      20 17    NotExists     0      19 18    Delete        0      1
+    19    Goto          0      16`'
 - en: This loop does the actual deleting. It is organized differently from the one
     in the UPDATE example. The ListRead instruction plays the role that the Next did
     in the INSERT loop, but because it jumps to P2 on failure, and Next jumps on success,
@@ -734,36 +1044,53 @@
     So this loop has the form of a C while(){...} loop, while the loop in the INSERT
     example had the form of a do{...}while() loop. The Delete instruction fills the
     role that the callback function did in the preceding examples.
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个循环执行实际的删除操作。它的组织方式与 UPDATE 示例中的循环不同。ListRead 指令在 INSERT 循环中扮演 Next 指令的角色，但由于在失败时跳转到
+    P2，而 Next 在成功时跳转，所以我们将其放在循环的开始而不是结束。这意味着我们必须在循环末尾放置一个 Goto 来跳回循环测试的开始。因此，这个循环的形式类似于
+    C 语言的 while(){...} 循环，而 INSERT 示例中的循环形式类似于 do{...}while() 循环。Delete 指令填补了前面示例中回调函数的角色。
 - en: 'The [ListRead](opcode.html#ListRead) instruction reads an element from the
     temporary storage list and pushes it onto the stack. If this was successful, it
     continues to the next instruction. If this fails because the list is empty, it
     branches to P2, which is the instruction just after the loop. Afterwards the stack
     looks like:'
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: '[ListRead](opcode.html#ListRead) 指令从临时存储列表中读取一个元素并将其推送到堆栈上。如果成功，则继续执行下一条指令。如果因为列表为空而失败，则跳转到
+    P2，这是循环后的第一条指令。之后，堆栈的状态如下：'
 - en: '| (integer) key for current record |'
+  id: totrans-123
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| （整数）当前记录的键 |'
 - en: 'Notice the similarity between the ListRead and Next instructions. Both operations
     work according to this rule:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意 ListRead 和 Next 指令之间的相似性。这两个操作都遵循这个规则：
 - en: Push the next "thing" onto the stack and fall through OR jump to P2, depending
     on whether or not there is a next "thing" to push.
+  id: totrans-125
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 将下一个“thing”推送到栈上并穿过或者跳转到 P2，具体取决于是否有下一个“thing”可以推送。
 - en: One difference between Next and ListRead is their idea of a "thing". The "things"
     for the Next instruction are records in a database file. "Things" for ListRead
     are integer keys in a list. Another difference is whether to jump or fall through
     if there is no next "thing". In this case, Next falls through, and ListRead jumps.
     Later on, we will see other looping instructions (NextIdx and SortNext) that operate
     using the same principle.
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: Next 和 ListRead 之间的一个区别在于它们对“thing”的理解。Next 指令中的“things”是数据库文件中的记录。“Things”
+    对于 ListRead 来说是列表中的整数键。另一个区别是如果没有下一个“thing”时是跳转还是穿过。在这种情况下，Next 是穿过，而 ListRead
+    是跳转。稍后我们将看到其他使用相同原则的循环指令（NextIdx 和 SortNext）。
 - en: The [NotExists](opcode.html#NotExists) instruction pops the top stack element
     and uses it as an integer key. If a record with that key does not exist in table
     P1, then jump to P2\. If a record does exist, then fall through to the next instruction.
@@ -771,28 +1098,42 @@
     to the ListRead at the beginning. This could have been coded to have P2 be 16,
     the ListRead at the start of the loop, but the SQLite parser which generated this
     code didn't make that optimization.
+  id: totrans-127
   prefs: []
   type: TYPE_NORMAL
+  zh: '[不存在](opcode.html#NotExists) 指令弹出栈顶的元素，并将其用作整数键。如果表 P1 中不存在具有该键的记录，则跳转到 P2。如果记录存在，则继续执行下一个指令。在这种情况下，P2
+    让我们跳到循环结尾的 Goto 处，它会跳回到循环开始的 ListRead。这本可以编码为将 P2 设为 16，即循环开始的 ListRead，但生成这段代码的
+    SQLite 解析器并没有进行这种优化。'
 - en: The [Delete](opcode.html#Delete) does the work of this loop; it pops an integer
     key off the stack (placed there by the preceding ListRead) and deletes the record
     of cursor P1 that has that key. Because P2 is true, the row change counter is
     incremented.
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: '[删除](opcode.html#Delete) 指令完成了这个循环的工作；它从栈上弹出一个整数键（由前面的 ListRead 放置），并删除具有该键的游标
+    P1 的记录。因为 P2 是真的，所以行更改计数器被递增。'
 - en: The [Goto](opcode.html#Goto) jumps back to the beginning of the loop. This is
     the end of the loop.
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: '[跳转](opcode.html#Goto) 指令跳回到循环的开头。这是循环的结束。'
 - en: '`20    ListReset     0      0 21    Close         0      0 22    Commit        0      0
     23    Halt          0      0`'
+  id: totrans-130
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`20    ListReset     0      0 21    Close         0      0 22    Commit        0      0
+    23    Halt          0      0`'
 - en: This block of instruction cleans up the VDBE program. Three of these instructions
     aren't really required, but are generated by the SQLite parser from its code templates,
     which are designed to handle more complicated cases.
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 这一段指令块清理了 VDBE 程序。这些指令中有三个实际上并不需要，但是它们是由 SQLite 解析器从其代码模板生成的，这些模板设计用于处理更复杂的情况。
 - en: The [ListReset](opcode.html#ListReset) instruction empties the temporary storage
     list. This list is emptied automatically when the VDBE program terminates, so
     it isn't necessary in this case. The Close instruction closes the cursor P1\.
@@ -800,21 +1141,29 @@
     The Commit ends the current transaction successfully, and causes all changes that
     occurred in this transaction to be saved to the database. The final Halt is also
     unnecessary, since it is added to every VDBE program when it is prepared to run.
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: '[ListReset](opcode.html#ListReset)指令清空临时存储列表。当VDBE程序终止时，此列表会自动清空，因此在这种情况下是不必要的。Close指令关闭游标P1。同样，在VDBE引擎完成运行此程序时会执行此操作。Commit成功结束当前事务，并导致此事务中发生的所有更改保存到数据库。最后的Halt也是不必要的，因为它在每个准备运行的VDBE程序中都会添加。'
 - en: 'UPDATE statements work very much like DELETE statements except that instead
     of deleting the record they replace it with a new one. Consider this example:'
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: UPDATE语句的工作方式与DELETE语句非常相似，只是不删除记录而是用新记录替换它。考虑以下示例：
 - en: '[PRE6]'
+  id: totrans-134
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'Instead of deleting records where the "two" column is less than 50, this statement
     just puts the "one" column in parentheses The VDBE program to implement this statement
     follows:'
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: 而不是删除“two”列小于50的记录，该语句只是将“one”列放在括号中。实现此语句的VDBE程序如下：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
     1     Transaction   0      0                                          2     VerifyCookie  0      178                                            
@@ -833,9 +1182,21 @@
     27    Goto          0      16                                              28    ListReset     0      0                                         
     29    Close         0      0                                          30    Commit        0      0                                         
     31    Halt          0      0`'
+  id: totrans-136
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
+    1     Transaction   0      0                                          2     VerifyCookie  0      178                                            
+    3     Integer       0      0                                          4     OpenRead      0      3      examp                              
+    5     Rewind        0      12                                         6     Column        0      1                                         
+    7     Integer       50     0      50                                  8     Ge            1      11                                        
+    9     Recno         0      0                                          10    ListWrite     0      0                                         
+    11    Next          0      6                                               12    Close         0      0                                         
+    13    Integer       0      0                                          14    OpenWrite     0      3                                              
+    15    ListRewind    0      0                                          16    ListRead      0      28                                             
+    17    Dup           0      0                                -   链接（[地址](https://example.org)）需要翻译其内容，但保留网址'
 - en: This program is essentially the same as the DELETE program except that the body
     of the second loop has been replace by a sequence of instructions (at addresses
     17 through 26) that update the record rather than delete it. Most of this instruction
@@ -843,8 +1204,10 @@
     so we will go over it briefly. Also note that the order of some of the instructions
     before and after the 2nd loop has changed. This is just the way the SQLite parser
     chose to output the code using a different template.
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个程序与DELETE程序基本相同，只是第二个循环体的主体被一系列指令（地址为17到26）所替代，这些指令用于更新记录而不是删除它。这个指令序列中的大部分内容您应该已经很熟悉了，但是还有一些小的变化，因此我们会简要地过一下。同时注意在第二个循环体之前和之后一些指令的顺序已经改变。这只是SQLite解析器使用不同模板输出代码的方式。
 - en: 'As we enter the interior of the second loop (at instruction 17) the stack contains
     a single integer which is the key of the record we want to modify. We are going
     to need to use this key twice: once to fetch the old value of the record and a
@@ -854,28 +1217,38 @@
     element to duplication using the P1 operand. When P1 is 0, the top of the stack
     is duplicated. When P1 is 1, the next element down on the stack duplication. And
     so forth.'
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 进入第二个循环体内部（在指令17处），栈内包含一个单独的整数，这个整数是我们要修改的记录的键。我们需要使用这个键两次：一次是获取记录的旧值，另一次是写入修改后的记录。因此，第一条指令是Dup，用于复制栈顶的键。Dup指令可以复制栈中的任何元素，而不仅仅是顶部元素。您可以使用P1操作数指定要复制的元素。当P1为0时，复制栈顶元素；当P1为1时，复制栈中下一个元素，以此类推。
 - en: After duplicating the key, the next instruction, NotExists, pops the stack once
     and uses the value popped as a key to check the existence of a record in the database
     file. If there is no record for this key, it jumps back to the ListRead to get
     another key.
+  id: totrans-139
   prefs: []
   type: TYPE_NORMAL
+  zh: 在复制完键之后，接下来的指令是NotExists，它将栈顶的值弹出并将其作为键来检查数据库文件中记录的存在性。如果不存在该键对应的记录，则跳回到ListRead来获取另一个键。
 - en: 'Instructions 19 through 25 construct a new database record that will be used
     to replace the existing record. This is the same kind of code that we saw in the
     description of INSERT and will not be described further. After instruction 25
     executes, the stack looks like this:'
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令19到25用于构建一个新的数据库记录，用于替换现有的记录。这与INSERT中描述的代码类型相同，这里不再详细描述。执行完第25条指令后，栈的情况如下：
 - en: '| (record) new data record |'
+  id: totrans-141
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '|（记录）新数据记录|'
 - en: '| (integer) key |'
+  id: totrans-142
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '|（整数）键|'
 - en: The PutIntKey instruction (also described during the discussion about INSERT)
     writes an entry into the database file whose data is the top of the stack and
     whose key is the next on the stack, and then pops the stack twice. The PutIntKey
@@ -883,30 +1256,40 @@
     is what we want here. Overwriting was not an issue with INSERT because with INSERT
     the key was generated by the NewRecno instruction which is guaranteed to provide
     a key that has not been used before.
+  id: totrans-143
   prefs: []
   type: TYPE_NORMAL
+  zh: PutIntKey指令（在讨论INSERT时也有描述）将一个条目写入数据库文件，其数据为堆栈顶部的内容，键为堆栈中的下一个内容，然后将堆栈弹出两次。PutIntKey指令将用新数据覆盖具有相同键的现有记录，这正是我们所希望的。在INSERT时不存在覆盖的问题，因为键是由NewRecno指令生成的，该指令保证提供一个之前未使用的键。
 - en: CREATE and DROP
+  id: totrans-144
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: CREATE和DROP
 - en: 'Using CREATE or DROP to create or destroy a table or index is really the same
     as doing an INSERT or DELETE from the special "sqlite_master" table, at least
     from the point of view of the VDBE. The sqlite_master table is a special table
     that is automatically created for every SQLite database. It looks like this:'
+  id: totrans-145
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用CREATE或DROP命令来创建或销毁表格或索引，在VDBE的视角下与从特殊的"sqlite_master"表中进行INSERT或DELETE操作基本相同。sqlite_master表是每个SQLite数据库自动创建的特殊表，其结构如下：
 - en: '[PRE7]'
+  id: totrans-146
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: Every table (except the "sqlite_master" table itself) and every named index
     in an SQLite database has an entry in the sqlite_master table. You can query this
     table using a SELECT statement just like any other table. But you are not allowed
     to directly change the table using UPDATE, INSERT, or DELETE. Changes to sqlite_master
     have to occur using the CREATE and DROP commands because SQLite also has to update
     some of its internal data structures when tables and indices are added or destroyed.
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个SQLite数据库中的每个表（除了"sqlite_master"表本身）和每个命名索引都在sqlite_master表中有一个条目。你可以使用SELECT语句查询这个表，就像查询任何其他表一样。但是你不允许直接使用UPDATE、INSERT或DELETE来更改表。必须使用CREATE和DROP命令对sqlite_master进行更改，因为SQLite在添加或销毁表和索引时也需要更新其一些内部数据结构。
 - en: But from the point of view of the VDBE, a CREATE works pretty much like an INSERT
     and a DROP works like a DELETE. When the SQLite library opens to an existing database,
     the first thing it does is a SELECT to read the "sql" columns from all entries
@@ -914,18 +1297,25 @@
     the CREATE statement that originally generated the index or table. This text is
     fed back into the SQLite parser and used to reconstruct the internal data structures
     describing the index or table.
+  id: totrans-148
   prefs: []
   type: TYPE_NORMAL
+  zh: 但从VDBE的视角来看，CREATE几乎就像是INSERT，而DROP则像DELETE。当SQLite库打开现有数据库时，它首先执行SELECT以读取sqlite_master表的所有条目的"sql"列。"sql"列包含最初生成索引或表的CREATE语句的完整SQL文本。此文本被反馈到SQLite解析器中，并用于重建描述索引或表的内部数据结构。
 - en: Using Indexes To Speed Searching
+  id: totrans-149
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 使用索引加速搜索
 - en: In the example queries above, every row of the table being queried must be loaded
     off of the disk and examined, even if only a small percentage of the rows end
     up in the result. This can take a long time on a big table. To speed things up,
     SQLite can use an index.
+  id: totrans-150
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上述示例查询中，被查询的表的每一行都必须从磁盘加载并检查，即使只有很小一部分行最终出现在结果中。对于大表来说，这可能需要很长时间。为了加快速度，SQLite
+    可以使用索引。
 - en: An SQLite file associates a key with some data. For an SQLite table, the database
     file is set up so that the key is an integer and the data is the information for
     one row of the table. Indices in SQLite reverse this arrangement. The index key
@@ -933,47 +1323,68 @@
     access a table row that has some particular content, we first look up the content
     in the index table to find its integer index, then we use that integer to look
     up the complete record in the table.
+  id: totrans-151
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于 SQLite 文件，将键与一些数据关联起来。对于 SQLite 表，数据库文件被设置为键是整数，数据是表的一行的信息。SQLite 中的索引颠倒了这种安排。索引键是存储的一些信息，索引数据是整数。要访问具有特定内容的表行，我们首先在索引表中查找内容以找到其整数索引，然后使用该整数来查找表中的完整记录。
 - en: 'Note that SQLite uses b-trees, which are a sorted data structure, so indices
     can be used when the WHERE clause of the SELECT statement contains tests for equality
     or inequality. Queries like the following can use an index if it is available:'
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意 SQLite 使用了 b 树，这是一种排序数据结构，因此当 SELECT 语句的 WHERE 子句包含对等式或不等式的测试时，可以使用索引。以下示例查询如果有索引可用则可以使用：
 - en: '[PRE8]'
+  id: totrans-153
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: 'If there exists an index that maps the "two" column of the "examp" table into
     integers, then SQLite will use that index to find the integer keys of all rows
     in examp that have a value of 50 for column two, or all rows that are less than
     50, etc. But the following queries cannot use the index:'
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果存在一个将 "examp" 表的 "two" 列映射到整数的索引，则 SQLite 将使用该索引来查找具有列二值为 50 的所有行的整数键，或者所有小于
+    50 的行等。但以下查询无法使用索引：
 - en: '[PRE9]'
+  id: totrans-155
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'Note that the SQLite parser will not always generate code to use an index,
     even if it is possible to do so. The following queries will not currently use
     the index:'
+  id: totrans-156
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意 SQLite 解析器不总是会生成代码来使用索引，即使可以这样做。以下查询目前不会使用索引：
 - en: '[PRE10]'
+  id: totrans-157
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: 'To understand better how indices work, lets first look at how they are created.
     Let''s go ahead and put an index on the two column of the examp table. We have:'
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 要更好地理解索引的工作原理，让我们首先看看它们是如何创建的。我们继续在 examp 表的两列上建立索引。我们有：
 - en: '[PRE11]'
+  id: totrans-159
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: 'The VDBE code generated by the above statement looks like the following:'
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述语句生成的 VDBE 代码如下所示：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
     1     Transaction   0      0                                          2     VerifyCookie  0      178                                            
@@ -991,34 +1402,80 @@
     25    Close         1      0                                          26    Integer       333    0                                         
     27    SetCookie     0      0                                          28    Close         0      0                                         
     29    Commit        0      0                                          30    Halt          0      0`'
+  id: totrans-161
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
+    1     Transaction   0      0                                          2     VerifyCookie  0      178                                            
+    3     Integer       0      0                                          4     OpenWrite     0      2                                         
+    5     NewRecno      0      0                                          6     String        0      0      index                              
+    7     String        0      0      examp_idx1                          8     String        0      0      examp                              
+    9     CreateIndex   0      0      ptr(0x791380)                       10    Dup           0      0                                         
+    11    Integer       0      0                                          12    OpenWrite     1      0                                         
+    13    String        0      0      CREATE INDEX examp_idx1 ON examp(tw 14    MakeRecord    5      0                                         
+    15    PutIntKey     0      0                                          16    Integer       0      0                                         
+    17    OpenRead      2      3      examp                               18    Rewind        2      24                                             
+    19    Recno         2      0                -   `addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
+    1     Transaction   0      0                                          2     VerifyCookie  0      178                                            
+    3     Integer       0      0                                          4     OpenWrite     0      2                                         
+    5     NewRecno      0      0                                          6     String        0      0      index                              
+    7     String        0      0      examp_idx1                          8     String        0      0      examp                              
+    9     CreateIndex   0      0      ptr(0x791380)                       10    Dup           0      0                                         
+    11    Integer       0      0                                          12    OpenWrite     1      0                                         
+    13    String        0      0      CREATE INDEX examp_idx1 ON examp(tw 14    MakeRecord    5      0                                         
+    15    PutIntKey     0      0                                          16    Integer       0      0                                         
+    17    OpenRead      2      3      examp                               18    Rewind        2      24                                             
+    19    Recno         2      0                -   `addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
+    1     Transaction   0      0                                          2     VerifyCookie  0      178                                            
+    3     Integer       0      0                                          4     OpenWrite     0      2                                         
+    5     NewRecno      0      0                                          6     String        0      0      index                              
+    7     String        0      0      examp_idx1                          8     String        0      0      examp                              
+    9     CreateIndex   0      0      ptr(0x791380)                       10    Dup           0      0                                         
+    11    Integer       0      0                                          12    OpenWrite     1      0                                         
+    13    String        0      0      CREATE INDEX examp_idx1 ON examp(tw 14    MakeRecord    5      0                                         
+    15    PutIntKey     0      0                                          16    Integer       0      0                                         
+    17    OpenRead      2      3      examp                               18    Rewind        2      24                                             
+    19    Recno         2      0'
 - en: Remember that every table (except sqlite_master) and every named index has an
     entry in the sqlite_master table. Since we are creating a new index, we have to
     add a new entry to sqlite_master. This is handled by instructions 3 through 15\.
     Adding an entry to sqlite_master works just like any other INSERT statement so
     we will not say any more about it here. In this example, we want to focus on populating
     the new index with valid data, which happens on instructions 16 through 23.
+  id: totrans-162
   prefs: []
   type: TYPE_NORMAL
+  zh: 请记住，除了sqlite_master表之外的每个表和每个命名索引都在sqlite_master表中有一个条目。因为我们正在创建一个新的索引，所以我们必须向sqlite_master表中添加一个新的条目。这由第3到15条指令处理。向sqlite_master添加条目的过程就像任何其他INSERT语句一样，所以我们在这里不再多说。在这个示例中，我们希望专注于使用有效数据填充新索引，这发生在第16到23条指令之间。
 - en: '`16    Integer       0      0                                          17    OpenRead      2      3      examp`'
+  id: totrans-163
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`16    Integer       0      0                                          17    OpenRead      2      3      examp`'
 - en: The first thing that happens is that we open the table being indexed for reading.
     In order to construct an index for a table, we have to know what is in that table.
     The index has already been opened for writing using cursor 0 by instructions 3
     and 4.
+  id: totrans-164
   prefs: []
   type: TYPE_NORMAL
+  zh: 首先要做的是打开用于读取的正在索引的表。为了为表构建索引，我们必须知道该表中包含什么。使用指令3和4已经打开了用于写入的索引。
 - en: '`18    Rewind        2      24                                             
     19    Recno         2      0                                          20    Column        2      1                                         
     21    MakeIdxKey    1      0      n                                   22    IdxPut        1      0      indexed columns are not unique     
     23    Next          2      19`'
+  id: totrans-165
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`18    Rewind        2      24                                             
+    19    Recno         2      0                                          20    Column        2      1                                         
+    21    MakeIdxKey    1      0      n                                   22    IdxPut        1      0      indexed columns are not unique     
+    23    Next          2      19`'
 - en: Instructions 18 through 23 implement a loop over every row of the table being
     indexed. For each table row, we first extract the integer key for that row using
     Recno in instruction 19, then get the value of the "two" column using Column in
@@ -1033,18 +1490,29 @@
     integers for that index and the new record is written back to the database file.
     Note that the same index entry can store multiple integers if there are two or
     more table entries with the same value for the two column.
+  id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 18 到 23 实现了对正在被索引的表的每一行进行循环。对于每一行表格，我们首先使用指令 19 中的 Recno 提取该行的整数键，然后使用指令
+    20 中的 Column 获取“two”列的值。第 21 条指令 [MakeIdxKey](opcode.html#MakeIdxKey) 将来自堆栈顶部的“two”列数据转换为有效的索引键。对于单列索引，这基本上是一个空操作。但是如果
+    MakeIdxKey 的 P1 操作数大于一，多个条目将从堆栈中弹出并转换为单个索引键。第 22 条指令 [IdxPut](opcode.html#IdxPut)
+    实际上创建索引条目。IdxPut 从堆栈中弹出两个元素。堆栈顶部用作键来从索引表中获取条目。然后将第二个在堆栈上的整数添加到该索引的整数集合中，并将新记录写回数据库文件。请注意，如果两个或多个表条目在“two”列上具有相同的值，同一个索引条目可以存储多个整数。
 - en: 'Now let''s look at how this index will be used. Consider the following query:'
+  id: totrans-167
   prefs: []
   type: TYPE_NORMAL
+  zh: 现在让我们看看这个索引将如何被使用。考虑以下查询：
 - en: '[PRE12]'
+  id: totrans-168
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: 'SQLite generates the following VDBE code to handle this query:'
+  id: totrans-169
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 生成以下 VDBE 代码来处理此查询：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one                                
     1     ColumnName    1      0      two                                 2     Integer       0      0                                         
@@ -1058,9 +1526,30 @@
     17    Callback      2      0                                          18    Next          1      11                                        
     19    Close         0      0                                          20    Close         1      0                                         
     21    Halt          0      0`'
+  id: totrans-170
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one                                
+    1     ColumnName    1      0      two                                 2     Integer       0      0                                         
+    3     OpenRead      0      3      examp                               4     VerifyCookie  0      256                                            
+    5     Integer       0      0                                          6     OpenRead      1      4      examp_idx1                         
+    7     Integer       50     0      50                             8     MakeKey       1      0      n                                  
+    9     MemStore      0      0                                          10    MoveTo        1      19                                             
+    11    MemLoad       0      0                                          12    IdxGT         1      19                                             
+    13    IdxRecno      1      0                                          14    MoveTo        0      0                                         
+    15    Column        0      0                                          16    Column        0      1                                         
+    17    Callback      2      0                                -   `地址   操作码       参数1   参数2   参数3                                        
+    ----  ------------  -----  -----  ----------------------------------- 0     列名          0      0      one                                
+    1     列名          1      0      two                                 2     整数          0      0                                         
+    3     打开读取      0      3      examp                               4     验证Cookie   0      256                                            
+    5     整数          0      0                                          6     打开读取      1      4      examp_idx1                         
+    7     整数          50     0      50                             8     生成键        1      0      n                                  
+    9     内存存储      0      0                                          10    移动到        1      19                                             
+    11    内存加载      0      0                                          12    索引大于      1      19                                             
+    13    索引记录号    1      0                                          14    移动到        0      0                                         
+    15    列            0      0                                          16    列            0      1                                -                                           17    回调         2      0'
 - en: The SELECT begins in a familiar fashion. First the column names are initialized
     and the table being queried is opened. Things become different beginning with
     instructions 5 and 6 where the index file is also opened. Instructions 7 and 8
@@ -1071,23 +1560,29 @@
     at address 10 pops the key off the stack and moves the index cursor to the first
     row of the index with that key. This initializes the cursor for use in the following
     loop.
+  id: totrans-171
   prefs: []
   type: TYPE_NORMAL
+  zh: SELECT查询以熟悉的方式开始。首先初始化列名并打开正在查询的表。从第5和第6条指令开始，情况有所不同，索引文件也被打开。指令7和8创建一个值为50的键。地址9处的[MemStore](opcode.html#MemStore)指令将索引键存储在VDBE内存位置0中。VDBE内存用于避免从栈深处获取值，尽管这是可行的，但会使程序更难生成。接下来的指令，地址10处的[MoveTo](opcode.html#MoveTo)，弹出栈中的键并将索引游标移动到具有该键的索引的第一行。这初始化了用于以下循环中的游标。
 - en: Instructions 11 through 18 implement a loop over all index records with the
     key that was fetched by instruction 8\. All of the index records with this key
     will be contiguous in the index table, so we walk through them and fetch the corresponding
     table key from the index. This table key is then used to move the cursor to that
     row in the table. The rest of the loop is the same as the loop for the non-indexed
     SELECT query.
+  id: totrans-172
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令11至18实现了对由地址8处获取的索引键对应的所有索引记录的循环。所有具有此键的索引记录将在索引表中连续存放，因此我们遍历它们，并从索引中获取相应的表键。然后，使用此表键将游标移动到表中的那一行。循环的其余部分与非索引SELECT查询的循环相同。
 - en: The loop begins with the [MemLoad](opcode.html#MemLoad) instruction at 11 which
     pushes a copy of the index key back onto the stack. The instruction [IdxGT](opcode.html#IdxGT)
     at 12 compares the key to the key in the current index record pointed to by cursor
     P1\. If the index key at the current cursor location is greater than the index
     we are looking for, then jump out of the loop.
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: 循环以地址11处的[MemLoad](opcode.html#MemLoad)指令开始，将索引键的副本推送回栈中。地址12处的[IdxGT](opcode.html#IdxGT)指令将当前游标P1指向的索引记录中的键与我们正在查找的键进行比较。如果当前游标位置的索引键大于我们要查找的索引键，则跳出循环。
 - en: The instruction [IdxRecno](opcode.html#IdxRecno) at 13 pushes onto the stack
     the table record number from the index. The following MoveTo pops it and moves
     the table cursor to that row. The next 3 instructions select the column data the
@@ -1095,23 +1590,33 @@
     data and the callback function is invoked. The final Next instruction advances
     the index cursor, not the table cursor, to the next row, and then branches back
     to the start of the loop if there are any index records left.
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 指令 [IdxRecno](opcode.html#IdxRecno) 在 13 处将索引中的表记录编号推送到堆栈上。接下来的 MoveTo 指令将其弹出并将表游标移动到该行。接下来的
+    3 条指令以与非索引情况相同的方式选择列数据。Column 指令提取列数据并调用回调函数。最后的 Next 指令将索引游标前进到下一行，而不是表游标，并且如果索引中还有记录，将分支返回到循环的起点。
 - en: 'Since the index is used to look up values in the table, it is important that
     the index and table be kept consistent. Now that there is an index on the examp
     table, we will have to update that index whenever data is inserted, deleted, or
     changed in the examp table. Remember the first example above where we were able
     to insert a new row into the "examp" table using 12 VDBE instructions. Now that
     this table is indexed, 19 instructions are required. The SQL statement is this:'
+  id: totrans-175
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于索引用于查找表中的值，因此保持索引与表一致非常重要。现在在 examp 表上有了索引，我们将不得不在 examp 表中插入、删除或更改数据时更新该索引。记住上面的第一个示例，我们能够使用
+    12 条 VDBE 指令将新行插入到 "examp" 表中。现在，这张表已经建立了索引，需要 19 条指令。SQL 语句如下所示：
 - en: '[PRE13]'
+  id: totrans-176
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: 'And the generated code looks like this:'
+  id: totrans-177
   prefs: []
   type: TYPE_NORMAL
+  zh: 并且生成的代码如下所示：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
     1     Transaction   0      0                                          2     VerifyCookie  0      256                                            
@@ -1124,141 +1629,207 @@
     15    PutIntKey     0      1                                          16    Close         0      0                                         
     17    Close         1      0                                          18    Commit        0      0                                         
     19    Halt          0      0`'
+  id: totrans-178
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     Transaction   1      0                                         
+    1     Transaction   0      0                                          2     VerifyCookie  0      256                                            
+    3     Integer       0      0                                          4     OpenWrite     0      3      examp                              
+    5     Integer       0      0                                          6     OpenWrite     1      4      examp_idx1                         
+    7     NewRecno      0      0                                          8     String        0      0      Hello, World!                      
+    9     Integer       99     0      99                                  10    Dup           2      1                                         
+    11    Dup           1      1                                          12    MakeIdxKey    1      0      n                                  
+    13    IdxPut        1      0                                          14    MakeRecord    2      0                                         
+    15    PutIntKey     0      1                                          16    Close         0      0                                         
+    17    Close         1      0                                          18    Commit        0      0                                抱歉，我漏掉了最后一行原文的内容，请允许我继续完成翻译：'
 - en: At this point, you should understand the VDBE well enough to figure out on your
     own how the above program works. So we will not discuss it further in this text.
+  id: totrans-179
   prefs: []
   type: TYPE_NORMAL
+  zh: 到目前为止，你应该已经足够理解VDBE，能够独立推断上述程序的工作原理。因此，在本文中我们将不再进一步讨论它。
 - en: Joins
+  id: totrans-180
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 连接
 - en: In a join, two or more tables are combined to generate a single result. The
     result table consists of every possible combination of rows from the tables being
     joined. The easiest and most natural way to implement this is with nested loops.
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: 在连接操作中，两个或多个表被合并以生成单个结果。结果表包含来自被连接表的每个可能的行组合。实现这一点最简单和自然的方法是使用嵌套循环。
 - en: 'Recall the query template discussed above where there was a single loop that
     searched through every record of the table. In a join we have basically the same
     thing except that there are nested loops. For example, to join two tables, the
     query template might look something like this:'
+  id: totrans-182
   prefs: []
   type: TYPE_NORMAL
+  zh: 回想一下上面讨论过的查询模板，在那里有一个单独的循环搜索表的每条记录。在连接中，我们基本上有相同的东西，只是有嵌套循环。例如，要连接两个表，查询模板可能如下所示：
 - en: Initialize the **azColumnName[]** array for the callback.
+  id: totrans-183
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 初始化**azColumnName[]**数组以供回调使用。
 - en: Open two cursors, one to each of the two tables being queried.
+  id: totrans-184
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开两个游标，一个用于查询的每个表。
 - en: 'For each record in the first table, do:'
+  id: totrans-185
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对于第一个表中的每条记录，执行以下操作：
 - en: 'For each record in the second table do:'
+  id: totrans-186
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对于第二个表中的每条记录，执行以下操作：
 - en: If the WHERE clause evaluates to FALSE, then skip the steps that follow and
     continue to the next record.
+  id: totrans-187
   prefs:
   - PREF_IND
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果 WHERE 子句评估为假，则跳过后续步骤并继续下一条记录。
 - en: Compute all columns for the current row of the result.
+  id: totrans-188
   prefs:
   - PREF_IND
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 计算当前结果行的所有列。
 - en: Invoke the callback function for the current row of the result.
+  id: totrans-189
   prefs:
   - PREF_IND
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 调用当前结果行的回调函数。
 - en: Close both cursors.
+  id: totrans-190
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 关闭两个游标。
 - en: 'This template will work, but it is likely to be slow since we are now dealing
     with an O(N²) loop. But it often works out that the WHERE clause can be factored
     into terms and that one or more of those terms will involve only columns in the
     first table. When this happens, we can factor part of the WHERE clause test out
     of the inner loop and gain a lot of efficiency. So a better template would be
     something like this:'
+  id: totrans-191
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个模板会起作用，但可能会很慢，因为我们现在处理的是一个 O(N²) 循环。但通常情况下，WHERE 子句可以被分解为项，并且其中一个或多个项将仅涉及第一个表中的列。当发生这种情况时，我们可以将部分
+    WHERE 子句测试移出内部循环，并获得很高的效率。因此，一个更好的模板可能是这样的：
 - en: Initialize the **azColumnName[]** array for the callback.
+  id: totrans-192
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 初始化**azColumnName[]**数组以供回调使用。
 - en: Open two cursors, one to each of the two tables being queried.
+  id: totrans-193
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 打开两个游标，一个用于查询的每个表。
 - en: 'For each record in the first table, do:'
+  id: totrans-194
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对于第一个表中的每条记录，执行以下操作：
 - en: Evaluate terms of the WHERE clause that only involve columns from the first
     table. If any term is false (meaning that the whole WHERE clause must be false)
     then skip the rest of this loop and continue to the next record.
+  id: totrans-195
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 评估仅涉及第一个表列的 WHERE 子句项。如果任何项为假（意味着整个 WHERE 子句必须为假），则跳过此循环的其余部分并继续下一条记录。
 - en: 'For each record in the second table do:'
+  id: totrans-196
   prefs:
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对于第二个表中的每条记录，执行以下操作：
 - en: If the WHERE clause evaluates to FALSE, then skip the steps that follow and
     continue to the next record.
+  id: totrans-197
   prefs:
   - PREF_IND
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果 WHERE 子句评估为假，则跳过后续步骤并继续下一条记录。
 - en: Compute all columns for the current row of the result.
+  id: totrans-198
   prefs:
   - PREF_IND
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 计算当前结果行的所有列。
 - en: Invoke the callback function for the current row of the result.
+  id: totrans-199
   prefs:
   - PREF_IND
   - PREF_IND
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 调用当前结果行的回调函数。
 - en: Close both cursors.
+  id: totrans-200
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 关闭两个游标。
 - en: Additional speed-up can occur if an index can be used to speed the search of
     either or the two loops.
+  id: totrans-201
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果可以使用索引来加速两个循环中的搜索，则可以进行额外的加速。
 - en: SQLite always constructs the loops in the same order as the tables appear in
     the FROM clause of the SELECT statement. The left-most table becomes the outer
     loop and the right-most table becomes the inner loop. It is possible, in theory,
     to reorder the loops in some circumstances to speed the evaluation of the join.
     But SQLite does not attempt this optimization.
+  id: totrans-202
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 总是按照 SELECT 语句的 FROM 子句中表的出现顺序构建循环。最左边的表成为外部循环，最右边的表成为内部循环。理论上，在某些情况下可以重新排序循环以加快连接操作的评估速度。但
+    SQLite 不会尝试这种优化。
 - en: 'You can see how SQLite constructs nested loops in the following example:'
+  id: totrans-203
   prefs: []
   type: TYPE_NORMAL
+  zh: 你可以通过以下示例看到 SQLite 如何构建嵌套循环：
 - en: '[PRE14]'
+  id: totrans-204
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      examp.one                          
     1     ColumnName    1      0      examp.two                           2     ColumnName    2      0      examp2.three                       
@@ -1274,29 +1845,64 @@
     21    Callback      4      0                                          22    Next          1      14                                             
     23    Next          0      10                                         24    Close         0      0                                         
     25    Close         1      0                                          26    Halt          0      0`'
+  id: totrans-205
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      examp.one                          
+    1     ColumnName    1      0      examp.two                           2     ColumnName    2      0      examp2.three                       
+    3     ColumnName    3      0      examp2.four                         4     Integer       0      0                                         
+    5     OpenRead      0      3      examp                               6     VerifyCookie  0      909                                            
+    7     Integer       0      0                                          8     OpenRead      1      5      examp2                             
+    9     Rewind        0      24                                              10    Column        0      1                                         
+    11    Integer       50     0      50                                  12    Ge            1      23                                             
+    13    Rewind        1      23                                              14    Column        1      1                                         
+    15    Column        0      1                                          16    Ne            1      22                                        
+    17    Column        0      0                                          18    Column        0      1                                         
+    19    Column        1      -   `addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      examp.one                          
+    1     ColumnName    1      0      examp.two                           2     ColumnName    2      0      examp2.three                       
+    3     ColumnName    3      0      examp2.four                         4     Integer       0      0                                         
+    5     OpenRead      0      3      examp                               6     VerifyCookie  0      909                                            
+    7     Integer       0      0                                          8     OpenRead      1      5      examp2                             
+    9     Rewind        0      24                                              10    Column        0      1                                         
+    11    Integer       50     0      50                                  12    Ge            1      23                                             
+    13    Rewind        1      23                                              14    Column        1      1                                         
+    15    Column        0      1                                          16    Ne            1      22                                        
+    17    Column        0      0                                          18    Column        0      1                                         
+    19    Column        1      0                                          20    Column        1      1                                         
+    21    Callback      4      0                                          22    Next          1      14                                             
+    23    Next          0      10                                         24    Close         0      0                                         
+    25    Close         1      0                                          26    Halt          0      0'
 - en: The outer loop over table examp is implement by instructions 7 through 23\.
     The inner loop is instructions 13 through 22. Notice that the "two<50" term of
     the WHERE expression involves only columns from the first table and can be factored
     out of the inner loop. SQLite does this and implements the "two<50" test in instructions
     10 through 12\. The "four==two" test is implement by instructions 14 through 16
     in the inner loop.
+  id: totrans-206
   prefs: []
   type: TYPE_NORMAL
+  zh: 表格examp上的外层循环由第7到23条指令实现。内部循环由第13到22条指令实现。注意，WHERE表达式中的"two<50"条件仅涉及第一个表的列，并且可以从内部循环中提取出来。SQLite执行此操作，并在第10到12条指令中实现"two<50"测试。"four==two"测试在内部循环的第14到16条指令中实现。
 - en: SQLite does not impose any arbitrary limits on the tables in a join. It also
     allows a table to be joined with itself.
+  id: totrans-207
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite在联接表格时不对表格施加任何任意限制。它还允许一个表格与自身联接。
 - en: The ORDER BY clause
+  id: totrans-208
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: ORDER BY子句
 - en: For historical reasons, and for efficiency, all sorting is currently done in
     memory.
+  id: totrans-209
   prefs: []
   type: TYPE_NORMAL
+  zh: 基于历史原因和效率考虑，当前所有排序都是在内存中完成的。
 - en: SQLite implements the ORDER BY clause using a special set of instructions to
     control an object called a sorter. In the inner-most loop of the query, where
     there would normally be a Callback instruction, instead a record is constructed
@@ -1304,15 +1910,21 @@
     sorter (in a linked list). After the query loop finishes, the list of records
     is sorted and this list is walked. For each record on the list, the callback is
     invoked. Finally, the sorter is closed and memory is deallocated.
+  id: totrans-210
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite使用一组特殊的指令来实现ORDER BY子句，以控制一个称为排序器的对象。在查询的最内层循环中，通常会有一个回调指令，但这里会构建一个记录，包含回调参数和一个键。这个记录被添加到排序器中（以链表形式）。查询循环结束后，记录列表被排序，并遍历这个列表。对于列表中的每条记录，调用回调函数。最后，关闭排序器并释放内存。
 - en: 'We can see the process in action in the following query:'
+  id: totrans-211
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们可以在以下查询中看到这个过程的实际操作：
 - en: '[PRE15]'
+  id: totrans-212
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one                                
     1     ColumnName    1      0      two                                 2     Integer       0      0                                         
@@ -1325,21 +1937,39 @@
     15    Sort          0      0                                               16    SortNext      0      19                                             
     17    SortCallback  2      0                                               18    Goto          0      16                                             
     19    SortReset     0      0                                          20    Halt          0      0`'
+  id: totrans-213
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      one                                
+    1     ColumnName    1      0      two                                 2     Integer       0      0                                         
+    3     OpenRead      0      3      examp                               4     VerifyCookie  0      909                                            
+    5     Rewind        0      14                                              6     Column        0      0                                         
+    7     Column        0      1                                          8     SortMakeRec   2      0                                              
+    9     Column        0      0                                          10    Column        0      1                                         
+    11    SortMakeKey   2      0      D+                                  12    SortPut       0      0                                              
+    13    Next          0      6                                               14    Close         0      0                                              
+    15    Sort          0      0                                               16    SortNext      0      19                                             
+    17    SortCallback  2      0                                              18    Goto          0      16                                             
+    19    SortReset     0      0                                          20    Halt          0      0`'
 - en: There is only one sorter object, so there are no instructions to open or close
     it. It is opened automatically when needed, and it is closed when the VDBE program
     halts.
+  id: totrans-214
   prefs: []
   type: TYPE_NORMAL
+  zh: 只有一个排序器对象，因此没有打开或关闭它的指令。在需要时它会自动打开，并且在VDBE程序停止时关闭。
 - en: The query loop is built from instructions 5 through 13\. Instructions 6 through
     8 build a record that contains the azData[] values for a single invocation of
     the callback. A sort key is generated by instructions 9 through 11\. Instruction
     12 combines the invocation record and the sort key into a single entry and puts
     that entry on the sort list.
+  id: totrans-215
   prefs: []
   type: TYPE_NORMAL
+  zh: 查询循环是由第 5 至 13 条指令构建的。第 6 至 8 条指令构建一个记录，该记录包含单次回调调用的 azData[] 值。排序键由第 9 至 11
+    条指令生成。第 12 条指令将调用记录和排序键组合成单个条目，并将该条目放入排序列表中。
 - en: The P3 argument of instruction 11 is of particular interest. The sort key is
     formed by prepending one character from P3 to each string and concatenating all
     the strings. The sort comparison function will look at this character to determine
@@ -1348,20 +1978,28 @@
     order so its prefix is "D" and the second column should sorted numerically in
     ascending order so its prefix is "+". Ascending string sorting uses "A", and descending
     numeric sorting uses "-".
+  id: totrans-216
   prefs: []
   type: TYPE_NORMAL
+  zh: 第 11 条指令的 P3 参数尤为重要。排序关键字由将 P3 的一个字符前置到每个字符串并连接所有字符串而形成。排序比较函数将检查此字符以确定排序顺序是升序还是降序，以及是否按字符串或数字排序。在此示例中，第一列应按字符串降序排序，因此其前缀为
+    "D"，第二列应按数字升序排序，因此其前缀为 "+"。升序字符串排序使用 "A"，降序数字排序使用 "-"。
 - en: After the query loop ends, the table being queried is closed at instruction
     14\. This is done early in order to allow other processes or threads to access
     that table, if desired. The list of records that was built up inside the query
     loop is sorted by the instruction at 15\. Instructions 16 through 18 walk through
     the record list (which is now in sorted order) and invoke the callback once for
     each record. Finally, the sorter is closed at instruction 19.
+  id: totrans-217
   prefs: []
   type: TYPE_NORMAL
+  zh: 查询循环结束后，在第 14 条指令关闭正在查询的表。这是为了允许其他进程或线程访问该表，如果需要的话。在第 15 条指令中，已建立的记录列表按照排序。第
+    16 至 18 条指令遍历排序后的记录列表，并对每条记录调用回调函数一次。最后，在第 19 条指令中关闭排序器。
 - en: Aggregate Functions And The GROUP BY and HAVING Clauses
+  id: totrans-218
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 聚合函数和 GROUP BY 及 HAVING 子句
 - en: To compute aggregate functions, the VDBE implements a special data structure
     and instructions for controlling that data structure. The data structure is an
     unordered set of buckets, where each bucket has a key and one or more memory locations.
@@ -1371,18 +2009,27 @@
     of the bucket are used to accumulate the values of the various aggregate functions.
     After the query loop terminates, each bucket is visited once to generate a single
     row of the results.
+  id: totrans-219
   prefs: []
   type: TYPE_NORMAL
+  zh: 要计算聚合函数，VDBE 实现了一种特殊的数据结构和控制该数据结构的指令。数据结构是一个无序的桶集合，每个桶都有一个键和一个或多个内存位置。在查询循环中，GROUP
+    BY 子句用于构建一个键，并将具有该键的桶置于焦点。如果之前不存在，则创建一个新的桶与该键。一旦桶处于焦点状态，桶的内存位置用于累积各种聚合函数的值。查询循环结束后，每个桶被访问一次，以生成结果的单行。
 - en: 'An example will help to clarify this concept. Consider the following query:'
+  id: totrans-220
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个例子将有助于澄清这个概念。考虑以下查询：
 - en: '[PRE16]'
+  id: totrans-221
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'The VDBE code generated for this query is as follows:'
+  id: totrans-222
   prefs: []
   type: TYPE_NORMAL
+  zh: 为此查询生成的VDBE代码如下：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      three                              
     1     ColumnName    1      0      min(three+four)+avg(four)           2     AggReset      0      3                                              
@@ -1401,33 +2048,67 @@
     27    AggGet        0      2                                          28    Add           0      0                                         
     29    Callback      2      0                                          30    Goto          0      24                                             
     31    Noop          0      0                                          32    Halt          0      0`'
+  id: totrans-223
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      three                              
+    1     ColumnName    1      0      min(three+four)+avg(four)           2     AggReset      0      3                                              
+    3     AggInit       0      1      ptr(0x7903a0)                       4     AggInit       0      2      ptr(0x790700)                      
+    5     Integer       0      0                                          6     OpenRead      0      5      examp2                             
+    7     VerifyCookie  0      909                                             8     Rewind        0      23                                             
+    9     Column        0      0                                          10    MakeKey       1      0      n                                  
+    11    AggFocus      0      14                                              12    Column        0      0                                         
+    13    AggSet        0      0                                          14    Column        0      0                                         
+    15    Column        0      1                                          16    Add           0      0                                         
+    17    Integer       1      0                                          18    AggFunc       0      1      ptr(0x7903a0)                      
+    19    Column        0      1                        -   **addr**  **opcode**        **p1**     **p2**     **p3**                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      three                              
+    1     ColumnName    1      0      min(three+four)+avg(four)           2     AggReset      0      3                                              
+    3     AggInit       0      1      ptr(0x7903a0)                       4     AggInit       0      2      ptr(0x790700)                      
+    5     Integer       0      0                                          6     OpenRead      0      5      examp2                             
+    7     VerifyCookie  0      909                                             8     Rewind        0      23                                             
+    9     Column        0      0                                          10    MakeKey       1      0      n                                  
+    11    AggFocus      0      14                                              12    Column        0      0                                         
+    13    AggSet        0      0                                          14    Column        0      0                                         
+    15    Column        0      1                                          16    Add           0      0                                         
+    17    Integer       1      0                                          18    AggFunc       0      1      ptr(0x7903a0)                      
+    19    Column        0      1'
 - en: The first instruction of interest is the [AggReset](opcode.html#AggReset) at
     2. The AggReset instruction initializes the set of buckets to be the empty set
     and specifies the number of memory slots available in each bucket as P2\. In this
     example, each bucket will hold 3 memory slots. It is not obvious, but if you look
     closely at the rest of the program you can figure out what each of these slots
     is intended for.
+  id: totrans-224
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一个感兴趣的指令是在[AggReset](opcode.html#AggReset)处于2。AggReset指令将初始化桶集合为空集，并指定每个桶中可用的内存槽数量为P2。在这个例子中，每个桶将包含3个内存槽。虽然不明显，但如果你仔细看程序的其余部分，你可以弄清楚每个这些槽位的用途。
 - en: '| Memory Slot | Intended Use Of This Memory Slot |'
+  id: totrans-225
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Memory Slot | 此内存槽的预期用途 |'
 - en: '| 0 | The "three" column -- the key to the bucket |'
+  id: totrans-226
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 0 | “three”列 -- 桶的关键字 |'
 - en: '| 1 | The minimum "three+four" value |'
+  id: totrans-227
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 1 | 最小的“three+four”值 |'
 - en: '| 2 | The sum of all "four" values. This is used to compute "avg(four)". |'
+  id: totrans-228
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 2 | 所有“four”值的总和。这用于计算“avg(four)”。'
 - en: The query loop is implemented by instructions 8 through 22. The aggregate key
     specified by the GROUP BY clause is computed by instructions 9 and 10\. Instruction
     11 causes the appropriate bucket to come into focus. If a bucket with the given
@@ -1437,8 +2118,11 @@
     are updated by the instructions between 11 and 21\. Instructions 14 through 18
     update memory slot 1 to hold the next value "min(three+four)". Then the sum of
     the "four" column is updated by instructions 19 through 21.
+  id: totrans-229
   prefs: []
   type: TYPE_NORMAL
+  zh: 查询循环由指令8到22实现。由GROUP BY子句指定的聚合键由指令9和10计算。指令11使得相应的桶成为焦点。如果具有给定键的桶尚不存在，则创建一个新的桶，并且控制流通过到指令12和13来初始化桶。如果桶已经存在，则跳转到指令14。聚合函数的值由指令11到21之间的指令更新。指令14到18更新内存槽1以保存下一个值“min(three+four)”
+    。然后指令19到21更新“four”列的总和。
 - en: After the query loop is finished, the table "examp2" is closed at instruction
     23 so that its lock will be released and it can be used by other threads or processes.
     The next step is to loop over all aggregate buckets and output one row of the
@@ -1447,24 +2131,33 @@
     end of the loop if all buckets have been examined already. The 3 columns of the
     result are fetched from the aggregator bucket in order at instructions 25 through
     27. Finally, the callback is invoked at instruction 29.
+  id: totrans-230
   prefs: []
   type: TYPE_NORMAL
+  zh: 查询循环完成后，在指令23关闭表“examp2”，以释放其锁，并且可以被其他线程或进程使用。接下来的步骤是循环遍历所有聚合桶，并为每个桶输出一个结果行。这由指令24到30的循环完成。AggNext指令在24处将下一个桶置为焦点，或者如果已经检查过所有桶，则跳转到循环的结尾。结果的3列按顺序从聚合器桶中获取，分别在指令25到27处。最后，在指令29处调用回调函数。
 - en: In summary then, any query with aggregate functions is implemented by two loops.
     The first loop scans the input table and computes aggregate information into buckets
     and the second loop scans through all the buckets to compute the final result.
+  id: totrans-231
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，任何带有聚合函数的查询都是由两个循环实现的。第一个循环扫描输入表并将聚合信息计算到桶中，第二个循环遍历所有桶以计算最终结果。
 - en: 'The realization that an aggregate query is really two consecutive loops makes
     it much easier to understand the difference between a WHERE clause and a HAVING
     clause in SQL query statement. The WHERE clause is a restriction on the first
     loop and the HAVING clause is a restriction on the second loop. You can see this
     by adding both a WHERE and a HAVING clause to our example query:'
+  id: totrans-232
   prefs: []
   type: TYPE_NORMAL
+  zh: 确定一个聚合查询实际上是两个连续的循环，这使得理解 SQL 查询语句中 WHERE 子句和 HAVING 子句的区别变得更容易。WHERE 子句是对第一个循环的限制，而
+    HAVING 子句是对第二个循环的限制。通过在我们的示例查询中添加 WHERE 和 HAVING 子句，您可以看到这一点：
 - en: '[PRE17]'
+  id: totrans-233
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      three                              
     1     ColumnName    1      0      min(three+four)+avg(four)           2     AggReset      0      3                                              
@@ -1486,20 +2179,53 @@
     33    AggGet        0      2                                          34    Add           0      0                                         
     35    Callback      2      0                                          36    Goto          0      27                                             
     37    Noop          0      0                                          38    Halt          0      0`'
+  id: totrans-234
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     ColumnName    0      0      three                              
+    1     ColumnName    1      0      min(three+four)+avg(four)           2     AggReset      0      3                                              
+    3     AggInit       0      1      ptr(0x7903a0)                       4     AggInit       0      2      ptr(0x790700)                      
+    5     Integer       0      0                                          6     OpenRead      0      5      examp2                             
+    7     VerifyCookie  0      909                                             8     Rewind        0      26                                             
+    9     Column        0      0                                          10    Column        0      1                                         
+    11    Le            1      25                                              12    Column        0      0                                         
+    13    MakeKey       1      0      n                                   14    AggFocus      0      17                                             
+    15    Column        0      0                                          16    AggSet        0      0                                         
+    17    Column        0      0                                          18    Column        0      1                                         
+    19    Add           0      -   **addr**  **opcode**        **p1**     **p2**     **p3**                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     **ColumnName**    0      0      **three**                              
+    1     **ColumnName**    1      0      **min(three+four)+avg(four)**          
+    2     **AggReset**      0      3                                              
+    3     **AggInit**       0      1      **ptr(0x7903a0)**                      
+    4     **AggInit**       0      2      **ptr(0x790700)**                      
+    5     **Integer**       0      0                                          6     **OpenRead**      0      5      **examp2**                             
+    7     **VerifyCookie**  0      909                                            
+    8     **Rewind**        0      26                                             
+    9     **Column**        0      0                                          10    **Column**        0      1                                         
+    11    **Le**            1      25                                             
+    12    **Column**        0      0                                          13    **MakeKey**       1      0      **n**                              
+    14    **AggFocus**      0      17                                             
+    15    **Column**        0      0                                          16    **AggSet**        0      0                                         
+    17    **Column**        0      0                                          18    **Column**        0      1                                         
+    19    **Add**           0'
 - en: The code generated in this last example is the same as the previous except for
     the addition of two conditional jumps used to implement the extra WHERE and HAVING
     clauses. The WHERE clause is implemented by instructions 9 through 11 in the query
     loop. The HAVING clause is implemented by instruction 28 through 30 in the output
     loop.
+  id: totrans-235
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个最后示例生成的代码与前一个示例相同，只是增加了两个条件跳转用于实现额外的 WHERE 和 HAVING 子句。WHERE 子句由查询循环中的第 9
+    至 11 条指令实现。HAVING 子句由输出循环中的第 28 至 30 条指令实现。
 - en: Using SELECT Statements As Terms In An Expression
+  id: totrans-236
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 将 SELECT 语句用作表达式中的项
 - en: 'The very name "Structured Query Language" tells us that SQL should support
     nested queries. And, in fact, two different kinds of nesting are supported. Any
     SELECT statement that returns a single-row, single-column result can be used as
@@ -1508,18 +2234,27 @@
     of the IN and NOT IN operators. We will begin this section with an example of
     the first kind of nesting, where a single-row, single-column SELECT is used as
     a term in an expression of another SELECT. Here is our example:'
+  id: totrans-237
   prefs: []
   type: TYPE_NORMAL
+  zh: '"结构化查询语言"这个名字告诉我们，SQL 应该支持嵌套查询。事实上，SQL 支持两种不同的嵌套方式。任何返回单行单列结果集的 SELECT 语句都可以作为另一个
+    SELECT 语句中表达式的项。而返回单列多行结果集的 SELECT 语句可以作为 IN 和 NOT IN 运算符右操作数的项。我们将从第一种嵌套类型的示例开始，即使用单行单列
+    SELECT 作为另一个 SELECT 表达式中的项。以下是我们的示例：'
 - en: '[PRE18]'
+  id: totrans-238
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'The way SQLite deals with this is to first run the inner SELECT (the one against
     examp2) and store its result in a private memory cell. SQLite then substitutes
     the value of this private memory cell for the inner SELECT when it evaluates the
     outer SELECT. The code looks like this:'
+  id: totrans-239
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 处理这个问题的方式是首先运行内部 SELECT（针对 examp2 的那个），并将其结果存储在一个私有内存单元中。SQLite 在评估外部
+    SELECT 时，将这个私有内存单元的值替换为内部 SELECT 的值。代码看起来像这样：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     String        0      0                                         
     1     MemStore      0      1                                          2     Integer       0      0                                         
@@ -1536,38 +2271,75 @@
     23    Column        0      1                                          24    Callback      2      0                                         
     25    Next          0      19                                              26    Close         0      0                                         
     27    Halt          0      0`'
+  id: totrans-240
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     String        0      0                                         
+    1     MemStore      0      1                                          2     Integer       0      0                                         
+    3     OpenRead      1      5      examp2                              4     VerifyCookie  0      909                                            
+    5     Rewind        1      13                                              6     Column        1      1                                         
+    7     Integer       5      0      5                                   8     Ne            1      12                                        
+    9     Column        1      0                                          10    MemStore      0      1                                         
+    11    Goto          0      13                                              12    Next          1      6                                              
+    13    Close         1      0                                          14    ColumnName    0      0      one                                
+    15    ColumnName    1      0      two                                 16    Integer       0      0                                         
+    17    OpenRead      -   `addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     String        0      0                                         
+    1     MemStore      0      1                                          2     Integer       0      0                                         
+    3     OpenRead      1      5      examp2                              4     VerifyCookie  0      909                                            
+    5     Rewind        1      13                                              6     Column        1      1                                         
+    7     Integer       5      0      5                                   8     Ne            1      12                                        
+    9     Column        1      0                                          10    MemStore      0      1                                         
+    11    Goto          0      13                                              12    Next          1      6                                              
+    13    Close         1      0                                          14    ColumnName    0      0      one                                
+    15    ColumnName    1      0      two                                 16    Integer       0      0                                         
+    17    OpenRead      0      3      examp                               18    Rewind        0      26                                             
+    19    Column        0      1                                          20    MemLoad       0      0                                         
+    21    Eq            1      25                                              22    Column        0      0                                         
+    23    Column        0      1                                          24    Callback      2      0                                         
+    25    Next          0      19                                              26    Close         0      0                                         
+    27    Halt          0      0`'
 - en: The private memory cell is initialized to NULL by the first two instructions.
     Instructions 2 through 13 implement the inner SELECT statement against the examp2
     table. Notice that instead of sending the result to a callback or storing the
     result on a sorter, the result of the query is pushed into the memory cell by
     instruction 10 and the loop is abandoned by the jump at instruction 11\. The jump
     at instruction at 11 is vestigial and never executes.
+  id: totrans-241
   prefs: []
   type: TYPE_NORMAL
+  zh: 首两条指令将私有内存单元初始化为NULL。指令2到13实现对examp2表的内部SELECT语句。请注意，与将结果发送到回调或将结果存储在排序器中不同，查询结果通过指令10推送到内存单元，并且在指令11处的跳转中退出循环。指令11处的跳转是遗留的，永远不会执行。
 - en: The outer SELECT is implemented by instructions 14 through 25. In particular,
     the WHERE clause that contains the nested select is implemented by instructions
     19 through 21\. You can see that the result of the inner select is loaded onto
     the stack by instruction 20 and used by the conditional jump at 21.
+  id: totrans-242
   prefs: []
   type: TYPE_NORMAL
+  zh: 外部SELECT由指令14到25实现。特别是包含嵌套选择的WHERE子句由指令19到21实现。您可以看到，内部选择的结果通过指令20加载到堆栈上，并在21处的条件跳转中使用。
 - en: 'When the result of a sub-select is a scalar, a single private memory cell can
     be used, as shown in the previous example. But when the result of a sub-select
     is a vector, such as when the sub-select is the right-hand operand of IN or NOT
     IN, a different approach is needed. In this case, the result of the sub-select
     is stored in a transient table and the contents of that table are tested using
     the Found or NotFound operators. Consider this example:'
+  id: totrans-243
   prefs: []
   type: TYPE_NORMAL
+  zh: 当子查询的结果是标量时，可以使用单个私有内存单元，就像前面的例子所示。但是，当子查询的结果是向量时，例如当子查询是IN或NOT IN的右操作数时，就需要采用不同的方法。在这种情况下，子查询的结果存储在一个临时表中，并使用Found或NotFound运算符测试该表的内容。考虑以下示例：
 - en: '[PRE19]'
+  id: totrans-244
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 'The code generated to implement this last query is as follows:'
+  id: totrans-245
   prefs: []
   type: TYPE_NORMAL
+  zh: 实现此最后查询所生成的代码如下：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     OpenTemp      1      1                                         
     1     Integer       0      0                                          2     OpenRead      2      5      examp2                             
@@ -1583,9 +2355,31 @@
     21    Column        0      0                                          22    Column        0      1                                         
     23    Callback      2      0                                          24    Next          0      16                                             
     25    Close         0      0                                          26    Halt          0      0`'
+  id: totrans-246
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     OpenTemp      1      1                                         
+    1     Integer       0      0                                          2     OpenRead      2      5      examp2                             
+    3     VerifyCookie  0      909                                             4     Rewind        2      10                                        
+    5     Column        2      0                                          6     IsNull        -1     9                                              
+    7     String        0      0                                          8     PutStrKey     1      0                                         
+    9     Next          2      5                                               10    Close         2      0                                         
+    11    ColumnName    0      0      one                                 12    ColumnName    1      0      two                                
+    13    Integer       0      0                                          14    OpenRead      0      3      examp                              
+    15    Rewind        0      25                                              16    Column        0      1                                         
+    17    NotNull       -1     20                                        -   `addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     OpenTemp      1      1                                         
+    1     Integer       0      0                                          2     OpenRead      2      5      examp2                             
+    3     VerifyCookie  0      909                                             4     Rewind        2      10                                        
+    5     Column        2      0                                          6     IsNull        -1     9                                              
+    7     String        0      0                                          8     PutStrKey     1      0                                         
+    9     Next          2      5                                               10    Close         2      0                                         
+    11    ColumnName    0      0      one                                 12    ColumnName    1      0      two                                
+    13    Integer       0      0                                          14    OpenRead      0      3      examp                              
+    15    Rewind        0      25                                              16    Column        0      1                                         
+    17    NotNull       -1     20'
 - en: The transient table in which the results of the inner SELECT are stored is created
     by the [OpenTemp](opcode.html#OpenTemp) instruction at 0\. This opcode is used
     for tables that exist for the duration of a single SQL statement only. The transient
@@ -1593,15 +2387,19 @@
     transient table is deleted automatically when the cursor is closed. The P2 value
     of 1 means the cursor points to a BTree index, which has no data but can have
     an arbitrary key.
+  id: totrans-247
   prefs: []
   type: TYPE_NORMAL
+  zh: 存储内部SELECT结果的临时表是由0号[OpenTemp](opcode.html#OpenTemp)指令创建的。该操作码仅用于仅在单个SQL语句期间存在的表。即使主数据库是只读的，临时游标也始终以读/写方式打开。当游标关闭时，临时表会自动删除。P2值为1表示游标指向BTree索引，该索引没有数据，但可以有任意键。
 - en: The inner SELECT statement is implemented by instructions 1 through 10. All
     this code does is make an entry in the temporary table for each row of the examp2
     table with a non-NULL value for the "three" column. The key for each temporary
     table entry is the "three" column of examp2 and the data is an empty string since
     it is never used.
+  id: totrans-248
   prefs: []
   type: TYPE_NORMAL
+  zh: 内部SELECT语句由指令1到10实现。所有这些代码所做的只是为examp2表中"three"列的每一行非空值创建临时表条目。每个临时表条目的键是examp2的"three"列，数据是空字符串，因为它从未被使用。
 - en: The outer SELECT is implemented by instructions 11 through 25\. In particular,
     the WHERE clause containing the IN operator is implemented by instructions at
     16, 17, and 20\. Instruction 16 pushes the value of the "two" column for the current
@@ -1609,28 +2407,38 @@
     is successful, execution jumps to 20, where it tests to see if top of the stack
     matches any key in the temporary table. The rest of the code is the same as what
     has been shown before.
+  id: totrans-249
   prefs: []
   type: TYPE_NORMAL
+  zh: 外部SELECT由指令11到25实现。特别是包含IN运算符的WHERE子句由16、17和20号指令实现。指令16将当前行的"two"列值推送到堆栈上，并检查其是否非空。如果成功，执行跳转到20，其中检查堆栈顶部是否与临时表中的任何键匹配。其余代码与之前显示的代码相同。
 - en: Compound SELECT Statements
+  id: totrans-250
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 复合SELECT语句
 - en: SQLite also allows two or more SELECT statements to be joined as peers using
     operators UNION, UNION ALL, INTERSECT, and EXCEPT. These compound select statements
     are implemented using transient tables. The implementation is slightly different
     for each operator, but the basic ideas are the same. For an example we will use
     the EXCEPT operator.
+  id: totrans-251
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite还允许使用UNION、UNION ALL、INTERSECT和EXCEPT运算符将两个或多个SELECT语句作为对等体连接。这些复合选择语句使用临时表实现。每个运算符的实现略有不同，但基本思想是相同的。我们将使用EXCEPT运算符作为示例。
 - en: '[PRE20]'
+  id: totrans-252
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE20]'
 - en: 'The result of this last example should be every unique value of the "two" column
     in the examp table, except any value that is in the "four" column of examp2 is
     removed. The code to implement this query is as follows:'
+  id: totrans-253
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后一个示例的结果应该是examp表中"two"列的每个唯一值，但删除了examp2的"four"列中的任何值。实现此查询的代码如下：
 - en: '`addr  opcode        p1     p2     p3                                      
     ----  ------------  -----  -----  ----------------------------------- 0     OpenTemp      0      1                                         
     1     KeyAsData     0      1                                               2     Integer       0      0                                         
@@ -1647,23 +2455,46 @@
     23    Column        0      0                                          24    Callback      1      0                                         
     25    Next          0      23                                              26    Close         0      0                                         
     27    Halt          0      0`'
+  id: totrans-254
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '`addr  opcode        p1     p2     p3                                      
+    ----  ------------  -----  -----  ----------------------------------- 0     OpenTemp      0      1                                         
+    1     KeyAsData     0      1                                               2     Integer       0      0                                         
+    3     OpenRead      1      3      examp                               4     VerifyCookie  0      909                                            
+    5     Rewind        1      11                                         6     Column        1      1                                         
+    7     MakeRecord    1      0                                          8     String        0      0                                         
+    9     PutStrKey     0      0                                          10    Next          1      6                                              
+    11    Close         1      0                                          12    Integer       0      0                                         
+    13    OpenRead      2      5      examp2                              14    Rewind        2      20                                        
+    15    Column        2      1                                          16    MakeRecord    1      0                                         
+    17    NotFound      0      19                -   `未找到      18    Delete        0      0                                         
+    19    Next          2      15                                              20    Close         2      0                                         
+    21    ColumnName    0      0      four                                22    Rewind        0      26                                             
+    23    Column        0      0                                          24    Callback      1      0                                         
+    25    Next          0      23                                              26    Close         0      0                                         
+    27    Halt          0      0`'
 - en: The transient table in which the result is built is created by instruction 0\.
     Three loops then follow. The loop at instructions 5 through 10 implements the
     first SELECT statement. The second SELECT statement is implemented by the loop
     at instructions 14 through 19\. Finally, a loop at instructions 22 through 25
     reads the transient table and invokes the callback once for each row in the result.
+  id: totrans-255
   prefs: []
   type: TYPE_NORMAL
+  zh: 结果构建的临时表是由指令 0 创建的。然后跟随三个循环。指令 5 到 10 的循环实现了第一个 SELECT 语句。指令 14 到 19 的循环实现了第二个
+    SELECT 语句。最后，指令 22 到 25 的循环读取临时表，并为结果中的每一行调用回调函数一次。
 - en: Instruction 1 is of particular importance in this example. Normally, the Column
     instruction extracts the value of a column from a larger record in the data of
     an SQLite file entry. Instruction 1 sets a flag on the transient table so that
     Column will instead treat the key of the SQLite file entry as if it were data
     and extract column information from the key.
+  id: totrans-256
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本示例中，指令 1 尤为重要。通常，Column 指令从 SQLite 文件条目的数据中提取列的值。指令 1 设置了临时表上的一个标志，使得 Column
+    可以将 SQLite 文件条目的键视为数据，并从键中提取列信息。
 - en: 'Here is what is going to happen: The first SELECT statement will construct
     rows of the result and save each row as the key of an entry in the transient table.
     The data for each entry in the transient table is a never used so we fill it in
@@ -1671,8 +2502,12 @@
     rows constructed by the second SELECT are removed from the transient table. That
     is why we want the rows to be stored in the key of the SQLite file instead of
     in the data -- so they can be easily located and deleted.'
+  id: totrans-257
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里将会发生以下事情：第一个 SELECT 语句将构建结果的行，并将每行保存为临时表中条目的键。临时表中每个条目的数据从未被使用，因此我们用空字符串填充它。第二个
+    SELECT 语句同样构建行，但是第二个 SELECT 构建的行会从临时表中移除。这就是为什么我们希望行存储在 SQLite 文件的键中，而不是数据中 --
+    这样它们可以轻松定位并删除。
 - en: Let's look more closely at what is happening here. The first SELECT is implemented
     by the loop at instructions 5 through 10. Instruction 5 initializes the loop by
     rewinding its cursor. Instruction 6 extracts the value of the "two" column from
@@ -1683,25 +2518,33 @@
     by the MakeRecord opcode is the record data and the record key is an integer created
     by the NewRecno opcode. But here the roles are reversed and the row created by
     MakeRecord is the record key and the record data is just an empty string.
+  id: totrans-258
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们更仔细地看看这里发生了什么。第一个SELECT由5到10行指令的循环实现。第5行指令通过倒回其光标来初始化循环。第6行指令从"examp"中提取"two"列的值，第7行将其转换为一行。第8行将一个空字符串推入堆栈。最后，第9行将该行写入临时表中。但请记住，PutStrKey操作码使用堆栈顶部作为记录数据，堆栈中的下一个作为键。对于INSERT语句，MakeRecord操作码生成的行是记录数据，而NewRecno操作码创建的整数是记录键。但在这里，角色被颠倒了，MakeRecord生成的行成为记录键，而记录数据只是一个空字符串。
 - en: The second SELECT is implemented by instructions 14 through 19. Instruction
     14 initializes the loop by rewinding its cursor. A new result row is created from
     the "four" column of table "examp2" by instructions 15 and 16\. But instead of
     using PutStrKey to write this new row into the temporary table, we instead call
     Delete to remove it from the temporary table if it exists.
+  id: totrans-259
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二个SELECT由14到19行指令的循环实现。第14行指令通过倒回其光标来初始化循环。指令15和16从表"examp2"的"four"列创建一个新的结果行。但是，与其使用PutStrKey将这一新行写入临时表，我们选择调用Delete来将其从临时表中删除（如果存在）。
 - en: The result of the compound select is sent to the callback routine by the loop
     at instructions 22 through 25\. There is nothing new or remarkable about this
     loop, except for the fact that the Column instruction at 23 will be extracting
     a column out of the record key rather than the record data.
+  id: totrans-260
   prefs: []
   type: TYPE_NORMAL
+  zh: 复合选择的结果由22到25行指令的循环发送给回调例程。这个循环本身并没有什么新鲜或引人注目的地方，除了在第23行的Column指令将会从记录键中提取一列，而不是记录数据。
 - en: Summary
+  id: totrans-261
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 摘要
 - en: 'This article has reviewed all of the major techniques used by SQLite''s VDBE
     to implement SQL statements. What has not been shown is that most of these techniques
     can be used in combination to generate code for an appropriately complex query
@@ -1710,8 +2553,10 @@
     an example of sorting in a compound query. This is because sorting a compound
     query does not introduce any new concepts: it merely combines two previous ideas
     (sorting and compounding) in the same VDBE program.'
+  id: totrans-262
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文已审阅了SQLite的VDBE用于实现SQL语句的所有主要技术。未展示的是，大多数这些技术可以结合使用，以生成适当复杂的查询语句的代码。例如，我们展示了如何在简单查询上完成排序，以及如何实现复合查询。但我们没有给出复合查询中排序的示例。这是因为在复合查询中进行排序并未引入任何新概念：它只是在同一个VDBE程序中结合了两个先前的概念（排序和复合）。
 - en: For additional information on how the SQLite library functions, the reader is
     directed to look at the SQLite source code directly. If you understand the material
     in this article, you should not have much difficulty in following the sources.
@@ -1721,10 +2566,14 @@
     so you can also get information about the various opcodes directly from the **vdbe.c**
     source file. If you have successfully read this far, you should have little difficulty
     understanding the rest.
+  id: totrans-263
   prefs: []
   type: TYPE_NORMAL
+  zh: 要获取SQLite库功能的更多信息，请读者直接查看SQLite源代码。如果你理解了本文中的内容，应该不会有太多难度来追踪源代码。SQLite内部的认真学习者可能还想仔细研究VDBE操作码的文档，如[这里](opcode.html)所述。大多数操作码文档都是使用脚本从源代码的注释中提取的，因此您也可以直接从**vdbe.c**源文件中获取有关各种操作码的信息。如果您成功阅读到这里，理解其余部分应该不会有太大困难。
 - en: If you find errors in either the documentation or the code, feel free to fix
     them and/or contact the author at [drh@hwaci.com](mailto:drh@hwaci.com). Your
     bug fixes or suggestions are always welcomed.
+  id: totrans-264
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果你发现文档或代码中有错误，请随时修正并/或联系作者，邮箱为[drh@hwaci.com](mailto:drh@hwaci.com)。欢迎您的Bug修复或建议。

@@ -1,72 +1,100 @@
 - en: 1\. Executive Summary
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: '-   执行摘要'
 - en: 原文：[https://sqlite.com/opcode.html](https://sqlite.com/opcode.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/opcode.html](https://sqlite.com/opcode.html)
 - en: SQLite works by translating SQL statements into bytecode and then running that
     bytecode in a virtual machine. This document describes how the bytecode engine
     works.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite通过将SQL语句转换为字节码，然后在虚拟机中运行该字节码来工作。本文档描述了字节码引擎的工作原理。
 - en: This document describes SQLite internals. The information provided here is not
     needed for routine application development using SQLite. This document is intended
     for people who want to delve more deeply into the internal operation of SQLite.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文档描述了SQLite的内部工作原理。此处提供的信息对于使用SQLite进行常规应用开发并不是必需的。本文档适用于希望深入了解SQLite内部运作的人士。
 - en: The bytecode engine is not an API of SQLite. Details about the bytecode engine
     change from one release of SQLite to the next. Applications that use SQLite should
     not depend on any of the details found in this document.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: 字节码引擎不是SQLite的API。关于字节码引擎的详细信息在SQLite的每个版本发布时都会发生变化。使用SQLite的应用程序不应依赖于本文档中找到的任何细节。
 - en: See the document "[Why SQLite Uses Bytecode](whybytecode.html)" for some reasons
     why SQLite prefers to use bytecode to implement SQL.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 参见文档"[为什么SQLite使用字节码](whybytecode.html)"，了解SQLite为何更倾向于使用字节码来实现SQL的一些原因。
 - en: 2\. Introduction
+  id: totrans-6
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: '-   引言'
 - en: SQLite works by translating each SQL statement into bytecode and then running
     that bytecode. A [prepared statement](c3ref/stmt.html) in SQLite is mostly just
     the bytecode needed to implement the corresponding SQL. The [sqlite3_prepare_v2()](c3ref/prepare.html)
     interface is a compiler that translates SQL into bytecode. The [sqlite3_step()](c3ref/step.html)
     interface is the virtual machine that runs the bytecode contained within the [prepared
     statement](c3ref/stmt.html).
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite通过将每个SQL语句转换为字节码，然后执行该字节码来工作。在SQLite中，[预编译语句](c3ref/stmt.html)基本上就是实现相应SQL所需的字节码。[sqlite3_prepare_v2()](c3ref/prepare.html)接口是将SQL转换为字节码的编译器。[sqlite3_step()](c3ref/step.html)接口是执行[预编译语句](c3ref/stmt.html)中包含的字节码的虚拟机。
 - en: The bytecode virtual machine is the heart of SQLite. Programmers who want to
     understand how SQLite operates internally must be familiar with the bytecode engine.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 字节码虚拟机是SQLite的核心。想要深入了解SQLite内部运作方式的程序员必须熟悉字节码引擎。
 - en: Historically, the bytecode engine in SQLite is called the "Virtual DataBase
     Engine" or "VDBE". This website uses the terms "bytecode engine", "VDBE", "virtual
     machine", and "bytecode virtual machine" interchangeably, as they all mean the
     same thing.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 在历史上，SQLite中的字节码引擎被称为"虚拟数据库引擎"或"VDBE"。本网站将"字节码引擎"、"VDBE"、"虚拟机"和"字节码虚拟机"这些术语用作同义词，因为它们都指代同一事物。
 - en: This article also uses the terms "bytecode program" and "prepared statement"
     interchangeably, as they are mostly the same thing.
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文还将"字节码程序"和"预编译语句"这些术语互换使用，因为它们基本上是同一事物。
 - en: 2.1\. VDBE Source Code
+  id: totrans-11
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: '-   VDBE源代码'
 - en: The source code to the bytecode engine is in the [vdbe.c](https://www.sqlite.org/src/file/src/vdbe.c)
     source file. The [opcode definitions](opcode.html#codes) in this document are
     derived from comments in that source file. The source code comments are the canonical
     source of information about the bytecode engine. When in doubt, refer to the source
     code.
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 字节码引擎的源代码位于[**vdbe.c**](https://www.sqlite.org/src/file/src/vdbe.c)源文件中。本文档中的[操作码定义](opcode.html#codes)源自该源文件中的注释。源代码注释是有关字节码引擎信息的权威来源。如果有疑问，请参考源代码。
 - en: In addition to the primary vdbe.c source code file, there are other helper code
     files in the source tree, all of whose names begin with "vdbe" - short for "Virtual
     DataBase Engine".
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 除了主要的vdbe.c源代码文件外，源树中还有其他帮助代码文件，它们的所有文件名都以“vdbe”开头 - 缩写为“虚拟数据库引擎”。
 - en: Remember that the names and meanings of opcodes often change from one release
     of SQLite to the next. So if you are studying the [EXPLAIN](lang_explain.html)
     output from SQLite, you should reference the version of this document (or the
@@ -74,12 +102,16 @@
     Otherwise, the description of the opcodes may not be accurate. This document is
     derived from SQLite version 3.46.0 check-in [96c92aba00c83](https://www.sqlite.org/src/timeline?c=96c92aba00c83)
     dated 2024-05-23.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 请记住，操作码的名称和含义通常会从一个SQLite版本更改到另一个版本。因此，如果您正在研究SQLite的[EXPLAIN](lang_explain.html)输出，请参考与运行[EXPLAIN](lang_explain.html)的SQLite版本相对应的本文档版本（或vdbe.c源代码）。否则，操作码的描述可能不准确。本文档来源于SQLite版本3.46.0的提交[96c92aba00c83](https://www.sqlite.org/src/timeline?c=96c92aba00c83)，日期为2024-05-23。
 - en: 2.2\. Instruction Format
+  id: totrans-15
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.2\. 指令格式
 - en: A bytecoded program in SQLite consists of one or more instructions. Each instruction
     has an opcode and five operands named P1, P2 P3, P4, and P5\. The P1, P2, and
     P3 operands are 32-bit signed integers. These operands often refer to registers.
@@ -93,12 +125,20 @@
     example, if the SQLITE_NULLEQ (0x0080) bit of the P5 operand is set on the [Eq](opcode.html#Eq)
     opcode, then the NULL values compare equal to one another. Otherwise NULL values
     compare different from one another.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 中的字节码程序由一个或多个指令组成。每条指令都有一个操作码和五个操作数，分别命名为 P1、P2、P3、P4 和 P5。P1、P2 和 P3
+    操作数通常是32位有符号整数，这些操作数通常用于引用寄存器。对于操作 B 树游标的指令，P1 操作数通常表示游标编号。对于跳转指令，P2 通常表示跳转目标。P4
+    可能是32位有符号整数、64位有符号整数、64位浮点数值、字符串字面量、Blob 字面量、指向排序序列比较函数的指针、指向应用程序定义的 SQL 函数实现的指针或其他各种类型。P5
+    是一个16位无符号整数，通常用于保存标志位。P5 的位有时会以微妙的方式影响操作码。例如，如果 P5 操作数的 SQLITE_NULLEQ（0x0080）位在
+    [Eq](opcode.html#Eq) 操作码上设置，那么 NULL 值将相等。否则，NULL 值将与其他值不同。
 - en: Some opcodes use all five operands. Some opcodes use one or two. Some opcodes
     use none of the operands.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 一些操作码使用所有五个操作数，一些使用一个或两个，而有些操作码则不使用任何操作数。
 - en: The bytecode engine begins execution on instruction number 0. Execution continues
     until a [Halt](opcode.html#Halt) instruction is seen, or until the program counter
     becomes greater than the address of last instruction, or until there is an error.
@@ -106,8 +146,10 @@
     database cursors it may have had open are closed. If the execution stopped due
     to an error, any pending transactions are terminated and changes made to the database
     are rolled back.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 字节码引擎从指令编号0开始执行。执行将持续进行，直到看到 [Halt](opcode.html#Halt) 指令，或者程序计数器超过最后一条指令的地址，或者出现错误为止。当字节码引擎停止时，它释放了分配的所有内存，并关闭了所有可能打开的数据库游标。如果执行由于错误而停止，任何待处理的事务都将被终止，并且对数据库的更改将被回滚。
 - en: The [ResultRow](opcode.html#ResultRow) opcode causes the bytecode engine to
     pause and the corresponding [sqlite3_step()](c3ref/step.html) call to return [SQLITE_ROW](rescode.html#row).
     Before invoking [ResultRow](opcode.html#ResultRow), the bytecoded program will
@@ -116,70 +158,108 @@
     extract the query results from those registers. The bytecode engine resumes with
     the next instruction after the [ResultRow](opcode.html#ResultRow) on the next
     call to [sqlite3_step()](c3ref/step.html).
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: '[ResultRow](opcode.html#ResultRow) 操作码导致字节码引擎暂停，并使相应的 [sqlite3_step()](c3ref/step.html)
+    调用返回 [SQLITE_ROW](rescode.html#row)。在调用 [ResultRow](opcode.html#ResultRow) 之前，字节码程序将查询的单行结果加载到一系列寄存器中。像
+    [sqlite3_column_int()](c3ref/column_blob.html) 或 [sqlite3_column_text()](c3ref/column_blob.html)
+    这样的 C 语言 API 从这些寄存器中提取查询结果。在下次调用 [sqlite3_step()](c3ref/step.html) 时，字节码引擎会在 [ResultRow](opcode.html#ResultRow)
+    之后的下一条指令继续执行。'
 - en: 2.3\. Registers
+  id: totrans-20
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.3\. 寄存器
 - en: 'Every bytecode program has a fixed (but potentially large) number of registers.
     A single register can hold a variety of objects:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个字节码程序都有一个固定（但可能很大）数量的寄存器。单个寄存器可以容纳多种对象：
 - en: A NULL value
+  id: totrans-22
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 空值
 - en: A signed 64-bit integer
+  id: totrans-23
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 一个带符号的 64 位整数
 - en: An IEEE double-precision (64-bit) floating point number
+  id: totrans-24
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: IEEE 双精度（64 位）浮点数
 - en: An arbitrary length string
+  id: totrans-25
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 任意长度的字符串
 - en: An arbitrary length BLOB
+  id: totrans-26
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 任意长度的 BLOB
 - en: A RowSet object (See the [RowSetAdd](opcode.html#RowSetAdd), [RowSetRead](opcode.html#RowSetRead),
     and [RowSetTest](opcode.html#RowSetTest) opcodes)
+  id: totrans-27
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: RowSet 对象（参见 [RowSetAdd](opcode.html#RowSetAdd)、[RowSetRead](opcode.html#RowSetRead)
+    和 [RowSetTest](opcode.html#RowSetTest) 操作码）
 - en: A Frame object (Used by [subprograms](opcode.html#subprog) - see [Program](opcode.html#Program))
+  id: totrans-28
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: Frame 对象（由 [子程序](opcode.html#subprog) 使用 - 参见 [Program](opcode.html#Program)）
 - en: A register can also be "Undefined" meaning that it holds no value at all. Undefined
     is different from NULL. Depending on compile-time options, an attempt to read
     an undefined register will usually cause a run-time error. If the code generator
     ([sqlite3_prepare_v2()](c3ref/prepare.html)) ever generates a [prepared statement](c3ref/stmt.html)
     that reads an Undefined register, that is a bug in the code generator.
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 寄存器也可以是“未定义”的，这意味着它根本没有值。未定义不同于 NULL。根据编译时选项，尝试读取未定义寄存器通常会导致运行时错误。如果代码生成器 ([sqlite3_prepare_v2()](c3ref/prepare.html))
+    生成了读取未定义寄存器的 [预处理语句](c3ref/stmt.html)，这是代码生成器中的一个错误。
 - en: Registers are numbered beginning with 0. Most opcodes refer to at least one
     register.
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 寄存器从 0 开始编号。大多数操作码至少涉及一个寄存器。
 - en: The number of registers in a single prepared statement is fixed at compile-time.
     The content of all registers is cleared when a prepared statement is [reset](c3ref/reset.html)
     or [finalized](c3ref/finalize.html).
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 单个预处理语句中的寄存器数量在编译时固定。当预处理语句被 [重置](c3ref/reset.html) 或 [完成](c3ref/finalize.html)
+    时，所有寄存器的内容都会被清除。
 - en: The internal Mem object stores the value for a single register. The abstract
     [sqlite3_value](c3ref/value.html) object that is exposed in the API is really
     just a Mem object or register.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 内部的 Mem 对象用于存储单个寄存器的值。在 API 中公开的抽象 [sqlite3_value](c3ref/value.html) 对象实际上就是一个
+    Mem 对象或寄存器。
 - en: 2.4\. B-Tree Cursors
+  id: totrans-33
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.4\. B-Tree 游标
 - en: 'A prepared statement can have zero or more open cursors. Each cursor is identified
     by a small integer, which is usually the P1 parameter to the opcode that uses
     the cursor. There can be multiple cursors open on the same index or table. All
@@ -190,30 +270,44 @@
     advance the cursor to the next entry in the table (ex: [Next](opcode.html#Next)
     or [Prev](opcode.html#Prev)), and so forth. All cursors are automatically closed
     when the prepared statement is [reset](c3ref/reset.html) or [finalized](c3ref/finalize.html).'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 准备好的语句可以有零个或多个打开的游标。每个游标由一个小整数标识，通常是使用游标的操作码的P1参数。在同一个索引或表上可以打开多个游标。所有游标都是独立操作的，即使是指向相同索引或表的游标也是如此。虚拟机与数据库文件进行交互的唯一方式是通过游标。虚拟机中的指令可以创建一个新的游标（例如：[OpenRead](opcode.html#OpenRead)
+    或 [OpenWrite](opcode.html#OpenWrite)），从游标中读取数据（[Column](opcode.html#Column)），将游标推进到表中的下一个条目（例如：[Next](opcode.html#Next)
+    或 [Prev](opcode.html#Prev)），等等。所有游标在准备好的语句被 [重置](c3ref/reset.html) 或 [完成](c3ref/finalize.html)
+    时会自动关闭。
 - en: 2.5\. Subroutines, Coroutines, and Subprograms
+  id: totrans-35
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.5\. 子程序、协程和子程序
 - en: The bytecode engine has no stack on which to store the return address of a subroutine.
     Return addresses must be stored in registers. Hence, bytecode subroutines are
     not reentrant.
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 字节码引擎没有堆栈来存储子程序的返回地址。返回地址必须存储在寄存器中。因此，字节码子程序不可重入。
 - en: 'The [Gosub](opcode.html#Gosub) opcode stores the current program counter into
     register P1 then jumps to address P2\. The [Return](opcode.html#Return) opcode
     jumps to address P1+1\. Hence, every subroutine is associated with two integers:
     the address of the entry point in the subroutine and the register number that
     is used to hold the return address.'
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: '[Gosub](opcode.html#Gosub) 操作码将当前程序计数器存储到寄存器 P1 中，然后跳转到地址 P2。[Return](opcode.html#Return)
+    操作码跳转到地址 P1+1。因此，每个子程序与两个整数相关联：子程序入口点的地址和用于保存返回地址的寄存器编号。'
 - en: The [Yield](opcode.html#Yield) opcode swaps the value of the program counter
     with the integer value in register P1\. This opcode is used to implement coroutines.
     Coroutines are often used to implement subqueries from which content is pulled
     on an as-needed basis.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: '[Yield](opcode.html#Yield) 操作码交换程序计数器的值与寄存器 P1 中的整数值。此操作码用于实现协程。协程通常用于实现需要按需提取内容的子查询。'
 - en: '[Triggers](lang_createtrigger.html) need to be reentrant. Since bytecode subroutines
     are not reentrant a different mechanism must be used to implement triggers. Each
     trigger is implemented using a separate bytecode program with its own opcodes,
@@ -223,12 +317,18 @@
     subprograms can be reentrant and recursive. The [Param](opcode.html#Param) opcode
     is used by subprograms to access content in registers of the calling bytecode
     program.'
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: '[触发器](lang_createtrigger.html) 需要是可重入的。由于字节码子程序不可重入，必须使用不同的机制来实现触发器。每个触发器都使用一个单独的字节码程序实现，具有自己的操作码、程序计数器和寄存器集合。[Program](opcode.html#Program)
+    操作码调用触发器子程序。[Program](opcode.html#Program) 指令为子程序的每次调用分配和初始化一个新的寄存器集合，因此子程序可以是可重入的且支持递归。[Param](opcode.html#Param)
+    操作码用于子程序访问调用字节码程序中的寄存器中的内容。'
 - en: 2.6\. Self-Altering Code
+  id: totrans-40
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.6\. 自修改代码
 - en: Some opcodes are self-altering. For example, the [Init](opcode.html#Init) opcode
     (which is always the first opcode in every bytecode program) increments its P1
     operand. Subsequent [Once](opcode.html#Once) opcodes compare their P1 operands
@@ -237,103 +337,153 @@
     is the [String8](opcode.html#String8) opcode which converts its P4 operand from
     UTF-8 into the correct database string encoding, then converts itself into a [String](opcode.html#String)
     opcode.
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 一些操作码是自修改的。例如，[Init](opcode.html#Init) 操作码（始终是每个字节码程序中的第一个操作码）会增加其 P1 操作数。随后的
+    [Once](opcode.html#Once) 操作码会将它们的 P1 操作数与 [Init](opcode.html#Init) 操作码的 P1 值进行比较，以确定是否应跳过后续的一次性初始化代码。另一个例子是
+    [String8](opcode.html#String8) 操作码，它会将其 P4 操作数从 UTF-8 转换为正确的数据库字符串编码，然后将自身转换为
+    [String](opcode.html#String) 操作码。
 - en: 3\. Viewing The Bytecode
+  id: totrans-42
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. 查看字节码
 - en: 'Every SQL statement that SQLite interprets results in a program for the virtual
     machine. But if the SQL statement begins with the keyword [EXPLAIN](lang_explain.html)
     the virtual machine will not execute the program. Instead, the instructions of
     the program will be returned, one instruction per row, like a query result. This
     feature is useful for debugging and for learning how the virtual machine operates.
     For example:'
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 解释的每个 SQL 语句都会产生一个虚拟机程序。但如果 SQL 语句以关键字 [EXPLAIN](lang_explain.html) 开头，虚拟机将不会执行程序。相反，程序的指令将被返回，每行一个指令，类似于查询结果。此功能对于调试和学习虚拟机操作方式非常有用。例如：
 - en: '[PRE0]'
+  id: totrans-44
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: Any application can run an [EXPLAIN](lang_explain.html) query to get output
     similar to the above. However, indentation to show the loop structure is not generated
     by the SQLite core. The [command-line shell](cli.html) contains extra logic for
     indenting loops. Also, the "comment" column in the [EXPLAIN](lang_explain.html)
     output is only provided if SQLite is compiled with the [-DSQLITE_ENABLE_EXPLAIN_COMMENTS](compile.html#enable_explain_comments)
     options.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 任何应用程序都可以运行 [EXPLAIN](lang_explain.html) 查询以获取类似上述的输出。但是，SQLite 核心不会生成用于显示循环结构的缩进。[command-line
+    shell](cli.html) 包含用于缩进循环的额外逻辑。此外，仅在 SQLite 使用 [-DSQLITE_ENABLE_EXPLAIN_COMMENTS](compile.html#enable_explain_comments)
+    选项编译时，[EXPLAIN](lang_explain.html) 输出中的 "comment" 列才会提供。
 - en: 'When SQLite is compiled with the [SQLITE_DEBUG](compile.html#debug) compile-time
     option, extra [PRAGMA](pragma.html#syntax) commands are available that are useful
     for debugging and for exploring the operation of the VDBE. For example the [vdbe_trace](pragma.html#pragma_vdbe_trace)
     pragma can be enabled to cause a disassembly of each VDBE opcode to be printed
     on standard output as the opcode is executed. These debugging pragmas include:'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 当 SQLite 使用 [SQLITE_DEBUG](compile.html#debug) 编译时选项编译时，额外的 [PRAGMA](pragma.html#syntax)
+    命令可用于调试和探索 VDBE 的操作。例如，可以启用 [vdbe_trace](pragma.html#pragma_vdbe_trace) pragma
+    以在执行操作码时在标准输出上打印每个 VDBE 操作码的反汇编结果。这些调试 pragma 包括：
 - en: '[PRAGMA parser_trace](pragma.html#pragma_parser_trace)'
+  id: totrans-47
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[PRAGMA parser_trace](pragma.html#pragma_parser_trace)'
 - en: '[PRAGMA vdbe_addoptrace](pragma.html#pragma_vdbe_addoptrace)'
+  id: totrans-48
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[PRAGMA vdbe_addoptrace](pragma.html#pragma_vdbe_addoptrace)'
 - en: '[PRAGMA vdbe_debug](pragma.html#pragma_vdbe_debug)'
+  id: totrans-49
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[PRAGMA vdbe_debug](pragma.html#pragma_vdbe_debug)'
 - en: '[PRAGMA vdbe_listing](pragma.html#pragma_vdbe_listing)'
+  id: totrans-50
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[PRAGMA vdbe_listing](pragma.html#pragma_vdbe_listing)'
 - en: '[PRAGMA vdbe_trace](pragma.html#pragma_vdbe_trace)'
+  id: totrans-51
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[PRAGMA vdbe_trace](pragma.html#pragma_vdbe_trace)'
 - en: 4\. The Opcodes
+  id: totrans-52
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. 操作码
 - en: There are currently 189 opcodes defined by the virtual machine. All currently
     defined opcodes are described in the table below. This table was generated automatically
     by scanning the source code from the file [vdbe.c](https://www.sqlite.org/src/artifact/3b1793c5d2235ae89b01ef051a33d7d2ad3704c71799653b112686735ad401ff).
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 当前虚拟机定义了 189 个操作码。所有当前定义的操作码都在下表中描述。此表是通过扫描文件 [vdbe.c](https://www.sqlite.org/src/artifact/3b1793c5d2235ae89b01ef051a33d7d2ad3704c71799653b112686735ad401ff)
+    自动生成的。
 - en: 'Remember: The VDBE opcodes are not part of the interface definition for SQLite.
     The number of opcodes and their names and meanings change from one release of
     SQLite to the next. The opcodes shown in the table below are valid for SQLite
     version 3.46.0 check-in [96c92aba00c83](https://www.sqlite.org/src/timeline?c=96c92aba00c83)
     dated 2024-05-23.'
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意：VDBE 操作码不是 SQLite 的接口定义的一部分。操作码的数量、名称和含义会随着 SQLite 的每个版本而变化。下表中显示的操作码适用于
+    SQLite 版本 3.46.0 的提交 [96c92aba00c83](https://www.sqlite.org/src/timeline?c=96c92aba00c83)，日期为
+    2024-05-23。
 - en: '| Opcode Name | Description |'
+  id: totrans-55
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 操作码名称 | 描述 |'
 - en: '| Abortable | Verify that an Abort can happen. Assert if an Abort at this point
     might cause database corruption. This opcode only appears in debugging builds.An
     Abort is safe if either there have been no writes, or if there is an active statement
     journal. |'
+  id: totrans-56
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Abortable | 验证是否可能发生中止操作。如果在此处发生中止可能会导致数据库损坏，则断言。此操作码仅出现在调试版本中。如果没有写入操作或者存在活动的语句日志，中止是安全的。
+    |'
 - en: '| Add | Add the value in register P1 to the value in register P2 and store
     the result in register P3. If either input is NULL, the result is NULL. |'
+  id: totrans-57
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Add | 将寄存器 P1 中的值与寄存器 P2 中的值相加，并将结果存储在寄存器 P3 中。如果任一输入为 NULL，则结果为 NULL。 |'
 - en: '| AddImm | Add the constant P2 to the value in register P1. The result is always
     an integer.To force any register to be an integer, just add 0. |'
+  id: totrans-58
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| AddImm | 将常量 P2 添加到寄存器 P1 中的值。结果始终为整数。要强制任何寄存器为整数，只需添加 0 即可。 |'
 - en: '| Affinity | Apply affinities to a range of P2 registers starting with P1.P4
     is a string that is P2 characters long. The N-th character of the string indicates
     the column affinity that should be used for the N-th memory cell in the range.
     |'
+  id: totrans-59
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Affinity | 对从 P1 开始的一系列 P2 寄存器应用亲和性。P4 是一个字符串，长度为 P2。字符串的第 N 个字符指示应用于范围内第
+    N 个内存单元的列亲和性。 |'
 - en: '| AggFinal | P1 is the memory location that is the accumulator for an aggregate
     or window function. Execute the finalizer function for an aggregate and store
     the result in P1.P2 is the number of arguments that the step function takes and
@@ -341,23 +491,33 @@
     by this opcode. It is only there to disambiguate functions that can take varying
     numbers of arguments. The P4 argument is only needed for the case where the step
     function was not previously called. |'
+  id: totrans-60
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| AggFinal | P1 是聚合或窗口函数的累加器的内存位置。执行聚合的最终函数，并将结果存储在 P1 中。P2 是步骤函数接受的参数数量，P4
+    是指向此函数的 FuncDef 的指针。此操作码不使用 P2 参数，它仅用于消除可以接受不同参数数量的函数之间的歧义。仅在步骤函数之前未调用的情况下才需要
+    P4 参数。 |'
 - en: '| AggInverse | Execute the xInverse function for an aggregate. The function
     has P5 arguments. P4 is a pointer to the FuncDef structure that specifies the
     function. Register P3 is the accumulator.The P5 arguments are taken from register
     P2 and its successors. |'
+  id: totrans-61
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| AggInverse | 执行聚合的 xInverse 函数。函数有 P5 个参数。P4 是指向指定函数的 FuncDef 结构体的指针。寄存器
+    P3 是累加器。P5 参数从寄存器 P2 及其后继寄存器中取得。 |'
 - en: '| AggStep | Execute the xStep function for an aggregate. The function has P5
     arguments. P4 is a pointer to the FuncDef structure that specifies the function.
     Register P3 is the accumulator.The P5 arguments are taken from register P2 and
     its successors. |'
+  id: totrans-62
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| AggStep | 执行聚合的 xStep 函数。函数有 P5 个参数。P4 是指向指定函数的 FuncDef 结构体的指针。寄存器 P3 是累加器。P5
+    参数从寄存器 P2 及其后继寄存器中取得。 |'
 - en: '| AggStep1 | Execute the xStep (if P1==0) or xInverse (if P1!=0) function for
     an aggregate. The function has P5 arguments. P4 is a pointer to the FuncDef structure
     that specifies the function. Register P3 is the accumulator.The P5 arguments are
@@ -365,33 +525,47 @@
     On first evaluation, the FuncDef stored in P4 is converted into an sqlite3_context
     and the opcode is changed. In this way, the initialization of the sqlite3_context
     only happens once, instead of on each call to the step function. |'
+  id: totrans-63
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| AggStep1 | 执行聚合函数的 xStep（如果 P1==0）或 xInverse（如果 P1!=0）功能。该函数有 P5 个参数。P4 是指定函数的
+    FuncDef 结构体的指针。寄存器 P3 是累加器。P5 参数从寄存器 P2 及其后继寄存器中获取。此操作码最初编码为 OP_AggStep0。在首次评估时，存储在
+    P4 中的 FuncDef 转换为 sqlite3_context，并更改操作码。通过这种方式，sqlite3_context 的初始化仅发生一次，而不是在每次调用步骤函数时都发生。
+    |'
 - en: '| AggValue | Invoke the xValue() function and store the result in register
     P3.P2 is the number of arguments that the step function takes and P4 is a pointer
     to the FuncDef for this function. The P2 argument is not used by this opcode.
     It is only there to disambiguate functions that can take varying numbers of arguments.
     The P4 argument is only needed for the case where the step function was not previously
     called. |'
+  id: totrans-64
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| AggValue | 调用 xValue() 函数，并将结果存储在寄存器 P3 中。P2 是步骤函数所需的参数数量，P4 是此函数的 FuncDef
+    的指针。此操作码不使用 P2 参数，它仅用于消除可以接受不同数量参数的函数的歧义。仅在步骤函数尚未被调用的情况下才需要 P4 参数。 |'
 - en: '| And | Take the logical AND of the values in registers P1 and P2 and write
     the result into register P3.If either P1 or P2 is 0 (false) then the result is
     0 even if the other input is NULL. A NULL and true or two NULLs give a NULL output.
     |'
+  id: totrans-65
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| And | 对寄存器 P1 和 P2 中的值进行逻辑 AND 运算，并将结果写入寄存器 P3。如果 P1 或 P2 中有一个为 0（假），则结果为
+    0，即使另一个输入为 NULL。NULL 和 true 或两个 NULL 会得到 NULL 输出。 |'
 - en: '| AutoCommit | Set the database auto-commit flag to P1 (1 or 0). If P2 is true,
     roll back any currently active btree transactions. If there are any active VMs
     (apart from this one), then a ROLLBACK fails. A COMMIT fails if there are active
     writing VMs or active VMs that use shared cache.This instruction causes the VM
     to halt. |'
+  id: totrans-66
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| AutoCommit | 将数据库的自动提交标志设置为 P1（1 或 0）。如果 P2 为真，则回滚当前活动的 B 树事务。如果存在任何活动的 VM（除了当前的
+    VM），则 ROLLBACK 失败。如果存在正在写入的活动 VM 或使用共享缓存的活动 VM，则 COMMIT 失败。此指令导致 VM 停止。 |'
 - en: '| BeginSubrtn | Mark the beginning of a subroutine that can be entered in-line
     or that can be called using [Gosub](opcode.html#Gosub). The subroutine should
     be terminated by an [Return](opcode.html#Return) instruction that has a P1 operand
@@ -409,68 +583,103 @@
     the [Gosub](opcode.html#Gosub).This opcode is identical to [Null](opcode.html#Null).
     It has a different name only to make the byte code easier to read and verify.
     |'
+  id: totrans-67
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| BeginSubrtn | 标记一个子程序的开始，可以内联进入或使用 [Gosub](opcode.html#Gosub) 调用。该子程序应该由一个
+    [Return](opcode.html#Return) 指令终止，该指令的 P1 操作数与此操作码的 P2 操作数相同，并且 P3 设置为 1。如果以内联方式进入子程序，则
+    [Return](opcode.html#Return) 将简单地顺序执行。但如果使用 [Gosub](opcode.html#Gosub) 进入子程序，则
+    [Return](opcode.html#Return) 将跳回 [Gosub](opcode.html#Gosub) 后的第一条指令。此例程通过将 NULL
+    加载到 P2 寄存器来工作。当返回地址寄存器包含 NULL 时，[Return](opcode.html#Return) 指令是一个无操作，简单地顺序执行到下一条指令（假设
+    [Return](opcode.html#Return) 操作码的 P3 值为 1）。因此，如果以内联方式进入子程序，则 [Return](opcode.html#Return)
+    将导致内联执行继续。但如果通过 [Gosub](opcode.html#Gosub) 进入子程序，则 [Return](opcode.html#Return)
+    将导致返回到 [Gosub](opcode.html#Gosub) 后面的地址。此操作码与 [Null](opcode.html#Null) 完全相同。仅为了使字节码更易于阅读和验证而具有不同的名称。
+    |'
 - en: '| BitAnd | Take the bit-wise AND of the values in register P1 and P2 and store
     the result in register P3. If either input is NULL, the result is NULL. |'
+  id: totrans-68
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| BitAnd | 取寄存器 P1 和 P2 中值的按位与，并将结果存储在寄存器 P3 中。如果任一输入为 NULL，则结果为 NULL。 |'
 - en: '| BitNot | Interpret the content of register P1 as an integer. Store the ones-complement
     of the P1 value into register P2\. If P1 holds a NULL then store a NULL in P2.
     |'
+  id: totrans-69
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| BitNot | 将寄存器 P1 的内容解释为整数。将 P1 的补码存储到寄存器 P2 中。如果 P1 为 NULL，则在 P2 中存储 NULL。
+    |'
 - en: '| BitOr | Take the bit-wise OR of the values in register P1 and P2 and store
     the result in register P3. If either input is NULL, the result is NULL. |'
+  id: totrans-70
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| BitOr | 取寄存器 P1 和 P2 中值的按位或，并将结果存储在寄存器 P3 中。如果任一输入为 NULL，则结果为 NULL。 |'
 - en: '| Blob | P4 points to a blob of data P1 bytes long. Store this blob in register
     P2\. If P4 is a NULL pointer, then construct a zero-filled blob that is P1 bytes
     long in P2. |'
+  id: totrans-71
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Blob | P4 指向一个长度为 P1 字节的数据块。将此数据块存储在寄存器 P2 中。如果 P4 是空指针，则在 P2 中构造一个长度为 P1
+    字节的零填充数据块。 |'
 - en: '| Cast | Force the value in register P1 to be the type defined by P2.'
+  id: totrans-72
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '| Cast | 强制寄存器 P1 中的值成为由 P2 定义的类型。'
 - en: P2=='A' → BLOB
+  id: totrans-73
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: P2=='A' → BLOB
 - en: P2=='B' → TEXT
+  id: totrans-74
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: P2=='B' → TEXT
 - en: P2=='C' → NUMERIC
+  id: totrans-75
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: P2=='C' → NUMERIC
 - en: P2=='D' → INTEGER
+  id: totrans-76
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: P2=='D' → INTEGER
 - en: P2=='E' → REAL
+  id: totrans-77
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: P2=='E' → REAL
 - en: ''
+  id: totrans-78
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
 - en: A NULL value is not changed by this routine. It remains NULL. |
+  id: totrans-79
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: NULL 值不会被此例程更改。它保持 NULL。
 - en: '| Checkpoint | Checkpoint database P1\. This is a no-op if P1 is not currently
     in WAL mode. Parameter P2 is one of SQLITE_CHECKPOINT_PASSIVE, FULL, RESTART,
     or TRUNCATE. Write 1 or 0 into mem[P3] if the checkpoint returns SQLITE_BUSY or
@@ -478,9 +687,14 @@
     mem[P3+1] and the number of pages in the WAL that have been checkpointed after
     the checkpoint completes into mem[P3+2]. However on an error, mem[P3+1] and mem[P3+2]
     are initialized to -1. |'
+  id: totrans-80
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Checkpoint | 对数据库 P1 进行检查点。如果 P1 当前不处于 WAL 模式，则此操作无效。参数 P2 是 SQLITE_CHECKPOINT_PASSIVE,
+    FULL, RESTART 或 TRUNCATE 中的一个。如果检查点返回 SQLITE_BUSY，则将 1 或 0 写入 mem[P3]。完成检查点后，将
+    WAL 中的页面数写入 mem[P3+1]，以及检查点完成后已经检查点的 WAL 中的页面数写入 mem[P3+2]。但是在发生错误时，mem[P3+1]
+    和 mem[P3+2] 被初始化为 -1。'
 - en: '| Clear | Delete all contents of the database table or index whose root page
     in the database file is given by P1\. But, unlike [Destroy](opcode.html#Destroy),
     do not remove the table or index from the database file.The table being cleared
@@ -490,18 +704,26 @@
     by the number of rows in the table being cleared. If P3 is greater than zero,
     then the value stored in register P3 is also incremented by the number of rows
     in the table being cleared.See also: [Destroy](opcode.html#Destroy) |'
+  id: totrans-81
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Clear | 删除数据库文件中根页面给定的数据库表或索引的所有内容。但是，与 [Destroy](opcode.html#Destroy) 不同，不会从数据库文件中删除表或索引。如果
+    P2==0，则被清除的表位于主数据库文件中。如果 P2==1，则要清除的表位于用于存储使用 CREATE TEMPORARY TABLE 创建的表的辅助数据库文件中。如果
+    P3 的值非零，则行更改计数会增加清除的表中的行数。如果 P3 大于零，则寄存器 P3 中存储的值也会增加清除的表中的行数。另请参见：[Destroy](opcode.html#Destroy)'
 - en: '| Close | Close a cursor previously opened as P1\. If P1 is not currently open,
     this instruction is a no-op. |'
+  id: totrans-82
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Close | 关闭先前作为 P1 打开的游标。如果 P1 当前未打开，则此指令是一个空操作。'
 - en: '| ClrSubtype | Clear the subtype from register P1. |'
+  id: totrans-83
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ClrSubtype | 清除寄存器 P1 中的子类型。'
 - en: '| CollSeq | P4 is a pointer to a CollSeq object. If the next call to a user
     function or aggregate calls sqlite3GetFuncCollSeq(), this collation sequence will
     be returned. This is used by the built-in min(), max() and nullif() functions.If
@@ -511,9 +733,13 @@
     of the aforementioned functions to retrieve the collation sequence set by this
     opcode is not available publicly. Only built-in functions have access to this
     feature. |'
+  id: totrans-84
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| CollSeq | P4 是指向 CollSeq 对象的指针。如果下一个用户函数或聚合函数调用 sqlite3GetFuncCollSeq()，将返回此排序序列。内置的
+    min()、max() 和 nullif() 函数使用此功能。如果 P1 不为零，则它是一个寄存器，后续的 min() 或 max() 聚合将在当前行不是最小值或最大值时将其设置为
+    1。此指令通过将 P1 寄存器初始化为 0 来完成。此操作码设置的排序序列由前述函数的实现使用的接口不对公众开放。仅内置函数可以访问此功能。 |'
 - en: '| Column | Interpret the data that cursor P1 points to as a structure built
     using the [MakeRecord](opcode.html#MakeRecord) instruction. (See the [MakeRecord](opcode.html#MakeRecord)
     opcode for additional information about the format of the data.) Extract the P2-th
@@ -526,18 +752,28 @@
     If the OPFLAG_TYPEOFARG bit is set then the result will only be used by the typeof()
     function or the IS NULL or IS NOT NULL operators or the equivalent. In this case,
     all content loading can be omitted. |'
+  id: totrans-85
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Column | 将游标 P1 指向的数据解释为使用 [MakeRecord](opcode.html#MakeRecord) 指令构建的结构。
+    （有关数据格式的详细信息，请参阅 [MakeRecord](opcode.html#MakeRecord) 操作码。）从该记录中提取第 P2 列。如果记录中的值少于（P2+1），则提取一个
+    NULL。提取的值存储在寄存器 P3 中。如果记录包含的字段少于 P2，则提取一个 NULL。或者，如果 P4 参数是 P4_MEM，则使用 P4 参数的值作为结果。如果在
+    P5 中设置了 OPFLAG_LENGTHARG 位，则结果保证仅由 length() 函数或等效函数使用。大型 blob 的内容不会加载，从而节省 CPU
+    周期。如果设置了 OPFLAG_TYPEOFARG 位，则结果仅由 typeof() 函数或 IS NULL 或 IS NOT NULL 运算符或等效运算符使用。在这种情况下，可以省略所有内容加载。'
 - en: '| ColumnsUsed | This opcode (which only exists if SQLite was compiled with
     SQLITE_ENABLE_COLUMN_USED_MASK) identifies which columns of the table or index
     for cursor P1 are used. P4 is a 64-bit integer (P4_INT64) in which the first 63
     bits are one for each of the first 63 columns of the table or index that are actually
     used by the cursor. The high-order bit is set if any column after the 64th is
     used. |'
+  id: totrans-86
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ColumnsUsed | 如果 SQLite 编译时启用了 SQLITE_ENABLE_COLUMN_USED_MASK，这个操作码会标识游标
+    P1 对应的表或索引的哪些列被使用。P4 是一个 64 位整数（P4_INT64），其中前 63 位分别对应表或索引的前 63 列是否被游标使用。最高位被设置表示第
+    64 列及之后的列被使用。 |'
 - en: '| Compare | Compare two vectors of registers in reg(P1)..reg(P1+P3-1) (call
     this vector "A") and in reg(P2)..reg(P2+P3-1) ("B"). Save the result of the comparison
     for use by the next [Jump](opcode.html#Jump) instruct.If P5 has the OPFLAG_PERMUTE
@@ -549,17 +785,27 @@
     NULLs are less than numbers, numbers are less than strings, and strings are less
     than blobs.This opcode must be immediately followed by an [Jump](opcode.html#Jump)
     opcode. |'
+  id: totrans-87
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Compare | 比较寄存器 reg(P1)..reg(P1+P3-1) 中的两个向量（称为“A”向量）和 reg(P2)..reg(P2+P3-1)
+    中的向量（称为“B”向量）。保存比较结果以供下一个 [Jump](opcode.html#Jump) 指令使用。如果 P5 设置了 OPFLAG_PERMUTE
+    位，则比较顺序由最近的 [Permutation](opcode.html#Permutation) 操作符确定。如果 OPFLAG_PERMUTE 位未设置，则按顺序比较寄存器。P4
+    是一个 KeyInfo 结构，定义了比较中的排序规则和字符序列。排列仅适用于寄存器。KeyInfo 元素按顺序使用。比较是一种排序比较，因此 NULL 值相等，NULL
+    小于数字，数字小于字符串，字符串小于二进制数据。此操作码后必须紧跟一个 [Jump](opcode.html#Jump) 操作码。 |'
 - en: '| Concat | Add the text in register P1 onto the end of the text in register
     P2 and store the result in register P3. If either the P1 or P2 text are NULL then
     store NULL in P3.P3 = P2 &#124;&#124; P1It is illegal for P1 and P3 to be the
     same register. Sometimes, if P3 is the same register as P2, the implementation
     is able to avoid a memcpy(). |'
+  id: totrans-88
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Concat | 将寄存器 P1 中的文本追加到寄存器 P2 的末尾，并将结果存储在寄存器 P3 中。如果 P1 或 P2 中的文本为 NULL，则在
+    P3 中存储 NULL。P3 = P2 &#124;&#124; P1。P1 和 P3 不允许是同一个寄存器。有时，如果 P3 与 P2 是同一个寄存器，实现可以避免进行
+    memcpy() 操作。 |'
 - en: '| Copy | Make a copy of registers P1..P1+P3 into registers P2..P2+P3.If the
     0x0002 bit of P5 is set then also clear the MEM_Subtype flag in the destination.
     The 0x0001 bit of P5 indicates that this [Copy](opcode.html#Copy) opcode cannot
@@ -567,46 +813,66 @@
     play during query execution.This instruction makes a deep copy of the value. A
     duplicate is made of any string or blob constant. See also [SCopy](opcode.html#SCopy).
     |'
+  id: totrans-89
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Copy | 将寄存器 P1..P1+P3 的值复制到寄存器 P2..P2+P3。如果 P5 的 0x0002 位被设置，则还清除目标中的 MEM_Subtype
+    标志。P5 的 0x0001 位表示此 [Copy](opcode.html#Copy) 操作码不能合并。0x0001 位由查询规划器使用，在查询执行期间不起作用。此指令会深度复制值。任何字符串或
+    blob 常量都会被复制一份。另请参见 [SCopy](opcode.html#SCopy)。 |'
 - en: '| Count | Store the number of entries (an integer value) in the table or index
     opened by cursor P1 in register P2.If P3==0, then an exact count is obtained,
     which involves visiting every btree page of the table. But if P3 is non-zero,
     an estimate is returned based on the current cursor position. |'
+  id: totrans-90
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Count | 存储由游标 P1 打开的表或索引中条目的数量（整数值），并将其存入寄存器 P2。如果 P3==0，则获取精确计数，这需要访问表的每个
+    B 树页。但如果 P3 非零，则基于当前游标位置返回估计值。 |'
 - en: '| CreateBtree | Allocate a new b-tree in the main database file if P1==0 or
     in the TEMP database file if P1==1 or in an attached database if P1>1\. The P3
     argument must be 1 (BTREE_INTKEY) for a rowid table it must be 2 (BTREE_BLOBKEY)
     for an index or WITHOUT ROWID table. The root page number of the new b-tree is
     stored in register P2. |'
+  id: totrans-91
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| CreateBtree | 如果 P1==0，则在主数据库文件中分配一个新的 B 树；如果 P1==1，则在 TEMP 数据库文件中分配；如果 P1>1，则在附加数据库中分配。参数
+    P3 必须为 1（BTREE_INTKEY）用于 rowid 表，必须为 2（BTREE_BLOBKEY）用于索引或 WITHOUT ROWID 表。新 B
+    树的根页面号存储在寄存器 P2 中。 |'
 - en: '| CursorHint | Provide a hint to cursor P1 that it only needs to return rows
     that satisfy the Expr in P4\. TK_REGISTER terms in the P4 expression refer to
     values currently held in registers. TK_COLUMN terms in the P4 expression refer
     to columns in the b-tree to which cursor P1 is pointing. |'
+  id: totrans-92
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| CursorHint | 给游标 P1 提供一个提示，告知它只需返回满足 P4 中表达式的行。P4 中的 TK_REGISTER 项指的是当前寄存器中保存的值。P4
+    中的 TK_COLUMN 项指的是游标 P1 指向的 B 树中的列。 |'
 - en: '| CursorLock | Lock the btree to which cursor P1 is pointing so that the btree
     cannot be written by an other cursor. |'
+  id: totrans-93
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| CursorLock | 锁定游标 P1 指向的 B 树，使得其他游标无法对其进行写操作。 |'
 - en: '| CursorUnlock | Unlock the btree to which cursor P1 is pointing so that it
     can be written by other cursors. |'
+  id: totrans-94
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| CursorUnlock | 解锁游标 P1 指向的 B 树，使得其他游标可以对其进行写操作。 |'
 - en: '| DecrJumpZero | Register P1 must hold an integer. Decrement the value in P1
     and jump to P2 if the new value is exactly zero. |'
+  id: totrans-95
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| DecrJumpZero | 寄存器 P1 必须保存一个整数。将 P1 中的值减一，如果新值恰好为零，则跳转到 P2。 |'
 - en: '| DeferredSeek | P1 is an open index cursor and P3 is a cursor on the corresponding
     table. This opcode does a deferred seek of the P3 table cursor to the row that
     corresponds to the current row of P1.This is a deferred seek. Nothing actually
@@ -617,9 +883,14 @@
     seek and then reading column i from P1\. This information is stored in P3 and
     used to redirect reads against P3 over to P1, thus possibly avoiding the need
     to seek and read cursor P3. |'
+  id: totrans-96
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| DeferredSeek | P1 是一个开放的索引游标，而 P3 是对应表上的游标。这个操作码对 P3 表游标执行延迟搜索，以使其指向与 P1
+    当前行对应的行。这是一个延迟搜索。直到游标用于读取记录之前，什么都不会发生。这样，如果没有读取发生，就不会发生不必要的 I/O 操作。P4 可能是一个整数数组（类型
+    P4_INTARRAY），其中每一列对应 P3 表的一列。如果数组条目 a(i) 是非零的，那么从游标 P3 读取列 a(i)-1 等同于执行延迟搜索，然后从
+    P1 读取第 i 列。这些信息存储在 P3 中，并用于将针对 P3 的读取重定向到 P1，从而可能避免需要搜索和读取游标 P3。 |'
 - en: '| Delete | Delete the record at which the P1 cursor is currently pointing.If
     the OPFLAG_SAVEPOSITION bit of the P5 parameter is set, then the cursor will be
     left pointing at either the next or the previous record in the table. If it is
@@ -645,9 +916,19 @@
     the OPFLAG_ISUPDATE flag is set in P2, then P3 contains the address of the memory
     cell that contains the value that the rowid of the row will be set to by the update.
     |'
+  id: totrans-97
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Delete | 删除 P1 光标当前指向的记录。如果 P5 参数的 OPFLAG_SAVEPOSITION 位被设置，则光标将指向表中的下一条或上一条记录。如果它指向下一条记录，则下一个
+    [Next](opcode.html#Next) 指令将成为无操作指令。因此，在这种情况下，可以在 [Next](opcode.html#Next) 循环内删除记录。如果
+    P5 的 OPFLAG_SAVEPOSITION 位未设置，则光标将处于未定义状态。如果 P5 的 OPFLAG_AUXDELETE 位被设置，则表示此删除是与删除表行及其所有关联索引条目相关联的多个删除操作之一。其中一个是“主”删除操作。其他操作要么是
+    OPFLAG_FORDELETE 光标，要么带有 AUXDELETE 标志。如果 P2 的 OPFLAG_NCHANGE (0x01) 标志被设置，则递增行更改计数（否则不递增）。如果
+    P2 的 OPFLAG_ISNOOP (0x40) 标志被设置（而不是 P5！），则运行删除的预更新钩子，但 b 树不会发生其他更改。当 [Delete](opcode.html#Delete)
+    后紧随 [Insert](opcode.html#Insert) 且具有相同键时，会发生此情况，导致 b 树条目被覆盖。P1 必须不是伪表，而是具有多行的真实表。如果
+    P4 非空，则指向 Table 对象。在这种情况下，可以调用更新钩子、预更新钩子或两者。在这种情况下，在调用此操作码之前，P1 光标必须使用 [NotFound](opcode.html#NotFound)
+    定位。具体来说，如果已配置其中一个，则如果 P4 非空，则调用预更新钩子。如果已配置更新钩子，P4 非空且 P2 中设置了 OPFLAG_NCHANGE 标志，则调用更新钩子。如果
+    P2 中设置了 OPFLAG_ISUPDATE 标志，则 P3 包含将由更新设置为行的 rowid 的内存单元的地址。 |'
 - en: '| Destroy | Delete an entire database table or index whose root page in the
     database file is given by P1.The table being destroyed is in the main database
     file if P3==0\. If P3==1 then the table to be destroyed is in the auxiliary database
@@ -664,36 +945,53 @@
     is thrown even if the database is not an AUTOVACUUM db in order to avoid introducing
     an incompatibility between autovacuum and non-autovacuum modes.See also: [Clear](opcode.html#Clear)
     |'
+  id: totrans-98
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Destroy | 删除数据库文件中根页由 P1 指定的整个数据库表或索引。如果 P3==0，则被销毁的表位于主数据库文件中。如果 P3==1，则要销毁的表位于用于存储使用
+    CREATE TEMPORARY TABLE 创建的表的辅助数据库文件中。如果启用了 AUTOVACUUM，则可能会将另一个根页移动到新删除的根页中，以确保所有根页在数据库开头是连续的。移动前的根页的旧值（在移动发生之前的值）存储在寄存器
+    P2 中。如果不需要移动页面（因为要删除的表已经是数据库中的最后一个表），则在寄存器 P2 中存储零。如果禁用了 AUTOVACUUM，则在寄存器 P2 中存储零。调用此操作码时，如果存在任何活动的读取器虚拟机，则会抛出错误。这样做是为了避免在自动清理数据库中移动根页时更新现有游标时可能遇到的困难。即使数据库不是自动清理数据库，也会抛出此错误，以避免在自动清理和非自动清理模式之间引入不兼容性。另请参阅：[Clear](opcode.html#Clear)
+    |'
 - en: '| Divide | Divide the value in register P1 by the value in register P2 and
     store the result in register P3 (P3=P2/P1). If the value in register P1 is zero,
     then the result is NULL. If either input is NULL, the result is NULL. |'
+  id: totrans-99
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Divide | 将寄存器 P1 中的值除以寄存器 P2 中的值，并将结果存储在寄存器 P3 中（P3=P2/P1）。如果寄存器 P1 中的值为零，则结果为
+    NULL。如果任一输入为 NULL，则结果为 NULL。 |'
 - en: '| DropIndex | Remove the internal (in-memory) data structures that describe
     the index named P4 in database P1\. This is called after an index is dropped from
     disk (using the [Destroy](opcode.html#Destroy) opcode) in order to keep the internal
     representation of the schema consistent with what is on disk. |'
+  id: totrans-100
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| DropIndex | 从数据库 P1 中删除描述索引 P4 的内部（内存中）数据结构。这在从磁盘上删除索引（使用 [Destroy](opcode.html#Destroy)
+    操作码）后调用，以保持模式的内部表示与磁盘上的一致。 |'
 - en: '| DropTable | Remove the internal (in-memory) data structures that describe
     the table named P4 in database P1\. This is called after a table is dropped from
     disk (using the [Destroy](opcode.html#Destroy) opcode) in order to keep the internal
     representation of the schema consistent with what is on disk. |'
+  id: totrans-101
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| DropTable | 删除数据库 P1 中名为 P4 的表的内部（内存中的）描述数据结构。在从磁盘上删除表（使用[Destroy](opcode.html#Destroy)操作码）后调用此操作，以保持模式的内部表示与磁盘上的一致性。
+    |'
 - en: '| DropTrigger | Remove the internal (in-memory) data structures that describe
     the trigger named P4 in database P1\. This is called after a trigger is dropped
     from disk (using the [Destroy](opcode.html#Destroy) opcode) in order to keep the
     internal representation of the schema consistent with what is on disk. |'
+  id: totrans-102
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| DropTrigger | 删除数据库 P1 中名为 P4 的触发器的内部（内存中的）描述数据结构。在从磁盘上删除触发器（使用[Destroy](opcode.html#Destroy)操作码）后调用此操作，以保持模式的内部表示与磁盘上的一致性。
+    |'
 - en: '| ElseEq | This opcode must follow an [Lt](opcode.html#Lt) or [Gt](opcode.html#Gt)
     comparison operator. There can be zero or more OP_ReleaseReg opcodes intervening,
     but no other opcodes are allowed to occur between this instruction and the previous
@@ -702,17 +1000,25 @@
     would have been true, then jump to P2\. If the result of an [Eq](opcode.html#Eq)
     comparison on the two previous operands would have been false or NULL, then fall
     through. |'
+  id: totrans-103
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ElseEq | 此操作码必须跟随一个[Lt](opcode.html#Lt)或[Gt](opcode.html#Gt)比较操作符。可以有零个或多个
+    OP_ReleaseReg 操作码插入，但不允许在此指令与前一个[Lt](opcode.html#Lt)或[Gt](opcode.html#Gt)之间发生其他操作码。如果在相同的两个操作数上进行的[Eq](opcode.html#Eq)比较的结果与之前的[Lt](opcode.html#Lt)或[Gt](opcode.html#Gt)比较的结果为真，则跳转到
+    P2。如果在前两个操作数上进行的[Eq](opcode.html#Eq)比较的结果为假或NULL，则顺序执行。 |'
 - en: '| EndCoroutine | The instruction at the address in register P1 is a [Yield](opcode.html#Yield).
     [Jump](opcode.html#Jump) to the P2 parameter of that [Yield](opcode.html#Yield).
     After the jump, the value register P1 is left with a value such that subsequent
     OP_Yields go back to the this same [EndCoroutine](opcode.html#EndCoroutine) instruction.See
     also: [InitCoroutine](opcode.html#InitCoroutine) |'
+  id: totrans-104
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| EndCoroutine | 寄存器 P1 中地址处的指令是[Yield](opcode.html#Yield)。跳转到该[Yield](opcode.html#Yield)的参数
+    P2 处。跳转后，寄存器 P1 的值被留下，以便后续的 OP_Yields 返回到同一个[EndCoroutine](opcode.html#EndCoroutine)指令。参见：[InitCoroutine](opcode.html#InitCoroutine)
+    |'
 - en: '| Eq | Compare the values in register P1 and P3\. If reg(P3)==reg(P1) then
     jump to address P2.The SQLITE_AFF_MASK portion of P5 must be an affinity character
     - SQLITE_AFF_TEXT, SQLITE_AFF_INTEGER, and so forth. An attempt is made to coerce
@@ -732,9 +1038,18 @@
     false. If neither operand is NULL the result is the same as it would be if the
     SQLITE_NULLEQ flag were omitted from P5.This opcode saves the result of comparison
     for use by the new [Jump](opcode.html#Jump) opcode. |'
+  id: totrans-105
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Eq | 比较寄存器 P1 和 P3 中的值。如果 reg(P3)==reg(P1)，则跳转到地址 P2。P5 的 SQLITE_AFF_MASK
+    部分必须是一个亲和性字符 - SQLITE_AFF_TEXT、SQLITE_AFF_INTEGER 等等。在进行比较之前，尝试根据这种亲和性强制转换两个输入。如果
+    SQLITE_AFF_MASK 是 0x00，则使用数值亲和性。请注意，亲和性转换会存回输入寄存器 P1 和 P3。因此，这个操作码可能会对寄存器 P1 和
+    P3 造成持久性改变。一旦进行了任何转换，并且两个值都不是 NULL，就会比较这两个值。如果两个值都是 blob，则使用 memcmp() 来确定比较结果。如果两个值都是文本，则使用
+    P4 中指定的适当排序函数来进行比较。如果未指定 P4，则使用 memcmp() 来比较文本字符串。如果两个值都是数值，则使用数值比较。如果两个值的类型不同，则认为数字小于字符串，字符串小于
+    blob。如果 P5 中设置了 SQLITE_NULLEQ，则比较的结果始终为 true 或 false，且不为 NULL。如果两个操作数都是 NULL，则比较结果为
+    true。如果任一操作数为 NULL，则结果为 false。如果两个操作数都不是 NULL，则结果与省略了 P5 中的 SQLITE_NULLEQ 标志时的结果相同。这个操作码保存了比较的结果，供新的
+    [Jump](opcode.html#Jump) 操作码使用。'
 - en: '| Expire | Cause precompiled statements to expire. When an expired statement
     is executed using sqlite3_step() it will either automatically reprepare itself
     (if it was originally created using sqlite3_prepare_v2()) or it will fail with
@@ -744,9 +1059,14 @@
     continue to run to completion. The P2==1 case occurs when a CREATE INDEX or similar
     schema change happens that might help the statement run faster but which does
     not affect the correctness of operation. |'
+  id: totrans-106
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Expire | 使预编译语句过期。当使用 sqlite3_step() 执行已过期语句时，它将自动重新准备（如果最初是使用 sqlite3_prepare_v2()
+    创建的）或者会因 SQLITE_SCHEMA 而失败。如果 P1 为 0，则所有 SQL 语句都过期。如果 P1 非零，则仅当前执行的语句过期。如果 P2
+    为 0，则 SQL 语句立即过期。如果 P2 为 1，则允许正在运行的 SQL 语句继续执行直至完成。当发生 CREATE INDEX 或类似模式更改时（这可能使语句运行更快但不影响操作的正确性），会出现
+    P2==1 的情况。'
 - en: '| Filter | Compute a hash on the key contained in the P4 registers starting
     with r[P3]. Check to see if that hash is found in the bloom filter hosted by register
     P1\. If it is not present then maybe jump to P2\. Otherwise fall through.False
@@ -754,44 +1074,62 @@
     in the bloom filter. A false negative causes more CPU cycles to be used, but it
     should still yield the correct answer. However, an incorrect answer may well arise
     from a false positive - if the jump is taken when it should fall through. |'
+  id: totrans-107
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Filter | 对从 r[P3] 开始的 P4 寄存器中的键计算哈希值。检查该哈希值是否存在于由寄存器 P1 托管的布隆过滤器中。如果不存在，则可能跳转到
+    P2。否则，顺序执行。虽然假阴性无害，但总是安全的顺序执行，即使值在布隆过滤器中也是如此。假阴性会导致消耗更多 CPU 周期，但仍应得到正确的答案。然而，假阳性可能导致不正确的答案——如果应该顺序执行时却跳转了。
+    |'
 - en: '| FilterAdd | Compute a hash on the P4 registers starting with r[P3] and add
     that hash to the bloom filter contained in r[P1]. |'
+  id: totrans-108
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| FilterAdd | 对从 r[P3] 开始的 P4 寄存器计算哈希值，并将该哈希值添加到寄存器 P1 中的布隆过滤器中。 |'
 - en: '| FinishSeek | If cursor P1 was previously moved via [DeferredSeek](opcode.html#DeferredSeek),
     complete that seek operation now, without further delay. If the cursor seek has
     already occurred, this instruction is a no-op. |'
+  id: totrans-109
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| FinishSeek | 如果光标 P1 曾通过[DeferredSeek](opcode.html#DeferredSeek)移动过，请立即完成该寻址操作，无需进一步延迟。如果光标寻址已经完成，则此指令不执行任何操作。
+    |'
 - en: '| FkCheck | Halt with an SQLITE_CONSTRAINT error if there are any unresolved
     foreign key constraint violations. If there are no foreign key constraint violations,
     this is a no-op.FK constraint violations are also checked when the prepared statement
     exits. This opcode is used to raise foreign key constraint errors prior to returning
     results such as a row change count or the result of a RETURNING clause. |'
+  id: totrans-110
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| FkCheck | 如果存在未解决的外键约束违规，则以 SQLITE_CONSTRAINT 错误终止。如果没有外键约束违规，则此操作无效。在准备的语句退出时也会检查
+    FK 约束违规。此操作码用于在返回结果之前引发外键约束错误，例如行更改计数或 RETURNING 子句的结果。 |'
 - en: '| FkCounter | Increment a "constraint counter" by P2 (P2 may be negative or
     positive). If P1 is non-zero, the database constraint counter is incremented (deferred
     foreign key constraints). Otherwise, if P1 is zero, the statement counter is incremented
     (immediate foreign key constraints). |'
+  id: totrans-111
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| FkCounter | 将“约束计数器”增加 P2（P2 可能为负或正）。如果 P1 非零，则增加数据库约束计数器（延迟外键约束）。否则，如果 P1
+    为零，则增加语句计数器（立即外键约束）。 |'
 - en: '| FkIfZero | This opcode tests if a foreign key constraint-counter is currently
     zero. If so, jump to instruction P2\. Otherwise, fall through to the next instruction.If
     P1 is non-zero, then the jump is taken if the database constraint-counter is zero
     (the one that counts deferred constraint violations). If P1 is zero, the jump
     is taken if the statement constraint-counter is zero (immediate foreign key constraint
     violations). |'
+  id: totrans-112
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| FkIfZero | 此操作码测试当前外键约束计数器是否为零。如果是，则跳转到指令 P2。否则，顺序执行下一条指令。如果 P1 非零，则如果数据库约束计数器为零（计数延迟约束违规），则执行跳转。如果
+    P1 为零，则如果语句约束计数器为零（立即外键约束违规），则执行跳转。 |'
 - en: '| Found | If P4==0 then register P3 holds a blob constructed by [MakeRecord](opcode.html#MakeRecord).
     If P4>0 then register P3 is the first of P4 registers that form an unpacked record.Cursor
     P1 is on an index btree. If the record identified by P3 and P4 is a prefix of
@@ -801,9 +1139,15 @@
     not the [Prev](opcode.html#Prev) instruction.See also: [NotFound](opcode.html#NotFound),
     [NoConflict](opcode.html#NoConflict), [NotExists](opcode.html#NotExists). SeekGe
     |'
+  id: totrans-113
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Found | 如果 P4==0，则寄存器 P3 持有由 [MakeRecord](opcode.html#MakeRecord) 构建的块。如果
+    P4>0，则寄存器 P3 是形成未打包记录的 P4 个寄存器中的第一个。光标 P1 处于索引 B 树上。如果 P3 和 P4 标识的记录是 P1 中任何条目的前缀，则跳转到
+    P2，并且 P1 指向匹配的条目。此操作使得光标处于可以向前方向推进的状态。[Next](opcode.html#Next) 指令可以工作，但 [Prev](opcode.html#Prev)
+    指令不行。另请参阅：[NotFound](opcode.html#NotFound), [NoConflict](opcode.html#NoConflict),
+    [NotExists](opcode.html#NotExists). SeekGe |'
 - en: '| Function | Invoke a user function (P4 is a pointer to an sqlite3_context
     object that contains a pointer to the function to be run) with arguments taken
     from register P2 and successors. The number of arguments is in the sqlite3_context
@@ -815,40 +1159,59 @@
     using the sqlite3_set_auxdata() API may be safely retained until the next invocation
     of this opcode.See also: [AggStep](opcode.html#AggStep), [AggFinal](opcode.html#AggFinal),
     [PureFunc](opcode.html#PureFunc) |'
+  id: totrans-114
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Function | 调用用户函数（P4 是指向包含要运行的函数指针的 sqlite3_context 对象的指针），其参数来自寄存器 P2 和其后续寄存器。函数的参数数量由
+    P4 指向的 sqlite3_context 对象确定。函数的结果存储在寄存器 P3 中。寄存器 P3 不能是函数的输入之一。P1 是一个 32 位的位掩码，指示编译时每个函数参数是否被确定为常量。如果第一个参数是常量，则设置
+    P1 的第 0 位。这用于确定是否可以安全地保留使用 sqlite3_set_auxdata() API 关联的用户函数参数的元数据，直到下一次调用此操作码。另请参阅：[AggStep](opcode.html#AggStep),
+    [AggFinal](opcode.html#AggFinal), [PureFunc](opcode.html#PureFunc) |'
 - en: '| Ge | This works just like the Lt opcode except that the jump is taken if
     the content of register P3 is greater than or equal to the content of register
     P1\. See the Lt opcode for additional information. |'
+  id: totrans-115
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Ge | 此操作与 Lt 操作码类似，不同之处在于如果寄存器 P3 的内容大于或等于寄存器 P1 的内容，则进行跳转。有关更多信息，请参见 Lt
+    操作码。 |'
 - en: '| GetSubtype | Extract the subtype value from register P1 and write that subtype
     into register P2\. If P1 has no subtype, then P1 gets a NULL. |'
+  id: totrans-116
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| GetSubtype | 从寄存器 P1 提取子类型值，并将该子类型写入寄存器 P2。如果 P1 没有子类型，则 P1 获得 NULL。 |'
 - en: '| Gosub | Write the current address onto register P1 and then jump to address
     P2. |'
+  id: totrans-117
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Gosub | 将当前地址写入寄存器 P1，然后跳转到地址 P2。 |'
 - en: '| Goto | An unconditional jump to address P2. The next instruction executed
     will be the one at index P2 from the beginning of the program.The P1 parameter
     is not actually used by this opcode. However, it is sometimes set to 1 instead
     of 0 as a hint to the command-line shell that this [Goto](opcode.html#Goto) is
     the bottom of a loop and that the lines from P2 down to the current line should
     be indented for EXPLAIN output. |'
+  id: totrans-118
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Goto | 无条件跳转到地址 P2。下一个执行的指令将是程序开头索引为 P2 的指令。虽然此操作码实际上不使用参数 P1，但有时将其设置为 1
+    而不是 0，作为命令行 shell 的提示，表明此 [Goto](opcode.html#Goto) 是循环的底部，并且应将从 P2 到当前行的行缩进以用于
+    EXPLAIN 输出。 |'
 - en: '| Gt | This works just like the Lt opcode except that the jump is taken if
     the content of register P3 is greater than the content of register P1\. See the
     Lt opcode for additional information. |'
+  id: totrans-119
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Gt | 此操作与 Lt 操作码类似，不同之处在于如果寄存器 P3 的内容大于寄存器 P1 的内容，则进行跳转。有关更多信息，请参见 Lt 操作码。
+    |'
 - en: '| Halt | Exit immediately. All open cursors, etc are closed automatically.P1
     is the result code returned by sqlite3_exec(), sqlite3_reset(), or sqlite3_finalize().
     For a normal halt, this should be SQLITE_OK (0). For errors, it can be some other
@@ -863,16 +1226,26 @@
     is an implied "[Halt](opcode.html#Halt) 0 0 0" instruction inserted at the very
     end of every program. So a jump past the last instruction of the program is the
     same as executing [Halt](opcode.html#Halt). |'
+  id: totrans-120
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Halt | 立即退出。所有打开的游标等将自动关闭。P1 是由 sqlite3_exec()、sqlite3_reset() 或 sqlite3_finalize()
+    返回的结果代码。对于正常的退出，应为 SQLITE_OK (0)。对于错误，可能是其他值。如果 P1!=0，则根据 P2 决定是否回滚当前事务。如果 P2==OE_Fail，则不回滚。如果
+    P2==OE_Rollback，则执行回滚。如果 P2==OE_Abort，则撤消在此 VDBE 执行期间发生的所有更改，但不回滚事务。如果 P4 不为 null，则它是一个错误消息字符串。P5
+    是一个介于 0 到 4 之间（包括边界值），用于修改 P4 字符串的值。0:（无更改）1: NOT NULL 约束失败：P4 2: 唯一约束失败：P4 3:
+    CHECK 约束失败：P4 4: 外键约束失败：P4 如果 P5 不为零且 P4 为 NULL，则省略 ":" 后面的所有内容。每个程序的最后都隐含有一条
+    "[Halt](opcode.html#Halt) 0 0 0" 指令。因此，跳过程序的最后一条指令与执行 [终止](opcode.html#Halt) 是一样的。'
 - en: '| HaltIfNull | Check the value in register P3\. If it is NULL then [Halt](opcode.html#Halt)
     using parameter P1, P2, and P4 as if this were a [Halt](opcode.html#Halt) instruction.
     If the value in register P3 is not NULL, then this routine is a no-op. The P5
     parameter should be 1. |'
+  id: totrans-121
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| HaltIfNull | 检查寄存器 P3 中的值。如果为 NULL，则使用参数 P1、P2 和 P4，就像这是一条 [Halt](opcode.html#Halt)
+    指令一样，立即 [终止](opcode.html#Halt)。如果寄存器 P3 中的值不为 NULL，则此例程不执行任何操作。P5 参数应设置为 1。 |'
 - en: '| IdxDelete | The content of P3 registers starting at register P2 form an unpacked
     index key. This opcode removes that entry from the index opened by cursor P1.If
     P5 is not zero, then raise an SQLITE_CORRUPT_INDEX error if no matching index
@@ -881,25 +1254,36 @@
     (example: the EXCEPT operator) it does not matter that no matching entry is found.
     For those cases, P5 is zero. Also, do not raise this (self-correcting and non-critical)
     error if in writable_schema mode. |'
+  id: totrans-122
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IdxDelete | 从寄存器 P2 开始的 P3 寄存器内容形成一个非打包索引键。此操作码从由游标 P1 打开的索引中移除该条目。如果 P5
+    不为零，则在未找到匹配的索引条目时引发 SQLITE_CORRUPT_INDEX 错误。这种情况发生在运行 UPDATE 或 DELETE 语句时，要更新或删除的索引条目未被找到。对于某些
+    [IdxDelete](opcode.html#IdxDelete) 的用途（例如：EXCEPT 运算符），如果未找到匹配条目，则无关紧要。对于这些情况，P5
+    为零。此外，在 writable_schema 模式下，不会引发这种（自我修正且非关键的）错误。 |'
 - en: '| IdxGE | The P4 register values beginning with P3 form an unpacked index key
     that omits the PRIMARY KEY. [Compare](opcode.html#Compare) this key value against
     the index that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID
     fields at the end.If the P1 index entry is greater than or equal to the key value
     then jump to P2\. Otherwise fall through to the next instruction. |'
+  id: totrans-123
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IdxGE | 以 P3 开始的 P4 寄存器值形成一个省略主键的非打包索引键。[比较](opcode.html#Compare)此键值与 P1
+    当前指向的索引，忽略末尾的主键或 ROWID 字段。如果 P1 索引条目大于或等于键值，则跳转到 P2。否则继续执行下一条指令。 |'
 - en: '| IdxGT | The P4 register values beginning with P3 form an unpacked index key
     that omits the PRIMARY KEY. [Compare](opcode.html#Compare) this key value against
     the index that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID
     fields at the end.If the P1 index entry is greater than the key value then jump
     to P2\. Otherwise fall through to the next instruction. |'
+  id: totrans-124
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IdxGT | 以 P3 开始的 P4 寄存器值形成一个省略主键的非打包索引键。[比较](opcode.html#Compare)此键值与 P1
+    当前指向的索引，忽略末尾的主键或 ROWID 字段。如果 P1 索引条目大于键值，则跳转到 P2。否则继续执行下一条指令。 |'
 - en: '| IdxInsert | Register P2 holds an SQL index key made using the [MakeRecord](opcode.html#MakeRecord)
     instructions. This opcode writes that key into the index P1\. Data for the entry
     is nil.If P4 is not zero, then it is the number of values in the unpacked key
@@ -914,38 +1298,57 @@
     have been no prior seeks on the cursor or if the most recent seek used a key equivalent
     to P2.This instruction only works for indices. The equivalent instruction for
     tables is [Insert](opcode.html#Insert). |'
+  id: totrans-125
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IdxInsert | 寄存器 P2 包含使用 [MakeRecord](opcode.html#MakeRecord) 指令创建的 SQL 索引键。这个操作码将该键写入索引
+    P1。该条目的数据为空。如果 P4 不为零，则它是寄存器 P2 的解包键中的值数。在这种情况下，P3 是解包键的第一个寄存器的索引。解包键的可用性有时可以作为一种优化。如果
+    P5 的 OPFLAG_APPEND 位被设置，这表明 B 树层可能会将此插入视为追加操作。如果 P5 的 OPFLAG_NCHANGE 位被设置，则此指令会增加更改计数器。如果
+    OPFLAG_NCHANGE 位被清除，则更改计数器保持不变。如果 P5 的 OPFLAG_USESEEKRESULT 标志被设置，实现可能通过避免对游标
+    P1 的不必要寻找来运行得更快。然而，只有在游标没有进行过先前的寻找或者最近的寻找使用等效于 P2 的键时，才能设置 OPFLAG_USESEEKRESULT
+    标志。此指令仅适用于索引。对于表格的等效指令是 [Insert](opcode.html#Insert)。 |'
 - en: '| IdxLE | The P4 register values beginning with P3 form an unpacked index key
     that omits the PRIMARY KEY or ROWID. [Compare](opcode.html#Compare) this key value
     against the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
     ROWID on the P1 index.If the P1 index entry is less than or equal to the key value
     then jump to P2\. Otherwise fall through to the next instruction. |'
+  id: totrans-126
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IdxLE | 从 P3 开始的 P4 寄存器值形成一个不包括主键或 ROWID 的解包索引键。将此键值与 P1 当前指向的索引进行比较，忽略 P1
+    索引上的主键或 ROWID。如果 P1 索引条目小于或等于键值，则跳转到 P2。否则，顺序执行下一条指令。 |'
 - en: '| IdxLT | The P4 register values beginning with P3 form an unpacked index key
     that omits the PRIMARY KEY or ROWID. [Compare](opcode.html#Compare) this key value
     against the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
     ROWID on the P1 index.If the P1 index entry is less than the key value then jump
     to P2. Otherwise fall through to the next instruction. |'
+  id: totrans-127
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IdxLT | 从 P3 开始的 P4 寄存器值形成一个不包括主键或 ROWID 的解包索引键。将此键值与 P1 当前指向的索引进行比较，忽略 P1
+    索引上的主键或 ROWID。如果 P1 索引条目小于键值，则跳转到 P2。否则，顺序执行下一条指令。 |'
 - en: '| IdxRowid | Write into register P2 an integer which is the last entry in the
     record at the end of the index key pointed to by cursor P1\. This integer should
     be the rowid of the table entry to which this index entry points.See also: [Rowid](opcode.html#Rowid),
     [MakeRecord](opcode.html#MakeRecord). |'
+  id: totrans-128
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IdxRowid | 将游标 P1 指向的索引键末尾记录中的最后一个条目写入寄存器 P2。这个整数应该是该索引条目指向的表条目的行号。另请参阅：[Rowid](opcode.html#Rowid),
+    [MakeRecord](opcode.html#MakeRecord)。 |'
 - en: '| If | Jump to P2 if the value in register P1 is true. The value is considered
     true if it is numeric and non-zero. If the value in P1 is NULL then take the jump
     if and only if P3 is non-zero. |'
+  id: totrans-129
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| If | 如果寄存器 P1 中的值为 true，则跳转到 P2。如果该值是数字且非零，则视为 true。如果 P1 中的值为 NULL，则仅当 P3
+    非零时才跳转。 |'
 - en: '| IfNoHope | Register P3 is the first of P4 registers that form an unpacked
     record. Cursor P1 is an index btree. P2 is a jump destination. In other words,
     the operands to this opcode are the same as the operands to [NotFound](opcode.html#NotFound)
@@ -965,54 +1368,82 @@
     opcode name comes from the fact that the jump is taken if there is "no hope" of
     achieving a match.See also: [NotFound](opcode.html#NotFound), [SeekHit](opcode.html#SeekHit)
     |'
+  id: totrans-130
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IfNoHope | 寄存器 P3 是构成未打包记录的 P4 寄存器中的第一个。游标 P1 是一个索引 B 树。P2 是一个跳转目标。换句话说，此操作码的操作数与
+    [NotFound](opcode.html#NotFound) 和 [IdxGT](opcode.html#IdxGT) 的操作数相同。此操作码仅是一种优化尝试。如果此操作码总是跳过，仍然可以得到正确答案，但会执行额外的工作。游标
+    P1 中的 seekHit 标志的值 N 意味着存在一个键 P3:N，它将匹配索引中的某些记录。我们想知道是否可能存在一个记录 P3:P4 能够匹配索引中的某些记录。如果不可能，我们可以跳过一些工作。因此，如果
+    seekHit 小于 P4，则尝试通过运行 [NotFound](opcode.html#NotFound) 来找出是否可能存在匹配。此操作码用于处理多列键的
+    IN 子句处理。如果 IN 子句附加到键的左侧元素以外的元素，并且在整个键的最近查找中没有匹配项，则可能是左侧的某个键元素禁止了匹配，因此无论检查了多少个
+    IN 子句元素，都"无望"进行任何匹配。在这种情况下，我们会提前放弃 IN 子句搜索，使用此操作码。操作码名称来自于如果无法实现匹配则会跳转的事实。另请参阅：[NotFound](opcode.html#NotFound),
+    [SeekHit](opcode.html#SeekHit) |'
 - en: '| IfNot | Jump to P2 if the value in register P1 is False. The value is considered
     false if it has a numeric value of zero. If the value in P1 is NULL then take
     the jump if and only if P3 is non-zero. |'
+  id: totrans-131
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IfNot | 如果寄存器 P1 中的值为 False，则跳转到 P2。如果 P1 的值为零，则什么也不做。如果 P1 的值为 NULL，则仅当
+    P3 非零时才跳转。 |'
 - en: '| IfNotOpen | If cursor P1 is not open or if P1 is set to a NULL row using
     the [NullRow](opcode.html#NullRow) opcode, then jump to instruction P2\. Otherwise,
     fall through. |'
+  id: totrans-132
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IfNotOpen | 如果游标 P1 未打开，或者使用 [NullRow](opcode.html#NullRow) 操作码将 P1 设置为 NULL
+    行，则跳转到指令 P2。否则，继续执行。 |'
 - en: '| IfNotZero | Register P1 must contain an integer. If the content of register
     P1 is initially greater than zero, then decrement the value in register P1. If
     it is non-zero (negative or positive) and then also jump to P2. If register P1
     is initially zero, leave it unchanged and fall through. |'
+  id: totrans-133
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IfNotZero | 寄存器 P1 必须包含一个整数。如果寄存器 P1 的内容最初大于零，则将寄存器 P1 的值减一，并跳转到 P2。如果寄存器
+    P1 的值非零（负数或正数），同样跳转到 P2。如果寄存器 P1 的初始值为零，则保持不变，并继续执行下一条指令。 |'
 - en: '| IfNullRow | Check the cursor P1 to see if it is currently pointing at a NULL
     row. If it is, then set register P3 to NULL and jump immediately to P2. If P1
     is not on a NULL row, then fall through without making any changes.If P1 is not
     an open cursor, then this opcode is a no-op. |'
+  id: totrans-134
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IfNullRow | 检查游标 P1 是否指向 NULL 行。如果是，则将寄存器 P3 设置为 NULL，并立即跳转到 P2。如果 P1 不指向
+    NULL 行，则无需进行任何更改。如果 P1 不是打开的游标，则此操作码不执行任何操作。 |'
 - en: '| IfPos | Register P1 must contain an integer. If the value of register P1
     is 1 or greater, subtract P3 from the value in P1 and jump to P2.If the initial
     value of register P1 is less than 1, then the value is unchanged and control passes
     through to the next instruction. |'
+  id: totrans-135
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IfPos | 寄存器 P1 必须包含一个整数。如果寄存器 P1 的值大于等于 1，则从寄存器 P1 的值中减去 P3，并跳转到 P2。如果寄存器
+    P1 的初始值小于 1，则保持不变，并继续执行下一条指令。 |'
 - en: '| IfSizeBetween | Let N be the approximate number of rows in the table or index
     with cursor P1 and let X be 10*log2(N) if N is positive or -1 if N is zero.Jump
     to P2 if X is in between P3 and P4, inclusive. |'
+  id: totrans-136
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IfSizeBetween | 设 N 为游标 P1 指向的表或索引中的行数的近似数，设 X 为 10*log2(N)（如果 N 为正数）或者 -1（如果
+    N 为零）。如果 X 的值在 P3 和 P4 之间（包括 P3 和 P4），则跳转到指令 P2。 |'
 - en: '| IncrVacuum | Perform a single step of the incremental vacuum procedure on
     the P1 database. If the vacuum has finished, jump to instruction P2\. Otherwise,
     fall through to the next instruction. |'
+  id: totrans-137
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IncrVacuum | 在数据库 P1 上执行增量清理过程的单个步骤。如果清理已完成，则跳转到指令 P2。否则，继续执行下一条指令。 |'
 - en: '| Init | Programs contain a single instance of this opcode as the very first
     opcode.If tracing is enabled (by the sqlite3_trace()) interface, then the UTF-8
     string contained in P4 is emitted on the trace callback. Or if P4 is blank, use
@@ -1020,16 +1451,22 @@
     the value of P1 so that [Once](opcode.html#Once) opcodes will jump the first time
     they are evaluated for this run.If P3 is not zero, then it is an address to jump
     to if an SQLITE_CORRUPT error is encountered. |'
+  id: totrans-138
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Init | 程序的起始操作码仅出现一次。如果启用跟踪（通过sqlite3_trace()接口），则在跟踪回调上发出P4中包含的UTF-8字符串。如果P4为空，则使用由sqlite3_sql()返回的字符串。如果P2不为零，则跳转到指令P2。增加P1的值，以便[opcodes](opcode.html#Once)在本次运行中首次评估时跳转。如果P3不为零，则它是遇到SQLITE_CORRUPT错误时要跳转的地址。
+    |'
 - en: '| InitCoroutine | Set up register P1 so that it will [Yield](opcode.html#Yield)
     to the coroutine located at address P3.If P2!=0 then the coroutine implementation
     immediately follows this opcode. So jump over the coroutine implementation to
     address P2.See also: [EndCoroutine](opcode.html#EndCoroutine) |'
+  id: totrans-139
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| InitCoroutine | 设置寄存器P1，以便它会[Yield](opcode.html#Yield)到地址P3处的协程。如果P2!=0，则协程实现紧随此操作码。因此跳过协程实现到地址P2。另请参见：[EndCoroutine](opcode.html#EndCoroutine)
+    |'
 - en: '| Insert | Write an entry into the table of cursor P1\. A new entry is created
     if it doesn''t already exist or the data for an existing entry is overwritten.
     The data is the value MEM_Blob stored in register number P2\. The key is stored
@@ -1050,24 +1487,35 @@
     P2 will then change. Make sure this does not cause any problems.)This instruction
     only works on tables. The equivalent instruction for indices is [IdxInsert](opcode.html#IdxInsert).
     |'
+  id: totrans-140
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Insert | 将条目写入游标P1的表中。如果条目不存在，则创建新条目；如果已存在条目，则覆盖现有数据。数据是存储在寄存器编号P2中的MEM_Blob的值。键存储在寄存器P3中。键必须是一个MEM_Int。如果P5的OPFLAG_NCHANGE标志被设置，则增加行更改计数（否则不增加）。如果P5的OPFLAG_LASTROWID标志被设置，则将rowid存储起来，以便后续通过sqlite3_last_insert_rowid()函数返回（否则保持不变）。如果P5的OPFLAG_USESEEKRESULT标志被设置，则实现可以通过避免对游标P1进行不必要的查找来运行得更快。然而，只有在此游标没有进行过先前的查找，或者最近的查找使用的键等于P3时，才可以设置OPFLAG_USESEEKRESULT标志。如果设置了OPFLAG_ISUPDATE标志，则此操作码是UPDATE操作的一部分。否则（如果标志未设置），则此操作码是INSERT操作的一部分。区别仅对更新挂钩很重要。参数P4可能指向一个表结构，也可能为NULL。如果不为NULL，则在成功插入后将调用更新挂钩（sqlite3.xUpdateCallback）。
+    （警告/待办事项：如果P1是伪游标且P2是动态分配的，则P2的所有权将转移到伪游标，并且寄存器P2将变为临时的。如果更改游标，则寄存器P2的值将随之更改。确保这不会造成任何问题。）此指令仅适用于表。索引的等效指令是[IdxInsert](opcode.html#IdxInsert)。
+    |'
 - en: '| Int64 | P4 is a pointer to a 64-bit integer value. Write that value into
     register P2. |'
+  id: totrans-141
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Int64 | P4是指向64位整数值的指针。将该值写入寄存器P2中。 |'
 - en: '| IntCopy | Transfer the integer value held in register P1 into register P2.This
     is an optimized version of [SCopy](opcode.html#SCopy) that works only for integer
     values. |'
+  id: totrans-142
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IntCopy | 将寄存器P1中持有的整数值传输到寄存器P2中。这是仅适用于整数值的[SCopy](opcode.html#SCopy)的优化版本。
+    |'
 - en: '| Integer | The 32-bit integer value P1 is written into register P2. |'
+  id: totrans-143
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Integer | 将32位整数值P1写入寄存器P2中。 |'
 - en: '| IntegrityCk | Do an analysis of the currently open database. Store in register
     (P1+1) the text of an error message describing any problems. If no problems are
     found, store a NULL in register (P1+1).The register (P1) contains one less than
@@ -1077,49 +1525,70 @@
     in the database are integers stored in P4_INTARRAY argument.If P5 is not zero,
     the check is done on the auxiliary database file, not the main database file.This
     opcode is used to implement the integrity_check pragma. |'
+  id: totrans-144
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IntegrityCk | 对当前打开的数据库进行分析。将发现的任何问题的错误消息文本存储在寄存器（P1+1）中。如果未发现问题，则在寄存器（P1+1）中存储
+    NULL。寄存器（P1）中包含允许的最大错误数减一。最多将报告 reg(P1) 个错误。换句话说，一旦看到 reg(P1) 个错误，分析就会停止。Reg(P1)
+    将更新为剩余错误的数量。数据库中所有表的根页面编号以 P4_INTARRAY 参数存储为整数。如果 P5 不为零，则在辅助数据库文件上执行检查，而不是在主数据库文件上。此操作码用于实现
+    integrity_check pragma。'
 - en: '| IsNull | Jump to P2 if the value in register P1 is NULL. |'
+  id: totrans-145
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IsNull | 如果寄存器 P1 中的值为 NULL，则跳转到 P2。'
 - en: '| IsTrue | This opcode implements the IS TRUE, IS FALSE, IS NOT TRUE, and IS
     NOT FALSE operators.Interpret the value in register P1 as a boolean value. Store
     that boolean (a 0 or 1) in register P2\. Or if the value in register P1 is NULL,
     then the P3 is stored in register P2\. Invert the answer if P4 is 1.The logic
     is summarized like this:'
+  id: totrans-146
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '| IsTrue | 此操作码实现 IS TRUE、IS FALSE、IS NOT TRUE 和 IS NOT FALSE 操作符。将寄存器 P1 中的值解释为布尔值。将该布尔值（0
+    或 1）存储在寄存器 P2 中。或者如果寄存器 P1 中的值为 NULL，则将 P3 存储在寄存器 P2 中。如果 P4 为 1，则反转答案。逻辑总结如下：'
 - en: If P3==0 and P4==0 then r[P2] := r[P1] IS TRUE
+  id: totrans-147
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果 P3==0 并且 P4==0，则 r[P2] := r[P1] IS TRUE
 - en: If P3==1 and P4==1 then r[P2] := r[P1] IS FALSE
+  id: totrans-148
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果 P3==1 并且 P4==1，则 r[P2] := r[P1] IS FALSE
 - en: If P3==0 and P4==1 then r[P2] := r[P1] IS NOT TRUE
+  id: totrans-149
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果 P3==0 并且 P4==1，则 r[P2] := r[P1] IS NOT TRUE
 - en: If P3==1 and P4==0 then r[P2] := r[P1] IS NOT FALSE
+  id: totrans-150
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果 P3==1 并且 P4==0，则 r[P2] := r[P1] IS NOT FALSE
 - en: ''
+  id: totrans-151
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
 - en: '|'
+  id: totrans-152
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '|'
 - en: '| IsType | Jump to P2 if the type of a column in a btree is one of the types
     specified by the P5 bitmask.P1 is normally a cursor on a btree for which the row
     decode cache is valid through at least column P3\. In other words, there should
@@ -1136,24 +1605,33 @@
     and REAL. The problem only arises then P1>=0.Take the jump to address P2 if and
     only if the datatype of the value determined by P1 and P3 corresponds to one of
     the bits in the P5 bitmask. |'
+  id: totrans-153
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| IsType | 如果btree中某列的类型在P5位掩码指定的类型之一，则跳转到P2。P1通常是一个游标，指向至少列P3的btree，且行解码缓存有效。换句话说，先前必须有一次针对列P3或更高列的[Column](opcode.html#Column)操作。如果游标无效，则此操作码可能给出虚假结果。如果btree行的列少于P3列，则使用P4作为数据类型。如果P1为-1，则P3为寄存器号，并且数据类型取自该寄存器中的值。P5是数据类型的位掩码。SQLITE_INTEGER为最低有效位（0x01位）。SQLITE_FLOAT为0x02位。SQLITE_TEXT为0x04位。SQLITE_BLOB为0x08位。SQLITE_NULL为0x10位。警告：当P1>=0时，此操作码不能可靠区分NULL和REAL。如果数据库包含NaN值，则此操作码会认为数据类型为REAL，而实际应为NULL。当P1<0且值已存储在寄存器P3中时，则此操作码确实可以可靠区分NULL和REAL。问题仅在P1>=0时才会出现。如果由P1和P3确定的值的数据类型与P5位掩码中的某一位相对应，则仅在这种情况下跳转到地址P2。
+    |'
 - en: '| JournalMode | Change the journal mode of database P1 to P3\. P3 must be one
     of the PAGER_JOURNALMODE_XXX values. If changing between the various rollback
     modes (delete, truncate, persist, off and memory), this is a simple operation.
     No IO is required.If changing into or out of WAL mode the procedure is more complicated.Write
     a string containing the final journal-mode to register P2. |'
+  id: totrans-154
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| JournalMode | 将数据库P1的日志模式更改为P3。P3必须是PAGER_JOURNALMODE_XXX值之一。如果在不同回滚模式（删除、截断、持久、关闭和内存）之间进行更改，则操作简单。不需要进行IO操作。如果在WAL模式之间进行更改，则过程更为复杂。将包含最终日志模式的字符串写入寄存器P2。
+    |'
 - en: '| Jump | Jump to the instruction at address P1, P2, or P3 depending on whether
     in the most recent [Compare](opcode.html#Compare) instruction the P1 vector was
     less than, equal to, or greater than the P2 vector, respectively.This opcode must
     immediately follow an [Compare](opcode.html#Compare) opcode. |'
+  id: totrans-155
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Jump | 根据最近的[Compare](opcode.html#Compare)指令中P1向量小于、等于或大于P2向量，跳转到地址P1、P2或P3处的指令。此操作码必须紧随[Compare](opcode.html#Compare)操作码之后。
+    |'
 - en: '| Last | The next use of the [Rowid](opcode.html#Rowid) or [Column](opcode.html#Column)
     or [Prev](opcode.html#Prev) instruction for P1 will refer to the last entry in
     the database table or index. If the table or index is empty and P2>0, then jump
@@ -1161,21 +1639,32 @@
     to the following instruction.This opcode leaves the cursor configured to move
     in reverse order, from the end toward the beginning. In other words, the cursor
     is configured to use [Prev](opcode.html#Prev), not [Next](opcode.html#Next). |'
+  id: totrans-156
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Last | 下一次对 P1 的 [Rowid](opcode.html#Rowid)、[Column](opcode.html#Column)
+    或 [Prev](opcode.html#Prev) 指令的使用将引用数据库表或索引中的最后一个条目。如果表或索引为空且 P2 > 0，则立即跳转到 P2。如果
+    P2 为 0 或表或索引不为空，则顺序执行以下指令。此操作码将使游标配置为以逆序移动，即从末尾向开始移动。换句话说，游标配置为使用 [Prev](opcode.html#Prev)，而不是
+    [Next](opcode.html#Next)。'
 - en: '| Le | This works just like the Lt opcode except that the jump is taken if
     the content of register P3 is less than or equal to the content of register P1\.
     See the Lt opcode for additional information. |'
+  id: totrans-157
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Le | 这与 Lt 操作码类似，不同之处在于如果寄存器 P3 的内容小于或等于寄存器 P1 的内容，则执行跳转。有关更多信息，请参见 Lt 操作码。
+    |'
 - en: '| LoadAnalysis | Read the sqlite_stat1 table for database P1 and load the content
     of that table into the internal index hash table. This will cause the analysis
     to be used when preparing all subsequent queries. |'
+  id: totrans-158
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| LoadAnalysis | 读取数据库 P1 的 sqlite_stat1 表并将该表内容加载到内部索引哈希表中。这将导致在准备所有后续查询时使用该分析。
+    |'
 - en: '| Lt | Compare the values in register P1 and P3\. If reg(P3)<reg(P1) then jump
     to address P2.If the SQLITE_JUMPIFNULL bit of P5 is set and either reg(P1) or
     reg(P3) is NULL then the take the jump. If the SQLITE_JUMPIFNULL bit is clear
@@ -1193,9 +1682,17 @@
     is used. If the two values are of different types, then numbers are considered
     less than strings and strings are considered less than blobs.This opcode saves
     the result of comparison for use by the new [Jump](opcode.html#Jump) opcode. |'
+  id: totrans-159
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Lt | 比较寄存器 P1 和 P3 中的值。如果 reg(P3)<reg(P1)，则跳转到地址 P2。如果 P5 的 SQLITE_JUMPIFNULL
+    位被设置，并且 reg(P1) 或 reg(P3) 中有一个是 NULL，则执行跳转。如果 SQLITE_JUMPIFNULL 位未设置，则如果任一操作数为
+    NULL，则执行跳过。P5 的 SQLITE_AFF_MASK 部分必须是一个亲和性字符 - SQLITE_AFF_TEXT、SQLITE_AFF_INTEGER
+    等。在进行比较之前，将尝试根据此亲和性对两个输入进行强制转换。如果 SQLITE_AFF_MASK 是 0x00，则使用数值亲和性。请注意，亲和性转换将存储回输入寄存器
+    P1 和 P3。因此，此操作码可能导致寄存器 P1 和 P3 的持久更改。一旦进行了任何转换，并且两个值都不为 NULL，则比较这些值。如果两个值都是 blob，则使用
+    memcmp() 函数来确定比较结果。如果两个值都是文本，则使用 P4 中指定的适当排序函数来进行比较。如果未指定 P4，则使用 memcmp() 来比较文本字符串。如果两个值都是数值，则使用数值比较。如果两个值是不同类型的，则数字被认为小于字符串，字符串被认为小于
+    blob。此操作码将比较结果保存以供新的 [Jump](opcode.html#Jump) 操作码使用。'
 - en: '| MakeRecord | Convert P2 registers beginning with P1 into the [record format](fileformat2.html#record_format)
     use as a data record in a database table or as a key in an index. The [Column](opcode.html#Column)
     opcode can decode the record later.P4 may be a string that is P2 characters long.
@@ -1209,49 +1706,73 @@
     if the [MakeRecord](opcode.html#MakeRecord) opcode is allowed to accept no-change
     records with serial_type 10\. This value is only used inside an assert() and does
     not affect the end result. |'
+  id: totrans-160
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| MakeRecord | 将从 P1 开始的 P2 个寄存器转换为[记录格式](fileformat2.html#record_format)，用作数据库表中的数据记录或索引中的键。[Column](opcode.html#Column)
+    操作码稍后可以解码记录。P4 可能是一个长度为 P2 的字符串。字符串的第 N 个字符指示应用于索引键的第 N 个字段的列亲和性。从字符到亲和性的映射由 sqliteInt.h
+    中定义的 SQLITE_AFF_ 宏给出。如果 P4 为 NULL，则所有索引字段均具有 BLOB 亲和性。P5 的含义取决于是否启用了 SQLITE_ENABLE_NULL_TRIM
+    编译选项：* 如果启用了 SQLITE_ENABLE_NULL_TRIM，则 P5 是可以进行 null-trim 的最右表的索引。* 如果省略了 SQLITE_ENABLE_NULL_TRIM，则
+    P5 的值为 OPFLAG_NOCHNG_MAGIC，如果 [MakeRecord](opcode.html#MakeRecord) 操作码允许接受 serial_type
+    为 10 的无更改记录。此值仅在 assert() 内使用，不影响最终结果。 |'
 - en: '| MaxPgcnt | Try to set the maximum page count for database P1 to the value
     in P3. Do not let the maximum page count fall below the current page count and
     do not change the maximum page count value if P3==0.Store the maximum page count
     after the change in register P2. |'
+  id: totrans-161
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| MaxPgcnt | 尝试将数据库 P1 的最大页数设置为 P3 的值。不允许最大页数低于当前页数，并且如果 P3==0，则不更改最大页数值。在更改后，将最大页数存储在寄存器
+    P2 中。 |'
 - en: '| MemMax | P1 is a register in the root frame of this VM (the root frame is
     different from the current frame if this instruction is being executed within
     a sub-program). Set the value of register P1 to the maximum of its current value
     and the value in register P2.This instruction throws an error if the memory cell
     is not initially an integer. |'
+  id: totrans-162
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| MemMax | P1 是此虚拟机的根帧中的一个寄存器（如果此指令在子程序内执行，则根帧与当前帧不同）。将寄存器 P1 的值设置为其当前值和寄存器
+    P2 的值中的最大值。如果内存单元最初不是整数，则此指令会引发错误。 |'
 - en: '| Move | Move the P3 values in register P1..P1+P3-1 over into registers P2..P2+P3-1\.
     Registers P1..P1+P3-1 are left holding a NULL. It is an error for register ranges
     P1..P1+P3-1 and P2..P2+P3-1 to overlap. It is an error for P3 to be less than
     1. |'
+  id: totrans-163
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Move | 将寄存器 P1 到 P1+P3-1 中的 P3 个值移动到寄存器 P2 到 P2+P3-1。寄存器 P1 到 P1+P3-1 将保持
+    NULL。寄存器范围 P1 到 P1+P3-1 和 P2 到 P2+P3-1 重叠是错误的。P3 小于 1 是错误的。 |'
 - en: '| Multiply | Multiply the value in register P1 by the value in register P2
     and store the result in register P3. If either input is NULL, the result is NULL.
     |'
+  id: totrans-164
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Multiply | 将寄存器 P1 中的值乘以寄存器 P2 中的值，并将结果存储在寄存器 P3 中。如果任一输入为 NULL，则结果为 NULL。
+    |'
 - en: '| MustBeInt | Force the value in register P1 to be an integer. If the value
     in P1 is not an integer and cannot be converted into an integer without data loss,
     then jump immediately to P2, or if P2==0 raise an SQLITE_MISMATCH exception. |'
+  id: totrans-165
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| MustBeInt | 强制寄存器 P1 中的值为整数。如果 P1 中的值不是整数，并且不能在没有数据损失的情况下转换为整数，则立即跳转到 P2；如果
+    P2==0，则引发 SQLITE_MISMATCH 异常。 |'
 - en: '| Ne | This works just like the Eq opcode except that the jump is taken if
     the operands in registers P1 and P3 are not equal. See the Eq opcode for additional
     information. |'
+  id: totrans-166
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Ne | 这与 Eq 操作码类似，不同之处在于当寄存器 P1 和 P3 中的操作数不相等时才会跳转。有关更多信息，请参阅 Eq 操作码。 |'
 - en: '| NewRowid | Get a new integer record number (a.k.a "rowid") used as the key
     to a table. The record number is not previously used as a key in the database
     table that cursor P1 points to. The new record number is written written to register
@@ -1260,9 +1781,13 @@
     to be less than this value. When this value reaches its maximum, an SQLITE_FULL
     error is generated. The P3 register is updated with the '' generated record number.
     This P3 mechanism is used to help implement the AUTOINCREMENT feature. |'
+  id: totrans-167
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| NewRowid | 获取一个新的整数记录编号（即 "rowid"），用作表中的键。记录编号之前未在光标 P1 指向的数据库表中用作键。新记录编号写入寄存器
+    P2。如果 P3>0，则 P3 是此 VDBE 的根框架中持有的最大先前生成的记录编号的寄存器。不允许新的记录编号小于此值。当此值达到最大值时，将生成 SQLITE_FULL
+    错误。P3 寄存器更新为生成的记录编号。这种 P3 机制用于帮助实现 AUTOINCREMENT 特性。 |'
 - en: '| Next | Advance cursor P1 so that it points to the next key/data pair in its
     table or index. If there are no more key/value pairs then fall through to the
     following instruction. But if the cursor advance was successful, jump immediately
@@ -1276,9 +1801,16 @@
     omitted if that index had been unique. P3 is usually 0\. P3 is always either 0
     or 1.If P5 is positive and the jump is taken, then event counter number P5-1 in
     the prepared statement is incremented.See also: [Prev](opcode.html#Prev) |'
+  id: totrans-168
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 下一个 | 推进游标 P1，使其指向其表或索引中的下一个键/数据对。如果没有更多的键/值对，则转到下一条指令。但如果游标推进成功，则立即跳转到 P2。[下一个](opcode.html#Next)
+    操作码仅在使用 [SeekGT](opcode.html#SeekGT)，[SeekGE](opcode.html#SeekGE) 或 [Rewind](opcode.html#Rewind)
+    操作码定位游标后有效。[下一个](opcode.html#Next) 不能跟随 [SeekLT](opcode.html#SeekLT)，[SeekLE](opcode.html#SeekLE)
+    或 [Last](opcode.html#Last)。P1 游标必须针对一个真实的表，而不是伪表。P1 必须在此操作码之前已经打开，否则程序将段错误。P3
+    值是对 b 树实现的提示。如果 P3==1，表示 P1 是一个 SQL 索引，如果该索引是唯一的，则可以省略此指令。通常情况下，P3 为 0。P3 总是 0
+    或 1。如果 P5 是正数并且进行了跳转，则预处理语句中的事件计数器编号 P5-1 将会增加。另请参阅：[上一个](opcode.html#Prev) |'
 - en: '| NoConflict | If P4==0 then register P3 holds a blob constructed by [MakeRecord](opcode.html#MakeRecord).
     If P4>0 then register P3 is the first of P4 registers that form an unpacked record.Cursor
     P1 is on an index btree. If the record identified by P3 and P4 contains any NULL
@@ -1292,20 +1824,31 @@
     words, the [Next](opcode.html#Next) and [Prev](opcode.html#Prev) opcodes do not
     work after this operation.See also: [NotFound](opcode.html#NotFound), [Found](opcode.html#Found),
     [NotExists](opcode.html#NotExists) |'
+  id: totrans-169
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| NoConflict | 如果 P4==0，则寄存器 P3 持有由[MakeRecord](opcode.html#MakeRecord)构造的
+    blob。如果 P4>0，则寄存器 P3 是形成未打包记录的 P4 寄存器中的第一个。光标 P1 在一个索引 B 树上。如果由 P3 和 P4 标识的记录包含任何
+    NULL 值，则立即跳转到 P2。如果记录的所有项都不为 NULL，则进行检查以确定 P1 索引 B 树中是否有任何行具有匹配的键前缀。如果没有匹配项，则立即跳转到
+    P2。如果有匹配项，则顺序执行，并使 P1 光标指向匹配的行。该操作码类似于[NotFound](opcode.html#NotFound)，不同之处在于如果搜索键输入的任何部分为空，则始终执行分支。此操作使光标处于不能向任何方向前进的状态。换句话说，此操作后无法使用[Next](opcode.html#Next)和[Prev](opcode.html#Prev)操作码。另请参阅：[NotFound](opcode.html#NotFound)，[Found](opcode.html#Found)，[NotExists](opcode.html#NotExists)
+    |'
 - en: '| Noop | Do nothing. This instruction is often useful as a jump destination.
     |'
+  id: totrans-170
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Noop | 什么也不做。此指令通常作为跳转目标非常有用。 |'
 - en: '| Not | Interpret the value in register P1 as a boolean value. Store the boolean
     complement in register P2\. If the value in register P1 is NULL, then a NULL is
     stored in P2. |'
+  id: totrans-171
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Not | 将寄存器 P1 中的值解释为布尔值。将布尔补数存储在寄存器 P2 中。如果寄存器 P1 中的值为 NULL，则在 P2 中存储 NULL。
+    |'
 - en: '| NotExists | P1 is the index of a cursor open on an SQL table btree (with
     integer keys). P3 is an integer rowid. If P1 does not contain a record with rowid
     P3 then jump immediately to P2\. Or, if P2 is 0, raise an SQLITE_CORRUPT error.
@@ -1319,9 +1862,15 @@
     In other words, the [Next](opcode.html#Next) and [Prev](opcode.html#Prev) opcodes
     will not work following this opcode.See also: [Found](opcode.html#Found), [NotFound](opcode.html#NotFound),
     [NoConflict](opcode.html#NoConflict), [SeekRowid](opcode.html#SeekRowid) |'
+  id: totrans-172
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| NotExists | P1 是打开在 SQL 表 B 树上的游标的索引（具有整数键）。P3 是整数行 ID。如果 P1 不包含行 ID 为 P3
+    的记录，则立即跳转到 P2。或者，如果 P2 为 0，则引发 SQLITE_CORRUPT 错误。如果 P1 包含行 ID 为 P3 的记录，则使游标指向该记录，并且流穿过到下一条指令。[SeekRowid](opcode.html#SeekRowid)
+    操作码执行相同的操作，但还允许 P3 寄存器包含非整数值，此时总是执行跳转。此操作码要求 P3 始终包含整数。[NotFound](opcode.html#NotFound)
+    操作码在索引 B 树上执行相同操作（具有任意多值键）。此操作码使游标处于不能向任何方向移动的状态。换句话说，执行此操作后，[Next](opcode.html#Next)
+    和 [Prev](opcode.html#Prev) 操作码将无法工作。另请参阅：[Found](opcode.html#Found)、[NotFound](opcode.html#NotFound)、[NoConflict](opcode.html#NoConflict)、[SeekRowid](opcode.html#SeekRowid)。'
 - en: '| NotFound | If P4==0 then register P3 holds a blob constructed by [MakeRecord](opcode.html#MakeRecord).
     If P4>0 then register P3 is the first of P4 registers that form an unpacked record.Cursor
     P1 is on an index btree. If the record identified by P3 and P4 is not the prefix
@@ -1332,29 +1881,43 @@
     [Next](opcode.html#Next) and [Prev](opcode.html#Prev) opcodes do not work after
     this operation.See also: [Found](opcode.html#Found), [NotExists](opcode.html#NotExists),
     [NoConflict](opcode.html#NoConflict), [IfNoHope](opcode.html#IfNoHope) |'
+  id: totrans-173
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| NotFound | 如果 P4==0，则寄存器 P3 包含由 [MakeRecord](opcode.html#MakeRecord) 构造的
+    blob。如果 P4>0，则寄存器 P3 是形成未打包记录的 P4 寄存器中的第一个。游标 P1 在索引 B 树上。如果由 P3 和 P4 标识的记录不是
+    P1 中任何条目的前缀，则跳转到 P2。如果 P1 包含其前缀与 P3/P4 记录匹配的条目，则控制流穿过到下一条指令，并且 P1 指向匹配条目。此操作使游标处于不能向任何方向移动的状态。换句话说，执行此操作后，[Next](opcode.html#Next)
+    和 [Prev](opcode.html#Prev) 操作码将无法工作。另请参阅：[Found](opcode.html#Found)、[NotExists](opcode.html#NotExists)、[NoConflict](opcode.html#NoConflict)、[IfNoHope](opcode.html#IfNoHope)。'
 - en: '| NotNull | Jump to P2 if the value in register P1 is not NULL. |'
+  id: totrans-174
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| NotNull | 如果寄存器 P1 中的值不为 NULL，则跳转到 P2。'
 - en: '| Null | Write a NULL into registers P2\. If P3 greater than P2, then also
     write NULL into register P3 and every register in between P2 and P3\. If P3 is
     less than P2 (typically P3 is zero) then only register P2 is set to NULL.If the
     P1 value is non-zero, then also set the MEM_Cleared flag so that NULL values will
     not compare equal even if SQLITE_NULLEQ is set on [Ne](opcode.html#Ne) or [Eq](opcode.html#Eq).
     |'
+  id: totrans-175
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Null | 向寄存器 P2 写入 NULL。如果 P3 大于 P2，则还将 NULL 写入寄存器 P3 及其之间的每个寄存器。如果 P3 小于
+    P2（通常 P3 为零），则只有寄存器 P2 被设置为 NULL。如果 P1 值非零，则还设置 MEM_Cleared 标志，使得即使在 [Ne](opcode.html#Ne)
+    或 [Eq](opcode.html#Eq) 上设置了 SQLITE_NULLEQ，NULL 值也不会相等。 |'
 - en: '| NullRow | Move the cursor P1 to a null row. Any [Column](opcode.html#Column)
     operations that occur while the cursor is on the null row will always write a
     NULL.If cursor P1 is not previously opened, open it now to a special pseudo-cursor
     that always returns NULL for every column. |'
+  id: totrans-176
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| NullRow | 将游标 P1 移动到空行。当游标位于空行时，任何 [Column](opcode.html#Column) 操作都将始终写入
+    NULL。如果游标 P1 尚未打开，则现在将其打开为一个特殊的伪游标，该伪游标对每列始终返回 NULL。 |'
 - en: '| Offset | Store in register r[P3] the byte offset into the database file that
     is the start of the payload for the record at which that cursor P1 is currently
     pointing.P2 is the column number for the argument to the sqlite_offset() function.
@@ -1362,9 +1925,13 @@
     The P1, P2, and P3 operands to this opcode are the same as for [Column](opcode.html#Column).This
     opcode is only available if SQLite is compiled with the -DSQLITE_ENABLE_OFFSET_SQL_FUNC
     option. |'
+  id: totrans-177
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Offset | 将数据库文件中指针 P1 当前指向记录的有效载荷的字节偏移量存储在寄存器 r[P3] 中。P2 是 sqlite_offset()
+    函数参数的列编号。此操作码不直接使用 P2，但代码生成器使用 P2 的值。此操作码的 P1、P2 和 P3 操作数与 [Column](opcode.html#Column)
+    相同。仅当 SQLite 编译时启用了 -DSQLITE_ENABLE_OFFSET_SQL_FUNC 选项时，此操作码可用。 |'
 - en: '| OffsetLimit | This opcode performs a commonly used computation associated
     with LIMIT and OFFSET processing. r[P1] holds the limit counter. r[P3] holds the
     offset counter. The opcode computes the combined value of the LIMIT and OFFSET
@@ -1373,9 +1940,14 @@
     or negative, that means there is no OFFSET and r[P2] is set to be the value of
     the LIMIT, r[P1].if r[P1] is zero or negative, that means there is no LIMIT and
     r[P2] is set to -1.Otherwise, r[P2] is set to the sum of r[P1] and r[P3]. |'
+  id: totrans-178
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| OffsetLimit | 此操作码执行与 LIMIT 和 OFFSET 处理相关的常用计算。r[P1] 保存限制计数器。r[P3] 保存偏移计数器。操作码计算
+    LIMIT 和 OFFSET 的组合值，并将该值存储在 r[P2] 中。计算得到的 r[P2] 值是完成查询所需访问的总行数。如果 r[P3] 为零或负数，则表示没有
+    OFFSET，r[P2] 被设置为 LIMIT 的值 r[P1]。如果 r[P1] 为零或负数，则表示没有 LIMIT，r[P2] 被设置为 -1。否则，r[P2]
+    被设置为 r[P1] 和 r[P3] 的和。 |'
 - en: '| Once | Fall through to the next instruction the first time this opcode is
     encountered on each invocation of the byte-code program. [Jump](opcode.html#Jump)
     to P2 on the second and all subsequent encounters during the same invocation.Top-level
@@ -1386,22 +1958,33 @@
     jump.For subprograms, there is a bitmask in the VdbeFrame that determines whether
     or not the jump should be taken. The bitmask is necessary because the self-altering
     code trick does not work for recursive triggers. |'
+  id: totrans-179
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Once | 第一次遇到此操作码时，执行下一条指令。在字节码程序的每次调用中的第二次及后续遇到时，跳转到 P2。顶级程序通过比较此操作码的 P1
+    操作数与程序开头的 [Init](opcode.html#Init) 操作码的 P1 操作数来确定第一次调用。如果 P1 值不同，则执行下一条指令并使此操作码的
+    P1 等于 [Init](opcode.html#Init) 的 P1。如果 P1 值相同，则跳转。对于子程序，VdbeFrame 中有一个位掩码，用于确定是否应该执行跳转。该位掩码是必要的，因为自修改代码技巧对递归触发器不起作用。
+    |'
 - en: '| OpenAutoindex | This opcode works the same as [OpenEphemeral](opcode.html#OpenEphemeral).
     It has a different name to distinguish its use. Tables created using by this opcode
     will be used for automatically created transient indices in joins. |'
+  id: totrans-180
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| OpenAutoindex | 此操作码与 [OpenEphemeral](opcode.html#OpenEphemeral) 相同。它有一个不同的名称来区分其用途。使用此操作码创建的表将用于在连接中自动创建的临时索引。
+    |'
 - en: '| OpenDup | Open a new cursor P1 that points to the same ephemeral table as
     cursor P2\. The P2 cursor must have been opened by a prior [OpenEphemeral](opcode.html#OpenEphemeral)
     opcode. Only ephemeral cursors may be duplicated.Duplicate ephemeral cursors are
     used for self-joins of materialized views. |'
+  id: totrans-181
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| OpenDup | 打开一个新的光标 P1，指向与光标 P2 相同的临时表。P2 光标必须已经通过之前的 [OpenEphemeral](opcode.html#OpenEphemeral)
+    操作码打开。只有临时表光标可以被复制。复制的临时表光标用于材料化视图的自连接。 |'
 - en: '| OpenEphemeral | Open a new cursor P1 to a transient table. The cursor is
     always opened read/write even if the main database is read-only. The ephemeral
     table is deleted automatically when the cursor is closed.If the cursor P1 is already
@@ -1415,9 +1998,16 @@
     it can be used as zero-length data for [Insert](opcode.html#Insert). This is an
     optimization that avoids an extra [Blob](opcode.html#Blob) opcode to initialize
     that register. |'
+  id: totrans-182
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| OpenEphemeral | 打开一个指向临时表的新游标 P1。即使主数据库是只读的，该游标始终以读/写方式打开。当游标关闭时，临时表会自动删除。如果游标
+    P1 已经在一个临时表上打开，则清除该表（所有内容被删除）。P2 是临时表中的列数。如果 P4==0，则游标指向一个 BTree 表；如果 P4 不为 0，则指向
+    BTree 索引。如果 P4 不为空，则指向一个 KeyInfo 结构，定义索引中键的格式。P5 参数可以是 btree.h 中定义的 BTREE_* 标志的掩码。这些标志控制
+    BTree 操作的各个方面。BTREE_OMIT_JOURNAL 和 BTREE_SINGLE 标志会自动添加。如果 P3 是正数，则稍微修改 reg[P3]，以便它可以用作
+    [Insert](opcode.html#Insert) 中的零长度数据。这是一种优化，避免了额外的 [Blob](opcode.html#Blob) 操作码来初始化该寄存器。
+    |'
 - en: '| OpenPseudo | Open a new cursor that points to a fake table that contains
     a single row of data. The content of that one row is the content of memory register
     P2\. In other words, cursor P1 becomes an alias for the MEM_Blob content contained
@@ -1427,26 +2017,37 @@
     opcode is the only cursor opcode that works with a pseudo-table.P3 is the number
     of fields in the records that will be stored by the pseudo-table. If P2 is 0 or
     negative then the pseudo-cursor will return NULL for every column. |'
+  id: totrans-183
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| OpenPseudo | 打开一个新的游标，指向一个虚拟表，该表包含单行数据。那一行的内容就是内存寄存器 P2 中的 MEM_Blob 内容。换句话说，游标
+    P1 成为寄存器 P2 中 MEM_Blob 内容的别名。由此操作码创建的伪表用于保存排序器输出的单行数据，以便可以使用 [Column](opcode.html#Column)
+    操作码将行分解为单独的列。[Column](opcode.html#Column) 操作码是唯一与伪表一起工作的游标操作码。P3 是记录中将由伪表存储的字段数。如果
+    P2 是 0 或负数，则伪游标将对每一列返回 NULL。'
 - en: '| OpenRead | Open a read-only cursor for the database table whose root page
     is P2 in a database file. The database file is determined by P3. P3==0 means the
     main database, P3==1 means the database used for temporary tables, and P3>1 means
     used the corresponding attached database. Give the new cursor an identifier of
     P1\. The P1 values need not be contiguous but all P1 values should be small integers.
     It is an error for P1 to be negative.Allowed P5 bits:'
+  id: totrans-184
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '| OpenRead | 在数据库文件中，以 P2 为根页打开一个只读游标。数据库文件由 P3 确定。P3==0 表示主数据库，P3==1 表示用于临时表的数据库，P3>1
+    表示使用相应的附加数据库。为新游标分配标识符 P1。P1 的值不需要连续，但所有 P1 值应为小整数。P1 为负数是错误的。允许的 P5 位：'
 - en: '**0x02 OPFLAG_SEEKEQ**: This cursor will only be used for equality lookups
     (implemented as a pair of opcodes [SeekGE](opcode.html#SeekGE)/[IdxGT](opcode.html#IdxGT)
     of [SeekLE](opcode.html#SeekLE)/[IdxLT](opcode.html#IdxLT))'
+  id: totrans-185
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**0x02 OPFLAG_SEEKEQ**：此游标仅用于等值查找（实现为一对操作码[SeekGE](opcode.html#SeekGE)/[IdxGT](opcode.html#IdxGT)或[SeekLE](opcode.html#SeekLE)/[IdxLT](opcode.html#IdxLT)）。'
 - en: ''
+  id: totrans-186
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
@@ -1457,9 +2058,14 @@
     P4 is an integer value, then the table being opened must be a [table b-tree](fileformat2.html#btypes)
     with a number of columns no less than the value of P4.See also: [OpenWrite](opcode.html#OpenWrite),
     [ReopenIdx](opcode.html#ReopenIdx) |'
+  id: totrans-187
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: P4 值可以是整数（P4_INT32），也可以是指向 KeyInfo 结构体的指针（P4_KEYINFO）。如果是指向 KeyInfo 对象的指针，则打开的表必须是一个[索引
+    B 树](fileformat2.html#btypes)，其中 KeyInfo 对象定义了该索引 B 树的内容和排序顺序。否则，如果 P4 是一个整数值，则打开的表必须是一个[表
+    B 树](fileformat2.html#btypes)，其列数不少于 P4 的值。参见：[OpenWrite](opcode.html#OpenWrite),
+    [ReopenIdx](opcode.html#ReopenIdx)。
 - en: '| OpenWrite | Open a read/write cursor named P1 on the table or index whose
     root page is P2 (or whose root page is held in register P2 if the OPFLAG_P2ISREG
     bit is set in P5 - see below).The P4 value may be either an integer (P4_INT32)
@@ -1469,52 +2075,73 @@
     b-tree. Otherwise, if P4 is an integer value, then the table being opened must
     be a [table b-tree](fileformat2.html#btypes) with a number of columns no less
     than the value of P4.Allowed P5 bits:'
+  id: totrans-188
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '| OpenWrite | 在根页为 P2 的表或索引上打开一个读写游标，并且如果 OPFLAG_P2ISREG 位在 P5 中设置，则根页在寄存器
+    P2 中。P4 值可以是整数（P4_INT32），也可以是指向 KeyInfo 结构体的指针（P4_KEYINFO）。如果是指向 KeyInfo 对象的指针，则打开的表必须是一个[索引
+    B 树](fileformat2.html#btypes)，其中 KeyInfo 对象定义了该索引 B 树的内容和排序顺序。否则，如果 P4 是一个整数值，则打开的表必须是一个[表
+    B 树](fileformat2.html#btypes)，其列数不少于 P4。允许的 P5 位：'
 - en: '**0x02 OPFLAG_SEEKEQ**: This cursor will only be used for equality lookups
     (implemented as a pair of opcodes [SeekGE](opcode.html#SeekGE)/[IdxGT](opcode.html#IdxGT)
     of [SeekLE](opcode.html#SeekLE)/[IdxLT](opcode.html#IdxLT))'
+  id: totrans-189
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**0x02 OPFLAG_SEEKEQ**: 此游标仅用于等值查找（实现为操作码对 [SeekGE](opcode.html#SeekGE)/[IdxGT](opcode.html#IdxGT)
+    或 [SeekLE](opcode.html#SeekLE)/[IdxLT](opcode.html#IdxLT)）。'
 - en: '**0x08 OPFLAG_FORDELETE**: This cursor is used only to seek and subsequently
     delete entries in an index btree. This is a hint to the storage engine that the
     storage engine is allowed to ignore. The hint is not used by the official SQLite
     b*tree storage engine, but is used by COMDB2.'
+  id: totrans-190
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**0x08 OPFLAG_FORDELETE**: 此游标仅用于在索引 B 树中查找并随后删除条目。这是对存储引擎的提示，存储引擎可以忽略。这个提示不被官方的
+    SQLite B 树存储引擎使用，但被 COMDB2 使用。'
 - en: '**0x10 OPFLAG_P2ISREG**: Use the content of register P2 as the root page, not
     the value of P2 itself.'
+  id: totrans-191
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**0x10 OPFLAG_P2ISREG**: 使用寄存器 P2 的内容作为根页，而不是 P2 本身的值。'
 - en: ''
+  id: totrans-192
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
 - en: 'This instruction works like [OpenRead](opcode.html#OpenRead) except that it
     opens the cursor in read/write mode.See also: [OpenRead](opcode.html#OpenRead),
     [ReopenIdx](opcode.html#ReopenIdx) |'
+  id: totrans-193
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 此指令的工作方式类似于 [OpenRead](opcode.html#OpenRead)，但是以读/写模式打开游标。参见：[OpenRead](opcode.html#OpenRead)，[ReopenIdx](opcode.html#ReopenIdx)。
 - en: '| Or | Take the logical OR of the values in register P1 and P2 and store the
     answer in register P3.If either P1 or P2 is nonzero (true) then the result is
     1 (true) even if the other input is NULL. A NULL and false or two NULLs give a
     NULL output. |'
+  id: totrans-194
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Or | 取寄存器 P1 和 P2 中的值逻辑 OR 并将结果存储在寄存器 P3 中。如果 P1 或 P2 中任何一个是非零（真），则结果为 1（真），即使另一个输入为
+    NULL。NULL 和 false 或两个 NULL 均会输出 NULL。'
 - en: '| Pagecount | Write the current number of pages in database P1 to memory cell
     P2. |'
+  id: totrans-195
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Pagecount | 将数据库 P1 中当前页面的数量写入内存单元 P2。'
 - en: '| Param | This opcode is only ever present in sub-programs called via the [Program](opcode.html#Program)
     instruction. [Copy](opcode.html#Copy) a value currently stored in a memory cell
     of the calling (parent) frame to cell P2 in the current frames address space.
@@ -1522,25 +2149,36 @@
     of the cell in the parent frame is determined by adding the value of the P1 argument
     to the value of the P1 argument to the calling [Program](opcode.html#Program)
     instruction. |'
+  id: totrans-196
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Param | 此操作码仅出现在通过 [Program](opcode.html#Program) 指令调用的子程序中。将存储在调用（父级）帧内存单元中的值复制到当前帧地址空间中的单元
+    P2 中。触发器程序使用此操作来访问 new.* 和 old.* 值。父帧中的单元地址由将 P1 参数的值添加到调用 [Program](opcode.html#Program)
+    指令的 P1 参数的值来确定。'
 - en: '| ParseSchema | Read and parse all entries from the schema table of database
     P1 that match the WHERE clause P4\. If P4 is a NULL pointer, then the entire schema
     for P1 is reparsed.This opcode invokes the parser to create a new virtual machine,
     then runs the new virtual machine. It is thus a re-entrant opcode. |'
+  id: totrans-197
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ParseSchema | 读取并解析与 WHERE 子句 P4 匹配的数据库 P1 的模式表中的所有条目。如果 P4 是一个空指针，则重新解析
+    P1 的整个模式。此操作码调用解析器来创建一个新的虚拟机，然后运行新的虚拟机。因此，这是一个可重入的操作码。'
 - en: '| Permutation | Set the permutation used by the [Compare](opcode.html#Compare)
     operator in the next instruction. The permutation is stored in the P4 operand.The
     permutation is only valid for the next opcode which must be an [Compare](opcode.html#Compare)
     that has the OPFLAG_PERMUTE bit set in P5.The first integer in the P4 integer
     array is the length of the array and does not become part of the permutation.
     |'
+  id: totrans-198
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 排列 | 设置下一条指令中 [Compare](opcode.html#Compare) 运算符使用的排列。排列存储在 P4 操作数中。该排列仅对下一条必须具有
+    P5 中设置了 OPFLAG_PERMUTE 位的 [Compare](opcode.html#Compare) 操作码有效。P4 整数数组中的第一个整数是数组的长度，并不成为排列的一部分。
+    |'
 - en: '| Prev | Back up cursor P1 so that it points to the previous key/data pair
     in its table or index. If there is no previous key/value pairs then fall through
     to the following instruction. But if the cursor backup was successful, jump immediately
@@ -1554,9 +2192,16 @@
     had been unique. P3 is usually 0\. P3 is always either 0 or 1.If P5 is positive
     and the jump is taken, then event counter number P5-1 in the prepared statement
     is incremented. |'
+  id: totrans-199
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Prev | 将游标 P1 后退，使其指向其表或索引中的前一个键/数据对。如果没有前一个键/值对，则直接跳到下一条指令。但如果游标后退成功，则立即跳转到
+    P2。[Prev](opcode.html#Prev) 操作码仅在使用 [SeekLT](opcode.html#SeekLT)、[SeekLE](opcode.html#SeekLE)
+    或 [Last](opcode.html#Last) 操作码定位游标后有效。[Prev](opcode.html#Prev) 不允许跟随 [SeekGT](opcode.html#SeekGT)、[SeekGE](opcode.html#SeekGE)
+    或 [Rewind](opcode.html#Rewind) 操作码。P1 游标必须为真实表，不能为伪表。如果 P1 未打开，则行为未定义。P3 值是对 btree
+    实现的提示。如果 P3==1，则表示 P1 是 SQL 索引，并且如果该索引是唯一的，则可以省略此指令。通常 P3 为 0。P3 始终为 0 或 1。如果
+    P5 为正数且执行跳转，则预处理语句中的事件计数器编号 P5-1 将会递增。 |'
 - en: '| Program | Execute the trigger program passed as P4 (type P4_SUBPROGRAM).P1
     contains the address of the memory cell that contains the first memory cell in
     an array of values used as arguments to the sub-program. P2 contains the address
@@ -1566,9 +2211,13 @@
     VM that is used to allocate the memory required by the sub-vdbe at runtime.P4
     is a pointer to the VM containing the trigger program.If P5 is non-zero, then
     recursive program invocation is enabled. |'
+  id: totrans-200
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 程序 | 执行作为 P4（类型 P4_SUBPROGRAM）传递的触发程序。P1 包含包含用作子程序参数的值数组中第一个内存单元的内存单元的地址。如果子程序使用
+    RAISE() 函数抛出 IGNORE 异常，则 P2 包含要跳转到的地址。如果不可能引发 IGNORE 异常，则 P2 可能为零。寄存器 P3 包含在此（父级）虚拟机中用于运行时分配子
+    vdbe 所需内存的内存单元的地址。P4 是指向包含触发程序的虚拟机的指针。如果 P5 非零，则启用递归程序调用。'
 - en: '| PureFunc | Invoke a user function (P4 is a pointer to an sqlite3_context
     object that contains a pointer to the function to be run) with arguments taken
     from register P2 and successors. The number of arguments is in the sqlite3_context
@@ -1586,30 +2235,46 @@
     using [PureFunc](opcode.html#PureFunc) instead of [Function](opcode.html#Function),
     and if they were, they throw an error.See also: [AggStep](opcode.html#AggStep),
     [AggFinal](opcode.html#AggFinal), [Function](opcode.html#Function) |'
+  id: totrans-201
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| PureFunc | 使用来自寄存器 P2 和其后继寄存器的参数调用用户函数（P4 是指向 sqlite3_context 对象的指针，该对象包含要运行的函数的指针）。参数的数量存储在
+    P4 指向的 sqlite3_context 对象中。函数的结果存储在寄存器 P3 中。寄存器 P3 不能是函数输入之一。P1 是一个 32 位位掩码，指示编译时每个函数参数是否被确定为常量。如果第一个参数是常量，则设置
+    P1 的位 0。这用于确定是否可以安全地保留与用户函数参数相关联的元数据，使用 sqlite3_set_auxdata() API 直到下次调用此操作码。此操作码的工作方式与
+    [Function](opcode.html#Function) 完全相同。唯一的区别在于它的名称。此操作码用于必须纯粹是非确定性的函数的位置。某些内置日期/时间函数可以是确定性的或非确定性的，这取决于它们的参数。当以非确定性方式使用这些函数时，它们将检查是否使用
+    [PureFunc](opcode.html#PureFunc) 而不是 [Function](opcode.html#Function) 进行调用，如果是，则抛出错误。另请参阅：[AggStep](opcode.html#AggStep)，[AggFinal](opcode.html#AggFinal)，[Function](opcode.html#Function)
+    |'
 - en: '| ReadCookie | Read cookie number P3 from database P1 and write it into register
     P2. P3==1 is the schema version. P3==2 is the database format. P3==3 is the recommended
     pager cache size, and so forth. P1==0 is the main database file and P1==1 is the
     database file used to store temporary tables.There must be a read-lock on the
     database (either a transaction must be started or there must be an open cursor)
     before executing this instruction. |'
+  id: totrans-202
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ReadCookie | 从数据库 P1 中读取 cookie 编号 P3，并将其写入寄存器 P2。P3==1 是模式版本。P3==2 是数据库格式。P3==3
+    是推荐的分页缓存大小，等等。P1==0 是主数据库文件，P1==1 是用于存储临时表的数据库文件。在执行此指令之前，必须对数据库进行读锁定（要么启动事务，要么打开游标）。
+    |'
 - en: '| Real | P4 is a pointer to a 64-bit floating point value. Write that value
     into register P2. |'
+  id: totrans-203
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Real | P4 是指向 64 位浮点值的指针。将该值写入寄存器 P2。 |'
 - en: '| RealAffinity | If register P1 holds an integer convert it to a real value.This
     opcode is used when extracting information from a column that has REAL affinity.
     Such column values may still be stored as integers, for space efficiency, but
     after extraction we want them to have only a real value. |'
+  id: totrans-204
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| RealAffinity | 如果寄存器P1保存的是整数，则将其转换为实数值。当从具有REAL亲和力的列中提取信息时使用此操作码。这样的列值可能仍然以整数形式存储，以节省空间，但在提取后，我们希望它们只有实数值。
+    |'
 - en: '| ReleaseReg | Release registers from service. Any content that was in the
     the registers is unreliable after this opcode completes.The registers released
     will be the P2 registers starting at P1, except if bit ii of P3 set, then do not
@@ -1627,15 +2292,21 @@
     only available in testing and debugging builds. It is not generated for release
     builds. The purpose of this opcode is to help validate the generated bytecode.
     This opcode does not actually contribute to computing an answer. |'
+  id: totrans-205
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ReleaseReg | 释放服务中的注册信息。此操作完成后，注册中的任何内容都不再可靠。释放的注册将从P1开始的P2注册，但如果P3的第ii位设置，则不释放注册P1+ii。换句话说，P3是要保留的注册掩码。释放注册会清除Mem.pScopyFrom指针。这意味着，如果释放的注册内容是使用[SCopy](opcode.html#SCopy)设置的，则对[SCopy](opcode.html#SCopy)的源寄存器值的更改将不再在sqlite3VdbeMemAboutToChange()中生成断言故障。如果设置了P5，则所有释放的寄存器的类型都设置为MEM_Undefined，因此在重新初始化之前尝试读取释放的寄存器（P5应该在调用此操作码时设置。然而，在代码生成器中有一些地方会在使用之前释放寄存器，在（有效的）假设下，寄存器在被使用之前不会被重新分配给其他目的，因此可以安全释放。此操作码仅在测试和调试构建中可用。它不会为发布构建生成。此操作码的目的是帮助验证生成的字节码。此操作码实际上不会对计算答案产生贡献。
+    |'
 - en: '| Remainder | Compute the remainder after integer register P2 is divided by
     register P1 and store the result in register P3. If the value in register P1 is
     zero the result is NULL. If either operand is NULL, the result is NULL. |'
+  id: totrans-206
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Remainder | 计算整数寄存器P2除以寄存器P1后的余数，并将结果存储在寄存器P3中。如果寄存器P1中的值为零，则结果为NULL。如果任一操作数为NULL，则结果也为NULL。
+    |'
 - en: '| ReopenIdx | The [ReopenIdx](opcode.html#ReopenIdx) opcode works like [OpenRead](opcode.html#OpenRead)
     except that it first checks to see if the cursor on P1 is already open on the
     same b-tree and if it is this opcode becomes a no-op. In other words, if the cursor
@@ -1643,45 +2314,64 @@
     may only be used with P5==0 or P5==OPFLAG_SEEKEQ and with P4 being a P4_KEYINFO
     object. Furthermore, the P3 value must be the same as every other [ReopenIdx](opcode.html#ReopenIdx)
     or [OpenRead](opcode.html#OpenRead) for the same cursor number.Allowed P5 bits:'
+  id: totrans-207
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '| ReopenIdx | [ReopenIdx](opcode.html#ReopenIdx) 操作码的工作方式类似于 [OpenRead](opcode.html#OpenRead)，不同之处在于它首先检查P1上的游标是否已在相同的B树上打开，如果是，则此操作码变为无操作。换句话说，如果游标已经打开，请不要重新打开它。[ReopenIdx](opcode.html#ReopenIdx)
+    操作码仅可与P5==0或P5==OPFLAG_SEEKEQ并且P4为P4_KEYINFO对象一起使用。此外，P3的值必须与相同游标号的每个其他 [ReopenIdx](opcode.html#ReopenIdx)
+    或 [OpenRead](opcode.html#OpenRead) 的值相同。允许的P5位：'
 - en: '**0x02 OPFLAG_SEEKEQ**: This cursor will only be used for equality lookups
     (implemented as a pair of opcodes [SeekGE](opcode.html#SeekGE)/[IdxGT](opcode.html#IdxGT)
     of [SeekLE](opcode.html#SeekLE)/[IdxLT](opcode.html#IdxLT))'
+  id: totrans-208
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**0x02 OPFLAG_SEEKEQ**：此游标仅用于相等查找（实现为一对操作码 [SeekGE](opcode.html#SeekGE)/[IdxGT](opcode.html#IdxGT)
+    或 [SeekLE](opcode.html#SeekLE)/[IdxLT](opcode.html#IdxLT)）'
 - en: ''
+  id: totrans-209
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
 - en: 'See also: [OpenRead](opcode.html#OpenRead), [OpenWrite](opcode.html#OpenWrite)
     |'
+  id: totrans-210
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 参见：[OpenRead](opcode.html#OpenRead)，[OpenWrite](opcode.html#OpenWrite) |
 - en: '| ResetCount | The value of the change counter is copied to the database handle
     change counter (returned by subsequent calls to sqlite3_changes()). Then the VMs
     internal change counter resets to 0. This is used by trigger programs. |'
+  id: totrans-211
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ResetCount | 将变更计数器的值复制到数据库句柄的变更计数器（由后续调用sqlite3_changes()返回）。然后，虚拟机内部的变更计数器重置为0。这在触发程序中使用。
+    |'
 - en: '| ResetSorter | Delete all contents from the ephemeral table or sorter that
     is open on cursor P1.This opcode only works for cursors used for sorting and opened
     with [OpenEphemeral](opcode.html#OpenEphemeral) or [SorterOpen](opcode.html#SorterOpen).
     |'
+  id: totrans-212
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ResetSorter | 删除游标P1上打开的临时表或排序器的所有内容。此操作码仅适用于用于排序并使用 [OpenEphemeral](opcode.html#OpenEphemeral)
+    或 [SorterOpen](opcode.html#SorterOpen) 打开的游标。 |'
 - en: '| ResultRow | The registers P1 through P1+P2-1 contain a single row of results.
     This opcode causes the sqlite3_step() call to terminate with an SQLITE_ROW return
     code and it sets up the sqlite3_stmt structure to provide access to the r(P1)..r(P1+P2-1)
     values as the result row. |'
+  id: totrans-213
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ResultRow | 寄存器P1至P1+P2-1包含单行结果。此操作码导致sqlite3_step()调用以SQLITE_ROW返回代码终止，并设置sqlite3_stmt结构以访问r(P1)..r(P1+P2-1)值作为结果行。
+    |'
 - en: '| Return | Jump to the address stored in register P1\. If P1 is a return address
     register, then this accomplishes a return from a subroutine.If P3 is 1, then the
     jump is only taken if register P1 holds an integer values, otherwise execution
@@ -1695,9 +2385,16 @@
     the current [Return](opcode.html#Return). P2 should be the first opcode in the
     subroutine from which this opcode is returning. Thus the P2 value is a byte-code
     indentation hint. See tag-20220407a in wherecode.c and shell.c. |'
+  id: totrans-214
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Return | 跳转到存储在寄存器 P1 中的地址。如果 P1 是一个返回地址寄存器，那么这将完成从子程序的返回。如果 P3 为 1，则只有当寄存器
+    P1 包含整数值时才会进行跳转，否则执行会顺序到达下一个操作码，并且[返回](opcode.html#Return)将变为一个空操作。如果 P3 为 0，则寄存器
+    P1 必须包含一个整数，否则将会触发 assert()。在此操作码与[BeginSubrtn](opcode.html#BeginSubrtn)组合使用时，P3
+    应设置为 1，否则设置为 0。寄存器 P1 的值不会因此操作码而改变。P2 不会被字节码引擎使用。但是，如果 P2 是正数并且小于当前地址，则 CLI 中的
+    "EXPLAIN" 输出格式化程序将缩进从 P2 操作码开始的所有操作码，直到但不包括当前的[返回](opcode.html#Return)。P2 应为此操作码返回的子程序中的第一个操作码。因此，P2
+    的值是一个字节码缩进提示。详见 tag-20220407a 中的 wherecode.c 和 shell.c。 |'
 - en: '| Rewind | The next use of the [Rowid](opcode.html#Rowid) or [Column](opcode.html#Column)
     or [Next](opcode.html#Next) instruction for P1 will refer to the first entry in
     the database table or index. If the table or index is empty, jump immediately
@@ -1706,9 +2403,13 @@
     jump will never be taken.This opcode leaves the cursor configured to move in forward
     order, from the beginning toward the end. In other words, the cursor is configured
     to use [Next](opcode.html#Next), not [Prev](opcode.html#Prev). |'
+  id: totrans-215
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Rewind | 下一个使用寄存器 P1 的[Rowid](opcode.html#Rowid)、[Column](opcode.html#Column)或[Next](opcode.html#Next)指令将引用数据库表或索引中的第一条目。如果表或索引为空，则立即跳转到
+    P2。如果表或索引不为空，则继续执行下一条指令。如果 P2 为零，则断言 P1 表永远不会为空，因此跳转永远不会发生。此操作码使游标配置为按正序移动，从开头向末尾移动。换句话说，游标配置为使用[Next](opcode.html#Next)，而不是[Prev](opcode.html#Prev)。
+    |'
 - en: '| RowCell | P1 and P2 are both open cursors. Both must be opened on the same
     type of table - intkey or index. This opcode is used as part of copying the current
     row from P2 into P1\. If the cursors are opened on intkey tables, register P3
@@ -1716,9 +2417,14 @@
     tables, P3 is not used.This opcode must be followed by either an [Insert](opcode.html#Insert)
     or InsertIdx opcode with the OPFLAG_PREFORMAT flag set to complete the insert
     operation. |'
+  id: totrans-216
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| RowCell | P1 和 P2 都是打开的游标。它们必须在同一类型的表上打开 - intkey 或者 index。这个操作码用作将 P2 当前行复制到
+    P1 中的一部分。如果游标打开在 intkey 表上，寄存器 P3 包含要在 P1 中新记录中使用的 rowid。如果它们打开在 index 表上，则不使用
+    P3。这个操作码后必须跟随 [Insert](opcode.html#Insert) 或者带有 OPFLAG_PREFORMAT 标志的 InsertIdx
+    操作码，以完成插入操作。 |'
 - en: '| RowData | Write into register P2 the complete row content for the row at
     which cursor P1 is currently pointing. There is no interpretation of the data.
     It is just copied onto the P2 register exactly as it is found in the database
@@ -1734,27 +2440,42 @@
     OP_Result and any OP_Result will invalidate the P2 register content. The P2 register
     content is invalidated by opcodes like [Function](opcode.html#Function) or by
     any use of another cursor pointing to the same table. |'
+  id: totrans-217
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| RowData | 将游标 P1 当前指向的行的完整行内容写入到寄存器 P2 中。数据不进行解释，只是准确地复制到数据库文件中找到的 P2 寄存器中。如果游标
+    P1 是索引，则内容是行的键。如果游标 P2 是表，则提取的内容是数据。如果 P1 游标必须指向实际表（而不是伪表）的有效行（而不是 NULL 行）。如果
+    P3!=0，则允许此操作码创建一个对数据库页面的临时指针。这意味着输出寄存器的内容将在游标移动时无效化 - 包括其他游标引起的移动，这些游标“保存”当前游标位置以便它们可以写入同一表。如果
+    P3==0，则数据的副本将复制到内存中。P3!=0 更快，但 P3==0 更安全。如果 P3!=0，则 P2 寄存器的内容不适合在 OP_Result 中使用，并且任何
+    OP_Result 将使 P2 寄存器内容无效。P2 寄存器内容将被诸如 [Function](opcode.html#Function) 的操作码无效化，或者由指向同一表的其他游标的任何使用无效化。
+    |'
 - en: '| Rowid | Store in register P2 an integer which is the key of the table entry
     that P1 is currently point to.P1 can be either an ordinary table or a virtual
     table. There used to be a separate OP_VRowid opcode for use with virtual tables,
     but this one opcode now works for both table types. |'
+  id: totrans-218
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Rowid | 在寄存器 P2 中存储一个整数，这个整数是 P1 当前指向的表条目的键。P1 可以是普通表或虚拟表。曾经有一个用于虚拟表的单独的
+    OP_VRowid 操作码，但是现在这个操作码适用于两种表类型。 |'
 - en: '| RowSetAdd | Insert the integer value held by register P2 into a RowSet object
     held in register P1.An assertion fails if P2 is not an integer. |'
+  id: totrans-219
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| RowSetAdd | 将寄存器 P2 中持有的整数值插入到寄存器 P1 中持有的 RowSet 对象中。如果 P2 不是整数，则断言失败。 |'
 - en: '| RowSetRead | Extract the smallest value from the RowSet object in P1 and
     put that value into register P3. Or, if RowSet object P1 is initially empty, leave
     P3 unchanged and jump to instruction P2. |'
+  id: totrans-220
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| RowSetRead | 从 P1 中的 RowSet 对象中提取最小值，并将该值放入寄存器 P3 中。如果 RowSet 对象 P1 最初为空，则不改变
+    P3 并跳转到指令 P2。 |'
 - en: '| RowSetTest | Register P3 is assumed to hold a 64-bit integer value. If register
     P1 contains a RowSet object and that RowSet object contains the value held in
     P3, jump to register P2\. Otherwise, insert the integer in P3 into the RowSet
@@ -1768,32 +2489,47 @@
     is part of set X is inserted, there is no need to search to see if the same value
     was previously inserted as part of set X (only if it was previously inserted as
     part of some other set). |'
+  id: totrans-221
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| RowSetTest | 假设寄存器 P3 包含一个 64 位整数值。如果寄存器 P1 包含一个 RowSet 对象，并且该 RowSet 对象包含寄存器
+    P3 中的值，则跳转到寄存器 P2。否则，将寄存器 P3 中的整数插入 RowSet 并继续下一个操作码。RowSet 对象优化用于不同阶段插入整数集的情况，其中每个集合不包含重复项。每个集合由唯一的
+    P4 值标识。第一个集合必须具有 P4==0，最后一个集合必须具有 P4==-1，而所有其他集合必须具有 P4>0。这允许优化：（a）当 P4==0 时，无需测试
+    RowSet 对象是否包含 P3，因为保证不包含，（b）当 P4==-1 时，无需插入该值，因为永远不会进行测试，以及（c）当插入作为 X 集合的一部分的值时，无需搜索以查看该值是否先前作为其他集合的一部分插入。
+    |'
 - en: '| Savepoint | Open, release or rollback the savepoint named by parameter P4,
     depending on the value of P1\. To open a new savepoint set P1==0 (SAVEPOINT_BEGIN).
     To release (commit) an existing savepoint set P1==1 (SAVEPOINT_RELEASE). To rollback
     an existing savepoint set P1==2 (SAVEPOINT_ROLLBACK). |'
+  id: totrans-222
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Savepoint | 根据 P1 的值，打开、释放或回滚名为 P4 的保存点。要打开一个新的保存点，设置 P1==0（SAVEPOINT_BEGIN）。要释放（提交）一个现有的保存点，设置
+    P1==1（SAVEPOINT_RELEASE）。要回滚一个现有的保存点，设置 P1==2（SAVEPOINT_ROLLBACK）。 |'
 - en: '| SCopy | Make a shallow copy of register P1 into register P2.This instruction
     makes a shallow copy of the value. If the value is a string or blob, then the
     copy is only a pointer to the original and hence if the original changes so will
     the copy. Worse, if the original is deallocated, the copy becomes invalid. Thus
     the program must guarantee that the original will not change during the lifetime
     of the copy. Use [Copy](opcode.html#Copy) to make a complete copy. |'
+  id: totrans-223
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SCopy | 将寄存器 P1 的浅拷贝复制到寄存器 P2 中。此指令会对值进行浅拷贝。如果该值是字符串或二进制大对象（blob），则拷贝只是原始值的指针，因此如果原始值发生变化，拷贝也会随之变化。更糟糕的是，如果原始值被释放，则拷贝将变为无效。因此，程序必须保证在拷贝的生命周期内原始值不会发生变化。使用
+    [Copy](opcode.html#Copy) 进行完整拷贝。'
 - en: '| SeekEnd | Position cursor P1 at the end of the btree for the purpose of appending
     a new entry onto the btree.It is assumed that the cursor is used only for appending
     and so if the cursor is valid, then the cursor must already be pointing at the
     end of the btree and so no changes are made to the cursor. |'
+  id: totrans-224
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SeekEnd | 将游标 P1 定位到 B 树的末尾，以便将新条目追加到 B 树中。假设该游标仅用于追加，因此如果游标有效，则游标必须已经指向
+    B 树的末尾，因此不会对游标进行任何更改。'
 - en: '| SeekGE | If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
     use the value in register P3 as the key. If cursor P1 refers to an SQL index,
     then P3 is the first in an array of P4 registers that are used as an unpacked
@@ -1811,9 +2547,17 @@
     words, the cursor is configured to use [Next](opcode.html#Next), not [Prev](opcode.html#Prev).See
     also: [Found](opcode.html#Found), [NotFound](opcode.html#NotFound), SeekLt, SeekGt,
     SeekLe |'
+  id: totrans-225
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SeekGE | 如果游标 P1 指向一个 SQL 表（使用整数键的 B 树），则使用寄存器 P3 中的值作为键值。如果游标 P1 指向一个 SQL
+    索引，则 P3 是一组 P4 寄存器数组的第一个，用作非打包索引键。重新定位游标 P1，使其指向大于或等于键值的最小条目。如果没有大于或等于键值的记录且 P2
+    不为零，则跳转到 P2。如果使用 OPFLAG_SEEKEQ 标志打开游标 P1，则此操作码将要么定位到完全匹配键的记录，要么导致跳转到 P2。当游标为 OPFLAG_SEEKEQ
+    时，此操作码必须后跟一个具有相同参数的 [IdxLE](opcode.html#IdxLE) 操作码。如果此操作码成功，则将跳过 [IdxGT](opcode.html#IdxGT)
+    操作码，但将在后续循环迭代中使用 [IdxGT](opcode.html#IdxGT) 操作码。OPFLAG_SEEKEQ 标志是对 B 树层的提示，表示这是一个等值搜索。此操作码使游标配置为从开始向结束按顺序移动。换句话说，游标配置为使用
+    [Next](opcode.html#Next)，而不是 [Prev](opcode.html#Prev)。参见：[Found](opcode.html#Found)，[NotFound](opcode.html#NotFound)，SeekLt，SeekGt，SeekLe
+    |'
 - en: '| SeekGT | If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
     use the value in register P3 as a key. If cursor P1 refers to an SQL index, then
     P3 is the first in an array of P4 registers that are used as an unpacked index
@@ -1823,9 +2567,15 @@
     order, from the beginning toward the end. In other words, the cursor is configured
     to use [Next](opcode.html#Next), not [Prev](opcode.html#Prev).See also: [Found](opcode.html#Found),
     [NotFound](opcode.html#NotFound), SeekLt, SeekGe, SeekLe |'
+  id: totrans-226
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SeekGT | 如果游标 P1 指向一个 SQL 表（使用整数键的 B 树），则使用寄存器 P3 的值作为键值。如果游标 P1 指向一个 SQL
+    索引，那么 P3 将是一组 P4 寄存器中的第一个，这些寄存器用作未打包的索引键。重新定位游标 P1，使其指向大于键值的最小条目。如果没有大于键值的记录，并且
+    P2 不为零，则跳转到 P2。此操作码使游标配置为以正向顺序移动，从开头向结尾移动。换句话说，游标配置为使用 [Next](opcode.html#Next)，而不是
+    [Prev](opcode.html#Prev)。另请参见：[Found](opcode.html#Found)，[NotFound](opcode.html#NotFound)，SeekLt，SeekGe，SeekLe
+    |'
 - en: '| SeekHit | Increase or decrease the seekHit value for cursor P1, if necessary,
     so that it is no less than P2 and no greater than P3.The seekHit integer represents
     the maximum of terms in an index for which there is known to be at least one match.
@@ -1833,9 +2583,13 @@
     index lookup, then the [IfNoHope](opcode.html#IfNoHope) opcode might run to see
     if the IN loop can be abandoned early, thus saving work. This is part of the IN-early-out
     optimization.P1 must be a valid b-tree cursor. |'
+  id: totrans-227
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SeekHit | 根据需要增加或减少游标 P1 的 seekHit 值，使其不小于 P2 且不大于 P3。seekHit 整数表示索引中至少存在一条匹配项的最大项数。如果
+    seekHit 值小于索引查找中的相等项总数，则可能会运行 [IfNoHope](opcode.html#IfNoHope) 操作码，以查看是否可以提前放弃
+    IN 循环，从而节省工作量。这是 IN-early-out 优化的一部分。P1 必须是有效的 B 树游标。'
 - en: '| SeekLE | If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
     use the value in register P3 as a key. If cursor P1 refers to an SQL index, then
     P3 is the first in an array of P4 registers that are used as an unpacked index
@@ -1852,9 +2606,16 @@
     be used on subsequent loop iterations. The OPFLAG_SEEKEQ flags is a hint to the
     btree layer to say that this is an equality search.See also: [Found](opcode.html#Found),
     [NotFound](opcode.html#NotFound), SeekGt, SeekGe, SeekLt |'
+  id: totrans-228
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SeekLE | 如果光标 P1 指向一个 SQL 表（使用整数键的 B 树），则使用寄存器 P3 中的值作为键。如果光标 P1 指向一个 SQL
+    索引，则 P3 是用作未打包索引键的 P4 寄存器数组中的第一个。重新定位光标 P1，使其指向小于或等于键值的最大条目。如果没有小于或等于键的记录，并且 P2
+    不为零，则跳转到 P2。该操作码使光标配置为以逆序方式移动，即从末尾向开头移动。换句话说，光标配置为使用[Prev](opcode.html#Prev)，而不是[Next](opcode.html#Next)。如果光标
+    P1 使用了 OPFLAG_SEEKEQ 标志打开，则此操作码将会定位到与键完全匹配的记录，否则将导致跳转到 P2。当光标为 OPFLAG_SEEKEQ 时，此操作码后必须跟随一个具有相同参数的[IdxLE](opcode.html#IdxLE)操作码。如果此操作码成功，则会跳过[IdxGE](opcode.html#IdxGE)操作码，但后续循环迭代将使用[IdxGE](opcode.html#IdxGE)操作码。OPFLAG_SEEKEQ
+    标志是对 B 树层的提示，表示这是一个等值搜索。参见：[Found](opcode.html#Found)，[NotFound](opcode.html#NotFound)，SeekGt，SeekGe，SeekLt
+    |'
 - en: '| SeekLT | If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
     use the value in register P3 as a key. If cursor P1 refers to an SQL index, then
     P3 is the first in an array of P4 registers that are used as an unpacked index
@@ -1864,9 +2625,14 @@
     from the end toward the beginning. In other words, the cursor is configured to
     use [Prev](opcode.html#Prev), not [Next](opcode.html#Next).See also: [Found](opcode.html#Found),
     [NotFound](opcode.html#NotFound), SeekGt, SeekGe, SeekLe |'
+  id: totrans-229
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SeekLT | 如果游标 P1 指向一个 SQL 表（使用整数键的 B 树），则使用寄存器 P3 中的值作为键。如果游标 P1 指向一个 SQL
+    索引，则 P3 是一组 P4 寄存器中的第一个，用作未打包的索引键。重新定位游标 P1，使其指向小于键值的最大条目。如果没有小于键值的记录且 P2 不为零，则跳转到
+    P2。此操作码配置游标以反向顺序移动，从末尾向开始。换句话说，游标配置为使用 [Prev](opcode.html#Prev)，而不是 [Next](opcode.html#Next)。另请参阅：[Found](opcode.html#Found)、[NotFound](opcode.html#NotFound)、SeekGt、SeekGe、SeekLe
+    |'
 - en: '| SeekRowid | P1 is the index of a cursor open on an SQL table btree (with
     integer keys). If register P3 does not contain an integer or if P1 does not contain
     a record with rowid P3 then jump immediately to P2. Or, if P2 is 0, raise an SQLITE_CORRUPT
@@ -1881,9 +2647,16 @@
     opcodes will not work following this opcode.See also: [Found](opcode.html#Found),
     [NotFound](opcode.html#NotFound), [NoConflict](opcode.html#NoConflict), [SeekRowid](opcode.html#SeekRowid)
     |'
+  id: totrans-230
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SeekRowid | P1 是指针对使用整数键的 SQL 表 B 树打开的游标的索引。如果寄存器 P3 不包含整数，或者如果 P1 不包含行号为
+    P3 的记录，则立即跳转到 P2。或者，如果 P2 为 0，则引发 SQLITE_CORRUPT 错误。如果 P1 包含行号为 P3 的记录，则保持游标指向该记录，并继续执行下一条指令。[NotExists](opcode.html#NotExists)
+    操作码执行相同的操作，但是对于 [NotExists](opcode.html#NotExists)，必须保证寄存器 P3 包含整数值。使用此操作码时，寄存器
+    P3 可能不包含整数。[NotFound](opcode.html#NotFound) 操作码在索引 B 树（具有任意多值键）上执行相同的操作。此操作码将游标留在无法向任何方向前进的状态。换句话说，此后无法使用
+    [Next](opcode.html#Next) 和 [Prev](opcode.html#Prev) 操作码。另请参阅：[Found](opcode.html#Found)、[NotFound](opcode.html#NotFound)、[NoConflict](opcode.html#NoConflict)、[SeekRowid](opcode.html#SeekRowid)
+    |'
 - en: '| SeekScan | This opcode is a prefix opcode to [SeekGE](opcode.html#SeekGE).
     In other words, this opcode must be immediately followed by [SeekGE](opcode.html#SeekGE).
     This constraint is checked by assert() statements.This opcode uses the P1 through
@@ -1914,68 +2687,103 @@
     case, the This.P2 will point either directly to or to setup code prior to the
     [IdxGT](opcode.html#IdxGT) or [IdxGE](opcode.html#IdxGE) opcode that checks for
     loop terminate.Possible outcomes from this opcode:'
+  id: totrans-231
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '| SeekScan | 此操作码是 [SeekGE](opcode.html#SeekGE) 的前缀操作码。换句话说，此操作码必须紧随 [SeekGE](opcode.html#SeekGE)
+    之后。这一约束由 assert() 语句检查。此操作码使用随后的 [SeekGE](opcode.html#SeekGE) 的 P1 到 P4 操作数。在接下来的文本中，后续
+    [SeekGE](opcode.html#SeekGE) 操作码的操作数被称为 SeekOP.P1 到 SeekOP.P4。此操作码还使用该操作码的 P1、P2
+    和 P5 操作数，并称为 This.P1、This.P2 和 This.P5。此操作码有助于优化多列索引上的 IN 运算符，其中 IN 运算符位于索引的后几个项，避免在
+    B 树上进行不必要的查找，而是替代为下一行的步骤。如果省略此操作码或者将其设为无操作，则得到正确的答案。[SeekGE](opcode.html#SeekGE).P3
+    和 [SeekGE](opcode.html#SeekGE).P4 操作数标识出一个未打包的关键字，这是我们希望光标 [SeekGE](opcode.html#SeekGE).P1
+    指向的目标条目。称此 [SeekGE](opcode.html#SeekGE).P3/P4 行为“目标”。如果 [SeekGE](opcode.html#SeekGE).P1
+    光标当前未指向有效行，则此操作码是无操作，控制流通过进入 [SeekGE](opcode.html#SeekGE)。如果 [SeekGE](opcode.html#SeekGE).P1
+    光标指向有效行，则该行可能是目标行，也可能接近目标行或稍后的目标行。如果光标当前位于目标行之前，则此操作码尝试通过在光标之间调用 sqlite3BtreeStep()
+    来将光标定位在目标行或之后，调用次数为 1 到 This.P1 次之间。This.P5 参数是一个标志，指示如果光标最终指向一个超出目标行的有效行时该怎么办。如果
+    This.P5 为 false (0)，则跳转到 [SeekGE](opcode.html#SeekGE).P2。如果 This.P5 为 true（非零），则跳转到
+    This.P2。当 IN 约束右侧没有不等约束时，会出现 P5==0 情况。跳转到 [SeekGE](opcode.html#SeekGE).P2 终止循环。当
+    IN 运算符右侧存在不等约束时，会出现 P5!=0 情况。在这种情况下，This.P2 将直接指向或设置到之前的 [IdxGT](opcode.html#IdxGT)
+    或 [IdxGE](opcode.html#IdxGE) 操作码，用于检查循环是否终止。此操作码可能的结果为:'
 - en: ''
+  id: totrans-232
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
 - en: If the cursor is initially not pointed to any valid row, then fall through into
     the subsequent [SeekGE](opcode.html#SeekGE) opcode.
+  id: totrans-233
   prefs:
   - PREF_BQ
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果游标最初未指向任何有效行，则跳转到后续的 [SeekGE](opcode.html#SeekGE) 操作码。
 - en: If the cursor is left pointing to a row that is before the target row, even
     after making as many as This.P1 calls to sqlite3BtreeNext(), then also fall through
     into [SeekGE](opcode.html#SeekGE).
+  id: totrans-234
   prefs:
   - PREF_BQ
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果游标指向目标行之前的行，即使执行了多达 This.P1 次 sqlite3BtreeNext() 调用，也会跳转到 [SeekGE](opcode.html#SeekGE)
+    操作码。
 - en: If the cursor is left pointing at the target row, either because it was at the
     target row to begin with or because one or more sqlite3BtreeNext() calls moved
     the cursor to the target row, then jump to This.P2..,
+  id: totrans-235
   prefs:
   - PREF_BQ
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果游标指向目标行，则因为开始时就在目标行上，或者经过一个或多个 sqlite3BtreeNext() 调用将游标移动到目标行上，则跳转到 This.P2。
 - en: If the cursor started out before the target row and a call to to sqlite3BtreeNext()
     moved the cursor off the end of the index (indicating that the target row definitely
     does not exist in the btree) then jump to [SeekGE](opcode.html#SeekGE).P2, ending
     the loop.
+  id: totrans-236
   prefs:
   - PREF_BQ
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果游标开始时在目标行之前，并且调用 sqlite3BtreeNext() 后游标移动到索引末尾（表示目标行在 btree 中确实不存在），则跳转到 [SeekGE](opcode.html#SeekGE).P2，结束循环。
 - en: If the cursor ends up on a valid row that is past the target row (indicating
     that the target row does not exist in the btree) then jump to SeekOP.P2 if This.P5==0
     or to This.P2 if This.P5>0.
+  id: totrans-237
   prefs:
   - PREF_BQ
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果游标位于超过目标行的有效行上（表示在 btree 中目标行不存在），则如果 This.P5==0，则跳转到 SeekOP.P2；如果 This.P5>0，则跳转到
+    This.P2。
 - en: ''
+  id: totrans-238
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
 - en: '|'
+  id: totrans-239
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '|'
 - en: '| Sequence | Find the next available sequence number for cursor P1. Write the
     sequence number into register P2. The sequence number on the cursor is incremented
     after this instruction. |'
+  id: totrans-240
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Sequence | 查找游标 P1 的下一个可用序列号。将序列号写入寄存器 P2。此指令执行后，游标上的序列号将递增。 |'
 - en: '| SequenceTest | P1 is a sorter cursor. If the sequence counter is currently
     zero, jump to P2\. Regardless of whether or not the jump is taken, increment the
     the sequence value. |'
+  id: totrans-241
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SequenceTest | P1 是一个排序器游标。如果序列计数器当前为零，则跳转到 P2。无论是否执行跳转，都会增加序列值。 |'
 - en: '| SetCookie | Write the integer value P3 into cookie number P2 of database
     P1. P2==1 is the schema version. P2==2 is the database format. P2==3 is the recommended
     pager cache size, and so forth. P1==0 is the main database file and P1==1 is the
@@ -1984,33 +2792,49 @@
     the internal schema version is set to P3-P5\. The "PRAGMA schema_version=N" statement
     has P5 set to 1, so that the internal schema version will be different from the
     database schema version, resulting in a schema reset. |'
+  id: totrans-242
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SetCookie | 将整数值 P3 写入数据库 P1 的第 P2 个 cookie 中。当 P2==1 时，为架构版本；当 P2==2 时，为数据库格式；当
+    P2==3 时，为推荐的页面缓存大小等。当 P1==0 时，为主数据库文件；当 P1==1 时，为用于存储临时表的数据库文件。执行此操作码前必须启动一个事务。如果
+    P2 是 SCHEMA_VERSION cookie（cookie 编号为 1），则将内部架构版本设置为 P3-P5。"PRAGMA schema_version=N"
+    语句中的 P5 设为 1，以使内部架构版本与数据库架构版本不同，导致架构重置。 |'
 - en: '| SetSubtype | Set the subtype value of register P2 to the integer from register
     P1. If P1 is NULL, clear the subtype from p2. |'
+  id: totrans-243
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SetSubtype | 将寄存器 P2 的子类型值设置为寄存器 P1 中的整数值。如果 P1 为 NULL，则清除 P2 的子类型。 |'
 - en: '| ShiftLeft | Shift the integer value in register P2 to the left by the number
     of bits specified by the integer in register P1. Store the result in register
     P3. If either input is NULL, the result is NULL. |'
+  id: totrans-244
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ShiftLeft | 将寄存器 P2 中的整数值向左移动寄存器 P1 中指定的位数。将结果存储在寄存器 P3 中。如果任一输入为 NULL，则结果为
+    NULL。 |'
 - en: '| ShiftRight | Shift the integer value in register P2 to the right by the number
     of bits specified by the integer in register P1. Store the result in register
     P3. If either input is NULL, the result is NULL. |'
+  id: totrans-245
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ShiftRight | 将寄存器 P2 中的整数值向右移动寄存器 P1 中指定的位数。将结果存储在寄存器 P3 中。如果任一输入为 NULL，则结果为
+    NULL。 |'
 - en: '| SoftNull | Set register P1 to have the value NULL as seen by the [MakeRecord](opcode.html#MakeRecord)
     instruction, but do not free any string or blob memory associated with the register,
     so that if the value was a string or blob that was previously copied using [SCopy](opcode.html#SCopy),
     the copies will continue to be valid. |'
+  id: totrans-246
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SoftNull | 将寄存器 P1 设置为 NULL 值，这是由[MakeRecord](opcode.html#MakeRecord)指令视图而成的，但不释放与寄存器关联的任何字符串或
+    blob 内存，因此如果该值是通过[SCopy](opcode.html#SCopy)之前复制的字符串或 blob，则复制仍然有效。 |'
 - en: '| Sort | This opcode does exactly the same thing as [Rewind](opcode.html#Rewind)
     except that it increments an undocumented global variable used for testing.Sorting
     is accomplished by writing records into a sorting index, then rewinding that index
@@ -2018,9 +2842,12 @@
     opcode instead of [Rewind](opcode.html#Rewind) to do the rewinding so that the
     global variable will be incremented and regression tests can determine whether
     or not the optimizer is correctly optimizing out sorts. |'
+  id: totrans-247
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Sort | 这个操作码与[Rewind](opcode.html#Rewind)完全相同，只是它增加了一个用于测试的未记录的全局变量。通过将记录写入排序索引，然后将其倒带并从头到尾播放来实现排序。我们使用[Sort](opcode.html#Sort)操作码而不是[Rewind](opcode.html#Rewind)来执行倒带，以便全局变量将被增加，并且回归测试可以确定优化器是否正确优化排序。
+    |'
 - en: '| SorterCompare | P1 is a sorter cursor. This instruction compares a prefix
     of the record blob in register P3 against a prefix of the entry that the sorter
     cursor currently points to. Only the first P4 fields of r[P3] and the sorter record
@@ -2028,9 +2855,13 @@
     fields (not counting the P4 fields at the end which are ignored) then the comparison
     is assumed to be equal.Fall through to next instruction if the two records compare
     equal to each other. [Jump](opcode.html#Jump) to P2 if they are different. |'
+  id: totrans-248
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SorterCompare | P1 是一个排序器游标。这个指令比较寄存器 P3 中记录块的前缀与排序器游标当前指向的条目的前缀。仅比较 r[P3]
+    和排序记录的前 P4 个字段。如果 P3 或排序器在它们的重要字段中有任何一个是 NULL（不包括末尾的被忽略的 P4 字段），则认为比较相等。如果两个记录相等，则执行下一条指令。如果它们不同，则[跳转](opcode.html#Jump)到
+    P2。 |'
 - en: '| SorterData | Write into register P2 the current sorter data for sorter cursor
     P1. Then clear the column header cache on cursor P3.This opcode is normally used
     to move a record out of the sorter and into a register that is the source for
@@ -2038,79 +2869,111 @@
     pseudo-table cursor is the one that is identified by parameter P3\. Clearing the
     P3 column cache as part of this opcode saves us from having to issue a separate
     [NullRow](opcode.html#NullRow) instruction to clear that cache. |'
+  id: totrans-249
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SorterData | 将当前排序器游标 P1 的排序数据写入寄存器 P2。然后清除游标 P3 上的列标题缓存。此操作码通常用于将记录从排序器移动到使用
+    [OpenPseudo](opcode.html#OpenPseudo) 创建的伪表游标的源寄存器。该伪表游标由参数 P3 标识。在此操作码中清除 P3 列缓存可以避免我们需要发出单独的
+    [NullRow](opcode.html#NullRow) 指令来清除该缓存。'
 - en: '| SorterInsert | Register P2 holds an SQL index key made using the [MakeRecord](opcode.html#MakeRecord)
     instructions. This opcode writes that key into the sorter P1\. Data for the entry
     is nil. |'
+  id: totrans-250
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SorterInsert | 寄存器 P2 包含使用 [MakeRecord](opcode.html#MakeRecord) 指令生成的 SQL
+    索引键。此操作码将该键写入排序器 P1。条目的数据为空。'
 - en: '| SorterNext | This opcode works just like [Next](opcode.html#Next) except
     that P1 must be a sorter object for which the [SorterSort](opcode.html#SorterSort)
     opcode has been invoked. This opcode advances the cursor to the next sorted record,
     or jumps to P2 if there are no more sorted records. |'
+  id: totrans-251
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SorterNext | 此操作码的工作方式与 [Next](opcode.html#Next) 类似，只是 P1 必须是已调用 [SorterSort](opcode.html#SorterSort)
+    操作码的排序器对象。此操作码将游标推进到下一个已排序记录，如果没有更多已排序记录，则跳转到 P2。'
 - en: '| SorterOpen | This opcode works like [OpenEphemeral](opcode.html#OpenEphemeral)
     except that it opens a transient index that is specifically designed to sort large
     tables using an external merge-sort algorithm.If argument P3 is non-zero, then
     it indicates that the sorter may assume that a stable sort considering the first
     P3 fields of each key is sufficient to produce the required results. |'
+  id: totrans-252
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SorterOpen | 此操作码与 [OpenEphemeral](opcode.html#OpenEphemeral) 类似，但它打开一个特定设计用于使用外部合并排序算法对大表进行排序的瞬态索引。如果参数
+    P3 非零，则表示排序器可以假定考虑每个键的前 P3 个字段进行稳定排序足以生成所需的结果。'
 - en: '| SorterSort | After all records have been inserted into the Sorter object
     identified by P1, invoke this opcode to actually do the sorting. [Jump](opcode.html#Jump)
     to P2 if there are no records to be sorted.This opcode is an alias for [Sort](opcode.html#Sort)
     and [Rewind](opcode.html#Rewind) that is used for Sorter objects. |'
+  id: totrans-253
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SorterSort | 在所有记录插入到由 P1 标识的排序器对象之后，调用此操作码来实际执行排序。如果没有要排序的记录，则跳转到 P2。此操作码是用于排序器对象的
+    [Sort](opcode.html#Sort) 和 [Rewind](opcode.html#Rewind) 的别名。'
 - en: '| SqlExec | Run the SQL statement or statements specified in the P4 string.The
     P1 parameter is a bitmask of options:0x0001 Disable Auth and [Trace](opcode.html#Trace)
     callbacks while the statements in P4 are running.0x0002 Set db->nAnalysisLimit
     to P2 while the statements in P4 are running. |'
+  id: totrans-254
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| SqlExec | 执行P4字符串中指定的SQL语句或语句。P1参数是选项的位掩码：0x0001在运行P4中的语句时禁用Auth和[Trace](opcode.html#Trace)回调。0x0002在运行P4中的语句时将db->nAnalysisLimit设置为P2。
+    |'
 - en: '| String | The string value P4 of length P1 (bytes) is stored in register P2.If
     P3 is not zero and the content of register P3 is equal to P5, then the datatype
     of the register P2 is converted to BLOB. The content is the same sequence of bytes,
     it is merely interpreted as a BLOB instead of a string, as if it had been CAST.
     In other words:if( P3!=0 and reg[P3]==P5 ) reg[P2] := CAST(reg[P2] as BLOB) |'
+  id: totrans-255
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| String | 长度为P1（字节）的字符串值P4存储在寄存器P2中。如果P3不为零且寄存器P3的内容等于P5，则寄存器P2的数据类型转换为BLOB。内容是相同的字节序列，只是被视为BLOB而不是字符串，就像已经进行了CAST一样。换句话说：如果（P3！=0且reg[P3]==P5），则reg[P2]
+    := CAST(reg[P2] as BLOB)。 |'
 - en: '| String8 | P4 points to a nul terminated UTF-8 string. This opcode is transformed
     into a [String](opcode.html#String) opcode before it is executed for the first
     time. During this transformation, the length of string P4 is computed and stored
     as the P1 parameter. |'
+  id: totrans-256
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| String8 | P4指向一个以空字符结尾的UTF-8字符串。在首次执行之前，此操作码将转换为[String](opcode.html#String)操作码。在此转换期间，计算并存储字符串P4的长度作为P1参数。
+    |'
 - en: '| Subtract | Subtract the value in register P1 from the value in register P2
     and store the result in register P3. If either input is NULL, the result is NULL.
     |'
+  id: totrans-257
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Subtract | 从寄存器P2中的值减去寄存器P1中的值，并将结果存储在寄存器P3中。如果任一输入为NULL，则结果为NULL。 |'
 - en: '| TableLock | Obtain a lock on a particular table. This instruction is only
     used when the shared-cache feature is enabled.P1 is the index of the database
     in sqlite3.aDb[] of the database on which the lock is acquired. A readlock is
     obtained if P3==0 or a write lock if P3==1.P2 contains the root-page of the table
     to lock.P4 contains a pointer to the name of the table being locked. This is only
     used to generate an error message if the lock cannot be obtained. |'
+  id: totrans-258
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| TableLock | 在特定表上获取锁。仅在启用共享缓存功能时使用此指令。P1是数据库在sqlite3.aDb[]中的索引，表示获取锁的数据库。如果P3==0，则获取读锁；如果P3==1，则获取写锁。P2包含要锁定的表的根页。P4包含要锁定的表的名称指针。仅在无法获取锁时生成错误消息时使用。
+    |'
 - en: '| Trace | Write P4 on the statement trace output if statement tracing is enabled.Operand
     P1 must be 0x7fffffff and P2 must positive. |'
+  id: totrans-259
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Trace | 如果启用了语句跟踪，则在语句跟踪输出上写入P4。操作数P1必须为0x7fffffff且P2必须为正数。 |'
 - en: '| Transaction | Begin a transaction on database P1 if a transaction is not
     already active. If P2 is non-zero, then a write-transaction is started, or if
     a read-transaction is already active, it is upgraded to a write-transaction. If
@@ -2134,9 +2997,17 @@
     from the current generation counter, then an SQLITE_SCHEMA error is raised and
     execution halts. The sqlite3_step() wrapper function might then reprepare the
     statement and rerun it from the beginning. |'
+  id: totrans-260
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| 事务 | 如果尚未激活事务，则在数据库 P1 上启动事务。如果 P2 非零，则启动写事务，或者如果已经有读事务在进行，则升级为写事务。如果 P2
+    为零，则启动读事务。如果 P2 大于等于2，则启动排他事务。P1 是事务启动的数据库文件索引。索引 0 是主数据库文件，索引 1 是用于临时表的文件。索引大于等于
+    2 用于附加数据库。如果启动了写事务并且 Vdbe.usesStmtJournal 标志为 true（如果 Vdbe 可能修改多行并可能抛出 ABORT 异常，则设置此标志），还可以打开语句事务。更具体地说，当数据库连接当前不在自动提交模式下，或者存在其他活动语句时，会打开语句事务。语句事务允许在错误发生后通过回滚这个
+    VDBE 所做的更改，而不必回滚整个事务。如果没有遇到错误，则当 VDBE 停止时，语句事务将自动提交。如果 P5 不等于 0，则此操作码还会检查模式 cookie
+    与 P3 和模式生成计数器与 P4 是否匹配。每当数据库模式发生变化时，cookie 的值也会更改。此操作用于检测 cookie 是否已更改以及当前进程是否需要重新读取模式。如果
+    P3 中的模式 cookie 与数据库头中的模式 cookie 不同，或者 P4 中的模式生成计数器与当前生成计数器不同，则会引发 SQLITE_SCHEMA
+    错误并停止执行。然后，sqlite3_step() 包装函数可能会重新准备语句并从头开始运行。 |'
 - en: '| TypeCheck | Apply affinities to the range of P2 registers beginning with
     P1. Take the affinities from the Table object in P4\. If any value cannot be coerced
     into the correct type, then raise an error.This opcode is similar to [Affinity](opcode.html#Affinity)
@@ -2145,54 +3016,76 @@
     are only checked if P3 is zero. When P3 is non-zero, no type checking occurs for
     static generated columns. Virtual columns are computed at query time and so they
     are never checked.Preconditions:'
+  id: totrans-261
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '| TypeCheck | 将 P1 开始的 P2 寄存器范围内的亲和性应用于表对象 P4 中。从表对象 P4 中获取亲和性。如果有任何值无法强制转换为正确的类型，则引发错误。此操作码类似于
+    [Affinity](opcode.html#Affinity)，不同之处在于此操作码强制寄存器类型为表列类型，用于实现“严格亲和性”。GENERATED
+    ALWAYS AS ... 如果 P3 为零，则仅检查静态列。当 P3 非零时，对于静态生成列不进行类型检查。虚拟列在查询时计算，因此永远不会被检查。先决条件：'
 - en: P2 should be the number of non-virtual columns in the table of P4.
+  id: totrans-262
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: P2 应为 P4 表中非虚拟列的数量。
 - en: Table P4 should be a STRICT table.
+  id: totrans-263
   prefs:
   - PREF_BQ
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 表 P4 应为 STRICT 表。
 - en: ''
+  id: totrans-264
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
 - en: If any precondition is false, an assertion fault occurs. |
+  id: totrans-265
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 如果任何先决条件为假，则会发生断言错误。
 - en: '| Vacuum | Vacuum the entire database P1\. P1 is 0 for "main", and 2 or more
     for an attached database. The "temp" database may not be vacuumed.If P2 is not
     zero, then it is a register holding a string which is the file into which the
     result of vacuum should be written. When P2 is zero, the vacuum overwrites the
     original database. |'
+  id: totrans-266
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Vacuum | 对整个数据库 P1 进行清理。对于“主”数据库，P1 为 0，对于附加数据库，P1 为 2 或更多。无法对“临时”数据库进行清理。如果
+    P2 不为零，则它是一个持有应将清理结果写入的文件名的字符串寄存器。当 P2 为零时，清理将覆盖原始数据库。 |'
 - en: '| Variable | Transfer the values of bound parameter P1 into register P2 |'
+  id: totrans-267
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Variable | 将绑定参数 P1 的值传输到寄存器 P2 中。 |'
 - en: '| VBegin | P4 may be a pointer to an sqlite3_vtab structure. If so, call the
     xBegin method for that table.Also, whether or not P4 is set, check that this is
     not being called from within a callback to a virtual table xSync() method. If
     it is, the error code will be set to SQLITE_LOCKED. |'
+  id: totrans-268
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VBegin | P4 可能是指向 sqlite3_vtab 结构的指针。如果是这样，则调用该表的 xBegin 方法。此外，无论 P4 是否设置，都检查此操作是否在对虚拟表
+    xSync() 方法的回调中进行。如果是，则错误代码将设置为 SQLITE_LOCKED。 |'
 - en: '| VCheck | P4 is a pointer to a Table object that is a virtual table in schema
     P1 that supports the xIntegrity() method. This opcode runs the xIntegrity() method
     for that virtual table, using P3 as the integer argument. If an error is reported
     back, the table name is prepended to the error message and that message is stored
     in P2\. If no errors are seen, register P2 is set to NULL. |'
+  id: totrans-269
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VCheck | P4 是指向模式 P1 中支持 xIntegrity() 方法的虚拟表的 Table 对象的指针。此操作码运行该虚拟表的 xIntegrity()
+    方法，使用 P3 作为整数参数。如果返回错误，则在错误消息前面加上表名，并将该消息存储在 P2 中。如果未见到错误，则将寄存器 P2 设置为 NULL。 |'
 - en: '| VColumn | Store in register P3 the value of the P2-th column of the current
     row of the virtual-table of cursor P1.If the [VColumn](opcode.html#VColumn) opcode
     is being used to fetch the value of an unchanging column during an UPDATE operation,
@@ -2200,19 +3093,28 @@
     function to return true inside the xColumn method of the virtual table implementation.
     The P5 column might also contain other bits (OPFLAG_LENGTHARG or OPFLAG_TYPEOFARG)
     but those bits are unused by [VColumn](opcode.html#VColumn). |'
+  id: totrans-270
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VColumn | 将当前行游标 P1 的虚拟表的第 P2 列的值存储在寄存器 P3 中。如果在 UPDATE 操作期间使用 [VColumn](opcode.html#VColumn)
+    操作码来获取不变列的值，则 P5 值为 OPFLAG_NOCHNG。这将导致 sqlite3_vtab_nochange() 函数在虚拟表实现的 xColumn
+    方法内返回 true。P5 列还可能包含其他位（OPFLAG_LENGTHARG 或 OPFLAG_TYPEOFARG），但这些位被 [VColumn](opcode.html#VColumn)
+    未使用。 |'
 - en: '| VCreate | P2 is a register that holds the name of a virtual table in database
     P1\. Call the xCreate method for that table. |'
+  id: totrans-271
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VCreate | P2 是寄存器，保存数据库 P1 中虚拟表的名称。调用该表的 xCreate 方法。 |'
 - en: '| VDestroy | P4 is the name of a virtual table in database P1\. Call the xDestroy
     method of that table. |'
+  id: totrans-272
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VDestroy | P4 是数据库 P1 中虚拟表的虚拟表的名称。调用该表的 xDestroy 方法。 |'
 - en: '| VFilter | P1 is a cursor opened using [VOpen](opcode.html#VOpen). P2 is an
     address to jump to if the filtered result set is empty.P4 is either NULL or a
     string that was generated by the xBestIndex method of the module. The interpretation
@@ -2223,35 +3125,54 @@
     parameters which are passed to xFilter as argv. Register P3+2 becomes argv[0]
     when passed to xFilter.A jump is made to P2 if the result set after filtering
     would be empty. |'
+  id: totrans-273
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VFilter | P1 是使用 [VOpen](opcode.html#VOpen) 打开的游标。如果过滤后的结果集为空，则跳转到地址 P2。P4
+    可能为 NULL，也可能为模块的 xBestIndex 方法生成的字符串。P4 字符串的解释由模块实现决定。此操作码在由 P1 指定的虚拟表上调用 xFilter
+    方法。传递给 xFilter 的整数查询计划参数存储在寄存器 P3 中。寄存器 P3+1 存储传递给 xFilter 方法的 argc 参数。寄存器 P3+2
+    到 P3+1+argc 是传递给 xFilter 方法作为 argv 的 argc 附加参数。当传递给 xFilter 时，寄存器 P3+2 变为 argv[0]。如果过滤后的结果集为空，则跳转到
+    P2。 |'
 - en: '| VInitIn | Set register P2 to be a pointer to a ValueList object for cursor
     P1 with cache register P3 and output register P3+1\. This ValueList object can
     be used as the first argument to sqlite3_vtab_in_first() and sqlite3_vtab_in_next()
     to extract all of the values stored in the P1 cursor. Register P3 is used to hold
     the values returned by sqlite3_vtab_in_first() and sqlite3_vtab_in_next(). |'
+  id: totrans-274
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VInitIn | 将寄存器 P2 设置为指向游标 P1 的 ValueList 对象的指针，并使用缓存寄存器 P3 和输出寄存器 P3+1。此
+    ValueList 对象可用作 sqlite3_vtab_in_first() 和 sqlite3_vtab_in_next() 的第一个参数，以提取存储在
+    P1 游标中的所有值。寄存器 P3 用于保存由 sqlite3_vtab_in_first() 和 sqlite3_vtab_in_next() 返回的值。
+    |'
 - en: '| VNext | Advance virtual table P1 to the next row in its result set and jump
     to instruction P2\. Or, if the virtual table has reached the end of its result
     set, then fall through to the next instruction. |'
+  id: totrans-275
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VNext | 将虚拟表 P1 推进到其结果集中的下一行，并跳转到指令 P2。或者，如果虚拟表已经达到其结果集的末尾，则继续执行下一条指令。 |'
 - en: '| VOpen | P4 is a pointer to a virtual table object, an sqlite3_vtab structure.
     P1 is a cursor number. This opcode opens a cursor to the virtual table and stores
     that cursor in P1. |'
+  id: totrans-276
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VOpen | P4 是指向虚拟表对象的指针，即 sqlite3_vtab 结构。P1 是游标编号。此操作码打开一个游标到虚拟表，并将该游标存储在
+    P1 中。 |'
 - en: '| VRename | P4 is a pointer to a virtual table object, an sqlite3_vtab structure.
     This opcode invokes the corresponding xRename method. The value in register P1
     is passed as the zName argument to the xRename method. |'
+  id: totrans-277
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VRename | P4 是指向虚拟表对象的指针，即 sqlite3_vtab 结构。此操作码调用相应的 xRename 方法。寄存器 P1 中的值被传递为
+    xRename 方法的 zName 参数。 |'
 - en: '| VUpdate | P4 is a pointer to a virtual table object, an sqlite3_vtab structure.
     This opcode invokes the corresponding xUpdate method. P2 values are contiguous
     memory cells starting at P3 to pass to the xUpdate invocation. The value in register
@@ -2266,9 +3187,17 @@
     returned by sqlite3_last_insert_rowid() is set to the value of the rowid for the
     row just inserted.P5 is the error actions (OE_Replace, OE_Fail, OE_Ignore, etc)
     to apply in the case of a constraint failure on an insert or update. |'
+  id: totrans-278
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| VUpdate | P4 是指向虚拟表对象的指针，即 sqlite3_vtab 结构。此操作码调用相应的 xUpdate 方法。P2 值是从寄存器
+    P3 开始的连续内存单元，用于传递给 xUpdate 调用。寄存器 (P3+P2-1) 中的值对应于传递给 xUpdate 的 argv 数组的第 p2 个元素。xUpdate
+    方法将执行 DELETE 或 INSERT 操作，或者两者兼而有之。argv[0] 元素（对应于内存单元 P3）是要删除的行的 rowid。如果 argv[0]
+    为 NULL，则不执行删除操作。argv[1] 元素是新行的 rowid。如果为 NULL，则由虚拟表自行选择新的 rowid。数组中的后续元素是新行中列的值。如果
+    P2==1，则不执行插入操作。argv[0] 是要删除的行的 rowid。P1 是布尔标志。如果设置为 true 并且 xUpdate 调用成功，则 sqlite3_last_insert_rowid()
+    的返回值将设置为刚刚插入的行的 rowid。P5 是错误操作（OE_Replace、OE_Fail、OE_Ignore 等），用于处理插入或更新时的约束失败情况。
+    |'
 - en: '| Yield | Swap the program counter with the value in register P1\. This has
     the effect of yielding to a coroutine.If the coroutine that is launched by this
     instruction ends with [Yield](opcode.html#Yield) or [Return](opcode.html#Return)
@@ -2276,12 +3205,19 @@
     ends with [EndCoroutine](opcode.html#EndCoroutine), then jump to P2 rather than
     continuing with the next instruction.See also: [InitCoroutine](opcode.html#InitCoroutine)
     |'
+  id: totrans-279
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| Yield | 将程序计数器与寄存器 P1 中的值交换。这会导致切换到一个协程。如果由此指令启动的协程以 [Yield](opcode.html#Yield)
+    或 [Return](opcode.html#Return) 结束，则继续执行下一条指令。但如果由此指令启动的协程以 [EndCoroutine](opcode.html#EndCoroutine)
+    结束，则跳转到 P2 而不是继续执行下一条指令。另请参见：[InitCoroutine](opcode.html#InitCoroutine) |'
 - en: '| ZeroOrNull | If both registers P1 and P3 are NOT NULL, then store a zero
     in register P2\. If either registers P1 or P3 are NULL then put a NULL in register
     P2. |'
+  id: totrans-280
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| ZeroOrNull | 如果寄存器 P1 和 P3 都不为 NULL，则在寄存器 P2 中存储零。如果寄存器 P1 或 P3 中有任一为空，则在寄存器
+    P2 中放入 NULL。 |'

@@ -1,40 +1,57 @@
 - en: Introduction
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 介绍
 - en: 原文：[https://sqlite.com/arch.html](https://sqlite.com/arch.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/arch.html](https://sqlite.com/arch.html)
 - en: This document describes the architecture of the SQLite library. The information
     here is useful to those who want to understand or modify the inner workings of
     SQLite.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文描述了 SQLite 库的架构。这里的信息对于那些想要理解或修改 SQLite 内部工作方式的人来说是有用的。
 - en: A nearby diagram shows the main components of SQLite and how they interoperate.
     The text below explains the roles of the various components.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 附近的图表显示了 SQLite 的主要组件及其相互作用。下文解释了各个组件的角色。
 - en: Overview
+  id: totrans-4
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 概述
 - en: SQLite works by compiling SQL text into [bytecode](opcode.html), then running
     that bytecode using a virtual machine.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 的工作原理是将 SQL 文本编译成 [字节码](opcode.html)，然后使用虚拟机运行该字节码。
 - en: The [sqlite3_prepare_v2()](c3ref/prepare.html) and related interfaces act as
     a compiler for converting SQL text into bytecode. The [sqlite3_stmt](c3ref/stmt.html)
     object is a container for a single bytecode program that implements a single SQL
     statement. The [sqlite3_step()](c3ref/step.html) interface passes a bytecode program
     into the virtual machine, and runs the program until it either completes, or forms
     a row of result to be returned, or hits a fatal error, or is [interrupted](c3ref/interrupt.html).
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: '[sqlite3_prepare_v2()](c3ref/prepare.html) 和相关接口作为编译器，将 SQL 文本转换成字节码。[sqlite3_stmt](c3ref/stmt.html)
+    对象是一个容器，用于实现单个 SQL 语句的单个字节码程序。[sqlite3_step()](c3ref/step.html) 接口将字节码程序传递给虚拟机，并运行程序，直到完成、形成要返回的结果行、遇到致命错误或被[中断](c3ref/interrupt.html)。'
 - en: Interface
+  id: totrans-7
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 接口
 - en: Much of the [C-language Interface](c3ref/intro.html) is found in source files
     [main.c](https://sqlite.org/src/file/src/main.c), [legacy.c](https://sqlite.org/src/file/src/legacy.c),
     and [vdbeapi.c](https://sqlite.org/src/file/src/vdbeapi.c) though some routines
@@ -44,34 +61,51 @@
     routine is found in [printf.c](https://sqlite.org/src/file/src/printf.c). The
     [sqlite3_complete()](c3ref/complete.html) interface is in [complete.c](https://sqlite.org/src/file/src/complete.c).
     The [TCL Interface](tclsqlite.html) is implemented by [tclsqlite.c](https://sqlite.org/src/file/src/tclsqlite.c).
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: '[C 语言接口](c3ref/intro.html)的大部分内容可以在源文件 [main.c](https://sqlite.org/src/file/src/main.c)、[legacy.c](https://sqlite.org/src/file/src/legacy.c)
+    和 [vdbeapi.c](https://sqlite.org/src/file/src/vdbeapi.c) 中找到，尽管一些例程分散在其他文件中，这些文件可以访问具有文件作用域的数据结构。[sqlite3_get_table()](c3ref/free_table.html)
+    例程实现在 [table.c](https://sqlite.org/src/file/src/table.c) 中。[sqlite3_mprintf()](c3ref/mprintf.html)
+    例程位于 [printf.c](https://sqlite.org/src/file/src/printf.c)。[sqlite3_complete()](c3ref/complete.html)
+    接口位于 [complete.c](https://sqlite.org/src/file/src/complete.c)。[TCL 接口](tclsqlite.html)
+    由 [tclsqlite.c](https://sqlite.org/src/file/src/tclsqlite.c) 实现。'
 - en: 'To avoid name collisions, all external symbols in the SQLite library begin
     with the prefix **sqlite3**. Those symbols that are intended for external use
     (in other words, those symbols which form the API for SQLite) add an underscore,
     and thus begin with **sqlite3_**. Extension APIs sometimes add the extension name
     prior to the underscore; for example: **sqlite3rbu_** or **sqlite3session_**.'
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了避免名称冲突，SQLite库中的所有外部符号都以前缀**sqlite3**开头。那些用于外部使用的符号（换句话说，形成SQLite API的那些符号）会添加下划线，因此以**sqlite3_**开头。扩展API有时会在下划线之前添加扩展名；例如：**sqlite3rbu_**或**sqlite3session_**。
 - en: Tokenizer
+  id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 分词器
 - en: When a string containing SQL statements is to be evaluated it is first sent
     to the tokenizer. The tokenizer breaks the SQL text into tokens and hands those
     tokens one by one to the parser. The tokenizer is hand-coded in the file <file>tokenize.c.</file>
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 当要评估包含SQL语句的字符串时，首先将其发送到分词器。分词器将SQL文本分解为标记，并逐个将这些标记传递给解析器。分词器是在文件<file>tokenize.c.</file>中手工编码的。
 - en: Note that in this design, the tokenizer calls the parser. People who are familiar
     with YACC and BISON may be accustomed to doing things the other way around — having
     the parser call the tokenizer. Having the tokenizer call the parser is better,
     though, because it can be made threadsafe and it runs faster.
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意，在这种设计中，分词器调用解析器。熟悉YACC和BISON的人可能习惯于反过来做 —— 让解析器调用分词器。然而，让分词器调用解析器更好，因为它可以做到线程安全并且运行更快。
 - en: Parser
+  id: totrans-13
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 解析器
 - en: The parser assigns meaning to tokens based on their context. The parser for
     SQLite is generated using the [Lemon parser generator](lemon.html). Lemon does
     the same job as YACC/BISON, but it uses a different input syntax which is less
@@ -79,17 +113,23 @@
     And Lemon defines the concept of a non-terminal destructor so that it does not
     leak memory when syntax errors are encountered. The grammar file that drives Lemon
     and that defines the SQL language that SQLite understands is found in [parse.y](https://sqlite.org/src/file/src/parse.y).
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 解析器根据其上下文为标记赋予意义。SQLite的解析器是使用[Lemon解析生成器](lemon.html)生成的。Lemon完成与YACC/BISON相同的工作，但使用了不同的输入语法，减少了错误。Lemon还生成了可重入和线程安全的解析器。此外，Lemon定义了非终结符析构函数的概念，以便在遇到语法错误时不会泄漏内存。驱动Lemon并定义SQLite理解的SQL语言的语法文件可以在[parse.y](https://sqlite.org/src/file/src/parse.y)中找到。
 - en: Because Lemon is a program not normally found on development machines, the complete
     source code to Lemon (just one C file) is included in the SQLite distribution
     in the "tool" subdirectory.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 由于Lemon是一种通常不会出现在开发机器上的程序，Lemon的完整源代码（只有一个C文件）包含在SQLite分发的"tool"子目录中。
 - en: Code Generator
+  id: totrans-16
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 代码生成器
 - en: 'After the parser assembles tokens into a parse tree, the code generator runs
     to analyze the parse tree and generate [bytecode](opcode.html) that performs the
     work of the SQL statement. The [prepared statement](c3ref/stmt.html) object is
@@ -112,23 +152,45 @@
     as necessary.) All other SQL statements are coded out of [build.c](https://sqlite.org/src/file/src/build.c).
     The [auth.c](https://sqlite.org/src/file/src/auth.c) file implements the functionality
     of [sqlite3_set_authorizer()](c3ref/set_authorizer.html).'
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 解析器将标记组装成解析树后，代码生成器开始运行，分析解析树并生成执行 SQL 语句工作的[字节码](opcode.html)。[准备好的语句](c3ref/stmt.html)对象是这些字节码的容器。代码生成器中有许多文件，包括：[attach.c](https://sqlite.org/src/file/src/attach.c),
+    [auth.c](https://sqlite.org/src/file/src/auth.c), [build.c](https://sqlite.org/src/file/src/build.c),
+    [delete.c](https://sqlite.org/src/file/src/delete.c), [expr.c](https://sqlite.org/src/file/src/expr.c),
+    [insert.c](https://sqlite.org/src/file/src/insert.c), [pragma.c](https://sqlite.org/src/file/src/pragma.c),
+    [select.c](https://sqlite.org/src/file/src/select.c), [trigger.c](https://sqlite.org/src/file/src/trigger.c),
+    [update.c](https://sqlite.org/src/file/src/update.c), [vacuum.c](https://sqlite.org/src/file/src/vacuum.c),
+    [where.c](https://sqlite.org/src/file/src/where.c), [wherecode.c](https://sqlite.org/src/file/src/wherecode.c)
+    和 [whereexpr.c](https://sqlite.org/src/file/src/whereexpr.c)。这些文件是大部分复杂操作的地方。[expr.c](https://sqlite.org/src/file/src/expr.c)
+    处理表达式的代码生成。**where*.c** 处理 SELECT、UPDATE 和 DELETE 语句的 WHERE 子句的代码生成。文件[attach.c](https://sqlite.org/src/file/src/attach.c),
+    [delete.c](https://sqlite.org/src/file/src/delete.c), [insert.c](https://sqlite.org/src/file/src/insert.c),
+    [select.c](https://sqlite.org/src/file/src/select.c), [trigger.c](https://sqlite.org/src/file/src/trigger.c)
+    和 [update.c](https://sqlite.org/src/file/src/update.c), [vacuum.c](https://sqlite.org/src/file/src/vacuum.c)
+    处理同名 SQL 语句的代码生成。（这些文件在必要时调用[expr.c](https://sqlite.org/src/file/src/expr.c) 和
+    [where.c](https://sqlite.org/src/file/src/where.c) 中的例程。）所有其他 SQL 语句均编码在 [build.c](https://sqlite.org/src/file/src/build.c)
+    中。文件[auth.c](https://sqlite.org/src/file/src/auth.c) 实现了[sqlite3_set_authorizer()](c3ref/set_authorizer.html)的功能。
 - en: The code generator, and especially the logic in **where*.c** and in [select.c](https://sqlite.org/src/file/src/select.c),
     is sometimes called the [query planner](optoverview.html). For any particular
     SQL statement, there might be hundreds, thousands, or millions of different algorithms
     to compute the answer. The query planner is an AI that strives to select the best
     algorithm from these millions of choices.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 代码生成器，特别是**where*.c**和[select.c](https://sqlite.org/src/file/src/select.c)中的逻辑，有时被称为[查询规划器](optoverview.html)。对于任何特定的SQL语句，可能有数百、数千或数百万种不同的算法来计算答案。查询规划器是一个人工智能，旨在从这些数百万选择中选择最佳算法。
 - en: Bytecode Engine
+  id: totrans-19
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 字节码引擎
 - en: The [bytecode](opcode.html) program created by the code generator is run by
     a virtual machine.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 代码生成器创建的[字节码](opcode.html)程序由虚拟机运行。
 - en: The virtual machine itself is entirely contained in a single source file [vdbe.c](https://sqlite.org/src/file/src/vdbe.c).
     The [vdbe.h](https://sqlite.org/src/file/src/vdbe.h) header file defines an interface
     between the virtual machine and the rest of the SQLite library and [vdbeInt.h](https://sqlite.org/src/file/src/vdbeInt.h)
@@ -141,8 +203,10 @@
     and [sqlite3_step()](c3ref/step.html). Individual values (strings, integer, floating
     point numbers, and BLOBs) are stored in an internal object named "Mem" which is
     implemented by [vdbemem.c](https://sqlite.org/src/file/src/vdbemem.c).
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 虚拟机本身完全包含在一个单独的源文件[vdbe.c](https://sqlite.org/src/file/src/vdbe.c)中。[vdbe.h](https://sqlite.org/src/file/src/vdbe.h)头文件定义了虚拟机与SQLite库的其余部分之间的接口，而[vdbeInt.h](https://sqlite.org/src/file/src/vdbeInt.h)定义了虚拟机本身的结构和接口，这些接口是私有的。其他各种**vdbe*.c**文件是虚拟机的辅助程序。[vdbeaux.c](https://sqlite.org/src/file/src/vdbeaux.c)文件包含虚拟机使用的实用程序，以及库的其余部分用来构建VM程序的接口模块。[vdbeapi.c](https://sqlite.org/src/file/src/vdbeapi.c)文件包含虚拟机的外部接口，例如[sqlite3_bind_int()](c3ref/bind_blob.html)和[sqlite3_step()](c3ref/step.html)。个别值（字符串、整数、浮点数和BLOBs）存储在一个名为“Mem”的内部对象中，该对象由[vdbemem.c](https://sqlite.org/src/file/src/vdbemem.c)实现。
 - en: 'SQLite implements SQL functions using callbacks to C-language routines. Even
     the built-in SQL functions are implemented this way. Most of the built-in SQL
     functions (ex: [abs()](lang_corefunc.html#abs), [count()](lang_aggfunc.html#count),
@@ -150,27 +214,42 @@
     source file. Date and time conversion functions are found in [date.c](https://sqlite.org/src/file/src/date.c).
     Some functions such as [coalesce()](lang_corefunc.html#coalesce) and [typeof()](lang_corefunc.html#typeof)
     are implemented as bytecode directly by the code generator.'
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 使用回调到 C 语言例程来实现 SQL 函数。即使是内置的 SQL 函数也是这样实现的。大多数内置的 SQL 函数（例如：[abs()](https://sqlite.org/src/file/src/func.c#abs)，[count()](https://sqlite.org/src/file/src/func.c#count)，[substr()](https://sqlite.org/src/file/src/func.c#substr)
+    等）可以在 [func.c](https://sqlite.org/src/file/src/func.c) 源文件中找到。日期和时间转换函数可以在 [date.c](https://sqlite.org/src/file/src/date.c)
+    中找到。一些函数，如 [coalesce()](https://sqlite.org/src/file/src/func.c#coalesce) 和 [typeof()](https://sqlite.org/src/file/src/func.c#typeof)，是由代码生成器直接实现为字节码。
 - en: B-Tree
+  id: totrans-23
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: B 树
 - en: An SQLite database is maintained on disk using a B-tree implementation found
     in the [btree.c](https://sqlite.org/src/file/src/btree.c) source file. Separate
     B-trees are used for each table and each index in the database. All B-trees are
     stored in the same disk file. The [file format](fileformat2.html) details are
     stable and well-defined and are guaranteed to be compatible moving forward.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 数据库使用在 [btree.c](https://sqlite.org/src/file/src/btree.c) 源文件中找到的 B 树实现在磁盘上维护。每个表和数据库中的每个索引都使用单独的
+    B 树。所有 B 树都存储在同一个磁盘文件中。文件格式的详细信息在 [file format](https://sqlite.org/fileformat2.html)
+    中已经稳定和明确定义，并保证向前兼容。
 - en: The interface to the B-tree subsystem and the rest of the SQLite library is
     defined by the header file [btree.h](https://sqlite.org/src/file/src/btree.h).
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 与 B 树子系统和 SQLite 库的其余部分的接口由头文件 [btree.h](https://sqlite.org/src/file/src/btree.h)
+    定义。
 - en: Page Cache
+  id: totrans-26
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 页缓存
 - en: The B-tree module requests information from the disk in fixed-size pages. The
     default [page_size](pragma.html#pragma_page_size) is 4096 bytes but can be any
     power of two between 512 and 65536 bytes. The page cache is responsible for reading,
@@ -180,20 +259,31 @@
     cache when it wants to modify pages or commit or rollback changes. The page cache
     handles all the messy details of making sure the requests are handled quickly,
     safely, and efficiently.
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: B 树模块以固定大小的页面从磁盘请求信息。默认的 [page_size](https://sqlite.org/pragma.html#pragma_page_size)
+    是 4096 字节，但可以是 512 到 65536 字节之间的任何二的幂。页缓存负责读取、写入和缓存这些页面。页缓存还提供回滚和原子提交抽象，并负责锁定数据库文件。B
+    树驱动程序从页缓存请求特定页面，并在需要修改页面、提交或回滚更改时通知页缓存。页缓存处理确保请求快速、安全和高效处理的所有混乱细节。
 - en: The primary page cache implementation is in the [pager.c](https://sqlite.org/src/file/src/pager.c)
     file. [WAL mode](wal.html) logic is in the separate [wal.c](https://sqlite.org/src/file/src/wal.c).
     In-memory caching is implemented by the [pcache.c](https://sqlite.org/src/file/src/pcache.c)
     and [pcache1.c](https://sqlite.org/src/file/src/pcache1.c) files. The interface
     between page cache subsystem and the rest of SQLite is defined by the header file
     [pager.h](https://sqlite.org/src/file/src/pager.h).
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 主页缓存的实现在 [pager.c](https://sqlite.org/src/file/src/pager.c) 文件中。[WAL 模式](wal.html)
+    的逻辑在单独的 [wal.c](https://sqlite.org/src/file/src/wal.c) 文件中。内存缓存由 [pcache.c](https://sqlite.org/src/file/src/pcache.c)
+    和 [pcache1.c](https://sqlite.org/src/file/src/pcache1.c) 文件实现。页面缓存子系统与 SQLite
+    其余部分之间的接口由头文件 [pager.h](https://sqlite.org/src/file/src/pager.h) 定义。
 - en: OS Interface
+  id: totrans-29
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 操作系统接口
 - en: In order to provide portability across operating systems, SQLite uses an abstract
     object called the [VFS](vfs.html). Each VFS provides methods for opening, reading,
     writing, and closing files on disk, and for other OS-specific tasks such as finding
@@ -201,12 +291,18 @@
     number generator. SQLite currently provides VFSes for unix (in the [os_unix.c](https://sqlite.org/src/file/src/os_unix.c)
     file) and Windows (in the [os_win.c](https://sqlite.org/src/file/src/os_win.c)
     file).
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了在不同操作系统上提供可移植性，SQLite 使用一个称为 [VFS](vfs.html) 的抽象对象。每个 VFS 提供了用于打开、读取、写入和关闭磁盘文件的方法，以及用于执行其他
+    OS 特定任务，如查找当前时间或获取用于初始化内置伪随机数生成器的随机性。SQLite 目前为 unix（在 [os_unix.c](https://sqlite.org/src/file/src/os_unix.c)
+    文件中）和 Windows（在 [os_win.c](https://sqlite.org/src/file/src/os_win.c) 文件中）提供了 VFS。
 - en: Utilities
+  id: totrans-31
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 实用工具
 - en: Memory allocation, caseless string comparison routines, portable text-to-number
     conversion routines, and other utilities are located in [util.c](https://sqlite.org/src/file/src/util.c).
     Symbol tables used by the parser are maintained by hash tables found in [hash.c](https://sqlite.org/src/file/src/hash.c).
@@ -214,13 +310,23 @@
     conversion subroutines. SQLite has its own private implementation of [printf()](printf.html)
     (with some extensions) in [printf.c](https://sqlite.org/src/file/src/printf.c)
     and its own pseudo-random number generator (PRNG) in [random.c](https://sqlite.org/src/file/src/random.c).
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 内存分配、大小写不敏感字符串比较例程、便携式文本转数字例程以及其他实用工具位于 [util.c](https://sqlite.org/src/file/src/util.c)
+    中。解析器使用的符号表由 [hash.c](https://sqlite.org/src/file/src/hash.c) 中的哈希表维护。[utf.c](https://sqlite.org/src/file/src/utf.c)
+    源文件包含 Unicode 转换子例程。SQLite 在 [printf.c](https://sqlite.org/src/file/src/printf.c)
+    中有自己的私有实现的 [printf()](printf.html)（带有一些扩展），以及在 [random.c](https://sqlite.org/src/file/src/random.c)
+    中有自己的伪随机数生成器（PRNG）。
 - en: Test Code
+  id: totrans-33
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 测试代码
 - en: Files in the "src/" folder of the source tree whose names begin with **test**
     are for testing only and are not included in a standard build of the library.
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: '"src/" 文件夹中以 **test** 开头的文件仅用于测试，不包含在库的标准构建中。'

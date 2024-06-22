@@ -1,25 +1,33 @@
 - en: 1\. Introduction
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 1\. 简介
 - en: 原文：[https://sqlite.com/tempfiles.html](https://sqlite.com/tempfiles.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/tempfiles.html](https://sqlite.com/tempfiles.html)
 - en: One of the [distinctive features](different.html) of SQLite is that a database
     consists of a single disk file. This simplifies the use of SQLite since moving
     or backing up a database is a simple as copying a single file. It also makes SQLite
     appropriate for use as an [application file format](whentouse.html#appfileformat).
     But while a complete database is held in a single disk file, SQLite does make
     use of many temporary files during the course of processing a database.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite的一个[显著特点](different.html)是数据库由单个磁盘文件组成。这简化了SQLite的使用，因为移动或备份数据库只需简单地复制一个文件。这也使得SQLite适合用作[应用程序文件格式](whentouse.html#appfileformat)。但是，虽然一个完整的数据库存储在单个磁盘文件中，但在处理数据库过程中SQLite确实使用了许多临时文件。
 - en: This article describes the various temporary files that SQLite creates and uses.
     It describes when the files are created, when they are deleted, what they are
     used for, why they are important, and how to avoid them on systems where creating
     temporary files is expensive.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文描述了SQLite创建和使用的各种临时文件。它详细说明了文件的创建时间、删除时间、用途、重要性以及如何在创建临时文件成本高昂的系统上避免它们。
 - en: The manner in which SQLite uses temporary files is not considered part of the
     contract that SQLite makes with applications. The information in this document
     is a correct description of how SQLite operates at the time that this document
@@ -27,58 +35,86 @@
     SQLite will use temporary files in the same way. New kinds of temporary files
     might be employed and some of the current temporary file uses might be discontinued
     in future releases of SQLite.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite使用临时文件的方式并不被视为SQLite与应用程序达成的协议的一部分。本文档中的信息是描述SQLite在撰写或最后更新本文档时的操作方式的正确说明。但不能保证未来版本的SQLite会以同样的方式使用临时文件。未来的版本可能会使用新的临时文件类型，而当前某些临时文件的使用可能会在后续SQLite版本中停止。
 - en: 2\. Nine Kinds Of Temporary Files
+  id: totrans-5
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 2\. 九种临时文件
 - en: 'SQLite currently uses nine distinct types of temporary files:'
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite目前使用九种不同类型的临时文件：
 - en: Rollback journals
+  id: totrans-7
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 回滚日志
 - en: Super-journals
+  id: totrans-8
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 超级日志
 - en: Write-ahead Log (WAL) files
+  id: totrans-9
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 预写日志（WAL）文件
 - en: Shared-memory files
+  id: totrans-10
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 共享内存文件
 - en: Statement journals
+  id: totrans-11
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 语句日志
 - en: TEMP databases
+  id: totrans-12
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 临时数据库
 - en: Materializations of views and subqueries
+  id: totrans-13
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 视图和子查询的实体化
 - en: Transient indices
+  id: totrans-14
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 临时索引
 - en: Transient databases used by VACUUM
+  id: totrans-15
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: VACUUM使用的临时数据库
 - en: Additional information about each of these temporary file types is in the sequel.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 关于每种临时文件类型的详细信息将在续篇中给出。
 - en: 2.1\. Rollback Journals
+  id: totrans-17
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.1\. 回滚日志
 - en: A rollback journal is a temporary file used to implement atomic commit and rollback
     capabilities in SQLite. (For a detailed discussion of how this works, see the
     separate document titled [Atomic Commit In SQLite](atomiccommit.html).) The rollback
@@ -90,36 +126,48 @@
     of SQLite. Without a rollback journal, SQLite would be unable to rollback an incomplete
     transaction, and if a crash or power loss occurred in the middle of a transaction
     the entire database would likely go corrupt without a rollback journal.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个回滚日志是在SQLite中实现原子提交和回滚功能时使用的临时文件（有关其工作原理的详细讨论，请参见名为[SQLite中的原子提交](atomiccommit.html)的单独文件）。回滚日志始终位于与数据库文件相同的目录中，并且具有与数据库文件相同的名称，只是附加了8个字符的“-journal”。回滚日志通常在事务首次启动时创建，并且在事务提交或回滚时通常会被删除。回滚日志文件对于实现SQLite的原子提交和回滚功能至关重要。如果没有回滚日志，SQLite将无法回滚不完整的事务，并且如果在事务的中间发生崩溃或断电，没有回滚日志的话，整个数据库可能会变得腐坏。
 - en: The rollback journal is *usually* created and destroyed at the start and end
     of a transaction, respectively. But there are exceptions to this rule.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 回滚日志*通常*在事务开始和结束时创建和销毁，但也有例外情况。
 - en: If a crash or power loss occurs in the middle of a transaction, then the rollback
     journal file is left on disk. The next time another application attempts to open
     the database file, it notices the presence of the abandoned rollback journal (we
     call it a "hot journal" in this circumstance) and uses the information in the
     journal to restore the database to its state prior to the start of the incomplete
     transaction. This is how SQLite implements atomic commit.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在事务的中间发生崩溃或断电，则会在磁盘上保留回滚日志文件。下次另一个应用程序尝试打开数据库文件时，它会注意到废弃的回滚日志（我们在这种情况下称其为“热日志”），并使用日志中的信息将数据库恢复到不完整事务开始之前的状态。这就是SQLite实现原子提交的方式。
 - en: 'If an application puts SQLite in [exclusive locking mode](pragma.html#pragma_locking_mode)
     using the pragma:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一个应用程序使用pragma将SQLite设置为[独占锁定模式](pragma.html#pragma_locking_mode)：
 - en: '[PRE0]'
+  id: totrans-22
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: SQLite creates a new rollback journal at the start of the first transaction
     within an exclusive locking mode session. But at the conclusion of the transaction,
     it does not delete the rollback journal. The rollback journal might be truncated,
     or its header might be zeroed (depending on what version of SQLite you are using)
     but the rollback journal is not deleted. The rollback journal is not deleted until
     exclusive access mode is exited.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 在独占锁定模式会话的第一个事务开始时，SQLite会创建一个新的回滚日志。但在事务结束时，它不会删除回滚日志。回滚日志可能会被截断，或其头部可能会被置零（取决于您使用的SQLite版本），但回滚日志不会被删除。只有在退出独占访问模式时，回滚日志才会被删除。
 - en: Rollback journal creation and deletion is also changed by the [journal_mode
     pragma](pragma.html#pragma_journal_mode). The default journaling mode is DELETE,
     which is the default behavior of deleting the rollback journal file at the end
@@ -139,12 +187,16 @@
     still works when the journal mode is MEMORY, but because no file exists on disks
     for recovery, a crash or power loss in the middle of a transaction that uses the
     MEMORY journal mode will likely result in a corrupt database.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 回滚日志的创建和删除也会受到[journal_mode pragma](pragma.html#pragma_journal_mode)的影响。默认的日志模式是DELETE，即在每次事务结束时删除回滚日志文件，如上所述。PERSIST日志模式则避免了删除日志文件，而是用零覆盖回滚日志头部，这样可以防止其他进程回滚日志，从而达到与删除日志文件相同的效果，但不会实际从磁盘上删除文件。换句话说，PERSIST日志模式展现了与EXCLUSIVE锁定模式相同的行为。OFF日志模式导致SQLite省略回滚日志的创建。换句话说，如果将日志模式设置为OFF，则永远不会写入回滚日志。OFF日志模式会禁用SQLite的原子提交和回滚功能。当设置OFF日志模式时，ROLLBACK命令不可用。如果在使用OFF日志模式的事务中发生崩溃或断电，则无法进行恢复，数据库文件可能会损坏。MEMORY日志模式会将回滚日志存储在内存中而不是磁盘上。当日志模式为MEMORY时，ROLLBACK命令仍然可用，但因为没有文件用于恢复，如果在使用MEMORY日志模式的事务中发生崩溃或断电，数据库可能会损坏。
 - en: 2.2\. Write-Ahead Log (WAL) Files
+  id: totrans-25
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.2\. 写前日志（Write-Ahead Log，WAL）文件
 - en: A write-ahead log or WAL file is used in place of a rollback journal when SQLite
     is operating in [WAL mode](wal.html). As with the rollback journal, the purpose
     of the WAL file is to implement atomic commit and rollback. The WAL file is always
@@ -154,12 +206,16 @@
     when the last connection to the database closes. However, if the last connection
     does not shutdown cleanly, the WAL file will remain in the filesystem and will
     be automatically cleaned up the next time the database is opened.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用写前日志（write-ahead log或WAL）文件来代替回滚日志记录在SQLite工作于[WAL模式](wal.html)时。与回滚日志一样，WAL文件的目的是为了实现原子提交和回滚。WAL文件总是位于与数据库文件相同的目录中，并且具有与数据库文件相同的名称，只是末尾附加了4个字符“**-wal**”。当第一个连接到数据库时，WAL文件就会被创建，并且通常在最后一个连接关闭时被删除。然而，如果最后一个连接没有正常关闭，WAL文件将会保留在文件系统中，并且会在下一次打开数据库时自动清理。
 - en: 2.3\. Shared-Memory Files
+  id: totrans-27
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.3\. 共享内存文件
 - en: 'When operating in [WAL mode](wal.html), all SQLite database connections associated
     with the same database file need to share some memory that is used as an index
     for the WAL file. In most implementations, this shared memory is implemented by
@@ -167,8 +223,10 @@
     The shared-memory file, if it exists, is located in the same directory as the
     database file and has the same name as the database file except with the 4 characters
     "**-shm**" appended. Shared memory files only exist while running in WAL mode.'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 在[WAL模式](wal.html)下操作时，所有与同一数据库文件相关的SQLite数据库连接都需要共享一些内存，以用作WAL文件的索引。在大多数实现中，这个共享内存是通过在专门为此目的创建的文件上调用mmap()来实现的：共享内存文件。如果存在共享内存文件，它位于与数据库文件相同的目录中，并且具有与数据库文件相同的名称，只是末尾附加了4个字符“**-shm**”。共享内存文件仅在WAL模式下运行时存在。
 - en: The shared-memory file contains no persistent content. The only purpose of the
     shared-memory file is to provide a block of shared memory for use by multiple
     processes all accessing the same database in WAL mode. If the [VFS](vfs.html)
@@ -178,18 +236,25 @@
     (meaning that only one process is able to access the database file) then the shared
     memory will be allocated from heap rather than out of the shared-memory file,
     and the shared-memory file will never be created.
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 共享内存文件不包含任何持久内容。共享内存文件的唯一目的是为多个进程提供一个共享内存块，所有这些进程都在WAL模式下访问同一个数据库。如果[VFS](vfs.html)能够提供一种替代方法来访问共享内存，那么可能会使用这种替代方法而不是共享内存文件。例如，如果[PRAGMA
+    locking_mode](pragma.html#pragma_locking_mode)设置为EXCLUSIVE（意味着只有一个进程能够访问数据库文件），那么共享内存将从堆分配而不是从共享内存文件中分配，并且共享内存文件将永远不会被创建。
 - en: The shared-memory file has the same lifetime as its associated WAL file. The
     shared-memory file is created when the WAL file is created and is deleted when
     the WAL file is deleted. During WAL file recovery, the shared memory file is recreated
     from scratch based on the contents of the WAL file being recovered.
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 共享内存文件的生命周期与其关联的WAL文件相同。共享内存文件在创建WAL文件时创建，并在删除WAL文件时删除。在WAL文件恢复期间，根据正在恢复的WAL文件的内容，共享内存文件从头开始重新创建。
 - en: 2.4\. Super-Journal Files
+  id: totrans-31
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.4\. 超级日志文件
 - en: The super-journal file is used as part of the atomic commit process when a single
     transaction makes changes to multiple databases that have been added to a single
     [database connection](c3ref/sqlite3.html) using the [ATTACH](lang_attach.html)
@@ -202,34 +267,49 @@
     The multi-database transaction commits when the super-journal file is deleted.
     See the documentation titled [Atomic Commit In SQLite](atomiccommit.html) for
     additional detail.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 当单个事务对已通过 [ATTACH](lang_attach.html) 语句添加到单个 [数据库连接](c3ref/sqlite3.html) 的多个数据库进行更改时，超级日志文件作为原子提交过程的一部分使用。超级日志文件始终位于与主数据库文件相同的目录中（主数据库文件是在原始
+    [sqlite3_open()](c3ref/open.html)、[sqlite3_open16()](c3ref/open.html) 或 [sqlite3_open_v2()](c3ref/open.html)
+    调用中标识的数据库，该调用创建了 [数据库连接](c3ref/sqlite3.html)）。超级日志文件具有随机后缀，其中包含在事务期间更改的各个附加辅助数据库的名称。当超级日志文件被删除时，多数据库事务提交。有关详细信息，请参阅名为
+    [SQLite 中的原子提交](atomiccommit.html) 的文档。
 - en: Without the super-journal, the transaction commit on a multi-database transaction
     would be atomic for each database individually, but it would not be atomic across
     all databases. In other words, if the commit were interrupted in the middle by
     a crash or power loss, then the changes to one of the databases might complete
     while the changes to another database might roll back. The super-journal causes
     all changes in all databases to either rollback or commit together.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 没有超级日志文件时，多数据库事务提交对每个数据库来说是原子的，但对所有数据库来说不是原子的。换句话说，如果提交在中间被崩溃或断电打断，那么一个数据库的更改可能完成，而另一个数据库的更改可能回滚。超级日志文件导致所有数据库中的所有更改要么回滚要么一起提交。
 - en: 'The super-journal file is only created for [COMMIT](lang_transaction.html)
     operations that involve multiple database files where at least two of the databases
     meet all of the following requirements:'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 超级日志文件仅在涉及多个数据库文件的 [COMMIT](lang_transaction.html) 操作创建，其中至少两个数据库满足以下所有要求：
 - en: The database is modified by the transaction
+  id: totrans-35
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 事务修改数据库
 - en: The [PRAGMA synchronous](pragma.html#pragma_synchronous) setting is not OFF
+  id: totrans-36
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '[PRAGMA synchronous](pragma.html#pragma_synchronous)设置不是OFF'
 - en: The [PRAGMA journal_mode](pragma.html#pragma_journal_mode) is not OFF, MEMORY,
     or WAL
+  id: totrans-37
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '[PRAGMA journal_mode](pragma.html#pragma_journal_mode)不是OFF、MEMORY或WAL'
 - en: This means that SQLite transactions are not atomic across multiple database
     files on a power-loss when the database files have synchronous turned off or when
     they are using journal modes of OFF, MEMORY, or WAL. For synchronous OFF and for
@@ -238,20 +318,26 @@
     files are updated atomically across a power-loss, but in the case of a multi-file
     transactions, some files might rollback while others roll forward after power
     is restored.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 这意味着SQLite事务在数据库文件在断电时不是跨多个文件原子的，如果数据库文件关闭同步或者使用了OFF、MEMORY或WAL的日志模式。对于同步OFF和日志模式OFF以及MEMORY，如果事务提交被断电中断，数据库通常会损坏。对于[WAL模式](wal.html)，单个数据库文件在断电时会原子更新，但在多文件事务中，一些文件可能在断电后回滚，而其他文件可能会继续向前滚动。
 - en: 2.5\. Statement Journal Files
+  id: totrans-39
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.5\. 语句日志文件
 - en: A statement journal file is used to rollback partial results of a single statement
     within a larger transaction. For example, suppose an UPDATE statement will attempt
     to modify 100 rows in the database. But after modifying the first 50 rows, the
     UPDATE hits a constraint violation which should block the entire statement. The
     statement journal is used to undo the first 50 row changes so that the database
     is restored to the state it was in at the start of the statement.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 语句日志文件用于回滚大事务中单个语句的部分结果。例如，假设一个UPDATE语句尝试修改数据库中的100行。但在修改了前50行后，UPDATE遇到了约束违规，应该阻止整个语句。语句日志用于撤消前50行的更改，以便数据库恢复到语句开始时的状态。
 - en: 'A statement journal is only created for an UPDATE or INSERT statement that
     might change multiple rows of a database and which might hit a constraint or a
     RAISE exception within a trigger and thus need to undo partial results. If the
@@ -260,23 +346,31 @@
     created since the ordinary rollback journal can be used instead. The statement
     journal is also omitted if an alternative [conflict resolution algorithm](lang_conflict.html)
     is used. For example:'
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 语句日志仅适用于可能更改数据库多行并且可能在触发器中遇到约束或RAISE异常并因此需要撤消部分结果的UPDATE或INSERT语句。如果UPDATE或INSERT不包含在BEGIN...COMMIT之内，并且在同一数据库连接上没有其他活动语句，则不会创建语句日志，因为可以使用普通回滚日志代替。如果使用了[冲突解决算法](lang_conflict.html)的替代方案，则也会省略语句日志。例如：
 - en: '[PRE1]'
+  id: totrans-42
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: The statement journal is given a randomized name, not necessarily in the same
     directory as the main database, and is automatically deleted at the conclusion
     of the transaction. The size of the statement journal is proportional to the size
     of the change implemented by the UPDATE or INSERT statement that caused the statement
     journal to be created.
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 语句日志被赋予随机名称，并不一定位于主数据库相同目录中，并且在事务结束时自动删除。语句日志的大小与导致创建语句日志的 UPDATE 或 INSERT 语句实施的更改大小成比例。
 - en: 2.6\. TEMP Databases
+  id: totrans-44
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.6\. TEMP 数据库
 - en: Tables created using the "CREATE TEMP TABLE" syntax are only visible to the
     [database connection](c3ref/sqlite3.html) in which the "CREATE TEMP TABLE" statement
     is originally evaluated. These TEMP tables, together with any associated indices,
@@ -285,8 +379,13 @@
     This separate temporary database file also has an associated rollback journal.
     The temporary database file used to store TEMP tables is deleted automatically
     when the [database connection](c3ref/sqlite3.html) is closed using [sqlite3_close()](c3ref/close.html).
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用 "CREATE TEMP TABLE" 语法创建的表仅对原始评估 "CREATE TEMP TABLE" 语句的 [数据库连接](c3ref/sqlite3.html)
+    可见。这些 TEMP 表连同任何关联的索引、触发器和视图，统一存储在一个单独的临时数据库文件中，该文件在第一次看到 "CREATE TEMP TABLE"
+    语句时创建。这个单独的临时数据库文件还有一个关联的回滚日志。用于存储 TEMP 表的临时数据库文件在使用 [sqlite3_close()](c3ref/close.html)
+    关闭 [数据库连接](c3ref/sqlite3.html) 时会自动删除。
 - en: The TEMP database file is very similar to auxiliary database files added using
     the [ATTACH](lang_attach.html) statement, though with a few special properties.
     The TEMP database is always automatically deleted when the [database connection](c3ref/sqlite3.html)
@@ -294,16 +393,25 @@
     and [journal_mode=PERSIST](pragma.html#pragma_journal_mode) PRAGMA settings. And,
     the TEMP database cannot be used with [DETACH](lang_detach.html) nor can another
     process [ATTACH](lang_attach.html) the TEMP database.
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: TEMP 数据库文件与使用 [ATTACH](lang_attach.html) 语句添加的辅助数据库文件非常相似，尽管具有一些特殊属性。当 [数据库连接](c3ref/sqlite3.html)
+    关闭时，TEMP 数据库将自动删除。TEMP 数据库始终使用 [synchronous=OFF](pragma.html#pragma_synchronous)
+    和 [journal_mode=PERSIST](pragma.html#pragma_journal_mode) PRAGMA 设置。而且，TEMP 数据库不能与
+    [DETACH](lang_detach.html) 一起使用，也不能被另一个进程 [ATTACH](lang_attach.html)。
 - en: The temporary files associated with the TEMP database and its rollback journal
     are only created if the application makes use of the "CREATE TEMP TABLE" statement.
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 与 TEMP 数据库及其回滚日志关联的临时文件仅在应用程序使用 "CREATE TEMP TABLE" 语句时创建。
 - en: 2.7\. Materializations Of Views And Subqueries
+  id: totrans-48
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.7\. 视图和子查询的物化
 - en: Queries that contain subqueries must sometime evaluate the subqueries separately
     and store the results in a temporary table, then use the content of the temporary
     table to evaluate the outer query. We call this "materializing" the subquery.
@@ -312,107 +420,155 @@
     stored in their own separate temporary file, which is automatically deleted at
     the conclusion of the query. The size of these temporary tables depends on the
     amount of data in the materialization of the subquery, of course.
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: 包含子查询的查询有时必须单独评估子查询并将结果存储在临时表中，然后使用临时表的内容来评估外部查询。我们称之为"实体化"子查询。SQLite中的查询优化器尝试避免实体化，但有时很难避免。实体化创建的临时表分别存储在它们自己的单独的临时文件中，在查询结束时会自动删除。这些临时表的大小取决于子查询的实体化中的数据量，当然。
 - en: 'A subquery on the right-hand side of IN operator must often be materialized.
     For example:'
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: IN操作符右侧的子查询经常需要被实体化。例如：
 - en: '[PRE2]'
+  id: totrans-51
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: In the query above, the subquery "SELECT b FROM ex2" is evaluated and its results
     are stored in a temporary table (actually a temporary index) that allows one to
     determine whether or not a value ex2.b exists using a simple binary search. Once
     this table is constructed, the outer query is run and for each prospective result
     row a check is made to see if ex1.a is contained within the temporary table. The
     row is output only if the check is true.
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上面的查询中，子查询"SELECT b FROM ex2" 被评估，并且其结果被存储在一个临时表中（实际上是一个临时索引），它可以通过简单的二分搜索确定ex2.b的值是否存在。一旦构建了这个表，外部查询就会运行，并且对于每个潜在的结果行，都会进行检查，看看ex1.a是否包含在临时表中。只有在检查为真时才会输出该行。
 - en: 'To avoid creating the temporary table, the query might be rewritten as follows:'
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了避免创建临时表，查询可能会被重写如下：
 - en: '[PRE3]'
+  id: totrans-54
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: Recent versions of SQLite ([version 3.5.4](releaselog/3_5_4.html) 2007-12-14)
     and later) will do this rewrite automatically if an index exists on the column
     ex2.b.
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite的最新版本（[3.5.4版本](releaselog/3_5_4.html) 2007-12-14及以后）将自动执行此重写，如果在列ex2.b上存在索引。
 - en: 'If the right-hand side of an IN operator can be list of values as in the following:'
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果IN操作符的右侧可以是一个值列表，如下所示：
 - en: '[PRE4]'
+  id: totrans-57
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'List values on the right-hand side of IN are treated as a subquery that must
     be materialized. In other words, the previous statement acts as if it were:'
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: IN操作符右侧的列表值被视为必须被实体化的子查询。换句话说，前面的语句的作用就好像是：
 - en: '[PRE5]'
+  id: totrans-59
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: A temporary index is always used to hold the values of the right-hand side of
     an IN operator when that right-hand side is a list of values.
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个临时索引总是用于保存IN操作符的右侧值，当该右侧值是一个值列表时。
 - en: 'Subqueries might also need to be materialized when they appear in the FROM
     clause of a SELECT statement. For example:'
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 当子查询出现在SELECT语句的FROM子句中时，子查询也可能需要被实体化。例如：
 - en: '[PRE6]'
+  id: totrans-62
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: Depending on the query, SQLite might need to materialize the "(SELECT b FROM
     ex2)" subquery into a temporary table, then perform the join between ex1 and the
     temporary table. The query optimizer tries to avoid this by "flattening" the query.
     In the previous example the query can be flattened, and SQLite will automatically
     transform the query into
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 根据查询的不同，SQLite 可能需要将"(SELECT b FROM ex2)"子查询材料化为临时表，然后在 ex1 和临时表之间执行连接。查询优化器尝试通过"展开"查询来避免这种情况。在前面的示例中，查询可以被展开，SQLite
+    将自动转换查询为
 - en: '[PRE7]'
+  id: totrans-64
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: More complex queries may or may not be able to employ query flattening to avoid
     the temporary table. Whether or not the query can be flattened depends on such
     factors as whether or not the subquery or outer query contain aggregate functions,
     ORDER BY or GROUP BY clauses, LIMIT clauses, and so forth. The rules for when
     a query can and cannot be flattened are very complex and are beyond the scope
     of this document.
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 更复杂的查询可能无法利用查询展开来避免使用临时表。查询是否可以展开取决于诸如子查询或外部查询是否包含聚合函数、ORDER BY 或 GROUP BY 子句、LIMIT
+    子句等因素。查询能否展开的规则非常复杂，超出了本文档的范围。
 - en: 2.8\. Transient Indices
+  id: totrans-66
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.8\. 瞬时索引
 - en: 'SQLite may make use of transient indices to implement SQL language features
     such as:'
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 可能会利用瞬时索引来实现诸如以下 SQL 语言特性：
 - en: An ORDER BY or GROUP BY clause
+  id: totrans-68
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: ORDER BY 或 GROUP BY 子句
 - en: The DISTINCT keyword in an aggregate query
+  id: totrans-69
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 聚合查询中的 DISTINCT 关键字
 - en: Compound SELECT statements joined by UNION, EXCEPT, or INTERSECT
+  id: totrans-70
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用 UNION、EXCEPT 或 INTERSECT 连接的复合 SELECT 语句
 - en: Each transient index is stored in its own temporary file. The temporary file
     for a transient index is automatically deleted at the end of the statement that
     uses it.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个瞬时索引都存储在自己的临时文件中。瞬时索引的临时文件在使用它的语句结束时自动删除。
 - en: SQLite strives to implement ORDER BY clauses using a preexisting index. If an
     appropriate index already exists, SQLite will walk the index, rather than the
     underlying table, to extract the requested information, and thus cause the rows
@@ -421,64 +577,88 @@
     is the row data and whose key is the ORDER BY terms. After the query is evaluated,
     SQLite goes back and walks the transient index from beginning to end in order
     to output the rows in the desired order.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 努力使用预先存在的索引来实现 ORDER BY 子句。如果已经存在适当的索引，SQLite 将遍历该索引而不是底层表，以提取所需信息，并使行按照期望的顺序输出。但如果
+    SQLite 找不到适当的索引，它将评估查询并将每行存储在瞬时索引中，其中数据是行数据，键是 ORDER BY 项。在评估查询后，SQLite 将返回并遍历瞬时索引，以按照期望的顺序输出行。
 - en: SQLite implements GROUP BY by ordering the output rows in the order suggested
     by the GROUP BY terms. Each output row is compared to the previous to see if it
     starts a new "group". The ordering by GROUP BY terms is done in exactly the same
     way as the ordering by ORDER BY terms. A preexisting index is used if possible,
     but if no suitable index is available, a transient index is created.
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite通过按照GROUP BY条款建议的顺序对输出行进行排序来实现GROUP BY。每个输出行与前一行进行比较，以查看是否开始一个新的“组”。按照GROUP
+    BY条款的排序方式与按照ORDER BY条款的排序方式完全相同。如果可能，将使用预先存在的索引，但如果没有合适的索引，则会创建一个临时索引。
 - en: The DISTINCT keyword on an aggregate query is implemented by creating a transient
     index in a temporary file and storing each result row in that index. As new result
     rows are computed a check is made to see if they already exist in the transient
     index and if they do the new result row is discarded.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 在聚合查询上使用DISTINCT关键字通过在临时文件中创建一个临时索引并将每个结果行存储在该索引中来实现。计算新的结果行时，会检查它们是否已经存在于临时索引中，如果存在，则丢弃新的结果行。
 - en: The UNION operator for compound queries is implemented by creating a transient
     index in a temporary file and storing the results of the left and right subquery
     in the transient index, discarding duplicates. After both subqueries have been
     evaluated, the transient index is walked from beginning to end to generate the
     final output.
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 复合查询的UNION运算符通过在临时文件中创建一个临时索引来实现，并将左右子查询的结果存储在临时索引中，丢弃重复项。在评估完两个子查询后，从头到尾遍历临时索引以生成最终输出。
 - en: The EXCEPT operator for compound queries is implemented by creating a transient
     index in a temporary file, storing the results of the left subquery in this transient
     index, then removing the result from right subquery from the transient index,
     and finally walking the index from beginning to end to obtain the final output.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 复合查询的EXCEPT运算符通过在临时文件中创建一个临时索引实现，将左子查询的结果存储在该临时索引中，然后从临时索引中移除右子查询的结果，最后从头到尾遍历索引以获取最终输出。
 - en: The INTERSECT operator for compound queries is implemented by creating two separate
     transient indices, each in a separate temporary file. The left and right subqueries
     are evaluated each into a separate transient index. Then the two indices are walked
     together and entries that appear in both indices are output.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 复合查询的INTERSECT运算符通过在两个单独的临时文件中分别创建两个单独的临时索引来实现。左子查询和右子查询各自计算到单独的临时索引中。然后一起遍历这两个索引，并输出同时出现在两个索引中的条目。
 - en: Note that the UNION ALL operator for compound queries does not use transient
     indices by itself (though of course the right and left subqueries of the UNION
     ALL might use transient indices depending on how they are composed.)
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，复合查询的UNION ALL运算符本身不使用临时索引（尽管UNION ALL的右子查询和左子查询可能根据其组合方式使用临时索引）。
 - en: 2.9\. Transient Database Used By [VACUUM](lang_vacuum.html)
+  id: totrans-79
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.9\. [VACUUM](lang_vacuum.html) 使用的临时数据库
 - en: The [VACUUM](lang_vacuum.html) command works by creating a temporary file and
     then rebuilding the entire database into that temporary file. Then the content
     of the temporary file is copied back into the original database file and the temporary
     file is deleted.
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: '[VACUUM](lang_vacuum.html) 命令通过创建临时文件并将整个数据库重建到该临时文件中来工作。然后将临时文件的内容复制回原始数据库文件，最后删除临时文件。'
 - en: The temporary file created by the [VACUUM](lang_vacuum.html) command exists
     only for the duration of the command itself. The size of the temporary file will
     be no larger than the original database.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: '[VACUUM](lang_vacuum.html) 命令创建的临时文件仅在命令执行期间存在。临时文件的大小不会大于原始数据库。'
 - en: 3\. The SQLITE_TEMP_STORE Compile-Time Parameter and Pragma
+  id: totrans-82
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. SQLITE_TEMP_STORE 编译时参数和Pragma
 - en: The temporary files associated with transaction control, namely the rollback
     journal, super-journal, write-ahead log (WAL) files, and shared-memory files,
     are always written to disk. But the other kinds of temporary files might be stored
@@ -487,80 +667,117 @@
     only in memory depends on the [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time
     parameter, the [temp_store pragma](pragma.html#pragma_temp_store), and on the
     size of the temporary file.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 与事务控制相关的临时文件，即回滚日志、超级日志、预写式日志（WAL）文件和共享内存文件，始终写入磁盘。但其他类型的临时文件可能仅存储在内存中，永不写入磁盘。除回滚、超级和语句日志以外的临时文件是否写入磁盘或仅存储在内存取决于[SQLITE_TEMP_STORE](compile.html#temp_store)
+    编译时参数、[temp_store pragma](pragma.html#pragma_temp_store) 和临时文件的大小。
 - en: 'The [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time parameter is
     a #define whose value is an integer between 0 and 3, inclusive. The meaning of
     the [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time parameter is as
     follows:'
+  id: totrans-84
   prefs: []
   type: TYPE_NORMAL
+  zh: '[SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数是一个 #define，其值是一个介于 0 和 3
+    之间（包括边界）的整数。[SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数的含义如下：'
 - en: Temporary files are always stored on disk regardless of the setting of the [temp_store
     pragma](pragma.html#pragma_temp_store).
+  id: totrans-85
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 无论设置如何，临时文件始终存储在磁盘上，而不受[temp_store pragma](pragma.html#pragma_temp_store)的影响。
 - en: Temporary files are stored on disk by default but this can be overridden by
     the [temp_store pragma](pragma.html#pragma_temp_store).
+  id: totrans-86
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 默认情况下，临时文件存储在磁盘上，但可以通过[temp_store pragma](pragma.html#pragma_temp_store)进行覆盖。
 - en: Temporary files are stored in memory by default but this can be overridden by
     the [temp_store pragma](pragma.html#pragma_temp_store).
+  id: totrans-87
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 默认情况下，临时文件存储在内存中，但可以通过[temp_store pragma](pragma.html#pragma_temp_store)进行覆盖。
 - en: Temporary files are always stored in memory regardless of the setting of the
     [temp_store pragma](pragma.html#pragma_temp_store).
+  id: totrans-88
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 无论如何设置，临时文件始终存储在内存中，而不受[temp_store pragma](pragma.html#pragma_temp_store)的影响。
 - en: The default value of the [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time
     parameter is 1, which means to store temporary files on disk but provide the option
     of overriding the behavior using the [temp_store pragma](pragma.html#pragma_temp_store).
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: '[SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数的默认值为 1，表示将临时文件存储在磁盘上，但提供使用
+    [temp_store pragma](pragma.html#pragma_temp_store) 覆盖此行为的选项。'
 - en: 'The [temp_store pragma](pragma.html#pragma_temp_store) has an integer value
     which also influences the decision of where to store temporary files. The values
     of the temp_store pragma have the following meanings:'
+  id: totrans-90
   prefs: []
   type: TYPE_NORMAL
+  zh: '[temp_store pragma](pragma.html#pragma_temp_store) 具有整数值，也会影响临时文件存储位置的决定。temp_store
+    pragma 的值具有以下含义：'
 - en: Use either disk or memory storage for temporary files as determined by the [SQLITE_TEMP_STORE](compile.html#temp_store)
     compile-time parameter.
+  id: totrans-91
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 根据 [SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数的设置，选择磁盘或内存存储临时文件。
 - en: If the [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time parameter specifies
     memory storage for temporary files, then override that decision and use disk storage
     instead. Otherwise follow the recommendation of the [SQLITE_TEMP_STORE](compile.html#temp_store)
     compile-time parameter.
+  id: totrans-92
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果 [SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数指定临时文件使用内存存储，则应覆盖该决定，改用磁盘存储。否则，遵循
+    [SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数的建议。
 - en: If the [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time parameter specifies
     disk storage for temporary files, then override that decision and use memory storage
     instead. Otherwise follow the recommendation of the [SQLITE_TEMP_STORE](compile.html#temp_store)
     compile-time parameter.
+  id: totrans-93
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 如果 [SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数指定临时文件使用磁盘存储，则应覆盖该决定，改用内存存储。否则，遵循
+    [SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数的建议。
 - en: The default setting for the [temp_store pragma](pragma.html#pragma_temp_store)
     is 0, which means to following the recommendation of [SQLITE_TEMP_STORE](compile.html#temp_store)
     compile-time parameter.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: '[temp_store pragma](pragma.html#pragma_temp_store) 的默认设置为 0，表示遵循 [SQLITE_TEMP_STORE](compile.html#temp_store)
+    编译时参数的建议。'
 - en: To reiterate, the [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time
     parameter and the [temp_store pragma](pragma.html#pragma_temp_store) only influence
     the temporary files other than the rollback journal and the super-journal. The
     rollback journal and the super-journal are always written to disk regardless of
     the settings of the [SQLITE_TEMP_STORE](compile.html#temp_store) compile-time
     parameter and the [temp_store pragma](pragma.html#pragma_temp_store).
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 重申一下，[SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数和 [temp_store pragma](pragma.html#pragma_temp_store)
+    只影响回滚日志和超级日志以外的临时文件。无论 [SQLITE_TEMP_STORE](compile.html#temp_store) 编译时参数和 [temp_store
+    pragma](pragma.html#pragma_temp_store) 的设置如何，回滚日志和超级日志始终会被写入磁盘。
 - en: 4\. Other Temporary File Optimizations
+  id: totrans-96
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. 其他临时文件优化
 - en: SQLite uses a page cache of recently read and written database pages. This page
     cache is used not just for the main database file but also for transient indices
     and tables stored in temporary files. If SQLite needs to use a temporary index
@@ -569,14 +786,19 @@
     tables and index on disk, the information is still initially stored in memory
     in the page cache. The temporary file is not opened and the information is not
     truly written to disk until the page cache is full.
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite使用最近读取和写入的数据库页面的页面缓存。此页面缓存不仅用于主数据库文件，还用于存储在临时文件中的瞬态索引和表。如果SQLite需要使用临时索引或表，并且[SQLITE_TEMP_STORE](compile.html#temp_store)编译时参数和[temp_store
+    pragma](pragma.html#pragma_temp_store)设置为在磁盘上存储临时表和索引，信息仍然最初存储在页面缓存中的内存中。临时文件未打开，信息在页面缓存填满之前不会真正写入磁盘。
 - en: This means that for many common cases where the temporary tables and indices
     are small (small enough to fit into the page cache) no temporary files are created
     and no disk I/O occurs. Only when the temporary data becomes too large to fit
     in RAM does the information spill to disk.
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 这意味着对于许多常见情况，临时表和索引很小（小到可以放入页面缓存中），不会创建临时文件，也不会发生磁盘I/O。只有当临时数据变得太大，无法放入RAM时，信息才会溢出到磁盘。
 - en: Each temporary table and index is given its own page cache which can store a
     maximum number of database pages determined by the SQLITE_DEFAULT_TEMP_CACHE_SIZE
     compile-time parameter. (The default value is 500 pages.) The maximum number of
@@ -584,68 +806,100 @@
     The value cannot be changed at run-time or on a per-table or per-index basis.
     Each temporary file gets its own private page cache with its own SQLITE_DEFAULT_TEMP_CACHE_SIZE
     page limit.
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个临时表和索引都有自己的页面缓存，该缓存可以存储由SQLITE_DEFAULT_TEMP_CACHE_SIZE编译时参数确定的最大数据库页面数。（默认值为500页。）页面缓存中的数据库页面的最大数量对每个临时表和索引都是相同的。该值不能在运行时或每个表或索引基础上更改。每个临时文件都有自己的私有页面缓存，其自己的SQLITE_DEFAULT_TEMP_CACHE_SIZE页面限制。
 - en: 5\. Temporary File Storage Locations
+  id: totrans-100
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 5\. 临时文件存储位置
 - en: The directory or folder in which temporary files are created is determined by
     the OS-specific [VFS](vfs.html).
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 临时文件的创建目录由特定于操作系统的[VFS](vfs.html)决定。
 - en: 'On unix-like systems, directories are searched in the following order:'
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 在类Unix系统中，目录按以下顺序搜索：
 - en: The directory set by [PRAGMA temp_store_directory](pragma.html#pragma_temp_store_directory)
     or by the [sqlite3_temp_directory](c3ref/temp_directory.html) global variable
+  id: totrans-103
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 由[PRAGMA temp_store_directory](pragma.html#pragma_temp_store_directory)或[sqlite3_temp_directory](c3ref/temp_directory.html)全局变量设置的目录
 - en: The SQLITE_TMPDIR environment variable
+  id: totrans-104
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: SQLITE_TMPDIR环境变量
 - en: The TMPDIR environment variable
+  id: totrans-105
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: TMPDIR环境变量
 - en: /var/tmp
+  id: totrans-106
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: /var/tmp
 - en: /usr/tmp
+  id: totrans-107
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: /usr/tmp
 - en: /tmp
+  id: totrans-108
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: /tmp
 - en: The current working directory (".")
+  id: totrans-109
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 当前工作目录（"."）
 - en: The first of the above that is found to exist and have the write and execute
     bits set is used. The final "." fallback is important for some applications that
     use SQLite inside of chroot jails that do not have the standard temporary file
     locations available.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 找到存在且具有写入和执行权限的第一个文件夹将被使用。对于某些在没有标准临时文件位置的chroot jails中使用SQLite的应用程序来说，最后的"."备用选项非常重要。
 - en: 'On Windows systems, folders are searched in the following order:'
+  id: totrans-111
   prefs: []
   type: TYPE_NORMAL
+  zh: 在Windows系统上，文件夹按以下顺序搜索：
 - en: The folder set by [PRAGMA temp_store_directory](pragma.html#pragma_temp_store_directory)
     or by the [sqlite3_temp_directory](c3ref/temp_directory.html) global variable
+  id: totrans-112
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 由[PRAGMA temp_store_directory](pragma.html#pragma_temp_store_directory)或全局变量[sqlite3_temp_directory](c3ref/temp_directory.html)设置的文件夹。
 - en: The folder returned by the GetTempPath() system interface.
+  id: totrans-113
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 由GetTempPath()系统接口返回的文件夹。
 - en: SQLite itself does not pay any attention to environment variables in this case,
     though presumably the GetTempPath() system call does. The search algorithm is
     different for CYGWIN builds. Check the source code for details.
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这种情况下，SQLite本身不关心环境变量，尽管可以假定GetTempPath()系统调用会关注。对于CYGWIN构建，搜索算法有所不同。请查阅源代码获取详细信息。

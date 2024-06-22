@@ -1,11 +1,15 @@
 - en: 1\. Introduction
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 1\. 引言
 - en: 原文：[https://sqlite.com/atomiccommit.html](https://sqlite.com/atomiccommit.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 译文：[https://sqlite.com/atomiccommit.html](https://sqlite.com/atomiccommit.html)
 - en: An important feature of transactional databases like SQLite is "atomic commit".
     Atomic commit means that either all database changes within a single transaction
     occur or none of them occur. With atomic commit, it is as if many different writes
@@ -15,47 +19,65 @@
     of a database file simultaneously and/or instantaneously. But the atomic commit
     logic within SQLite makes it appear as if the changes for a transaction are all
     written instantaneously and simultaneously.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 像 SQLite 这样的事务性数据库的一个重要特性是“原子提交”。 原子提交意味着单个事务内的所有数据库更改要么全部发生，要么全部不发生。 通过原子提交，就好像数据库文件的许多不同部分的不同写操作同时和即时发生一样。
+    真实硬件会对大容量存储进行串行写入，写入单个扇区需要有限的时间。 因此，真正同时和/或即时写入数据库文件的多个不同扇区是不可能的。 但是 SQLite 内的原子提交逻辑使得一个事务的更改看起来好像是同时和即时写入的。
 - en: SQLite has the important property that transactions appear to be atomic even
     if the transaction is interrupted by an operating system crash or power failure.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 具有一个重要特性，即使事务被操作系统崩溃或电源故障中断，事务看起来也是原子的。
 - en: This article describes the techniques used by SQLite to create the illusion
     of atomic commit.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文介绍了 SQLite 使用的技术，以创建原子提交的幻觉。
 - en: The information in this article applies only when SQLite is operating in "rollback
     mode", or in other words when SQLite is not using a [write-ahead log](wal.html).
     SQLite still supports atomic commit when write-ahead logging is enabled, but it
     accomplishes atomic commit by a different mechanism from the one described in
     this article. See the [write-ahead log documentation](wal.html) for additional
     information on how SQLite supports atomic commit in that context.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文的信息仅适用于 SQLite 在“回滚模式”下运行时，或者换句话说，当 SQLite 不使用 [预写日志](wal.html) 时。 当启用预写日志时，SQLite
+    仍然支持原子提交，但是它通过不同于本文描述的机制实现原子提交。 有关 SQLite 如何在该上下文中支持原子提交的额外信息，请参阅 [预写日志文档](wal.html)。
 - en: 2\. Hardware Assumptions
+  id: totrans-6
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 2\. 硬件假设
 - en: Throughout this article, we will call the mass storage device "disk" even though
     the mass storage device might really be flash memory.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: 在本文中，我们将大容量存储设备称为“磁盘”，即使大容量存储设备可能实际上是闪存。
 - en: We assume that disk is written in chunks which we call a "sector". It is not
     possible to modify any part of the disk smaller than a sector. To change a part
     of the disk smaller than a sector, you have to read in the full sector that contains
     the part you want to change, make the change, then write back out the complete
     sector.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们假设磁盘是按块（我们称之为“扇区”）写入的。不可能修改小于扇区大小的磁盘的任何部分。要修改小于扇区大小的磁盘的部分，必须读取包含您想要更改的部分的完整扇区，进行更改，然后重新写回完整的扇区。
 - en: On a traditional spinning disk, a sector is the minimum unit of transfer in
     both directions, both reading and writing. On flash memory, however, the minimum
     size of a read is typically much smaller than a minimum write. SQLite is only
     concerned with the minimum write amount and so for the purposes of this article,
     when we say "sector" we mean the minimum amount of data that can be written to
     mass storage in a single go.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 在传统的旋转硬盘上，扇区是读写的最小传输单位。然而，在闪存上，读取的最小大小通常比写入的最小大小要小得多。SQLite 只关心最小的写入量，因此在本文中，当我们说“扇区”时，我们指的是可以一次性写入到大容量存储中的最小数据量。
 - en: Prior to SQLite version 3.3.14, a sector size of 512 bytes was assumed in all
     cases. There was a compile-time option to change this but the code had never been
     tested with a larger value. The 512 byte sector assumption seemed reasonable since
@@ -70,8 +92,14 @@
     manufacturers to tweak according to their own needs. And we have left open the
     possibility of filling in a more meaningful implementation on Unix and Windows
     in the future.
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 SQLite 版本 3.3.14 之前，所有情况下都假设扇区大小为 512 字节。虽然编译时有选项可以更改此值，但代码从未测试过较大的值。512 字节的扇区假设似乎合理，因为直到最近所有磁盘驱动器都内部使用
+    512 字节扇区。然而，最近有推动将磁盘的扇区大小增加到 4096 字节。此外，闪存的扇区大小通常大于 512 字节。因此，从版本 3.3.14 开始的 SQLite
+    版本在操作系统接口层中有一种方法，用于查询底层文件系统以找到真实的扇区大小。截至当前实现（版本 3.5.0），此方法仍返回一个硬编码的值为 512 字节，因为在
+    Unix 或 Windows 上没有标准的方法来发现真实的扇区大小。但该方法可供嵌入式设备制造商根据自身需求进行调整。未来可能在 Unix 和 Windows
+    上填充更有意义的实现。
 - en: SQLite has traditionally assumed that a sector write is not atomic. However,
     SQLite does always assume that a sector write is linear. By "linear" we mean that
     SQLite assumes that when writing a sector, the hardware begins at one end of the
@@ -82,8 +110,11 @@
     of the sector gets changed, then either the first or the last bytes will be changed.
     So the hardware will never start writing a sector in the middle and work towards
     the ends. We do not know if this assumption is always true but it seems reasonable.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 传统上假定扇区写操作不是原子性的。然而，SQLite 总是假定扇区写操作是线性的。所谓“线性”，意味着 SQLite 假定当写入一个扇区时，硬件会从数据的一端开始逐字节地写到另一端。写操作可能从开头到结尾，也可能从结尾到开头。如果在扇区写操作中间发生了断电，可能会导致部分扇区被修改而另一部分保持不变。SQLite
+    的关键假设是，如果扇区的任何部分发生了变化，那么第一个或最后一个字节将会被修改。因此，硬件永远不会从扇区的中间开始写入并向两端工作。我们不知道这种假设是否总是成立，但它似乎是合理的。
 - en: The previous paragraph states that SQLite does not assume that sector writes
     are atomic. This is true by default. But as of SQLite version 3.5.0, there is
     a new interface called the Virtual File System ([VFS](vfs.html)) interface. The
@@ -97,8 +128,14 @@
     SQLite will try to take advantage of that fact. But the default xDeviceCharacteristics
     method for both Unix and Windows does not indicate atomic sector writes and so
     these optimizations are normally omitted.
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 前面的段落表明，SQLite 不假定扇区写操作是原子性的，默认情况下确实如此。但从 SQLite 版本 3.5.0 开始，有一个称为虚拟文件系统（[VFS](vfs.html)）接口的新接口。[VFS](vfs.html)
+    是 SQLite 与底层文件系统通信的唯一手段。代码附带了 Unix 和 Windows 的默认 VFS 实现，并且有一个在运行时创建新的自定义 VFS 实现的机制。在这个新的
+    VFS 接口中，有一个称为 xDeviceCharacteristics 的方法。这个方法会查询底层文件系统，以发现文件系统可能存在或不存在的各种属性和行为。xDeviceCharacteristics
+    方法可能会指示扇区写操作是否是原子性的，如果是，SQLite 将尝试利用这一事实。但是对于 Unix 和 Windows 的默认 xDeviceCharacteristics
+    方法并不指示扇区写操作是原子性的，因此通常会省略这些优化操作。
 - en: SQLite assumes that the operating system will buffer writes and that a write
     request will return before data has actually been stored in the mass storage device.
     SQLite further assumes that write operations will be reordered by the operating
@@ -111,8 +148,10 @@
     SQLite can do to test for or remedy the situation. SQLite assumes that the operating
     system that it is running on works as advertised. If that is not quite the case,
     well then hopefully you will not lose power too often.
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite假设操作系统会缓冲写入，并且写入请求会在数据实际存储在大容量存储设备之前返回。SQLite进一步假设操作系统会重新排序写操作。因此，SQLite在关键点进行“flush”或“fsync”操作。SQLite假设flush或fsync操作不会在正在刷新的文件的所有待处理写操作完成之前返回。我们被告知，在某些版本的Windows和Linux上，flush和fsync原语存在问题。这是不幸的。这使得SQLite容易在提交过程中断电后可能出现数据库损坏的情况。但是，SQLite无能为力地无法测试或解决这种情况。SQLite假设它运行的操作系统就像广告中所说的那样工作。如果情况并非如此，那么希望你不会经常断电。
 - en: SQLite assumes that when a file grows in length that the new file space originally
     contains garbage and then later is filled in with the data actually written. In
     other words, SQLite assumes that the file size is updated before the file content.
@@ -126,8 +165,10 @@
     SQLite can forego some of its pedantic database protection steps and thereby decrease
     the amount of disk I/O needed to perform a commit. The current implementation,
     however, makes no such assumptions for the default VFSes for Windows and Unix.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite假设文件长度增加时，新的文件空间最初包含垃圾数据，然后后续填入实际写入的数据。换句话说，SQLite假设文件大小在文件内容之前更新。这是一种悲观的假设，SQLite必须做一些额外的工作，以确保如果在文件大小增加和新内容写入之间断电时不会导致数据库损坏。[VFS](vfs.html)的xDeviceCharacteristics方法可能表明文件系统总是在更新文件大小之前写入数据。（对于查看代码的读者，这是SQLITE_IOCAP_SAFE_APPEND属性。）当xDeviceCharacteristics方法指示文件内容在增加文件大小之前写入时，SQLite可以省略一些过于严格的数据库保护步骤，从而减少执行提交所需的磁盘I/O量。然而，当前实现对于Windows和Unix的默认VFS并不做出此类假设。
 - en: SQLite assumes that a file deletion is atomic from the point of view of a user
     process. By this we mean that if SQLite requests that a file be deleted and the
     power is lost during the delete operation, once power is restored either the file
@@ -136,16 +177,21 @@
     file is only partially deleted, if some of its data has been altered or erased,
     or the file has been truncated but not completely removed, then database corruption
     will likely result.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite假设用户进程视角下的文件删除是原子操作。这意味着如果SQLite请求删除文件，并且在删除操作期间断电，一旦电力恢复，要么文件完整存在且所有原始内容未改变，要么文件在文件系统中完全看不到。如果电力恢复后文件只被部分删除，数据部分被改变或擦除，或者文件被截断但没有完全删除，则可能导致数据库损坏。
 - en: SQLite assumes that the detection and/or correction of bit errors caused by
     cosmic rays, thermal noise, quantum fluctuations, device driver bugs, or other
     mechanisms, is the responsibility of the underlying hardware and operating system.
     SQLite does not add any redundancy to the database file for the purpose of detecting
     corruption or I/O errors. SQLite assumes that the data it reads is exactly the
     same data that it previously wrote.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 假定由宇宙射线、热噪声、量子波动、设备驱动程序错误或其他机制引起的位错误的检测和/或校正是底层硬件和操作系统的责任。SQLite 不会为了检测损坏或
+    I/O 错误而向数据库文件添加任何冗余。SQLite 假定它读取的数据与它之前写入的数据完全相同。
 - en: By default, SQLite assumes that an operating system call to write a range of
     bytes will not damage or alter any bytes outside of that range even if a power
     loss or OS crash occurs during that write. We call this the "[powersafe overwrite](psow.html)"
@@ -157,25 +203,38 @@
     of powersafe overwrite property can be disabled at compile-time or a run-time
     if desired. See the [powersafe overwrite documentation](psow.html) for further
     details.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，SQLite 假定操作系统调用写入一定范围的字节不会损坏或更改该范围之外的任何字节，即使在写入期间发生断电或操作系统崩溃。我们称之为“[安全覆写](psow.html)”特性。在
+    [3.7.9 版本](releaselog/3_7_9.html)（2011-11-01）之前，SQLite 不假定安全覆写。但随着大多数磁盘驱动器标准扇区大小从
+    512 增加到 4096 字节，为了保持历史性能水平，有必要假定安全覆写，默认情况下最新版本的 SQLite 假定安全覆写。可以在编译时或运行时禁用安全覆写属性，如果需要的话。有关详细信息，请参阅
+    [安全覆写文档](psow.html)。
 - en: 3\. Single File Commit
+  id: totrans-18
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. 单文件提交
 - en: We begin with an overview of the steps SQLite takes in order to perform an atomic
     commit of a transaction against a single database file. The details of file formats
     used to guard against damage from power failures and techniques for performing
     an atomic commit across multiple databases are discussed in later sections.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们首先概述 SQLite 在执行针对单个数据库文件的事务的原子提交时所采取的步骤。有关用于防止因断电而造成损坏的文件格式细节以及跨多个数据库执行原子提交的技术将在后续章节中讨论。
 - en: 3.1\. Initial State
+  id: totrans-20
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.1\. 初始状态
 - en: '![](../Images/79e7f17da40f71332a9d0652865a2360.png)'
+  id: totrans-21
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/79e7f17da40f71332a9d0652865a2360.png)'
 - en: The state of the computer when a database connection is first opened is shown
     conceptually by the diagram at the right. The area of the diagram on the extreme
     right (labeled "Disk") represents information stored on the mass storage device.
@@ -185,22 +244,32 @@
     of the disk cache empty. The left area of the diagram shows the content of memory
     for the process that is using SQLite. The database connection has just been opened
     and no information has been read yet, so the user space is empty.
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 当数据库连接首次打开时，计算机的状态如右侧图示所示。图中极右边的区域（标记为“磁盘”）表示存储在大容量存储设备上的信息。每个矩形代表一个扇区。蓝色表示扇区包含原始数据。中间区域是操作系统的磁盘缓存。在我们的示例开始时，缓存是冷的，这通过磁盘缓存的矩形为空来表示。图示的左侧区域显示了正在使用
+    SQLite 的进程的内存内容。数据库连接刚刚打开，还没有读取任何信息，因此用户空间为空。
 - en: 3.2\. Acquiring A Read Lock
+  id: totrans-23
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.2\. 获得读取锁定
 - en: '![](../Images/81c2667e56c36ec97009789730873d40.png)'
+  id: totrans-24
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/81c2667e56c36ec97009789730873d40.png)'
 - en: Before SQLite can write to a database, it must first read the database to see
     what is there already. Even if it is just appending new data, SQLite still has
     to read in the database schema from the "[sqlite_schema](schematab.html)" table
     so that it can know how to parse the INSERT statements and discover where in the
     database file the new information should be stored.
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 SQLite 可以向数据库写入数据之前，必须首先读取数据库，查看已有的内容。即使只是追加新数据，SQLite 仍然必须从 "[sqlite_schema](schematab.html)"
+    表中读取数据库架构，以便能够解析 INSERT 语句并发现新信息应存储在数据库文件的何处。
 - en: The first step toward reading from the database file is obtaining a shared lock
     on the database file. A "shared" lock allows two or more database connections
     to read from the database file at the same time. But a shared lock prevents another
@@ -209,44 +278,60 @@
     file at the same time we are reading from the database file, we might read some
     data before the change and other data after the change. This would make it appear
     as if the change made by the other process is not atomic.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 从数据库文件读取的第一步是获得对数据库文件的共享锁定。 "共享" 锁定允许两个或更多数据库连接同时从数据库文件中读取。但是，共享锁定在我们读取时阻止其他数据库连接向数据库文件写入。这是必要的，因为如果另一个数据库连接在我们读取数据库文件时同时向其写入，我们可能会在变更之前读取一些数据，而在变更之后读取其他数据。这将导致似乎由其他进程进行的更改不是原子的现象。
 - en: Notice that the shared lock is on the operating system disk cache, not on the
     disk itself. File locks really are just flags within the operating system kernel,
     usually. (The details depend on the specific OS layer interface.) Hence, the lock
     will instantly vanish if the operating system crashes or if there is a power loss.
     It is usually also the case that the lock will vanish if the process that created
     the lock exits.
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，共享锁是在操作系统磁盘缓存上而不是磁盘本身。文件锁实际上只是操作系统内核中的标志，通常如此。（具体细节取决于特定的操作系统层接口。）因此，如果操作系统崩溃或断电，锁将立即消失。通常情况下，如果创建锁的进程退出，锁也会消失。
 - en: 3.3\. Reading Information Out Of The Database
+  id: totrans-28
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.3\. 从数据库中读取信息
 - en: '![](../Images/6ac28ddf79b0097e74783ff3b391098e.png)'
+  id: totrans-29
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/6ac28ddf79b0097e74783ff3b391098e.png)'
 - en: After the shared lock is acquired, we can begin reading information from the
     database file. In this scenario, we are assuming a cold cache, so information
     must first be read from mass storage into the operating system cache then transferred
     from operating system cache into user space. On subsequent reads, some or all
     of the information might already be found in the operating system cache and so
     only the transfer to user space would be required.
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 获得共享锁后，我们可以开始从数据库文件中读取信息。在这种情况下，我们假设是冷缓存，因此信息必须首先从大容量存储器读入操作系统缓存，然后从操作系统缓存传输到用户空间。在后续的读取中，部分或所有信息可能已经存在于操作系统缓存中，因此只需要传输到用户空间。
 - en: Usually only a subset of the pages in the database file are read. In this example
     we are showing three pages out of eight being read. In a typical application,
     a database will have thousands of pages and a query will normally only touch a
     small percentage of those pages.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 通常只会读取数据库文件中的部分页面。在此示例中，我们展示了八个页面中的三个页面被读取。在典型的应用程序中，数据库将拥有数千个页面，而查询通常只会触及其中的少部分页面。
 - en: 3.4\. Obtaining A Reserved Lock
+  id: totrans-32
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.4\. 获取保留锁
 - en: '![](../Images/9b2de8089e75b33f5b30178fc78157f3.png)'
+  id: totrans-33
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/9b2de8089e75b33f5b30178fc78157f3.png)'
 - en: Before making changes to the database, SQLite first obtains a "reserved" lock
     on the database file. A reserved lock is similar to a shared lock in that both
     a reserved lock and shared lock allow other processes to read from the database
@@ -254,36 +339,48 @@
     processes. However, there can only be a single reserved lock on the database file.
     Hence only a single process can be attempting to write to the database at one
     time.
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 在对数据库进行更改之前，SQLite 首先在数据库文件上获取“保留”锁。保留锁类似于共享锁，因为保留锁和共享锁都允许其他进程从数据库文件中读取。单个保留锁可以与来自其他进程的多个共享锁共存。然而，数据库文件上只能有一个保留锁。因此，在同一时间只能有一个进程尝试对数据库进行写入。
 - en: The idea behind a reserved lock is that it signals that a process intends to
     modify the database file in the near future but has not yet started to make the
     modifications. And because the modifications have not yet started, other processes
     can continue to read from the database. However, no other process should also
     begin trying to write to the database.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 预留锁的概念是指它表示进程打算在不久的将来修改数据库文件，但尚未开始进行修改。因为修改尚未开始，其他进程可以继续从数据库中读取。然而，没有其他进程应该开始尝试对数据库进行写入。
 - en: 3.5\. Creating A Rollback Journal File
+  id: totrans-36
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.5\. 创建回滚日志文件
 - en: '![](../Images/5881dd4089a8ed63adff6117783c9769.png)'
+  id: totrans-37
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/5881dd4089a8ed63adff6117783c9769.png)'
 - en: Prior to making any changes to the database file, SQLite first creates a separate
     rollback journal file and writes into the rollback journal the original content
     of the database pages that are to be altered. The idea behind the rollback journal
     is that it contains all information needed to restore the database back to its
     original state.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 在对数据库文件进行任何更改之前，SQLite 首先创建一个单独的回滚日志文件，并将要修改的数据库页的原始内容写入回滚日志。回滚日志的理念是它包含将数据库恢复到原始状态所需的所有信息。
 - en: The rollback journal contains a small header (shown in green in the diagram)
     that records the original size of the database file. So if a change causes the
     database file to grow, we will still know the original size of the database. The
     page number is stored together with each database page that is written into the
     rollback journal.
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 回滚日志包含一个小的头部（在图示中显示为绿色），记录了数据库文件的原始大小。因此，如果更改导致数据库文件增大，我们仍然可以知道数据库的原始大小。页面编号与写入回滚日志的每个数据库页面一起存储。
 - en: When a new file is created, most desktop operating systems (Windows, Linux,
     Mac OS X) will not actually write anything to disk. The new file is created in
     the operating systems disk cache only. The file is not created on mass storage
@@ -292,15 +389,22 @@
     doing real disk I/O. We illustrate this idea in the diagram to the right by showing
     that the new rollback journal appears in the operating system disk cache only
     and not on the disk itself.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 当创建新文件时，大多数桌面操作系统（Windows、Linux、Mac OS X）实际上不会立即向磁盘写入任何内容。新文件仅在操作系统磁盘缓存中创建。直到稍后某个时候，操作系统有空闲时才会将文件创建到主存储器中。这给用户留下了一种错觉，即
+    I/O 比实际进行真正的磁盘 I/O 时要快得多。我们在右侧的图示中说明了这个概念，显示新的回滚日志仅出现在操作系统磁盘缓存中，而不是在磁盘本身上。
 - en: 3.6\. Changing Database Pages In User Space
+  id: totrans-41
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.6\. 在用户空间更改数据库页面
 - en: '![](../Images/1b32b1e463fd2c05d1bc1c79d93f08db.png)'
+  id: totrans-42
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/1b32b1e463fd2c05d1bc1c79d93f08db.png)'
 - en: After the original page content has been saved in the rollback journal, the
     pages can be modified in user memory. Each database connection has its own private
     copy of user space, so the changes that are made in user space are only visible
@@ -309,21 +413,29 @@
     yet been changed. And so even though one process is busy modifying the database,
     other processes can continue to read their own copies of the original database
     content.
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 在原始页面内容保存在回滚日志之后，页面可以在用户内存中修改。每个数据库连接都有自己的用户空间的私有副本，因此在用户空间进行的更改仅对进行更改的数据库连接可见。其他数据库连接仍然看到操作系统磁盘缓存缓冲区中尚未更改的信息。因此，即使一个进程正在忙于修改数据库，其他进程仍然可以继续读取其原始数据库内容的副本。
 - en: 3.7\. Flushing The Rollback Journal File To Mass Storage
+  id: totrans-44
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.7\. 将回滚日志文件刷新到大容量存储
 - en: '![](../Images/8d501e38c0ced3885bfd60749b184cf2.png)'
+  id: totrans-45
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/8d501e38c0ced3885bfd60749b184cf2.png)'
 - en: The next step is to flush the content of the rollback journal file to nonvolatile
     storage. As we will see later, this is a critical step in insuring that the database
     can survive an unexpected power loss. This step also takes a lot of time, since
     writing to nonvolatile storage is normally a slow operation.
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 下一步是将回滚日志文件的内容刷新到非易失性存储。正如我们将在后面看到的那样，这是确保数据库能够在意外断电情况下生存的关键步骤。由于写入非易失性存储通常是一个缓慢的操作，这一步也需要很多时间。
 - en: This step is usually more complicated than simply flushing the rollback journal
     to the disk. On most platforms two separate flush (or fsync()) operations are
     required. The first flush writes out the base rollback journal content. Then the
@@ -331,21 +443,29 @@
     rollback journal. Then the header is flushed to disk. The details on why we do
     this header modification and extra flush are provided in a later section of this
     paper.
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 这一步通常比简单地将回滚日志刷新到磁盘复杂得多。在大多数平台上，需要进行两次单独的刷新（或fsync()）操作。第一次刷新将写出基本的回滚日志内容。然后修改回滚日志的头部以显示回滚日志中页面的数量。然后将头部刷新到磁盘。关于为什么要进行这种头部修改和额外刷新的详细信息将在本文的后续部分提供。
 - en: 3.8\. Obtaining An Exclusive Lock
+  id: totrans-48
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.8\. 获取排他锁
 - en: '![](../Images/b67aa81d2c53e66f9a24a8bbb6e530cd.png)'
+  id: totrans-49
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/b67aa81d2c53e66f9a24a8bbb6e530cd.png)'
 - en: Prior to making changes to the database file itself, we must obtain an exclusive
     lock on the database file. Obtaining an exclusive lock is really a two-step process.
     First SQLite obtains a "pending" lock. Then it escalates the pending lock to an
     exclusive lock.
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 在对数据库文件本身进行更改之前，我们必须获取数据库文件的排他锁。获取排他锁实际上是一个两步过程。首先，SQLite获取一个“挂起”锁。然后将挂起锁升级为排他锁。
 - en: A pending lock allows other processes that already have a shared lock to continue
     reading the database file. But it prevents new shared locks from being established.
     The idea behind a pending lock is to prevent writer starvation caused by a large
@@ -360,43 +480,61 @@
     by allowing existing shared locks to proceed but blocking new shared locks from
     being established. Eventually all shared locks will clear and the pending lock
     will then be able to escalate into an exclusive lock.
+  id: totrans-51
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个挂起锁允许已经具有共享锁的其他进程继续读取数据库文件。但它阻止新的共享锁的建立。挂起锁的理念是防止由大量读取者组成的写入者饥饿问题。可能有数十、甚至数百个其他进程试图读取数据库文件。每个进程在开始读取之前都会获取一个共享锁，读取所需内容，然后释放共享锁。然而，如果有许多不同的进程都从同一个数据库读取，可能会发生新的进程总是在前一个进程释放其共享锁之前获取其共享锁的情况。因此，数据库文件上永远没有没有共享锁的时刻，因此写入者永远没有机会获取独占锁。挂起锁的设计就是为了阻止这种循环，允许现有的共享锁继续进行，但阻止新的共享锁的建立。最终，所有的共享锁都会清除，挂起锁随后可以升级为独占锁。
 - en: 3.9\. Writing Changes To The Database File
+  id: totrans-52
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.9\. 将更改写入数据库文件
 - en: '![](../Images/e6c4ee38aebde6e7bd2fa6dfc2101103.png)'
+  id: totrans-53
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/e6c4ee38aebde6e7bd2fa6dfc2101103.png)'
 - en: Once an exclusive lock is held, we know that no other processes are reading
     from the database file and it is safe to write changes into the database file.
     Usually those changes only go as far as the operating systems disk cache and do
     not make it all the way to mass storage.
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦持有独占锁，我们知道没有其他进程从数据库文件中读取，因此可以安全地将更改写入数据库文件。通常这些更改只会到达操作系统的磁盘缓存，而不会完全传输到大容量存储。
 - en: 3.10\. 0 Flushing Changes To Mass Storage
+  id: totrans-55
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.10\. 将更改刷新到大容量存储
 - en: '![](../Images/87054b6c60ccadb147393d7ff20e319b.png)'
+  id: totrans-56
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/87054b6c60ccadb147393d7ff20e319b.png)'
 - en: Another flush must occur to make sure that all the database changes are written
     into nonvolatile storage. This is a critical step to ensure that the database
     will survive a power loss without damage. However, because of the inherent slowness
     of writing to disk or flash memory, this step together with the rollback journal
     file flush in section 3.7 above takes up most of the time required to complete
     a transaction commit in SQLite.
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 还需要另一次刷新操作，以确保所有的数据库更改都被写入非易失性存储。这是一个关键步骤，确保数据库在断电时不会受到损坏。然而，由于向磁盘或闪存写入的固有缓慢性，这一步与上文第3.7节中回滚日志文件的刷新一起，占据了完成SQLite事务提交所需时间的大部分。
 - en: 3.11\. 1 Deleting The Rollback Journal
+  id: totrans-58
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.11\. 1 删除回滚日志
 - en: '![](../Images/e371899cab0bb729747083c357b06e82.png)'
+  id: totrans-59
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/e371899cab0bb729747083c357b06e82.png)'
 - en: After the database changes are all safely on the mass storage device, the rollback
     journal file is deleted. This is the instant where the transaction commits. If
     a power failure or system crash occurs prior to this point, then recovery processes
@@ -406,8 +544,10 @@
     gives the appearance of having made no changes to the database file or having
     made the complete set of changes to the database file depending on whether or
     not the rollback journal file exists.
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 当所有数据库更改都安全地存储在大容量存储设备上后，回滚日志文件被删除。这是事务提交的时刻。如果在此时发生断电或系统崩溃，则稍后描述的恢复过程将使得看起来数据库文件从未进行过任何更改。如果在删除回滚日志文件之后发生断电或系统崩溃，则看起来所有更改都已写入磁盘。因此，SQLite看起来没有对数据库文件进行任何更改，或者已对数据库文件进行了完整的一组更改，这取决于回滚日志文件是否存在。
 - en: Deleting a file is not really an atomic operation, but it appears to be from
     the point of view of a user process. A process is always able to ask the operating
     system "does this file exist?" and the process will get back a yes or no answer.
@@ -415,14 +555,18 @@
     the operating system whether or not the rollback journal file exists. If the answer
     is "yes" then the transaction is incomplete and is rolled back. If the answer
     is "no" then it means the transaction did commit.
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 删除文件并不是真正的原子操作，但从用户进程的角度看，它似乎是。进程始终可以询问操作系统“这个文件存在吗？”，并且进程将得到一个是或否的答案。在事务提交期间发生的断电后，SQLite将询问操作系统回滚日志文件是否存在。如果答案是“是”，则事务不完整并且回滚。如果答案是“否”，则表示事务已提交。
 - en: The existence of a transaction depends on whether or not the rollback journal
     file exists and the deletion of a file appears to be an atomic operation from
     the point of view of a user-space process. Therefore, a transaction appears to
     be an atomic operation.
+  id: totrans-62
   prefs: []
   type: TYPE_NORMAL
+  zh: 事务的存在取决于回滚日志文件是否存在，并且从用户空间进程的角度来看，文件删除似乎是一个原子操作。因此，事务看起来是一个原子操作。
 - en: The act of deleting a file is expensive on many systems. As an optimization,
     SQLite can be configured to truncate the journal file to zero bytes in length
     or overwrite the journal file header with zeros. In either case, the resulting
@@ -433,19 +577,27 @@
     is malformed the journal will not roll back. Hence, one can say that the commit
     occurs as soon as the header is sufficiently changed to make it invalid. Typically
     this happens as soon as the first byte of the header is zeroed.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 删除文件的操作在许多系统上是昂贵的。作为优化，SQLite 可以配置为将日志文件截断为零字节长度或用零覆盖日志文件头部。无论哪种情况，结果的日志文件都不能再回滚，因此事务仍然提交。将文件截断为零长度，就像删除文件一样，从用户进程的角度来看，被假定为是原子操作。用零覆盖日志的头部并不是原子的，但如果头部的任何部分格式错误，日志将无法回滚。因此，可以说一旦头部被足够改变以使其无效，提交就发生了。通常情况下，这会在头部的第一个字节被置零后立即发生。
 - en: 3.12\. 2 Releasing The Lock
+  id: totrans-64
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.12\. 2 释放锁
 - en: '![](../Images/343ae5cf8f202575329b29e080c25f33.png)'
+  id: totrans-65
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/343ae5cf8f202575329b29e080c25f33.png)'
 - en: The last step in the commit process is to release the exclusive lock so that
     other processes can once again start accessing the database file.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 提交过程的最后一步是释放排他锁，以便其他进程可以再次开始访问数据库文件。
 - en: In the diagram at the right, we show that the information that was held in user
     space is cleared when the lock is released. This used to be literally true for
     older versions of SQLite. But more recent versions of SQLite keep the user space
@@ -461,47 +613,65 @@
     then the user space cache must be cleared and reread. But it is commonly the case
     that no changes have been made and the user space cache can be reused for a significant
     performance savings.
+  id: totrans-67
   prefs: []
   type: TYPE_NORMAL
+  zh: 在右侧的图表中，我们展示了当锁被释放时用户空间中的信息被清除。这在旧版本的SQLite中曾经是真实的。但是在较新的SQLite版本中，用户空间的信息保留在内存中，以防在下一次事务开始时可能再次需要。重复使用本地内存中已有的信息比从操作系统磁盘缓存中传输信息或者再次从磁盘驱动器读取信息更为廉价。在重复使用用户空间信息之前，我们必须重新获取共享锁，然后必须检查确保在我们没有持有锁时没有其他进程修改了数据库文件。数据库的第一页有一个计数器，每次修改数据库文件时该计数器增加。通过检查该计数器我们可以知道是否有其他进程修改了数据库。如果数据库已被修改，则必须清除并重新读取用户空间缓存。但通常情况下并没有进行任何更改，用户空间缓存可以重复使用，从而显著提升性能节省。
 - en: 4\. Rollback
+  id: totrans-68
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. 回滚
 - en: An atomic commit is supposed to happen instantaneously. But the processing described
     above clearly takes a finite amount of time. Suppose the power to the computer
     were cut part way through the commit operation described above. In order to maintain
     the illusion that the changes were instantaneous, we have to "rollback" any partial
     changes and restore the database to the state it was in prior to the beginning
     of the transaction.
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 原子提交应该是瞬间发生的。但上述描述的处理显然需要一定的时间。假设在提交操作的中途断电。为了保持变更瞬间发生的假象，我们必须"回滚"任何部分更改，并将数据库恢复到事务开始前的状态。
 - en: 4.1\. When Something Goes Wrong...
+  id: totrans-70
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.1\. 当出现问题时...
 - en: '![](../Images/8161bc86ce7c4da57a5285a80531d3e1.png)'
+  id: totrans-71
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/8161bc86ce7c4da57a5285a80531d3e1.png)'
 - en: Suppose the power loss occurred during [step 3.10](#section_3_10) above, while
     the database changes were being written to disk. After power is restored, the
     situation might be something like what is shown to the right. We were trying to
     change three pages of the database file but only one page was successfully written.
     Another page was partially written and a third page was not written at all.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设电源在[第 3.10 节](#section_3_10)中数据库更改写入磁盘期间丢失。在恢复电源后，情况可能像右边所示。我们试图更改数据库文件的三个页面，但只有一个页面成功写入。另一个页面部分写入，第三个页面根本未写入。
 - en: The rollback journal is complete and intact on disk when the power is restored.
     This is a key point. The reason for the flush operation in [step 3.7](#section_3_7)
     is to make absolutely sure that all of the rollback journal is safely on nonvolatile
     storage prior to making any changes to the database file itself.
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 在恢复电源时，回滚日志在磁盘上是完整且完好无损的。这是一个关键点。[第 3.7 节](#section_3_7)中的刷新操作的原因是确保所有的回滚日志在对数据库文件本身进行任何更改之前都安全地存储在非易失性存储器上。
 - en: 4.2\. Hot Rollback Journals
+  id: totrans-74
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.2\. 热回滚日志
 - en: '![](../Images/24c442ee428e731cd7057e047a3221a7.png)'
+  id: totrans-75
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/24c442ee428e731cd7057e047a3221a7.png)'
 - en: The first time that any SQLite process attempts to access the database file,
     it obtains a shared lock as described in [section 3.2](#section_3_2) above. But
     then it notices that there is a rollback journal file present. SQLite then checks
@@ -509,59 +679,86 @@
     journal that needs to be played back in order to restore the database to a sane
     state. A hot journal only exists when an earlier process was in the middle of
     committing a transaction when it crashed or lost power.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 任何 SQLite 进程首次尝试访问数据库文件时，如[第 3.2 节](#section_3_2)所述，会获取一个共享锁。但随后它会注意到存在回滚日志文件。SQLite
+    然后检查回滚日志是否为“热日志”。热日志是需要回放以将数据库恢复到正常状态的回滚日志。只有在之前的进程在提交事务时崩溃或断电时，才会存在热日志。
 - en: 'A rollback journal is a "hot" journal if all of the following are true:'
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果满足以下所有条件，则回滚日志是“热”日志：
 - en: The rollback journal exists.
+  id: totrans-78
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 回滚日志已存在。
 - en: The rollback journal is not an empty file.
+  id: totrans-79
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 回滚日志不是空文件。
 - en: There is no reserved lock on the main database file.
+  id: totrans-80
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 主数据库文件上没有保留锁。
 - en: The header of the rollback journal is well-formed and in particular has not
     been zeroed out.
+  id: totrans-81
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 回滚日志的头部格式良好，特别是没有被清零。
 - en: The rollback journal does not contain the name of a super-journal file (see
     [section 5.5](#section_5_5) below) or if does contain the name of a super-journal,
     then that super-journal file exists.
+  id: totrans-82
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 回滚日志不包含超级日志文件的名称（参见[第 5.5 节](#section_5_5)）或者如果包含超级日志的名称，则超级日志文件已存在。
 - en: The presence of a hot journal is our indication that a previous process was
     trying to commit a transaction but it aborted for some reason prior to the completion
     of the commit. A hot journal means that the database file is in an inconsistent
     state and needs to be repaired (by rollback) prior to being used.
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 热日志的存在表明之前的一个进程尝试提交一个事务，但由于某些原因在提交完成之前中止了。热日志意味着数据库文件处于不一致状态，需要在使用之前通过回滚进行修复。
 - en: 4.3\. Obtaining An Exclusive Lock On The Database
+  id: totrans-84
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.3\. 获取数据库的独占锁
 - en: '![](../Images/0429887d2fdd66e47685ca39022405a5.png)'
+  id: totrans-85
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/0429887d2fdd66e47685ca39022405a5.png)'
 - en: The first step toward dealing with a hot journal is to obtain an exclusive lock
     on the database file. This prevents two or more processes from trying to rollback
     the same hot journal at the same time.
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 处理热日志的第一步是获得数据库文件的独占锁。这可以防止两个或更多进程同时尝试回滚同一个热日志。
 - en: 4.4\. Rolling Back Incomplete Changes
+  id: totrans-87
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.4\. 回滚未完成的更改
 - en: '![](../Images/8da3daa206071737ce11111a050c6da5.png)'
+  id: totrans-88
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/8da3daa206071737ce11111a050c6da5.png)'
 - en: Once a process obtains an exclusive lock, it is permitted to write to the database
     file. It then proceeds to read the original content of pages out of the rollback
     journal and write that content back to where it came from in the database file.
@@ -571,44 +768,64 @@
     the incomplete transaction caused the database to grow. At the end of this step,
     the database should be the same size and contain the same information as it did
     before the start of the aborted transaction.
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦进程获得独占锁，就允许写入数据库文件。然后，它继续从回滚日志中读取页面的原始内容，并将该内容写回到数据库文件中原来的位置。回滚日志的头部记录了在中止事务开始前数据库文件的原始大小。SQLite
+    使用此信息在不完整的事务导致数据库增长时将数据库文件截断回其原始大小。在此步骤结束时，数据库应该与中止事务开始前的相同大小，并包含相同的信息。
 - en: 4.5\. Deleting The Hot Journal
+  id: totrans-90
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.5\. 删除热日志
 - en: '![](../Images/5c0964ee54844c30b79c35b85e412cd7.png)'
+  id: totrans-91
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/5c0964ee54844c30b79c35b85e412cd7.png)'
 - en: After all information in the rollback journal has been played back into the
     database file (and flushed to disk in case we encounter yet another power failure),
     the hot rollback journal can be deleted.
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 在回滚日志中的所有信息都已经播放回数据库文件（并在遇到另一次断电时刷新到磁盘）之后，可以删除热回滚日志。
 - en: As in [section 3.11](#section_3_11), the journal file might be truncated to
     zero length or its header might be overwritten with zeros as an optimization on
     systems where deleting a file is expensive. Either way, the journal is no longer
     hot after this step.
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 就像在[section 3.11](#section_3_11)中提到的，日志文件可能会被截断为零长度，或者在删除文件代价高昂的系统上，其头部可能会被覆盖为零以进行优化。无论哪种方式，此步骤之后，日志都不再是热的。
 - en: 4.6\. Continue As If The Uncompleted Writes Had Never Happened
+  id: totrans-94
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.6\. 继续仿佛未完成的写入从未发生过
 - en: '![](../Images/857e85b945f44af7725f8b1ebe554eba.png)'
+  id: totrans-95
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/857e85b945f44af7725f8b1ebe554eba.png)'
 - en: The final recovery step is to reduce the exclusive lock back to a shared lock.
     Once this happens, the database is back in the state that it would have been if
     the aborted transaction had never started. Since all of this recovery activity
     happens completely automatically and transparently, it appears to the program
     using SQLite as if the aborted transaction had never begun.
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后的恢复步骤是将排他锁降级为共享锁。一旦这种情况发生，数据库就恢复到了如果中止事务从未开始时的状态。由于所有这些恢复活动都是完全自动和透明的，对于使用
+    SQLite 的程序而言，中止的事务就好像从未开始过一样。
 - en: 5\. Multi-file Commit
+  id: totrans-97
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 5\. 多文件提交
 - en: SQLite allows a single [database connection](c3ref/sqlite3.html) to talk to
     two or more database files simultaneously through the use of the [ATTACH DATABASE](lang_attach.html)
     command. When multiple database files are modified within a single transaction,
@@ -616,15 +833,21 @@
     are updated or else none of them are. Achieving an atomic commit across multiple
     database files is more complex that doing so for a single file. This section describes
     how SQLite works that bit of magic.
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite允许单个[数据库连接](c3ref/sqlite3.html)同时访问两个或多个数据库文件，通过使用[ATTACH DATABASE](lang_attach.html)命令。当多个数据库文件在单个事务内修改时，所有文件都会原子地更新。换句话说，要么所有数据库文件都更新，要么都不更新。实现跨多个数据库文件的原子提交比单个文件更复杂。本节描述了SQLite如何实现这一魔术。
 - en: 5.1\. Separate Rollback Journals For Each Database
+  id: totrans-99
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 5.1\. 每个数据库单独的回滚日志
 - en: '![](../Images/c295b6535c7698c630d2e9f5ac33abdc.png)'
+  id: totrans-100
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/c295b6535c7698c630d2e9f5ac33abdc.png)'
 - en: When multiple database files are involved in a transaction, each database has
     its own rollback journal and each database is locked separately. The diagram at
     the right shows a scenario where three different database files have been modified
@@ -635,8 +858,11 @@
     of the journals have not yet been flushed to disk. No changes have been made to
     the database file itself yet, though presumably there are changes being held in
     user memory.
+  id: totrans-101
   prefs: []
   type: TYPE_NORMAL
+  zh: 当一个事务涉及多个数据库文件时，每个数据库都有自己的回滚日志，并且每个数据库都单独锁定。右侧的图表显示了在一个事务内修改了三个不同数据库文件的情况。在这一步，情况类似于单文件事务场景中的[步骤
+    3.6](#section_3_6)。每个数据库文件都有一个保留锁。对于每个数据库，正在更改的页面的原始内容已被写入该数据库的回滚日志，但是日志内容尚未刷新到磁盘。数据库文件本身尚未做任何更改，尽管可能在用户内存中保存了更改。
 - en: For brevity, the diagrams in this section are simplified from those that came
     before. Blue color still signifies original content and pink still signifies new
     content. But the individual pages in the rollback journal and the database file
@@ -644,101 +870,142 @@
     operating system cache and information that is on disk. All of these factors still
     apply in a multi-file commit scenario. They just take up a lot of space in the
     diagrams and they do not add any new information, so they are omitted here.
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 为简洁起见，本节中的图表与前文有所简化。蓝色仍表示原始内容，粉色仍表示新内容。但是，回滚日志和数据库文件中的各个页面未显示，我们不区分操作系统缓存中的信息和磁盘上的信息。在多文件提交的情况下，所有这些因素仍然适用。它们只是在图表中占用了很大的空间，而且没有添加任何新信息，因此在此被省略掉。
 - en: 5.2\. The Super-Journal File
+  id: totrans-103
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 5.2\. 超级日志文件
 - en: '![](../Images/178ea3f13690ce172b7112c1d5bf0067.png)'
+  id: totrans-104
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/178ea3f13690ce172b7112c1d5bf0067.png)'
 - en: The next step in a multi-file commit is the creation of a "super-journal" file.
     The name of the super-journal file is the same name as the original database filename
     (the database that was opened using the [sqlite3_open()](c3ref/open.html) interface,
     not one of the [ATTACHed](lang_attach.html) auxiliary databases) with the text
     "**-mj***HHHHHHHH*" appended where *HHHHHHHH* is a random 32-bit hexadecimal number.
     The random *HHHHHHHH* suffix changes for every new super-journal.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 多文件提交中的下一步是创建一个“超级日志”文件。超级日志文件的名称与原始数据库文件名相同（使用[sqlite3_open()](c3ref/open.html)接口打开的数据库，而不是其中的[ATTACHed](lang_attach.html)附数据库之一），附加文本“**-mj***HHHHHHHH*”，其中*HHHHHHHH*是一个随机的32位十六进制数。每个新的超级日志都会更改随机后缀*HHHHHHHH*。
 - en: '*(Nota bene: The formula for computing the super-journal filename given in
     the previous paragraph corresponds to the implementation as of SQLite version
     3.5.0\. But this formula is not part of the SQLite specification and is subject
     to change in future releases.)*'
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: '*(Nota bene: 此前段落中给出的计算超级日志文件名的公式对应于SQLite版本3.5.0的实现。但是，这个公式不是SQLite规范的一部分，可能会在未来的版本中更改。)*'
 - en: Unlike the rollback journals, the super-journal does not contain any original
     database page content. Instead, the super-journal contains the full pathnames
     for rollback journals for every database that is participating in the transaction.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 与回滚日志不同，超级日志不包含任何原始数据库页面内容。相反，超级日志包含每个参与事务的数据库的回滚日志的完整路径名。
 - en: After the super-journal is constructed, its content is flushed to disk before
     any further actions are taken. On Unix, the directory that contains the super-journal
     is also synced in order to make sure the super-journal file will appear in the
     directory following a power failure.
+  id: totrans-108
   prefs: []
   type: TYPE_NORMAL
+  zh: 创建超级日志后，在采取任何进一步操作之前，其内容会被刷写到磁盘上。在Unix系统上，包含超级日志的目录也会被同步，以确保在断电后超级日志文件会出现在目录中。
 - en: The purpose of the super-journal is to ensure that multi-file transactions are
     atomic across a power-loss. But if the database files have other settings that
     compromise integrity across a power-loss event (such as [PRAGMA synchronous=OFF](pragma.html#pragma_synchronous)
     or [PRAGMA journal_mode=MEMORY](pragma.html#pragma_journal_mode)) then the creation
     of the super-journal is omitted, as an optimization.
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 超级日志的目的是确保跨电源故障的多文件事务是原子性的。但是，如果数据库文件具有其他设置，在电源故障事件中可能会损害完整性（例如 [PRAGMA synchronous=OFF](pragma.html#pragma_synchronous)
+    或 [PRAGMA journal_mode=MEMORY](pragma.html#pragma_journal_mode)），则会省略创建超级日志，作为一种优化。
 - en: 5.3\. Updating Rollback Journal Headers
+  id: totrans-110
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 5.3\. 更新回滚日志头部
 - en: '![](../Images/e7add4663c60998841e8dc55b8607851.png)'
+  id: totrans-111
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/e7add4663c60998841e8dc55b8607851.png)'
 - en: The next step is to record the full pathname of the super-journal file in the
     header of every rollback journal. Space to hold the super-journal filename was
     reserved at the beginning of each rollback journal as the rollback journals were
     created.
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: 下一步是在每个回滚日志的头部记录超级日志文件的完整路径名。在创建每个回滚日志时，已经预留了空间来保存超级日志文件名。
 - en: The content of each rollback journal is flushed to disk both before and after
     the super-journal filename is written into the rollback journal header. It is
     important to do both of these flushes. Fortunately, the second flush is usually
     inexpensive since typically only a single page of the journal file (the first
     page) has changed.
+  id: totrans-113
   prefs: []
   type: TYPE_NORMAL
+  zh: 在将超级日志文件名写入回滚日志头部之前和之后，会将每个回滚日志的内容刷新到磁盘。执行这两次刷新非常重要。幸运的是，第二次刷新通常成本不高，因为通常只有日志文件的一个页面（第一页）发生了变化。
 - en: This step is analogous to [step 3.7](#section_3_7) in the single-file commit
     scenario described above.
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 此步骤类似于上述单文件提交场景中的 [步骤 3.7](#section_3_7)。
 - en: 5.4\. Updating The Database Files
+  id: totrans-115
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 5.4\. 更新数据库文件
 - en: '![](../Images/b01580febeae10745b270e5a1fc53a05.png)'
+  id: totrans-116
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/b01580febeae10745b270e5a1fc53a05.png)'
 - en: Once all rollback journal files have been flushed to disk, it is safe to begin
     updating database files. We have to obtain an exclusive lock on all database files
     before writing the changes. After all the changes are written, it is important
     to flush the changes to disk so that they will be preserved in the event of a
     power failure or operating system crash.
+  id: totrans-117
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦所有回滚日志文件都已刷新到磁盘，就可以安全地开始更新数据库文件了。在写入更改之前，我们必须对所有数据库文件获取排他锁。写入所有更改后，刷新更改到磁盘非常重要，以便在电源故障或操作系统崩溃时保留这些更改。
 - en: This step corresponds to steps [3.8](#section_3_8), [3.9](#section_3_9), and
     [3.10](#section_3_10) in the single-file commit scenario described previously.
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: 此步骤对应先前描述的单文件提交场景中的步骤 [3.8](#section_3_8), [3.9](#section_3_9), 和 [3.10](#section_3_10)。
 - en: 5.5\. Delete The Super-Journal File
+  id: totrans-119
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 5.5\. 删除超级日志文件
 - en: '![](../Images/2d300ef64fe06fb3dec8e11d11ac30a6.png)'
+  id: totrans-120
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/2d300ef64fe06fb3dec8e11d11ac30a6.png)'
 - en: The next step is to delete the super-journal file. This is the point where the
     multi-file transaction commits. This step corresponds to [step 3.11](#section_3_11)
     in the single-file commit scenario where the rollback journal is deleted.
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: 接下来的步骤是删除超级日志文件。这是多文件事务提交的时刻。这一步对应于单文件提交场景中删除回滚日志的[步骤 3.11](#section_3_11)。
 - en: If a power failure or operating system crash occurs at this point, the transaction
     will not rollback when the system reboots even though there are rollback journals
     present. The difference is the super-journal pathname in the header of the rollback
@@ -746,21 +1013,29 @@
     playback the journal if there is no super-journal filename in the header (which
     is the case for a single-file commit) or if the super-journal file still exists
     on disk.
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在此时发生停电或操作系统崩溃，系统重新启动时事务将不会回滚，即使存在回滚日志。区别在于回滚日志头中的超级日志路径名。重新启动时，SQLite 只会考虑一个日志是否热点，并且只有在头部没有超级日志文件名（这是单文件提交的情况）或者超级日志文件仍然存在于磁盘上时才会回放日志。
 - en: 5.6\. Clean Up The Rollback Journals
+  id: totrans-123
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 5.6\. 清理回滚日志
 - en: '![](../Images/bd1ba510ba2eaa36b97dcced6ae8f6b9.png)'
+  id: totrans-124
   prefs: []
   type: TYPE_IMG
+  zh: '![](../Images/bd1ba510ba2eaa36b97dcced6ae8f6b9.png)'
 - en: The final step in a multi-file commit is to delete the individual rollback journals
     and drop the exclusive locks on the database files so that other processes can
     see the changes. This corresponds to [step 3.12](#section_3_12) in the single-file
     commit sequence.
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 多文件提交的最后一步是删除各个回滚日志，并释放数据库文件上的独占锁，以便其他进程可以看到更改。这对应于单文件提交序列中的[步骤 3.12](#section_3_12)。
 - en: The transaction has already committed at this point so timing is not critical
     in the deletion of the rollback journals. The current implementation deletes a
     single rollback journal then unlocks the corresponding database file before proceeding
@@ -769,21 +1044,29 @@
     as the rollback journal is deleted before its corresponding database file is unlocked
     it does not matter in what order the rollback journals are deleted or the database
     files are unlocked.
+  id: totrans-126
   prefs: []
   type: TYPE_NORMAL
+  zh: 在此时事务已经提交，因此删除回滚日志的时机并不关键。当前的实现在继续下一个回滚日志之前会删除一个回滚日志并解锁相应的数据库文件。但是在未来，我们可能会更改这一点，使得所有回滚日志在解锁任何数据库文件之前都被删除。只要在解锁其相应的数据库文件之前删除回滚日志，回滚日志的删除顺序或数据库文件的解锁顺序就无关紧要。
 - en: 6\. Additional Details Of The Commit Process
+  id: totrans-127
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 6\. 提交过程的附加细节
 - en: '[Section 3.0](#section_3_0) above provides an overview of how atomic commit
     works in SQLite. But it glosses over a number of important details. The following
     subsections will attempt to fill in the gaps.'
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: '[3.0 节](#section_3_0) 提供了 SQLite 中原子提交如何工作的概述。但它略过了许多重要的细节。以下子节将尝试填补这些空白。'
 - en: 6.1\. Always Journal Complete Sectors
+  id: totrans-129
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 6.1\. 总是记录完整的扇区
 - en: When the original content of a database page is written into the rollback journal
     (as shown in [section 3.5](#section_3_5)), SQLite always writes a complete sector
     of data, even if the page size of the database is smaller than the sector size.
@@ -793,8 +1076,10 @@
     with a sector size larger than 512 bytes. So, beginning with version 3.3.14, whenever
     any page within a sector is written into the journal file, all pages in that same
     sector are stored with it.
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 当数据库页面的原始内容被写入回滚日志（如[3.5节](#section_3_5)所示）时，SQLite始终写入完整的数据扇区，即使数据库的页面大小小于扇区大小也是如此。在历史上，SQLite中的扇区大小一直被硬编码为512字节，由于最小页面大小也是512字节，这从未成为问题。但是从SQLite版本3.3.14开始，SQLite可以使用扇区大小大于512字节的大容量存储设备。因此，从版本3.3.14开始，每当在日志文件中写入扇区内的任何页面时，该扇区中的所有页面都会与之一起存储。
 - en: It is important to store all pages of a sector in the rollback journal in order
     to prevent database corruption following a power loss while writing the sector.
     Suppose that pages 1, 2, 3, and 4 are all stored in sector 1 and that page 2 is
@@ -804,12 +1089,17 @@
     or more of the pages 1, 3, or 4 might be left with incorrect data. Hence, to avoid
     lasting corruption to the database, the original content of all of those pages
     must be contained in the rollback journal.
+  id: totrans-131
   prefs: []
   type: TYPE_NORMAL
+  zh: 将每个扇区的所有页面存储在回滚日志中非常重要，以防止在写入扇区时发生断电而导致数据库损坏。假设页面 1、2、3 和 4 都存储在扇区 1 中，并且修改了页面
+    2。为了将页面 2 的更改写入，底层硬件也必须重写页面 1、3 和 4 的内容，因为硬件必须写入完整的扇区。如果写操作在断电时中断，页面 1、3 或 4 中的一个或多个页面的数据可能会出现错误。因此，为了避免数据库持久性损坏，所有这些页面的原始内容必须包含在回滚日志中。
 - en: 6.2\. Dealing With Garbage Written Into Journal Files
+  id: totrans-132
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 6.2\. 处理写入日志文件的垃圾
 - en: When data is appended to the end of the rollback journal, SQLite normally makes
     the pessimistic assumption that the file is first extended with invalid "garbage"
     data and that afterwards the correct data replaces the garbage. In other words,
@@ -820,8 +1110,10 @@
     sees the rollback journal containing the garbage data and tries to roll it back
     into the original database file, it might copy some of the garbage into the database
     file and thus corrupt the database file.
+  id: totrans-133
   prefs: []
   type: TYPE_NORMAL
+  zh: 当数据被添加到回滚日志的末尾时，SQLite通常会做一种悲观的假设，即文件首先被扩展以包含无效的“垃圾”数据，然后正确的数据替换掉垃圾。换句话说，SQLite假设文件大小首先增加，然后再将内容写入文件。如果在文件大小增加后但在内容写入之前发生电源故障，回滚日志可能会留下垃圾数据。如果在电源恢复后，另一个SQLite进程看到回滚日志中包含垃圾数据，并尝试将其回滚到原始数据库文件中，它可能会将一些垃圾数据复制到数据库文件中，从而损坏数据库文件。
 - en: 'SQLite uses two defenses against this problem. In the first place, SQLite records
     the number of pages in the rollback journal in the header of the rollback journal.
     This number is initially zero. So during an attempt to rollback an incomplete
@@ -835,16 +1127,22 @@
     risking damage to a data page if a power outage occurs. Notice that the rollback
     journal is flushed to disk twice: once to write the page content and a second
     time to write the page count in the header.'
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite采用了两种方法来防止这个问题。首先，SQLite在回滚日志的头部记录了回滚日志中的页面数量。这个数字最初是零。因此，在尝试回滚一个不完整（可能是损坏的）回滚日志时，进行回滚的进程会看到日志中包含零页，因此不会对数据库进行任何更改。在提交之前，回滚日志会被刷新到磁盘，以确保所有内容都已同步到磁盘，并且文件中没有任何“垃圾”，然后才将头部中的页面计数从零更改为回滚日志中实际的页面数。回滚日志头部始终保存在与任何页面数据分开的扇区中，因此可以在不损坏数据页面的情况下覆盖和刷新，即使发生停电。请注意，回滚日志会被刷新到磁盘两次：一次是为了写入页面内容，另一次是为了在头部写入页面计数。
 - en: The previous paragraph describes what happens when the synchronous pragma setting
     is "full".
+  id: totrans-135
   prefs: []
   type: TYPE_NORMAL
+  zh: 前面的段落描述了同步声明设置为“full”时会发生什么。
 - en: PRAGMA synchronous=FULL;
+  id: totrans-136
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: PRAGMA synchronous=FULL;
 - en: The default synchronous setting is full so the above is what usually happens.
     However, if the synchronous setting is lowered to "normal", SQLite only flushes
     the rollback journal once, after the page count has been written. This carries
@@ -860,25 +1158,34 @@
     correct since there is a small but finite probability that the checksum might
     be right even if the data is corrupt. But the checksum does at least make such
     an error unlikely.
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认的同步设置为full，所以上述通常是发生的情况。但是，如果同步设置降低到"normal"，SQLite只在写入页面计数后刷新回滚日志一次。这会带来损坏的风险，因为可能发生修改后（非零）页面计数在数据之前到达磁盘表面。数据将首先被写入，但SQLite假设底层文件系统可以重新排序写入请求，并且即使其写入请求发生在最后，页面计数也可以首先写入氧化物中。因此，作为第二道防线，SQLite还在回滚日志中的每个数据页上使用32位校验和。在回滚日志中回滚日志时，将针对每个页面评估此校验和，如[第
+    4.4 节](#section_4_4)中所述。如果看到不正确的校验和，将放弃回滚。请注意，校验和并不保证页面数据是正确的，因为即使数据损坏，校验和也有极小但有限的概率是正确的。但是，校验和至少可以使这样的错误变得不太可能。
 - en: Note that the checksums in the rollback journal are not necessary if the synchronous
     setting is FULL. We only depend on the checksums when synchronous is lowered to
     NORMAL. Nevertheless, the checksums never hurt and so they are included in the
     rollback journal regardless of the synchronous setting.
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 注意，如果同步设置为FULL，则回滚日志中的校验和并不是必需的。只有当同步降低到NORMAL时，我们才依赖于校验和。然而，校验和从来不会有坏处，所以无论同步设置如何，都会包括在回滚日志中。
 - en: 6.3\. Cache Spill Prior To Commit
+  id: totrans-139
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 6.3\. 提前提交的缓存溢出
 - en: The commit process shown in [section 3.0](#section_3_0) assumes that all database
     changes fit in memory until it is time to commit. This is the common case. But
     sometimes a larger change will overflow the user-space cache prior to transaction
     commit. In those cases, the cache must spill to the database before the transaction
     is complete.
+  id: totrans-140
   prefs: []
   type: TYPE_NORMAL
+  zh: 在[第 3.0 节](#section_3_0) 中显示的提交过程假设所有数据库更改都适合内存直到提交时间。这是常见情况。但有时，较大的更改会在事务提交之前溢出用户空间缓存。在这种情况下，缓存必须在事务完成之前溢出到数据库。
 - en: At the beginning of a cache spill, the status of the database connection is
     as shown in [step 3.6](#section_3_6). Original page content has been saved in
     the rollback journal and modifications of the pages exist in user memory. To spill
@@ -892,30 +1199,44 @@
     and [3.9](#section_3_9) are repeated. (Step [3.8](#section_3_8) is omitted on
     second and subsequent passes since an exclusive database lock is already held
     due to the first pass.)
+  id: totrans-141
   prefs: []
   type: TYPE_NORMAL
+  zh: 在缓存溢出开始时，数据库连接的状态如[第 3.6 节](#section_3_6)所示。原始页面内容已保存在回滚日志中，页面的修改存在于用户内存中。为了溢出缓存，SQLite
+    执行了第 [3.7 节](#section_3_7) 到第 [3.9 节](#section_3_9) 的步骤。换句话说，回滚日志被刷新到磁盘，获得了独占锁，并且更改被写入数据库。但是剩余的步骤被推迟，直到事务真正提交。新的日志头被追加到回滚日志的末尾（在自己的扇区），并且保留了独占数据库锁，但除此之外，处理返回到[第
+    3.6 节](#section_3_6)。当事务提交时，或者如果另一个缓存溢出发生时，将重复执行第 [3.7 节](#section_3_7) 和第 [3.9
+    节](#section_3_9) 的步骤。（第 [3.8 节](#section_3_8) 在第二次及后续通过时被省略，因为由于第一次通过已经持有了独占数据库锁。）
 - en: A cache spill causes the lock on the database file to escalate from reserved
     to exclusive. This reduces concurrency. A cache spill also causes extra disk flush
     or fsync operations to occur and these operations are slow, hence a cache spill
     can seriously reduce performance. For these reasons a cache spill is avoided whenever
     possible.
+  id: totrans-142
   prefs: []
   type: TYPE_NORMAL
+  zh: 缓存溢出导致对数据库文件的锁从保留状态升级到独占状态。这减少了并发性。缓存溢出还导致额外的磁盘刷新或 fsync 操作发生，而这些操作是缓慢的，因此缓存溢出可能严重降低性能。因此，尽可能避免缓存溢出。
 - en: 7\. Optimizations
+  id: totrans-143
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 7\. 优化
 - en: Profiling indicates that for most systems and in most circumstances SQLite spends
     most of its time doing disk I/O. It follows then that anything we can do to reduce
     the amount of disk I/O will likely have a large positive impact on the performance
     of SQLite. This section describes some of the techniques used by SQLite to try
     to reduce the amount of disk I/O to a minimum while still preserving atomic commit.
+  id: totrans-144
   prefs: []
   type: TYPE_NORMAL
+  zh: 通过分析表明，对于大多数系统和大多数情况，SQLite 花费大部分时间在磁盘 I/O 上。因此，任何可以减少磁盘 I/O 量的措施可能会对 SQLite
+    的性能产生积极影响。本节描述了 SQLite 用来尝试将磁盘 I/O 量减少到最低的一些技术。
 - en: 7.1\. Cache Retained Between Transactions
+  id: totrans-145
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 7.1\. 事务间保留缓存
 - en: '[Step 3.12](#section_3_12) of the commit process shows that once the shared
     lock has been released, all user-space cache images of database content must be
     discarded. This is done because without a shared lock, other processes are free
@@ -925,8 +1246,10 @@
     since the data being read is still likely in the operating systems file cache.
     So the "read" is really just a copy of data from kernel space into user space.
     But even so, it still takes time.'
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
+  zh: '[步骤 3.12](#section_3_12) 的提交过程显示，一旦共享锁被释放，所有数据库内容的用户空间缓存图像必须被丢弃。这是因为没有共享锁，其他进程可以自由地修改数据库文件内容，因此任何该内容的用户空间图像可能会过时。因此，每个新事务都将从重读先前读取的数据开始。事实上，并不像听起来那么糟糕，因为被读取的数据仍然可能在操作系统文件缓存中。所以这个“读取”实际上只是从内核空间复制数据到用户空间。但即使如此，这仍需要时间。'
 - en: Beginning with SQLite version 3.3.14 a mechanism has been added to try to reduce
     the needless rereading of data. In newer versions of SQLite, the data in the user-space
     pager cache is retained when the lock on the database file is released. Later,
@@ -935,71 +1258,95 @@
     has been changed in any way since the lock was last released, the user-space cache
     is erased at that point. But commonly the database file is unchanged and the user-space
     cache can be retained, and some unnecessary read operations can be avoided.
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 SQLite 版本 3.3.14 开始，添加了一种机制来尝试减少无谓的数据重读。在更新的 SQLite 版本中，当释放数据库文件上的锁时，用户空间页管理器缓存中的数据将被保留。稍后，在下一个事务开始时获取共享锁之后，SQLite
+    检查是否有其他进程修改了数据库文件。如果自上次释放锁以来数据库发生了任何变化，则在那一点上擦除用户空间缓存。但通常情况下数据库文件未更改，用户空间缓存可以被保留，一些不必要的读取操作可以避免。
 - en: In order to determine whether or not the database file has changed, SQLite uses
     a counter in the database header (in bytes 24 through 27) which is incremented
     during every change operation. SQLite saves a copy of this counter prior to releasing
     its database lock. Then after acquiring the next database lock it compares the
     saved counter value against the current counter value and erases the cache if
     the values are different, or reuses the cache if they are the same.
+  id: totrans-148
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了确定数据库文件是否已更改，SQLite 在数据库头部（字节 24 到 27）中使用一个计数器，在每次更改操作时递增。SQLite 在释放其数据库锁之前保存了该计数器的副本。然后在获取下一个数据库锁之后，它会将保存的计数器值与当前计数器值进行比较，如果值不同，则清除缓存，如果相同，则重用缓存。
 - en: 7.2\. Exclusive Access Mode
+  id: totrans-149
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 7.2\. 独占访问模式
 - en: 'SQLite version 3.3.14 adds the concept of "Exclusive Access Mode". In exclusive
     access mode, SQLite retains the exclusive database lock at the conclusion of each
     transaction. This prevents other processes from accessing the database, but in
     many deployments only a single process is using a database so this is not a serious
     problem. The advantage of exclusive access mode is that disk I/O can be reduced
     in three ways:'
+  id: totrans-150
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 3.3.14版本引入了"独占访问模式"的概念。在独占访问模式下，SQLite在每个事务结束时保持独占数据库锁定。这阻止其他进程访问数据库，但在许多部署中，只有一个进程在使用数据库，因此这并不是一个严重的问题。独占访问模式的优点是可以通过以下三种方式减少磁盘I/O：
 - en: It is not necessary to increment the change counter in the database header for
     transactions after the first transaction. This will often save a write of page
     one to both the rollback journal and the main database file.
+  id: totrans-151
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对于第一个事务后的事务，不需要增加数据库头部的变更计数器。这通常可以节省向回滚日志和主数据库文件写入第一页。
 - en: No other processes can change the database so there is never a need to check
     the change counter and clear the user-space cache at the beginning of a transaction.
+  id: totrans-152
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 其他进程无法更改数据库，因此不需要检查变更计数器并在事务开始时清除用户空间缓存。
 - en: Each transaction can be committed by overwriting the rollback journal header
     with zeros rather than deleting the journal file. This avoids having to modify
     the directory entry for the journal file and it avoids having to deallocate disk
     sectors associated with the journal. Furthermore, the next transaction will overwrite
     existing journal file content rather than append new content and on most systems
     overwriting is much faster than appending.
+  id: totrans-153
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 每个事务都可以通过覆盖回滚日志头部的方式来提交，而不是删除日志文件。这样做避免了必须修改日志文件的目录项，也避免了必须释放与日志相关联的磁盘扇区。此外，下一个事务将覆盖现有的日志文件内容，而不是追加新内容，而在大多数系统上，覆盖要比追加快得多。
 - en: The third optimization, zeroing the journal file header rather than deleting
     the rollback journal file, does not depend on holding an exclusive lock at all
     times. This optimization can be set independently of exclusive lock mode using
     the [journal_mode pragma](pragma.html#pragma_journal_mode) as described in [section
     7.6](#section_7_6) below.
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: 第三种优化方法，即零化日志文件头部而不是删除回滚日志文件，并不依赖于始终保持独占锁。此优化可以独立于独占锁模式设置，使用[journal_mode pragma](pragma.html#pragma_journal_mode)来设置，如下文[section
+    7.6](#section_7_6)所述。
 - en: 7.3\. Do Not Journal Freelist Pages
+  id: totrans-155
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: '-   7.3\. 不要记录空闲页'
 - en: When information is deleted from an SQLite database, the pages used to hold
     the deleted information are added to a "[freelist](fileformat2.html#freelist)".
     Subsequent inserts will draw pages off of this freelist rather than expanding
     the database file.
+  id: totrans-156
   prefs: []
   type: TYPE_NORMAL
+  zh: 当从SQLite数据库中删除信息时，用于保存已删除信息的页面将被添加到"[空闲列表](fileformat2.html#freelist)"中。后续的插入操作将从这个空闲列表中获取页面，而不是扩展数据库文件。
 - en: Some freelist pages contain critical data; specifically the locations of other
     freelist pages. But most freelist pages contain nothing useful. These latter freelist
     pages are called "leaf" pages. We are free to modify the content of a leaf freelist
     page in the database without changing the meaning of the database in any way.
+  id: totrans-157
   prefs: []
   type: TYPE_NORMAL
+  zh: 一些空闲列表页包含关键数据，特别是其他空闲列表页的位置。但大多数空闲列表页并不包含任何有用的内容。这些后者的空闲列表页称为“叶子”页。我们可以在不以任何方式改变数据库含义的情况下修改数据库中的叶子空闲列表页内容。
 - en: Because the content of leaf freelist pages is unimportant, SQLite avoids storing
     leaf freelist page content in the rollback journal in [step 3.5](#section_3_5)
     of the commit process. If a leaf freelist page is changed and that change does
@@ -1008,27 +1355,38 @@
     back into the database at [step 3.9](#section_3_9) nor read from the database
     at [step 3.3](#section_3_3). These optimizations can greatly reduce the amount
     of I/O that occurs when making changes to a database file that contains free space.
+  id: totrans-158
   prefs: []
   type: TYPE_NORMAL
+  zh: 因为叶子空闲列表页的内容不重要，SQLite 在提交过程的 [步骤 3.5](#section_3_5) 中避免将叶子空闲列表页内容存储在回滚日志中。如果叶子空闲列表页被更改，并且在事务恢复过程中未回滚该更改，则此省略不会损坏数据库。类似地，在
+    [步骤 3.9](#section_3_9) 中，新空闲列表页的内容永远不会被写回到数据库中，也不会在 [步骤 3.3](#section_3_3) 中从数据库中读取。这些优化可以大大减少对包含空闲空间的数据库文件进行更改时发生的
+    I/O 操作量。
 - en: 7.4\. Single Page Updates And Atomic Sector Writes
+  id: totrans-159
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 7.4\. 单页更新和原子性扇区写入
 - en: Beginning in SQLite version 3.5.0, the new Virtual File System (VFS) interface
     contains a method named xDeviceCharacteristics which reports on special properties
     that the underlying mass storage device might have. Among the special properties
     that xDeviceCharacteristics might report is the ability of to do an atomic sector
     write.
+  id: totrans-160
   prefs: []
   type: TYPE_NORMAL
+  zh: 自 SQLite 版本 3.5.0 起，新的虚拟文件系统（VFS）接口包含一个名为 xDeviceCharacteristics 的方法，用于报告底层质量存储设备可能具有的特殊属性。xDeviceCharacteristics
+    可能报告的特殊属性之一是执行原子性扇区写入的能力。
 - en: Recall that by default SQLite assumes that sector writes are linear but not
     atomic. A linear write starts at one end of the sector and changes information
     byte by byte until it gets to the other end of the sector. If a power loss occurs
     in the middle of a linear write then part of the sector might be modified while
     the other end is unchanged. In an atomic sector write, either the entire sector
     is overwritten or else nothing in the sector is changed.
+  id: totrans-161
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，SQLite 假定扇区写入是线性的，但不是原子性的。线性写入从扇区的一端开始，逐字节地改变信息，直到达到扇区的另一端。如果在线性写入过程中发生断电，则可能会导致扇区的一部分被修改，而扇区的另一部分保持不变。在原子性扇区写入中，要么整个扇区被覆写，要么扇区中的任何内容都不会改变。
 - en: We believe that most modern disk drives implement atomic sector writes. When
     power is lost, the drive uses energy stored in capacitors and/or the angular momentum
     of the disk platter to provide power to complete any operation in progress. Nevertheless,
@@ -1038,20 +1396,28 @@
     with more control over their filesystems might want to consider enabling the atomic
     write property of xDeviceCharacteristics if their hardware really does do atomic
     writes.
+  id: totrans-162
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们相信大多数现代磁盘驱动器实现了原子扇区写入。当断电时，驱动器使用存储在电容器中的能量和/或盘片的角动量来提供完成中的任何操作所需的电能。然而，在写入系统调用和板载磁盘驱动器电子设备之间存在如此多的层次，我们在
+    Unix 和 w32 VFS 实现中采取了安全的方法，并假设扇区写入不是原子的。另一方面，拥有对其文件系统更多控制权的设备制造商可能希望考虑启用 xDeviceCharacteristics
+    的原子写入属性，如果他们的硬件确实支持原子写入的话。
 - en: When sector writes are atomic and the page size of a database is the same as
     a sector size, and when there is a database change that only touches a single
     database page, then SQLite skips the whole journaling and syncing process and
     simply writes the modified page directly into the database file. The change counter
     in the first page of the database file is modified separately since no harm is
     done if power is lost before the change counter can be updated.
+  id: totrans-163
   prefs: []
   type: TYPE_NORMAL
+  zh: 当扇区写入是原子的，并且数据库的页面大小与扇区大小相同时，当数据库的变化仅涉及单个数据库页面时，SQLite 将跳过整个日志记录和同步过程，直接将修改后的页面写入数据库文件。数据库文件的第一页中的变更计数器将单独修改，因为如果在更新变更计数器之前断电，不会造成任何损害。
 - en: 7.5\. Filesystems With Safe Append Semantics
+  id: totrans-164
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 7.5\. 具有安全追加语义的文件系统
 - en: Another optimization introduced in SQLite version 3.5.0 makes use of "safe append"
     behavior of the underlying disk. Recall that SQLite assumes that when data is
     appended to a file (specifically to the rollback journal) that the size of the
@@ -1062,8 +1428,11 @@
     semantics. This means that the content is written before the file size is increased
     so that it is impossible for garbage to be introduced into the rollback journal
     by a power loss or system crash.
+  id: totrans-165
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 3.5.0 版本引入的另一个优化利用了底层磁盘的“安全追加”行为。回想一下，SQLite 假设当数据被追加到文件（具体来说是回滚日志）时，文件的大小首先增加，然后才写入内容。因此，如果在文件大小增加后但内容写入前断电，文件会包含无效的“垃圾”数据。然而，VFS
+    的 xDeviceCharacteristics 方法可能表明文件系统实现了“安全追加”语义。这意味着内容在文件大小增加之前就已经被写入，因此不可能因为断电或系统崩溃而导致回滚日志中出现垃圾数据。
 - en: When safe append semantics are indicated for a filesystem, SQLite always stores
     the special value of -1 for the page count in the header of the rollback journal.
     The -1 page count value tells any process attempting to rollback the journal that
@@ -1073,12 +1442,17 @@
     when a cache spill occurs we no longer need to append a new journal header to
     the end of the journal; we can simply continue appending new pages to the end
     of the existing journal.
+  id: totrans-166
   prefs: []
   type: TYPE_NORMAL
+  zh: 当文件系统指示使用安全追加语义时，SQLite 总是在回滚日志的头部存储特殊值 -1 作为页数。-1 的页数值告诉任何试图回滚日志的进程，应该从日志大小计算页面数。此
+    -1 值永不更改。因此，当提交发生时，我们可以节省一次刷新操作和对日志文件第一页的扇区写入。此外，当发生缓存溢出时，我们不再需要向日志的末尾追加新的日志头，而是可以简单地继续向现有日志的末尾追加新页面。
 - en: 7.6\. Persistent Rollback Journals
+  id: totrans-167
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 7.6\. 持久回滚日志
 - en: Deleting a file is an expensive operation on many systems. So as an optimization,
     SQLite can be configured to avoid the delete operation of [section 3.11](#section_3_11).
     Instead of deleting the journal file in order to commit a transaction, the file
@@ -1090,42 +1464,59 @@
     newly freed disk sectors. Furthermore, at the next transaction the journal will
     be created by overwriting existing content rather than appending new content onto
     the end of a file, and overwriting is often much faster than appending.
+  id: totrans-168
   prefs: []
   type: TYPE_NORMAL
+  zh: 删除   删除文件在许多系统上是一个昂贵的操作。因此，作为一种优化，SQLite 可以配置为避免删除 [section 3.11](#section_3_11)
+    的操作。在提交事务时，可以将日志文件要么截断为零字节长度，要么将其头部覆盖为零。将文件截断为零长度可以避免对包含文件的目录进行修改，因为文件没有从目录中删除。覆盖头部还可以额外节省不必更新文件长度（在许多系统上的“inode”中）和不必处理新释放的磁盘扇区。此外，在下一个事务期间，日志将通过覆盖现有内容而不是追加新内容来创建，覆盖操作通常比追加快得多。
 - en: 'SQLite can be configured to commit transactions by overwriting the journal
     header with zeros instead of deleting the journal file by setting the "PERSIST"
     journaling mode using the [journal_mode](pragma.html#pragma_journal_mode) PRAGMA.
     For example:'
+  id: totrans-169
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过设置 [journal_mode](pragma.html#pragma_journal_mode) PRAGMA 来将 SQLite 配置为通过将日志头部覆盖为零而不是删除日志文件来提交事务，例如：
 - en: '[PRE0]'
+  id: totrans-170
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'The use of persistent journal mode provides a noticeable performance improvement
     on many systems. Of course, the drawback is that the journal files remain on the
     disk, using disk space and cluttering directories, long after the transaction
     commits. The only safe way to delete a persistent journal file is to commit a
     transaction with journaling mode set to DELETE:'
+  id: totrans-171
   prefs: []
   type: TYPE_NORMAL
+  zh: 在许多系统上，使用持久性日志模式可以显著提高性能。当然，缺点是事务提交后，日志文件仍然保留在磁盘上，占用磁盘空间并且使目录混乱。删除持久性日志文件的唯一安全方法是提交一个使用删除模式的日志事务：
 - en: '[PRE1]'
+  id: totrans-172
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: Beware of deleting persistent journal files by any other means since the journal
     file might be hot, in which case deleting it will corrupt the corresponding database
     file.
+  id: totrans-173
   prefs: []
   type: TYPE_NORMAL
+  zh: 要小心通过其他方式删除持久性日志文件，因为日志文件可能处于热状态，删除它将损坏相应的数据库文件。
 - en: 'Beginning in SQLite [version 3.6.4](releaselog/3_6_4.html) (2008-10-15), the
     TRUNCATE journal mode is also supported:'
+  id: totrans-174
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 SQLite [版本 3.6.4](releaselog/3_6_4.html)（2008-10-15）开始，也支持TRUNCATE日志模式：
 - en: '[PRE2]'
+  id: totrans-175
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'In truncate journal mode, the transaction is committed by truncating the journal
     file to zero length rather than deleting the journal file (as in DELETE mode)
     or by zeroing the header (as in PERSIST mode). TRUNCATE mode shares the advantage
@@ -1139,25 +1530,34 @@
     on your filesystem and it is important to you that your database survive a power
     loss or operating system crash that occurs during the truncation operation, then
     you might consider using a different journaling mode.'
+  id: totrans-176
   prefs: []
   type: TYPE_NORMAL
+  zh: 在截断日志模式中，通过将日志文件截断为零长度而不是删除日志文件（与DELETE模式相反），或通过将头部清零（与PERSIST模式相反）来提交事务。TRUNCATE模式共享PERSIST模式的优势，即包含日志文件和数据库的目录不需要更新。因此，截断文件通常比删除文件更快。截断的另一个优势是它没有跟随系统调用（例如fsync()）来将更改同步到磁盘。如果这样做会更安全的话那就好了。但在许多现代文件系统中，截断是一个原子和同步的操作，因此我们认为TRUNCATE通常在断电或操作系统崩溃时是安全的。如果您不确定TRUNCATE在您的文件系统上是否是同步和原子的，并且对您的数据库在截断操作期间幸存于断电或操作系统崩溃很重要，那么您可能需要考虑使用不同的日志模式。
 - en: On embedded systems with synchronous filesystems, TRUNCATE results in slower
     behavior than PERSIST. The commit operation is the same speed. But subsequent
     transactions are slower following a TRUNCATE because it is faster to overwrite
     existing content than to append to the end of a file. New journal file entries
     will always be appended following a TRUNCATE but will usually overwrite with PERSIST.
+  id: totrans-177
   prefs: []
   type: TYPE_NORMAL
+  zh: 在具有同步文件系统的嵌入式系统中，TRUNCATE 操作比 PERSIST 操作速度较慢。提交操作的速度相同。但在 TRUNCATE 后，后续的事务速度会变慢，因为覆盖现有内容比追加到文件末尾更快。新的日志文件条目总是会在
+    TRUNCATE 后追加，但通常会在 PERSIST 操作中覆盖。
 - en: 8\. Testing Atomic Commit Behavior
+  id: totrans-178
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 8\. 测试原子提交行为
 - en: The developers of SQLite are confident that it is robust in the face of power
     failures and system crashes because the automatic test procedures do extensive
     checks on the ability of SQLite to recover from simulated power loss. We call
     these the "crash tests".
+  id: totrans-179
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 的开发者们相信，它在面对断电和系统崩溃时非常强大，因为自动化测试程序对SQLite从模拟断电中恢复的能力进行了广泛检查。我们称这些为“崩溃测试”。
 - en: Crash tests in SQLite use a modified VFS that can simulate the kinds of filesystem
     damage that occur during a power loss or operating system crash. The crash-test
     VFS can simulate incomplete sector writes, pages filled with garbage data because
@@ -1167,39 +1567,53 @@
     inflicted. Each test then reopens the database after the simulated crash and verifies
     that the transaction either occurred completely or not at all and that the database
     is in a completely consistent state.
+  id: totrans-180
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 中的崩溃测试使用修改过的虚拟文件系统（VFS），可以模拟在断电或操作系统崩溃期间发生的各种文件系统损坏。崩溃测试的虚拟文件系统可以模拟不完整的扇区写入，因为写入未完成而导致的页面填充垃圾数据，以及无序的写入，这些在测试场景中的不同时间点发生。崩溃测试会重复执行事务，变化模拟断电发生的时间以及所造成的损害属性。每次测试后会重新打开数据库并验证事务是否完全或根本没有发生，并且数据库处于完全一致的状态。
 - en: The crash tests in SQLite have discovered a number of very subtle bugs (now
     fixed) in the recovery mechanism. Some of these bugs were very obscure and unlikely
     to have been found using only code inspection and analysis techniques. From this
     experience, the developers of SQLite feel confident that any other database system
     that does not use a similar crash test system likely contains undetected bugs
     that will lead to database corruption following a system crash or power failure.
+  id: totrans-181
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 中的崩溃测试已经发现了一些非常微妙的bug（现已修复），这些bug在恢复机制中。一些bug非常隐蔽，仅通过代码检查和分析技术可能不太可能发现。通过这些经验，SQLite
+    的开发者们相信，任何不使用类似崩溃测试系统的其他数据库系统可能存在未检测到的bug，这些bug会在系统崩溃或断电后导致数据库损坏。
 - en: 9\. Things That Can Go Wrong
+  id: totrans-182
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 9\. 可能出错的事情
 - en: 'The atomic commit mechanism in SQLite has proven to be robust, but it can be
     circumvented by a sufficiently creative adversary or a sufficiently broken operating
     system implementation. This section describes a few of the ways in which an SQLite
     database might be corrupted by a power failure or system crash. (See also: [How
     To Corrupt Your Database Files](howtocorrupt.html).)'
+  id: totrans-183
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 中的原子提交机制被证明是稳健的，但在足够有创造力的对手或足够破碎的操作系统实现的情况下，可能会被规避。本节描述了一些 SQLite 数据库可能会在断电或系统崩溃时被破坏的方式。（参见：[如何破坏你的数据库文件](howtocorrupt.html)。）
 - en: 9.1\. Broken Locking Implementations
+  id: totrans-184
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 9.1\. 破损的锁实现
 - en: SQLite uses filesystem locks to make sure that only one process and database
     connection is trying to modify the database at a time. The filesystem locking
     mechanism is implemented in the VFS layer and is different for every operating
     system. SQLite depends on this implementation being correct. If something goes
     wrong and two or more processes are able to write the same database file at the
     same time, severe damage can result.
+  id: totrans-185
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 使用文件系统锁定来确保一次只有一个进程和数据库连接尝试修改数据库。文件系统锁定机制在 VFS 层实现，并且每个操作系统都不同。SQLite
+    依赖于这种实现的正确性。如果出现问题，两个或多个进程能够同时写入同一个数据库文件，可能会导致严重的损坏。
 - en: We have received reports of implementations of both Windows network filesystems
     and NFS in which locking was subtly broken. We can not verify these reports, but
     as locking is difficult to get right on a network filesystem we have no reason
@@ -1208,8 +1622,11 @@
     filesystem to store SQLite database files, consider using a secondary locking
     mechanism to prevent simultaneous writes to the same database even if the native
     filesystem locking mechanism malfunctions.
+  id: totrans-186
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们收到了关于 Windows 网络文件系统和 NFS 实现中锁定被微妙地破坏的报告。我们无法验证这些报告，但由于在网络文件系统上正确实现锁定是困难的，我们没有理由怀疑它们。建议您首先避免在网络文件系统上使用
+    SQLite，因为性能会很慢。但如果您必须使用网络文件系统存储 SQLite 数据库文件，请考虑使用第二锁定机制来防止即使本机文件系统锁定机制出现故障时也能防止对同一数据库的同时写入。
 - en: The versions of SQLite that come preinstalled on Apple Mac OS X computers contain
     a version of SQLite that has been extended to use alternative locking strategies
     that work on all network filesystems that Apple supports. These extensions used
@@ -1218,12 +1635,17 @@
     so if one process is accessing a file using (for example) AFP locking and another
     process (perhaps on a different machine) is using dot-file locks, the two processes
     might collide because AFP locks do not exclude dot-file locks or vice versa.
+  id: totrans-187
   prefs: []
   type: TYPE_NORMAL
+  zh: Apple Mac OS X 计算机预装的 SQLite 版本包含一个经过扩展的 SQLite 版本，以使用在苹果支持的所有网络文件系统上工作的替代锁定策略。这些由苹果使用的扩展在所有进程以相同方式访问数据库文件时运行良好。不幸的是，这些锁定机制彼此不排斥，因此如果一个进程使用（例如）AFP
+    锁定访问文件，而另一个进程（可能在不同的机器上）使用点文件锁定，这两个进程可能会发生冲突，因为 AFP 锁定不排斥点文件锁定，反之亦然。
 - en: 9.2\. Incomplete Disk Flushes
+  id: totrans-188
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 9.2\. 不完全的磁盘刷新
 - en: SQLite uses the fsync() system call on Unix and the FlushFileBuffers() system
     call on w32 in order to sync the file system buffers onto disk oxide as shown
     in [step 3.7](#section_3_7) and [step 3.10](#section_3_10). Unfortunately, we
@@ -1234,48 +1656,71 @@
     Even on systems where FlushFileBuffers() and fsync() are said to be working, often
     the IDE disk control lies and says that data has reached oxide while it is still
     held only in the volatile control cache.
+  id: totrans-189
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 在 Unix 上使用 fsync() 系统调用，在 w32 上使用 FlushFileBuffers() 系统调用，以将文件系统缓冲区同步到磁盘氧化物，如
+    [步骤 3.7](#section_3_7) 和 [步骤 3.10](#section_3_10) 所示。不幸的是，我们收到的报告显示，这两个接口在许多系统上都不像宣传的那样工作。我们听说，在某些
+    Windows 版本上可以通过注册表设置完全禁用 FlushFileBuffers()。据说某些历史版本的 Linux 包含对某些文件系统上的 fsync()
+    是无操作的版本。即使在声称 FlushFileBuffers() 和 fsync() 正常工作的系统上，通常 IDE 磁盘控制器也会说数据已经到达氧化物，而实际上它仍然只保留在易失性控制缓存中。
 - en: 'On the Mac, you can set this pragma:'
+  id: totrans-190
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 Mac 上，您可以设置以下 pragma：
 - en: PRAGMA fullfsync=ON;
+  id: totrans-191
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: PRAGMA fullfsync=ON;
 - en: Setting fullfsync on a Mac will guarantee that data really does get pushed out
     to the disk platter on a flush. But the implementation of fullfsync involves resetting
     the disk controller. And so not only is it profoundly slow, it also slows down
     other unrelated disk I/O. So its use is not recommended.
+  id: totrans-192
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 Mac 上设置 fullfsync 将确保数据确实在刷新时推送到磁盘碟片。但是，fullfsync 的实施涉及重置磁盘控制器。因此，它不仅速度极慢，而且还会减慢其他无关的磁盘
+    I/O。因此不建议使用它。
 - en: 9.3\. Partial File Deletions
+  id: totrans-193
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 9.3\. 部分文件删除
 - en: SQLite assumes that file deletion is an atomic operation from the point of view
     of a user process. If power fails in the middle of a file deletion, then after
     power is restored SQLite expects to see either the entire file with all of its
     original data intact, or it expects not to find the file at all. Transactions
     may not be atomic on systems that do not work this way.
+  id: totrans-194
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 假定文件删除在用户进程的视角中是一个原子操作。如果在文件删除过程中断电，那么在电源恢复后，SQLite 预期要么看到完整的文件和所有原始数据完整，要么根本找不到这个文件。在不支持这种操作的系统上，事务可能不是原子的。
 - en: 9.4\. Garbage Written Into Files
+  id: totrans-195
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 9.4\. 文件中写入的垃圾数据
 - en: SQLite database files are ordinary disk files that can be opened and written
     by ordinary user processes. A rogue process can open an SQLite database and fill
     it with corrupt data. Corrupt data might also be introduced into an SQLite database
     by bugs in the operating system or disk controller; especially bugs triggered
     by a power failure. There is nothing SQLite can do to defend against these kinds
     of problems.
+  id: totrans-196
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 数据库文件是普通的磁盘文件，可以被普通用户进程打开和写入。一个恶意进程可以打开一个 SQLite 数据库并填充它以损坏的数据。操作系统或磁盘控制器的错误也可能导致
+    SQLite 数据库中出现损坏的数据；特别是在断电时触发的错误。SQLite 无法对这些问题进行防御。
 - en: 9.5\. Deleting Or Renaming A Hot Journal
+  id: totrans-197
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 9.5\. 删除或重命名热日志
 - en: If a crash or power loss does occur and a hot journal is left on the disk, it
     is essential that the original database file and the hot journal remain on disk
     with their original names until the database file is opened by another SQLite
@@ -1284,8 +1729,11 @@
     opened and whose name is derived from the name of the file being opened. If either
     the original database file or the hot journal have been moved or renamed, then
     the hot journal will not be seen and the database will not be rolled back.
+  id: totrans-198
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果发生崩溃或断电，并且在磁盘上留下了一个热日志文件，那么在另一个 SQLite 进程打开并回滚数据库文件之前，必须确保原始数据库文件和热日志以其原始名称保留在磁盘上。在
+    [步骤 4.2](#section_4_2) 的恢复期间，SQLite 通过在与要打开的数据库相同的目录中查找一个文件，并且其名称源自要打开文件的名称来定位热日志文件。如果原始数据库文件或热日志文件被移动或重命名，那么热日志将无法被找到，数据库也将无法回滚。
 - en: 'We suspect that a common failure mode for SQLite recovery happens like this:
     A power failure occurs. After power is restored, a well-meaning user or system
     administrator begins looking around on the disk for damage. They see their database
@@ -1293,14 +1741,18 @@
     the crash, there is also a hot journal named "important.data-journal". The user
     then deletes the hot journal, thinking that they are helping to cleanup the system.
     We know of no way to prevent this other than user education.'
+  id: totrans-199
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们怀疑，SQLite恢复的常见故障模式可能是这样发生的：发生电源故障。电源恢复后，一个善意的用户或系统管理员开始在磁盘上寻找损坏。他们看到他们的数据库文件名为"important.data"。这个文件可能对他们来说很熟悉。但在崩溃之后，还有一个名为"important.data-journal"的热日志。用户随后删除了热日志，以为这样有助于清理系统。我们不知道如何防止这种情况发生，除非进行用户教育。
 - en: If there are multiple (hard or symbolic) links to a database file, the journal
     will be created using the name of the link through which the file was opened.
     If a crash occurs and the database is opened again using a different link, the
     hot journal will not be located and no rollback will occur.
+  id: totrans-200
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果数据库文件有多个（硬链接或符号链接），则日志将使用通过打开文件的链接名称来创建。如果发生崩溃，并且使用不同的链接再次打开数据库，则将无法找到热日志，也不会发生回滚。
 - en: Sometimes a power failure will cause a filesystem to be corrupted such that
     recently changed filenames are forgotten and the file is moved into a "/lost+found"
     directory. When that happens, the hot journal will not be found and recovery will
@@ -1313,20 +1765,27 @@
     filesystem namespace corruption (most modern journalling filesystems are immune,
     we believe) then you might want to consider putting each SQLite database file
     in its own private subdirectory.
+  id: totrans-201
   prefs: []
   type: TYPE_NORMAL
+  zh: 有时，电源故障会导致文件系统损坏，使得最近更改的文件名被遗忘，并且文件被移动到"/lost+found"目录下。当发生这种情况时，热日志将无法找到，因此无法进行恢复。SQLite尝试通过同时打开和同步包含回滚日志的目录来防止这种情况发生，就像它同步日志文件本身一样。然而，文件移动到/lost+found可能是由于无关进程在主数据库文件相同目录中创建无关文件所致。由于这出于SQLite的控制之外，SQLite无法阻止这种情况发生。如果你运行在容易受到这种文件系统命名空间损坏影响的系统上（我们相信大多数现代日志文件系统是免疫的），那么你可能需要考虑将每个SQLite数据库文件放在自己的私有子目录中。
 - en: 10\. Future Directions And Conclusion
+  id: totrans-202
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 10\. 未来发展与结论
 - en: Every now and then someone discovers a new failure mode for the atomic commit
     mechanism in SQLite and the developers have to put in a patch. This is happening
     less and less and the failure modes are becoming more and more obscure. But it
     would still be foolish to suppose that the atomic commit logic of SQLite is entirely
     bug-free. The developers are committed to fixing these bugs as quickly as they
     might be found.
+  id: totrans-203
   prefs: []
   type: TYPE_NORMAL
+  zh: 偶尔会有人发现 SQLite 中原子提交机制的新故障模式，开发人员不得不加入补丁。这种情况越来越少，故障模式也变得越来越难以理解。但认为 SQLite
+    的原子提交逻辑完全没有错误是愚蠢的。开发人员致力于尽快修复这些可能被发现的错误。
 - en: The developers are also on the lookout for new ways to optimize the commit mechanism.
     The current VFS implementations for Unix (Linux and Mac OS X) and Windows make
     pessimistic assumptions about the behavior of those systems. After consultation
@@ -1335,5 +1794,8 @@
     that most modern filesystems exhibit the safe append property and that many of
     them might support atomic sector writes. But until this is known for certain,
     SQLite will take the conservative approach and assume the worst.
+  id: totrans-204
   prefs: []
   type: TYPE_NORMAL
+  zh: 开   开发人员还在寻找优化提交机制的新方法。当前针对Unix（Linux 和 Mac OS X）和Windows的VFS实现对这些系统的行为有悲观的假设。在与专家讨论这些系统如何工作之后，我们可能能够放宽对这些系统的一些假设，并允许它们运行得更快。特别是，我们怀疑大多数现代文件系统具有安全追加属性，并且其中许多可能支持原子扇区写入。但在确定之前，SQLite
+    将采取保守的方法，并假设最坏的情况。

@@ -1,14 +1,20 @@
 - en: An Asynchronous I/O Module For SQLite
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 一个 SQLite 的异步 I/O 模块
 - en: 原文：[https://sqlite.com/asyncvfs.html](https://sqlite.com/asyncvfs.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/asyncvfs.html](https://sqlite.com/asyncvfs.html)
 - en: '* * *'
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: '* * *'
 - en: '**NOTE:** [WAL mode](wal.html) with [PRAGMA synchronous](pragma.html#pragma_synchronous)
     set to NORMAL avoids calls to fsync() during transaction commit and only invokes
     fsync() during a [checkpoint](wal.html#ckpt) operation. The use of [WAL mode](wal.html)
@@ -16,11 +22,17 @@
     is no longer supported. The source code continues to exist in the SQLite source
     tree, but it is not a part of any standard build and is no longer maintained.
     This documentation is retained for historical reference.'
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: '**注意：** [WAL 模式](wal.html)与 [PRAGMA synchronous](pragma.html#pragma_synchronous)
+    设置为 NORMAL 可以避免在事务提交期间调用 fsync()，并仅在 [checkpoint](wal.html#ckpt) 操作期间调用 fsync()。使用
+    [WAL 模式](wal.html) 很大程度上减少了对此异步 I/O 模块的需求。因此，该模块不再受支持。尽管 SQLite 源代码树中仍然存在该源代码，但它不是任何标准构建的一部分，也不再维护。此文档保留供历史参考之用。'
 - en: '* * *'
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: '* * *'
 - en: Normally, when SQLite writes to a database file, it waits until the write operation
     is finished before returning control to the calling application. Since writing
     to the file-system is usually very slow compared with CPU bound operations, this
@@ -29,19 +41,27 @@
     in the background. Although this does not reduce the overall system resources
     (CPU, disk bandwidth etc.), it does allow SQLite to return control to the caller
     quickly even when writing to the database.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 通常情况下，当 SQLite 写入数据库文件时，它会等待写操作完成后才将控制返回给调用应用程序。由于写入文件系统通常比 CPU 绑定操作慢得多，这可能成为性能瓶颈。异步
+    I/O 后端是一个扩展，使 SQLite 使用后台运行的单独线程处理所有写请求。尽管这不会减少整体系统资源（CPU、磁盘带宽等），但它确实允许 SQLite
+    即使在写入数据库时也能快速地将控制返回给调用者。
 - en: 1.0 FUNCTIONALITY
+  id: totrans-6
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 1.0 功能
 - en: With asynchronous I/O, write requests are handled by a separate thread running
     in the background. This means that the thread that initiates a database write
     does not have to wait for (sometimes slow) disk I/O to occur. The write seems
     to happen very quickly, though in reality it is happening at its usual slow pace
     in the background.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用异步 I/O，写请求由后台运行的单独线程处理。这意味着发起数据库写入的线程不必等待（有时很慢的）磁盘 I/O 完成。尽管实际上写入是以通常的慢速度在后台进行的，但看起来写入非常快速。
 - en: Asynchronous I/O appears to give better responsiveness, but at a price. You
     lose the Durable property. With the default I/O backend of SQLite, once a write
     completes, you know that the information you wrote is safely on disk. With the
@@ -49,75 +69,105 @@
     loss occurs after the database write but before the asynchronous write thread
     has completed, then the database change might never make it to disk and the next
     user of the database might not see your change.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 异步 I/O 看起来响应更快，但代价是失去了持久性属性。使用 SQLite 的默认 I/O 后端时，一旦写入完成，您就知道您写入的信息已经安全地存储在磁盘上。但使用异步
+    I/O 则不然。如果程序崩溃或在异步写线程完成之前发生断电，则数据库更改可能永远不会写入磁盘，数据库的下一个用户可能看不到您的更改。
 - en: 'You lose Durability with asynchronous I/O, but you still retain the other parts
     of ACID: Atomic, Consistent, and Isolated. Many applications get along fine without
     the Durability.'
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 异步 I/O 会失去持久性，但仍保留 ACID 的其他部分：原子性、一致性和隔离性。许多应用程序在没有持久性的情况下也能正常运行。
 - en: 1.1 How it Works
+  id: totrans-10
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 1.1 工作原理
 - en: Asynchronous I/O works by creating an SQLite [VFS object](c3ref/vfs.html) and
     registering it with [sqlite3_vfs_register()](c3ref/vfs_find.html). When files
     opened via this VFS are written to (using the vfs xWrite() method), the data is
     not written directly to disk, but is placed in the "write-queue" to be handled
     by the background thread.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 异步 I/O 的工作原理是创建一个 SQLite [VFS 对象](c3ref/vfs.html)，并使用 [sqlite3_vfs_register()](c3ref/vfs_find.html)
+    将其注册。通过此 VFS 打开的文件进行写入（使用 vfs xWrite() 方法）时，数据并不直接写入磁盘，而是放置在“写入队列”中，由后台线程处理。
 - en: When files opened with the asynchronous VFS are read from (using the vfs xRead()
     method), the data is read from the file on disk and the write-queue, so that from
     the point of view of the vfs reader the xWrite() appears to have already completed.
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: 当使用异步虚拟文件系统打开文件并通过 vfs xRead() 方法读取时，数据会从磁盘文件和写入队列中读取，因此从 vfs 读者的角度来看，xWrite()
+    似乎已经完成。
 - en: The asynchronous I/O VFS is registered (and unregistered) by calls to the API
     functions sqlite3async_initialize() and sqlite3async_shutdown(). See section "Compilation
     and Usage" below for details.
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 异步 I/O VFS 是通过调用 API 函数 sqlite3async_initialize() 和 sqlite3async_shutdown()
+    来注册（和取消注册）的。有关详细信息，请参见下文的“编译和使用”部分。
 - en: 1.2 Limitations
+  id: totrans-14
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 1.2 限制
 - en: In order to gain experience with the main ideas surrounding asynchronous IO,
     this implementation is deliberately kept simple. Additional capabilities may be
     added in the future.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 为了获得关于异步 IO 主要思想的经验，此实现故意保持简单。未来可能会添加额外的功能。
 - en: For example, as currently implemented, if writes are happening at a steady stream
     that exceeds the I/O capability of the background writer thread, the queue of
     pending write operations will grow without bound. If this goes on for long enough,
     the host system could run out of memory. A more sophisticated module could to
     keep track of the quantity of pending writes and stop accepting new write requests
     when the queue of pending writes grows too large.
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，如当前实现的那样，如果写入以超过后台写入线程的I/O能力的稳定流进行，挂起的写操作队列将无限增长。如果这种情况持续足够长的时间，主机系统可能会耗尽内存。一个更复杂的模块可以跟踪挂起写入的数量，并在挂起的写操作队列增长过大时停止接受新的写入请求。
 - en: 1.3 Locking and Concurrency
+  id: totrans-17
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 1.3 锁定和并发
 - en: Multiple connections from within a single process that use this implementation
     of asynchronous IO may access a single database file concurrently. From the point
     of view of the user, if all connections are from within a single process, there
     is no difference between the concurrency offered by "normal" SQLite and SQLite
     using the asynchronous backend.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用此实现的异步IO的单个进程内的多个连接可以同时访问单个数据库文件。从用户的角度来看，如果所有连接来自单个进程，则使用“普通”SQLite和使用异步后端的SQLite之间的并发性没有区别。
 - en: 'If file-locking is enabled (it is enabled by default), then connections from
     multiple processes may also read and write the database file. However concurrency
     is reduced as follows:'
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果启用文件锁定（默认启用），那么来自多个进程的连接也可以读取和写入数据库文件。然而，并发性会如下所示减少：
 - en: When a connection using asynchronous IO begins a database transaction, the database
     is locked immediately. However the lock is not released until after all relevant
     operations in the write-queue have been flushed to disk. This means (for example)
     that the database may remain locked for some time after a "[COMMIT](lang_transaction.html)"
     or "[ROLLBACK](lang_transaction.html)" is issued.
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 当使用异步IO的连接开始数据库事务时，数据库会立即被锁定。然而，锁定直到所有相关的写入队列操作都被刷新到磁盘后才会释放。这意味着（例如），数据库在执行"[COMMIT](lang_transaction.html)"或"[ROLLBACK](lang_transaction.html)"命令后可能会保持锁定一段时间。
 - en: If an application using asynchronous IO executes transactions in quick succession,
     other database users may be effectively locked out of the database. This is because
     when a [BEGIN](lang_transaction.html) is executed, a database lock is established
@@ -126,76 +176,108 @@
     As a result, if a COMMIT is followed by a BEGIN before the write-queue is flushed
     through, the database is never unlocked,preventing other processes from accessing
     the database.
+  id: totrans-21
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果使用异步IO的应用程序快速执行事务，其他数据库用户可能会被有效地锁定在数据库外。这是因为当执行[BEGIN](lang_transaction.html)时，会立即建立数据库锁定。但是当相应的COMMIT或ROLLBACK发生时，直到写入队列的相关部分被刷新后才会释放锁定。因此，如果在写入队列被刷新之前的BEGIN之后紧跟着COMMIT，数据库就永远不会解锁，从而阻止其他进程访问数据库。
 - en: File-locking may be disabled at runtime using the sqlite3async_control() API
     (see below). This may improve performance when an NFS or other network file-system,
     as the synchronous round-trips to the server be required to establish file locks
     are avoided. However, if multiple connections attempt to access the same database
     file when file-locking is disabled, application crashes and database corruption
     is a likely outcome.
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以使用sqlite3async_control() API（见下文）在运行时禁用文件锁定。当使用NFS或其他网络文件系统时，避免了与服务器建立文件锁定所需的同步往返可能会提高性能。然而，如果在禁用文件锁定时多个连接试图访问同一数据库文件，则应用程序可能会崩溃，并且数据库可能会损坏。
 - en: 2.0 COMPILATION AND USAGE
+  id: totrans-23
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.0 编译和使用
 - en: The asynchronous IO extension consists of a single file of C code (sqlite3async.c),
     and a header file (sqlite3async.h), located in the [`ext/async/` subfolder](https://www.sqlite.org/src/dir?name=ext/async)
     of the SQLite source tree, that defines the C API used by applications to activate
     and control the modules functionality.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 异步IO扩展由一个C代码文件（sqlite3async.c）和一个头文件（sqlite3async.h）组成，位于SQLite源代码树的[`ext/async/`子文件夹](https://www.sqlite.org/src/dir?name=ext/async)中，定义了应用程序用来激活和控制模块功能的C
+    API。
 - en: To use the asynchronous IO extension, compile sqlite3async.c as part of the
     application that uses SQLite. Then use the APIs defined in sqlite3async.h to initialize
     and configure the module.
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 要使用异步IO扩展，请将sqlite3async.c编译为使用SQLite的应用程序的一部分。然后使用sqlite3async.h中定义的API初始化和配置模块。
 - en: 'The asynchronous IO VFS API is described in detail in comments in sqlite3async.h.
     Using the API usually consists of the following steps:'
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 异步IO VFS API在sqlite3async.h的注释中有详细描述。通常使用该API包括以下步骤：
 - en: Register the asynchronous IO VFS with SQLite by calling the sqlite3async_initialize()
     function.
+  id: totrans-27
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 通过调用sqlite3async_initialize()函数向SQLite注册异步IO VFS。
 - en: Create a background thread to perform write operations and call sqlite3async_run().
+  id: totrans-28
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 创建一个后台线程执行写操作，并调用sqlite3async_run()。
 - en: Use the normal SQLite API to read and write to databases via the asynchronous
     IO VFS.
+  id: totrans-29
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用普通的SQLite API通过异步IO VFS读取和写入数据库。
 - en: Refer to comments in the [sqlite3async.h header file](https://www.sqlite.org/src/finfo?name=ext/async/sqlite3async.h)
     for details.
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 有关详细信息，请参考[sqlite3async.h头文件](https://www.sqlite.org/src/finfo?name=ext/async/sqlite3async.h)中的注释。
 - en: 3.0 PORTING
+  id: totrans-31
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.0 迁移
 - en: Currently the asynchronous IO extension is compatible with win32 systems and
     systems that support the pthreads interface, including Mac OS X, Linux, and other
     varieties of Unix.
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 目前，异步IO扩展与win32系统和支持pthreads接口的系统兼容，包括Mac OS X、Linux和其他各种Unix系统。
 - en: 'To port the asynchronous IO extension to another platform, the user must implement
     mutex and condition variable primitives for the new platform. Currently there
     is no externally available interface to allow this, but modifying the code within
     sqlite3async.c to include the new platforms concurrency primitives is relatively
     easy. Search within sqlite3async.c for the comment string "PORTING FUNCTIONS"
     for details. Then implement new versions of each of the following:'
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 要将异步IO扩展移植到另一个平台，用户必须为新平台实现互斥锁和条件变量原语。目前没有外部可用的接口来实现这一点，但是相对容易地修改sqlite3async.c中的代码以包含新平台的并发原语。在sqlite3async.c中搜索"PORTING
+    FUNCTIONS"注释字符串以获取详细信息。然后实现以下每个函数的新版本：
 - en: '[PRE0]'
+  id: totrans-34
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: The functionality required of each of the above functions is described in comments
     in sqlite3async.c.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述每个函数所需的功能在sqlite3async.c的注释中有描述。

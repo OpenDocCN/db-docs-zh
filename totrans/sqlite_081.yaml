@@ -1,18 +1,25 @@
 - en: Overview
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 概述
 - en: 原文：[https://sqlite.com/malloc.html](https://sqlite.com/malloc.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/malloc.html](https://sqlite.com/malloc.html)
 - en: 'SQLite uses dynamic memory allocation to obtain memory for storing various
     objects (ex: [database connections](c3ref/sqlite3.html) and [prepared statements](c3ref/stmt.html))
     and to build a memory cache of the database file and to hold the results of queries.
     Much effort has gone into making the dynamic memory allocation subsystem of SQLite
     reliable, predictable, robust, secure, and efficient.'
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 使用动态内存分配来获取存储各种对象（例如：[数据库连接](c3ref/sqlite3.html)和[预编译语句](c3ref/stmt.html)）的内存，并构建数据库文件的内存缓存以及保存查询结果。为使
+    SQLite 的动态内存分配子系统可靠、可预测、健壮、安全和高效，做了大量努力。
 - en: This document provides an overview of dynamic memory allocation within SQLite.
     The target audience is software engineers who are tuning their use of SQLite for
     peak performance in demanding environments. Nothing in this document is required
@@ -20,130 +27,172 @@
     will work well in most applications. However, the information contained in this
     document may be useful to engineers who are tuning SQLite to comply with special
     requirements or to run under unusual circumstances.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文概述了 SQLite 中的动态内存分配。目标受众是在需求高的环境中调整 SQLite 使用以实现最佳性能的软件工程师。使用 SQLite 不需要对本文档中的任何内容有所了解。SQLite
+    的默认设置和配置通常在大多数应用程序中表现良好。但是，本文档中的信息可能对调整 SQLite 以满足特殊要求或在不寻常情况下运行的工程师有所帮助。
 - en: 1\. Features
+  id: totrans-4
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 1\. 特性
 - en: 'The SQLite core and its memory allocation subsystem provides the following
     capabilities:'
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 核心及其内存分配子系统提供以下功能：
 - en: '**Robust against allocation failures.** If a memory allocation ever fails (that
     is to say, if malloc() or realloc() ever return NULL) then SQLite will recover
     gracefully. SQLite will first attempt to free memory from unpinned cache pages
     then retry the allocation request. Failing that, SQLite will either stop what
     it is doing and return the [SQLITE_NOMEM](rescode.html#nomem) error code back
     up to the application or it will make do without the requested memory.'
+  id: totrans-6
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**抗分配失败的能力。** 如果内存分配失败（即malloc()或realloc()返回NULL），SQLite 将会优雅地恢复。SQLite 首先尝试释放未固定的缓存页上的内存，然后重试分配请求。如果仍然失败，SQLite
+    将停止当前操作并将[SQLITE_NOMEM](rescode.html#nomem)错误代码传递给应用程序，或者在无法获取请求的内存时尝试其他方式。'
 - en: '**No memory leaks.** The application is responsible for destroying any objects
     it allocates. (For example, the application must use [sqlite3_finalize()](c3ref/finalize.html)
     on every [prepared statement](c3ref/stmt.html) and [sqlite3_close()](c3ref/close.html)
     on every [database connection](c3ref/sqlite3.html).) But as long as the application
     cooperates, SQLite will never leak memory. This is true even in the face of memory
     allocation failures or other system errors.'
+  id: totrans-7
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**无内存泄漏。** 应用程序负责销毁其分配的任何对象。（例如，应用程序必须对每个[准备语句](c3ref/stmt.html)使用[sqlite3_finalize()](c3ref/finalize.html)，对每个[数据库连接](c3ref/sqlite3.html)使用[sqlite3_close()](c3ref/close.html)。）但只要应用程序配合，SQLite就不会泄漏内存。即使在内存分配失败或其他系统错误的情况下也是如此。'
 - en: '**Memory usage limits.** The [sqlite3_soft_heap_limit64()](c3ref/hard_heap_limit64.html)
     mechanism allows the application to set a memory usage limit that SQLite strives
     to stay below. SQLite will attempt to reuse memory from its caches rather than
     allocating new memory as it approaches the soft limit.'
+  id: totrans-8
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**内存使用限制。** 应用程序可以使用[sqlite3_soft_heap_limit64()](c3ref/hard_heap_limit64.html)机制设置SQLite努力保持在其下的内存使用限制。当SQLite接近软限制时，它将尝试重用其缓存中的内存，而不是分配新的内存。'
 - en: '**Zero-malloc option.** The application can optionally provide SQLite with
     several buffers of bulk memory at startup and SQLite will then use those provided
     buffers for all of its memory allocation needs and never call system malloc()
     or free().'
+  id: totrans-9
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**零分配选项。** 应用程序可以选择在启动时向SQLite提供几个批量内存缓冲区，然后SQLite将使用这些提供的缓冲区来满足其所有内存分配需求，从而不调用系统的malloc()或free()。'
 - en: '**Application-supplied memory allocators.** The application can provide SQLite
     with pointers to alternative memory allocators at start-time. The alternative
     memory allocator will be used in place of system malloc() and free().'
+  id: totrans-10
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**应用程序提供的内存分配器。** 应用程序可以在启动时向SQLite提供替代内存分配器的指针。替代内存分配器将用于代替系统的malloc()和free()。'
 - en: '**Proof against breakdown and fragmentation.** SQLite can be configured so
     that, subject to certain usage constraints detailed below, it is guaranteed to
     never fail a memory allocation or fragment the heap. This property is important
     to long-running, high-reliability embedded systems where a memory allocation error
     could contribute to an overall system failure.'
+  id: totrans-11
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**防止故障和碎片化。** SQLite可以配置为在满足以下特定使用约束条件时，保证不会因内存分配错误或堆碎片化而导致系统失败。这一特性对于长时间运行、高可靠性的嵌入式系统非常重要。'
 - en: '**Memory usage statistics.** Applications can see how much memory they are
     using and detect when memory usage is approaching or exceeding design boundaries.'
+  id: totrans-12
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**内存使用统计信息。** 应用程序可以查看自己使用了多少内存，并检测内存使用是否接近或超出设计边界。'
 - en: '**Plays well with memory debuggers.** Memory allocation in SQLite is structured
     so that standard third-party memory debuggers (such as [dmalloc](http://dmalloc.com)
     or [valgrind](http://valgrind.org)) can be used to verify correct memory allocation
     behavior.'
+  id: totrans-13
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**与内存调试工具兼容。** SQLite中的内存分配结构设计得可以使用标准的第三方内存调试工具（如[dmalloc](http://dmalloc.com)或[valgrind](http://valgrind.org)）来验证正确的内存分配行为。'
 - en: '**Minimal calls to the allocator.** The system malloc() and free() implementations
     are inefficient on many systems. SQLite strives to reduce overall processing time
     by minimizing its use of malloc() and free().'
+  id: totrans-14
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**分配器的最小调用。** 许多系统上的系统malloc()和free()实现效率低下。SQLite通过尽量减少对malloc()和free()的使用来减少总体处理时间。'
 - en: '**Open access.** Pluggable SQLite extensions or even the application itself
     can access to the same underlying memory allocation routines used by SQLite through
     the [sqlite3_malloc()](c3ref/free.html), [sqlite3_realloc()](c3ref/free.html),
     and [sqlite3_free()](c3ref/free.html) interfaces.'
+  id: totrans-15
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**开放访问。** 可插入的SQLite扩展甚至应用程序本身可以通过[sqlite3_malloc()](c3ref/free.html)、[sqlite3_realloc()](c3ref/free.html)和[sqlite3_free()](c3ref/free.html)接口访问与SQLite使用相同的底层内存分配例程。'
 - en: 2\. Testing
+  id: totrans-16
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 2\. 测试
 - en: Most of the code in the SQLite source tree is devoted purely to [testing and
     verification](testing.html). Reliability is important to SQLite. Among the tasks
     of the test infrastructure is to ensure that SQLite does not misuse dynamically
     allocated memory, that SQLite does not leak memory, and that SQLite responds correctly
     to a dynamic memory allocation failure.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite源代码树中的大部分代码都专注于[测试和验证](testing.html)。可靠性对SQLite很重要。测试基础设施的任务之一是确保SQLite不会误用动态分配的内存，不会泄露内存，并且在动态内存分配失败时，SQLite能够正确响应。
 - en: 'The test infrastructure verifies that SQLite does not misuse dynamically allocated
     memory by using a specially instrumented memory allocator. The instrumented memory
     allocator is enabled at compile-time using the [SQLITE_MEMDEBUG](compile.html#memdebug)
     option. The instrumented memory allocator is much slower than the default memory
     allocator and so its use is not recommended in production. But when enabled during
     testing, the instrumented memory allocator performs the following checks:'
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 测试基础设施验证SQLite在使用特别的内存分配器时不会误用动态分配的内存。在编译时，通过[SQLITE_MEMDEBUG](compile.html#memdebug)选项启用了这个特别的工具化内存分配器。这个工具化内存分配器比默认的内存分配器慢得多，因此不建议在生产环境中使用。但在测试期间启用时，工具化内存分配器执行以下检查：
 - en: '**Bounds checking.** The instrumented memory allocator places sentinel values
     at both ends of each memory allocation to verify that nothing within SQLite writes
     outside the bounds of the allocation.'
+  id: totrans-19
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**边界检查。** 工具化内存分配器在每个内存分配的两端放置哨兵值，以验证SQLite内部是否在分配的边界之外写入数据。'
 - en: '**Use of memory after freeing.** When each block of memory is freed, every
     byte is overwritten with a nonsense bit pattern. This helps to ensure that no
     memory is ever used after having been freed.'
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**释放后继续使用内存。** 当每个内存块被释放时，每个字节都被覆写为一个无意义的位模式。这有助于确保释放后永远不会再使用内存。'
 - en: '**Freeing memory not obtained from malloc.** Each memory allocation from the
     instrumented memory allocator contains sentinels used to verify that every allocation
     freed came from prior malloc.'
+  id: totrans-21
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**释放非malloc获取的内存。** 仪器化内存分配器中的每个内存分配包含用于验证每个释放的分配是否来自之前的malloc的标志。'
 - en: '**Uninitialized memory.** The instrumented memory allocator initializes each
     memory allocation to a nonsense bit pattern to help ensure that the user makes
     no assumptions about the content of allocation memory.'
+  id: totrans-22
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**未初始化的内存。** 仪器化内存分配器将每个内存分配初始化为一个无意义的位模式，以帮助确保用户不对分配内存的内容做出任何假设。'
 - en: Regardless of whether or not the instrumented memory allocator is used, SQLite
     keeps track of how much memory is currently checked out. There are hundreds of
     test scripts used for testing SQLite. At the end of each script, all objects are
@@ -152,8 +201,10 @@
     all times, during test builds and during production builds. Whenever one of the
     developers runs any individual test script, memory leak detection is active. Hence
     memory leaks that do arise during development are quickly detected and fixed.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 无论是否使用仪器化的内存分配器，SQLite都会跟踪当前分配了多少内存。用于测试SQLite的测试脚本有数百个。在每个脚本结束时，所有对象都被销毁，并进行测试以确保所有内存都已释放。这就是如何检测内存泄漏的。请注意，内存泄漏检测始终生效，无论是在测试构建期间还是在生产构建期间。每当开发人员运行任何单个测试脚本时，内存泄漏检测都会激活。因此，在开发过程中出现的内存泄漏会被快速检测和修复。
 - en: The response of SQLite to out-of-memory (OOM) errors is tested using a specialized
     memory allocator overlay that can simulate memory failures. The overlay is a layer
     that is inserted in between the memory allocator and the rest of SQLite. The overlay
@@ -168,28 +219,37 @@
     test sequence run twice. On the first pass, the overlay is set to fail only the
     Nth allocation. On the second pass, the overlay is set to fail the Nth and all
     subsequent allocations.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 对内存耗尽（OOM）错误的响应进行了测试，使用了一种特殊的内存分配器叠加层来模拟内存失败。该叠加层位于内存分配器和 SQLite 其余部分之间，大部分内存分配请求直接通过叠加层传递给底层分配器，并将结果返回给请求者。但是，叠加层可以被设置为在第N次内存分配时失败。进行OOM测试时，首先将叠加层设置为在第一次分配尝试时失败。然后运行某些测试脚本，并验证是否正确捕获和处理了分配。然后将叠加层设置为在第二次分配时失败，测试重复进行。失败点会逐次前进，直到整个测试过程完成且未出现内存分配错误。整个测试序列运行两次。第一次运行时，叠加层仅设置为在第N次分配时失败。第二次运行时，叠加层设置为在第N次及其后续分配时失败。
 - en: Note that the memory leak detection logic continues to work even when the OOM
     overlay is being used. This verifies that SQLite does not leak memory even when
     it encounters memory allocation errors. Note also that the OOM overlay can work
     with any underlying memory allocator, including the instrumented memory allocator
     that checks for memory allocation misuse. In this way it is verified that OOM
     errors do not induce other kinds of memory usage errors.
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 需要注意的是，即使在使用OOM叠加层时，内存泄漏检测逻辑仍然有效。这验证了在遇到内存分配错误时，SQLite 不会泄漏内存。还要注意，OOM叠加层可以与任何底层内存分配器一起使用，包括检查内存分配误用的仪器化内存分配器。通过这种方式验证了OOM错误不会引起其他类型的内存使用错误。
 - en: Finally, we observe that the instrumented memory allocator and the memory leak
     detector both work over the entire SQLite test suite and the [TCL test suite](testing.html#tcl)
     provides over 99% statement test coverage and that the [TH3](th3.html) test harness
     provides [100% branch test coverage](testing.html#coverage) with no leak leaks.
     This is strong evidence that dynamic memory allocation is used correctly everywhere
     within SQLite.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后，我们观察到，仪器化的内存分配器和内存泄漏检测器在整个 SQLite 测试套件和[TCL 测试套件](testing.html#tcl)上均有效，提供超过99%的语句测试覆盖率，并且[TH3](th3.html)测试工具提供了[100%的分支测试覆盖率](testing.html#coverage)且无泄漏。这充分证明了在
+    SQLite 内部，动态内存分配被正确使用。
 - en: 2.1\. Use of reallocarray()
+  id: totrans-27
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.1\. 使用 reallocarray()
 - en: The reallocarray() interface is a recent innovation (circa 2014) from the OpenBSD
     community that grow out of efforts to prevent the next ["heartbleed" bug](http://heartbleed.com)
     by avoiding 32-bit integer arithmetic overflow on memory allocation size computations.
@@ -199,15 +259,23 @@
     "malloc(X*N)" as reallocarray() eliminates the risk that the X*N multiplication
     will overflow and cause malloc() to return a buffer that is a different size from
     what the application expected.
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: reallocarray() 接口是 OpenBSD 社区的一个新创新（约于 2014 年），起源于努力避免在内存分配大小计算中遇到 32 位整数算术溢出的下一个
+    ["heartbleed" bug](http://heartbleed.com)。reallocarray() 函数具有单元大小和计数参数。为了分配足够容纳
+    N 个每个大小为 X 字节的元素的内存数组，可以调用 "reallocarray(0,X,N)"。这比传统的调用 "malloc(X*N)" 更可取，因为
+    reallocarray() 可以消除 X*N 乘法溢出的风险，并导致 malloc() 返回一个与应用程序预期的大小不同的缓冲区。
 - en: SQLite does not use reallocarray(). The reason is that reallocarray() is not
     useful to SQLite. It turns out that SQLite never does memory allocations that
     are the simple product of two integers. Instead, SQLite does allocations of the
     form "X+C" or "N*X+C" or "M*N*X+C" or "N*X+M*Y+C", and so forth. The reallocarray()
     interface is not helpful in avoiding integer overflow in those cases.
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 不使用 reallocarray()。原因是 reallocarray() 对 SQLite 没有用处。事实上，SQLite 从不进行简单的两个整数乘积的内存分配。相反，SQLite
+    进行的是形如 "X+C"、"N*X+C"、"M*N*X+C" 或 "N*X+M*Y+C" 等形式的分配，reallocarray() 接口在这些情况下无法帮助避免整数溢出问题。
 - en: Nevertheless, integer overflow in the computation of memory allocation sizes
     is a concern that SQLite would like to deal with. To prevent problems, all SQLite
     internal memory allocations occur using thin wrapper functions that take a signed
@@ -219,34 +287,51 @@
     of headroom for detecting overflows. The same audit that verifies that all size
     computations are done as 64-bit signed integers also verifies that it is impossible
     to overflow a 64-bit integer during the computation.
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管如此，SQLite 在计算内存分配大小时的整数溢出仍然是一个值得关注的问题。为了预防问题，SQLite 所有的内部内存分配都使用了带有 64 位有符号整数大小参数的薄包装函数。SQLite
+    源代码经过审核，确保所有大小计算都使用 64 位有符号整数进行。SQLite 将拒绝一次性分配超过约 2GB 的内存。（在常规使用中，SQLite 很少一次性分配超过约
+    8KB 的内存，因此 2GB 的分配限制并不是一个负担。）因此，64 位大小参数为检测溢出提供了充足的余量。进行相同审核的同时，还验证了在计算过程中不可能溢出
+    64 位整数。
 - en: The code audits used to ensure that memory allocation size computations do not
     overflow in SQLite are repeated prior to every SQLite release.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 在每次SQLite发布之前，都会进行代码审计，以确保SQLite中的内存分配大小计算不会溢出。
 - en: 3\. Configuration
+  id: totrans-32
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. 配置
 - en: The default memory allocation settings in SQLite are appropriate for most applications.
     However, applications with unusual or particularly strict requirements may want
     to adjust the configuration to more closely align SQLite to their needs. Both
     compile-time and start-time configuration options are available.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite中的默认内存分配设置适用于大多数应用程序。但是，具有非常规或特别严格要求的应用程序可能希望调整配置，以更接近其需求。提供了编译时和启动时的配置选项。
 - en: 3.1\. Alternative low-level memory allocators
+  id: totrans-34
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.1\. 替代低级别内存分配器
 - en: The SQLite source code includes several different memory allocation modules
     that can be selected at compile-time, or to a limited extent at start-time.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite源代码包含几个不同的内存分配模块，可以在编译时选择，或在有限的情况下在启动时选择。
 - en: 3.1.1\. The default memory allocator
+  id: totrans-36
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.1\. 默认内存分配器
 - en: By default, SQLite uses the malloc(), realloc(), and free() routines from the
     standard C library for its memory allocation needs. These routines are surrounded
     by a thin wrapper that also provides a "memsize()" function that will return the
@@ -255,17 +340,23 @@
     bytes to remove from the outstanding count when an allocation is freed. The default
     allocator implements memsize() by always allocating 8 extra bytes on each malloc()
     request and storing the size of the allocation in that 8-byte header.
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，SQLite使用标准C库中的malloc()、realloc()和free()例程进行内存分配。这些例程被一个薄包装器包围，还提供了一个"memsize()"函数，该函数返回现有分配的大小。memsize()函数用于准确计算未释放内存的字节数；当释放分配时，memsize()确定从未释放计数中删除多少字节。默认分配器通过在每次malloc()请求时始终分配额外的8个字节，并将分配大小存储在该8字节的头部来实现memsize()。
 - en: The default memory allocator is recommended for most applications. If you do
     not have a compelling need to use an alternative memory allocator, then use the
     default.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于大多数应用程序，建议使用默认内存分配器。如果没有强烈的需求使用替代内存分配器，则使用默认分配器。
 - en: 3.1.2\. The debugging memory allocator
+  id: totrans-39
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.2\. 调试内存分配器
 - en: If SQLite is compiled with the [SQLITE_MEMDEBUG](compile.html#memdebug) compile-time
     option, then a different, heavy wrapper is used around system malloc(), realloc(),
     and free(). The heavy wrapper allocates around 100 bytes of extra space with each
@@ -277,26 +368,35 @@
     of the malloc() call. When running the SQLite test suite, the heavy wrapper also
     records the name of the current test case. These latter two features are useful
     for tracking down the source of memory leaks detected by the test suite.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果SQLite在编译时使用了[SQLITE_MEMDEBUG](compile.html#memdebug)选项，则会使用不同的重型包装器来包装系统的malloc()、realloc()和free()函数。这个重型包装器在每次分配时会额外分配大约100字节的空间。这些额外的空间用于在返回给SQLite核心的分配内存的两端放置哨兵值。当一个分配被释放时，会检查这些哨兵值，以确保SQLite核心没有在任何方向上溢出缓冲区。当系统库是GLIBC时，这个重型包装器还会利用GNU
+    backtrace()函数来检查堆栈并记录malloc()调用的祖先函数。在运行SQLite测试套件时，这个重型包装器还会记录当前测试用例的名称。这后两个功能对于跟踪测试套件检测到的内存泄漏的来源非常有用。
 - en: The heavy wrapper that is used when [SQLITE_MEMDEBUG](compile.html#memdebug)
     is set also makes sure each new allocation is filled with nonsense data prior
     to returning the allocation to the caller. And as soon as an allocation is free,
     it is again filled with nonsense data. These two actions help to ensure that the
     SQLite core does not make assumptions about the state of newly allocated memory
     and that memory allocations are not used after they have been freed.
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 当设置[SQLITE_MEMDEBUG](compile.html#memdebug)时使用的重型包装器还确保每个新分配的内存在返回给调用者之前都填充了无意义的数据。一旦一个分配被释放，它再次被填充为无意义的数据。这两个动作有助于确保SQLite核心不对新分配内存的状态做出假设，并且释放后的内存分配不会再被使用。
 - en: The heavy wrapper employed by [SQLITE_MEMDEBUG](compile.html#memdebug) is intended
     for use only during testing, analysis, and debugging of SQLite. The heavy wrapper
     has a significant performance and memory overhead and probably should not be used
     in production.
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: '[SQLITE_MEMDEBUG](compile.html#memdebug)使用的重型包装器仅用于SQLite的测试、分析和调试。重型包装器具有显著的性能和内存开销，可能不应在生产环境中使用。'
 - en: 3.1.3\. The Win32 native memory allocator
+  id: totrans-43
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.3\. Win32本地内存分配器
 - en: If SQLite is compiled for Windows with the [SQLITE_WIN32_MALLOC](compile.html#win32_malloc)
     compile-time option, then a different, thin wrapper is used around HeapAlloc(),
     HeapReAlloc(), and HeapFree(). The thin wrapper uses the configured SQLite heap,
@@ -305,24 +405,37 @@
     HeapValidate() will be called if SQLite is compiled with assert() enabled and
     the [SQLITE_WIN32_MALLOC_VALIDATE](compile.html#win32_malloc_validate) compile-time
     option.
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果 SQLite 在 Windows 上使用 [SQLITE_WIN32_MALLOC](compile.html#win32_malloc) 编译时选项，则会使用不同的薄包装器封装
+    HeapAlloc()、HeapReAlloc() 和 HeapFree()。这个薄包装器使用配置的 SQLite 堆，如果使用了 [SQLITE_WIN32_HEAP_CREATE](compile.html#win32_heap_create)
+    编译时选项，则会与默认进程堆不同。此外，如果 SQLite 编译时启用了 assert() 和 [SQLITE_WIN32_MALLOC_VALIDATE](compile.html#win32_malloc_validate)
+    编译时选项，将在分配或释放时调用 HeapValidate()。
 - en: 3.1.4\. Zero-malloc memory allocator
+  id: totrans-45
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.4\. 零分配内存分配器
 - en: 'When SQLite is compiled with the [SQLITE_ENABLE_MEMSYS5](compile.html#enable_memsys5)
     option, an alternative memory allocator that does not use malloc() is included
     in the build. The SQLite developers refer to this alternative memory allocator
     as "memsys5". Even when it is included in the build, memsys5 is disabled by default.
     To enable memsys5, the application must invoke the following SQLite interface
     at start-time:'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 当 SQLite 使用 [SQLITE_ENABLE_MEMSYS5](compile.html#enable_memsys5) 选项编译时，会包含一种不使用
+    malloc() 的替代内存分配器。SQLite 开发者称这种替代内存分配器为 "memsys5"。即使在构建时包含了它，memsys5 默认是禁用的。要启用
+    memsys5，应用程序必须在启动时调用以下 SQLite 接口：
 - en: '[PRE0]'
+  id: totrans-47
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: In the call above, pBuf is a pointer to a large, contiguous chunk of memory
     space that SQLite will use to satisfy all of its memory allocation needs. pBuf
     might point to a static array or it might be memory obtained from some other application-specific
@@ -332,32 +445,45 @@
     be rounded up to mnReq. mnReq must be a power of two. We shall see later that
     the mnReq parameter is important in reducing the value of **n** and hence the
     minimum memory size requirement in the [Robson proof](malloc.html#nofrag).
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上述调用中，pBuf 是指向一个大的连续内存块的指针，SQLite 将使用它来满足所有的内存分配需求。pBuf 可能指向静态数组，也可能是从其他应用程序特定机制获取的内存。szBuf
+    是一个整数，表示 pBuf 指向的内存空间的字节数。mnReq 是另一个整数，表示分配的最小大小。任何对 [sqlite3_malloc(N)](c3ref/free.html)
+    的调用，其中 N 小于 mnReq，都会向上舍入到 mnReq。mnReq 必须是二的幂。我们将在稍后看到，mnReq 参数在减少 **n** 的值以及在
+    [Robson 证明](malloc.html#nofrag) 中最小内存大小要求方面非常重要。
 - en: The memsys5 allocator is designed for use on embedded systems, though there
     is nothing to prevent its use on workstations. The szBuf is typically between
     a few hundred kilobytes up to a few dozen megabytes, depending on system requirements
     and memory budget.
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: memsys5分配器被设计用于嵌入式系统，虽然没有阻止在工作站上使用。szBuf的大小通常在几百千字节到几十兆字节之间，取决于系统要求和内存预算。
 - en: The algorithm used by memsys5 can be called "power-of-two, first-fit". The sizes
     of all memory allocation requests are rounded up to a power of two and the request
     is satisfied by the first free slot in pBuf that is large enough. Adjacent freed
     allocations are coalesced using a buddy system. When used appropriately, this
     algorithm provides mathematical guarantees against fragmentation and breakdown,
     as described further [below](#nofrag).
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: memsys5 使用的算法可以被称为“二的幂，首次适配”。所有内存分配请求的大小都被舍入为二的幂，并且请求由pBuf中第一个足够大的空闲插槽满足。使用伙伴系统对相邻的已释放分配进行合并。当适当使用时，该算法提供了对碎片和故障的数学保证，如下面进一步描述的[链接](#nofrag)。
 - en: 3.1.5\. Experimental memory allocators
+  id: totrans-51
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.5\. 实验性内存分配器
 - en: The name "memsys5" used for the zero-malloc memory allocator implies that there
     are several additional memory allocators available, and indeed there are. The
     default memory allocator is "memsys1". The debugging memory allocator is "memsys2".
     Those have already been covered.
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 为零分配内存分配器使用的名称“memsys5”意味着还有其他几个可用的内存分配器，实际上确实如此。默认内存分配器是“memsys1”。调试内存分配器是“memsys2”。这些已经涵盖过了。
 - en: If SQLite is compiled with [SQLITE_ENABLE_MEMSYS3](compile.html#enable_memsys3)
     then another zero-malloc memory allocator, similar to memsys5, is included in
     the source tree. The memsys3 allocator, like memsys5, must be activated by a call
@@ -371,79 +497,116 @@
     should use memsys5 in preference to memsys3\. Memsys3 is considered both experimental
     and deprecated and will likely be removed from the source tree in a future release
     of SQLite.
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果 SQLite 编译时启用了[SQLITE_ENABLE_MEMSYS3](compile.html#enable_memsys3)，那么另一个类似于
+    memsys5 的零 malloc 内存分配器将包含在源码树中。与 memsys5 类似，memsys3 分配器必须通过调用[sqlite3_config](c3ref/config.html)([SQLITE_CONFIG_HEAP](c3ref/c_config_covering_index_scan.html#sqliteconfigheap),...)来激活。Memsys3
+    使用提供的内存缓冲区作为所有内存分配的源。Memsys3 与 memsys5 的不同之处在于，memsys3 使用了一种在实践中表现良好的不同内存分配算法，但不提供针对内存碎片化和崩溃的数学保证。Memsys3
+    是 memsys5 的前身。SQLite 开发人员现在认为 memsys5 优于 memsys3，并且所有需要零 malloc 内存分配器的应用程序应优先使用
+    memsys5。Memsys3 被视为实验性的和已弃用的，在将来的 SQLite 版本中可能会从源码树中删除。
 - en: Memsys4 and memsys6 were experimental memory allocators introduced in around
     2007 and subsequently removed from the source tree in around 2008, after it became
     clear that they added no new value.
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: Memsys4 和 memsys6 是在大约 2007 年引入的实验性内存分配器，随后在大约 2008 年从源码树中移除，因为明显没有增加新的价值。
 - en: Other experimental memory allocators might be added in future releases of SQLite.
     One may anticipate that these will be called memsys7, memsys8, and so forth.
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 其他实验性的内存分配器可能会在将来的 SQLite 版本中添加。可以预期这些分配器将被称为 memsys7、memsys8 等。
 - en: 3.1.6\. Application-defined memory allocators
+  id: totrans-56
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.6\. 应用程序定义的内存分配器
 - en: New memory allocators do not have to be part of the SQLite source tree nor included
     in the sqlite3.c [amalgamation](amalgamation.html). Individual applications can
     supply their own memory allocators to SQLite at start-time.
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 新的内存分配器不必成为 SQLite 源码树的一部分，也不必包含在 sqlite3.c 的[合并](amalgamation.html)中。个别应用程序可以在启动时向
+    SQLite 提供自己的内存分配器。
 - en: 'To cause SQLite to use a new memory allocator, the application simply calls:'
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 要使 SQLite 使用新的内存分配器，应用程序只需调用：
 - en: '[PRE1]'
+  id: totrans-59
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: In the call above, pMem is a pointer to an [sqlite3_mem_methods](c3ref/mem_methods.html)
     object that defines the interface to the application-specific memory allocator.
     The [sqlite3_mem_methods](c3ref/mem_methods.html) object is really just a structure
     containing pointers to functions to implement the various memory allocation primitives.
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上述调用中，pMem 是指向定义了特定于应用程序的内存分配器接口的[sqlite3_mem_methods](c3ref/mem_methods.html)对象的指针。[sqlite3_mem_methods](c3ref/mem_methods.html)对象实际上只是一个包含指向实现各种内存分配基元函数的函数指针的结构体。
 - en: In a multi-threaded application, access to the [sqlite3_mem_methods](c3ref/mem_methods.html)
     is serialized if and only if [SQLITE_CONFIG_MEMSTATUS](c3ref/c_config_covering_index_scan.html#sqliteconfigmemstatus)
     is enabled. If [SQLITE_CONFIG_MEMSTATUS](c3ref/c_config_covering_index_scan.html#sqliteconfigmemstatus)
     is disabled then the methods in [sqlite3_mem_methods](c3ref/mem_methods.html)
     must take care of their own serialization needs.
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 在多线程应用程序中，只有在启用[SQLITE_CONFIG_MEMSTATUS](c3ref/c_config_covering_index_scan.html#sqliteconfigmemstatus)时，对[sqlite3_mem_methods](c3ref/mem_methods.html)的访问才会串行化。如果禁用[SQLITE_CONFIG_MEMSTATUS](c3ref/c_config_covering_index_scan.html#sqliteconfigmemstatus)，那么[sqlite3_mem_methods](c3ref/mem_methods.html)中的方法必须自行处理其串行化需求。
 - en: 3.1.7\. Memory allocator overlays
+  id: totrans-62
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.7\. 内存分配器叠加
 - en: An application can insert layers or "overlays" in between the SQLite core and
     the underlying memory allocator. For example, the [out-of-memory test logic](#oomtesting)
     for SQLite uses an overlay that can simulate memory allocation failures.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 应用程序可以在 SQLite 核心与底层内存分配器之间插入层或“覆盖物”。例如，SQLite 的[内存耗尽测试逻辑](#oomtesting)使用的覆盖物可以模拟内存分配失败。
 - en: An overlay can be created by using the
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以通过使用
 - en: '[PRE2]'
+  id: totrans-65
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: interface to obtain pointers to the existing memory allocator. The existing
     allocator is saved by the overlay and is used as a fallback to do real memory
     allocation. Then the overlay is inserted in place of the existing memory allocator
     using the [sqlite3_config](c3ref/config.html)([SQLITE_CONFIG_MALLOC](c3ref/c_config_covering_index_scan.html#sqliteconfigmalloc),...)
     as described [above](#appalloc).
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 用于获取指向现有内存分配器的指针的接口。覆盖物会保存现有的分配器，并作为执行真实内存分配的备用方式。然后，使用[sqlite3_config](c3ref/config.html)([SQLITE_CONFIG_MALLOC](c3ref/c_config_covering_index_scan.html#sqliteconfigmalloc),...)将覆盖物插入到现有内存分配器的位置，如上文所述的方式([上文](#appalloc)).
 - en: 3.1.8\. No-op memory allocator stub
+  id: totrans-67
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.1.8\. 无操作内存分配器存根
 - en: If SQLite is compiled with the [SQLITE_ZERO_MALLOC](compile.html#zero_malloc)
     option, then the [default memory allocator](malloc.html#defaultalloc) is omitted
     and replaced by a stub memory allocator that never allocates any memory. Any calls
     to the stub memory allocator will report back that no memory is available.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果 SQLite 被编译时选择了[SQLITE_ZERO_MALLOC](compile.html#zero_malloc)选项，那么[默认内存分配器](malloc.html#defaultalloc)将被省略，并被一个只返回“没有可用内存”的存根内存分配器所替代。对存根内存分配器的任何调用都将报告没有可用内存。
 - en: The no-op memory allocator is not useful by itself. It exists only as a placeholder
     so that SQLite has a memory allocator to link against on systems that may not
     have malloc(), free(), or realloc() in their standard library. An application
@@ -451,61 +614,83 @@
     to use [sqlite3_config()](c3ref/config.html) together with [SQLITE_CONFIG_MALLOC](c3ref/c_config_covering_index_scan.html#sqliteconfigmalloc)
     or [SQLITE_CONFIG_HEAP](c3ref/c_config_covering_index_scan.html#sqliteconfigheap)
     to specify a new alternative memory allocator before beginning to use SQLite.
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 无操作内存分配器本身并不实用。它只存在作为一个占位符，以便SQLite在可能没有标准库中的malloc(), free(), or realloc()的系统上链接的内存分配器。使用[SQLITE_ZERO_MALLOC](compile.html#zero_malloc)编译的应用程序将需要使用[sqlite3_config()](c3ref/config.html)以及[SQLITE_CONFIG_MALLOC](c3ref/c_config_covering_index_scan.html#sqliteconfigmalloc)或[SQLITE_CONFIG_HEAP](c3ref/c_config_covering_index_scan.html#sqliteconfigheap)来指定在开始使用SQLite之前要使用的新替代内存分配器。
 - en: 3.2\. Page cache memory
+  id: totrans-70
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.2\. 页面缓存内存
 - en: In most applications, the database page cache subsystem within SQLite uses more
     dynamically allocated memory than all other parts of SQLite combined. It is not
     unusual to see the database page cache consume over 10 times more memory than
     the rest of SQLite combined.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 在大多数应用程序中，SQLite中的数据库页面缓存子系统使用的动态分配内存比SQLite的所有其他部分加起来的内存还要多。看到数据库页面缓存消耗的内存超过SQLite其余部分的10倍以上并不罕见。
 - en: 'SQLite can be configured to make page cache memory allocations from a separate
     and distinct memory pool of fixed-size slots. This can have two advantages:'
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以配置SQLite使页面缓存内存从一个独立的和不同的固定大小插槽的内存池中进行分配。这样做有两个优点：
 - en: Because allocations are all the same size, the memory allocator can operate
     much faster. The allocator need not bother with coalescing adjacent free slots
     or searching for a slot of an appropriate size. All unallocated memory slots can
     be stored on a linked list. Allocating consists of removing the first entry from
     the list. Deallocating is simply adding an entry to the beginning of the list.
+  id: totrans-73
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 由于所有分配的大小都是相同的，内存分配器可以运行得更快。分配器不需要烦恼于合并相邻的空闲插槽或搜索合适大小的插槽。所有未分配的内存插槽可以存储在一个链表上。分配包括从列表中移除第一个条目。释放只是将一个条目添加到列表的开头。
 - en: With a single allocation size, the **n** parameter in the [Robson proof](malloc.html#nofrag)
     is 1, and the total memory space required by the allocator (**N**) is exactly
     equal to maximum memory used (**M**). No additional memory is required to cover
     fragmentation overhead, thus reducing memory requirements. This is particularly
     important for the page cache memory since the page cache constitutes the largest
     component of the memory needs of SQLite.
+  id: totrans-74
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 使用单一分配大小，[Robson proof](malloc.html#nofrag)中的**n**参数为1，分配器所需的总内存空间(**N**)正好等于最大内存使用(**M**)。不需要额外的内存来覆盖碎片化开销，从而减少内存需求。对于页面缓存内存来说，这一点尤为重要，因为页面缓存构成了SQLite内存需求中最大的组件。
 - en: 'The page-cache memory allocator is disabled by default. An application can
     enable it at start-time as follows:'
+  id: totrans-75
   prefs: []
   type: TYPE_NORMAL
+  zh: 页面缓存内存分配器默认情况下是禁用的。应用程序可以在启动时启用它，如下所示：
 - en: '[PRE3]'
+  id: totrans-76
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: The pBuf parameter is a pointer to a contiguous range of bytes that SQLite will
     use for page-cache memory allocations. The buffer must be at least sz*N bytes
     in size. The "sz" parameter is the size of each page-cache allocation. N is the
     maximum number of available allocations.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 参数 pBuf 是指向一段连续的字节范围的指针，SQLite 将用于页面缓存内存分配。该缓冲区的大小必须至少为sz*N字节。参数"sz"是每个页面缓存分配的大小。N是可用分配的最大数量。
 - en: If SQLite needs a page-cache entry that is larger than "sz" bytes or if it needs
     more than N entries, it falls back to using the general-purpose memory allocator.
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果SQLite需要比"sz"字节大的页面缓存条目或者需要超过N个条目，它将回退到使用通用内存分配器。
 - en: 3.3\. Lookaside memory allocator
+  id: totrans-79
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.3\. 前视内存分配器
 - en: SQLite [database connections](c3ref/sqlite3.html) make many small and short-lived
     memory allocations. This occurs most commonly when compiling SQL statements using
     [sqlite3_prepare_v2()](c3ref/prepare.html) but also to a lesser extent when running
@@ -515,8 +700,12 @@
     objects. There are consequently many calls to malloc() and free() - so many calls
     that malloc() and free() end up using a significant fraction of the CPU time assigned
     to SQLite.
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite [数据库连接](c3ref/sqlite3.html) 进行许多小型和短期的内存分配。这通常发生在使用[sqlite3_prepare_v2()](c3ref/prepare.html)编译
+    SQL 语句时，但也在运行[prepared statements](c3ref/stmt.html)时（通过[sqlite3_step()](c3ref/step.html)）以较小程度发生。这些小型内存分配用于保存诸如表和列的名称、解析树节点、单个查询结果值和B-树游标对象等内容。因此，会有许多malloc()和free()的调用
+    - 这么多的调用，以至于malloc()和free()最终使用了分配给SQLite的CPU时间的相当大一部分。
 - en: SQLite [version 3.6.1](releaselog/3_6_1.html) (2008-08-06) introduced the lookaside
     memory allocator to help reduce the memory allocation load. In the lookaside allocator,
     each [database connection](c3ref/sqlite3.html) preallocates a single large chunk
@@ -530,8 +719,10 @@
     checked out. But in many cases, the memory allocations are small enough and there
     are few enough outstanding that the new memory requests can be satisfied from
     the lookaside pool.
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite [版本 3.6.1](releaselog/3_6_1.html)（2008-08-06）引入了查找内存分配器，以帮助减少内存分配负载。在查找分配器中，每个[数据库连接](c3ref/sqlite3.html)预分配一个单个大内存块（通常在60到120千字节之间），并将该块分割成小的固定大小的“插槽”，每个插槽大约在100到1000字节之间。这成为查找内存池。此后，与[数据库连接](c3ref/sqlite3.html)相关的且不太大的内存分配将使用查找池中的一个插槽来满足，而不是调用通用内存分配器。较大的分配仍然使用通用内存分配器，以及在所有查找池插槽都被检出时的分配。但在许多情况下，内存分配足够小且未使用的插槽很少，因此新的内存请求可以从查找池中满足。
 - en: Because lookaside allocations are always the same size, the allocation and deallocation
     algorithms are very quick. There is no need to coalesce adjacent free slots or
     search for a slot of a particular size. Each [database connection](c3ref/sqlite3.html)
@@ -544,112 +735,153 @@
     deallocations are very fast. In speed tests on Linux and Mac OS X workstations,
     SQLite has shown overall performance improvements as high as 10% and 15%, depending
     on the workload how and lookaside is configured.
+  id: totrans-82
   prefs: []
   type: TYPE_NORMAL
+  zh: 因为查找分配（lookaside allocations）始终是相同大小，分配和释放算法非常快速。无需合并相邻的空闲插槽或搜索特定大小的插槽。每个[数据库连接](c3ref/sqlite3.html)维护一个未使用插槽的单链表。分配请求只需取出该列表的第一个元素。释放操作只需将元素推送回列表的前端。此外，假定每个[数据库连接](c3ref/sqlite3.html)已经在单个线程中运行（已经有互斥锁来强制执行此操作），因此不需要额外的互斥来序列化对查找插槽空闲列表的访问。因此，查找内存分配和释放非常快速。在Linux和Mac
+    OS X工作站上的速度测试中，SQLite显示出高达10%和15%的整体性能改进，具体取决于工作负载及查找的配置方式。
 - en: 'The size of the lookaside memory pool has a global default value but can also
     be configured on a connection-by-connection basis. To change the default size
     of the lookaside memory pool at compile-time, use the [-DSQLITE_DEFAULT_LOOKASIDE=*SZ,N*](compile.html#default_lookaside)
     option. To change the default size of the lookaside memory pool at start-time,
     use the [sqlite3_config()](c3ref/config.html) interface:'
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 查找存储池的大小有一个全局默认值，但也可以根据每个连接进行配置。要在编译时更改查找存储池的默认大小，请使用[-DSQLITE_DEFAULT_LOOKASIDE=*SZ,N*](compile.html#default_lookaside)选项。要在启动时更改查找存储池的默认大小，请使用[sqlite3_config()](c3ref/config.html)接口：
 - en: '[PRE4]'
+  id: totrans-84
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: The "sz" parameter is the size in bytes of each lookaside slot. The "cnt" parameter
     is the total number of lookaside memory slots per database connection. The total
     amount of lookaside memory allocated to each [database connection](c3ref/sqlite3.html)
     is sz*cnt bytes.
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 参数“sz”是每个查找槽的字节大小。“cnt”参数是每个数据库连接的总查找存储池槽数量。分配给每个[数据库连接](c3ref/sqlite3.html)的总查找存储池内存量为sz*cnt字节。
 - en: 'The lookaside pool can be changed for an individual [database connection](c3ref/sqlite3.html)
     "db" using this call:'
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以使用以下调用为单个[数据库连接](c3ref/sqlite3.html)“db”更改查找存储池：
 - en: '[PRE5]'
+  id: totrans-87
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: The "pBuf" parameter is a pointer to memory space that will be used for the
     lookaside memory pool. If pBuf is NULL, then SQLite will obtain its own space
     for the memory pool using [sqlite3_malloc()](c3ref/free.html). The "sz" and "cnt"
     parameters are the size of each lookaside slot and the number of slots, respectively.
     If pBuf is not NULL, then it must point to at least sz*cnt bytes of memory.
+  id: totrans-88
   prefs: []
   type: TYPE_NORMAL
+  zh: 参数“pBuf”是指用于查找存储池的内存空间的指针。如果pBuf为NULL，则SQLite将使用[sqlite3_malloc()](c3ref/free.html)获取自己的内存池空间。参数“sz”和“cnt”分别是每个查找槽的大小和槽数量。如果pBuf不为NULL，则它必须指向至少sz*cnt字节的内存。
 - en: The lookaside configuration can only be changed while there are no outstanding
     lookaside allocations for the database connection. Hence, the configuration should
     be set immediately after creating the database connection using [sqlite3_open()](c3ref/open.html)
     (or equivalent) and before evaluating any SQL statements on the connection.
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 查找存储池的配置只能在数据库连接没有未完成的查找分配时更改。因此，在使用[sqlite3_open()](c3ref/open.html)（或等效函数）创建数据库连接后立即设置配置，并在连接上评估任何SQL语句之前设置。
 - en: 3.3.1\. Two-Size Lookaside
+  id: totrans-90
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 3.3.1\. 双大小查找存储池
 - en: Beginning with SQLite version 3.31.0 (2020-01-22), lookaside supports two memory
     pools, each with a different size slot. The small-slot pool uses 128-byte slots
     and the large-slot pool uses whatever size is specified by [SQLITE_DBCONFIG_LOOKASIDE](c3ref/c_dbconfig_defensive.html#sqlitedbconfiglookaside)
     (defaulting to 1200 bytes). Splitting the pool in two like this allows memory
     allocations to be covered by lookaside more often while at the same time reducing
     per-database-connection heap usage from 120KB down to 48KB.
+  id: totrans-91
   prefs: []
   type: TYPE_NORMAL
+  zh: 从SQLite版本3.31.0（2020-01-22）开始，Lookaside支持两个内存池，每个内存池都有不同大小的槽。小槽池使用128字节的槽，而大槽池使用由[SQLITE_DBCONFIG_LOOKASIDE](c3ref/c_dbconfig_defensive.html#sqlitedbconfiglookaside)指定的大小（默认为1200字节）。这样分成两个池允许更频繁地使用Lookaside来进行内存分配，同时将每个数据库连接的堆使用量从120KB降低到48KB。
 - en: Configuration continues to use the SQLITE_DBCONFIG_LOOKASIDE or SQLITE_CONFIG_LOOKASIDE
     configuration options, as described above, with parameters "sz" and "cnt". The
     total heap space used for lookaside continues to be sz*cnt bytes. But the space
     is allocated between the small-slot lookaside and big-slot lookaside, with preference
     given to small-slot lookaside. The total number of slots will usually exceed "cnt",
     since "sz" is typically much larger than the small-slot size of 128 bytes.
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 配置继续使用SQLITE_DBCONFIG_LOOKASIDE或SQLITE_CONFIG_LOOKASIDE配置选项，如上所述，带有参数"sz"和"cnt"。用于Lookaside的总堆空间继续为sz*cnt字节。但是这个空间被分配给小槽Lookaside和大槽Lookaside，优先考虑小槽Lookaside。槽的总数通常会超过"cnt"，因为"sz"通常比128字节的小槽大小要大得多。
 - en: The default lookaside configuration has changed from 100 slots of 1200 bytes
     each (120KB) to be 40 slots of 1200 bytes each (48KB). This space ends up being
     allocated as 93 slots of 128 bytes each and 30 slots of 1200 bytes each. So more
     lookaside slots are available but much less heap space is used.
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认的Lookaside配置已经从每个1200字节的100个槽（120KB）变为每个1200字节的40个槽（48KB）。这些空间最终被分配为每个128字节的93个槽和每个1200字节的30个槽。因此，更多的Lookaside槽是可用的，但使用的堆空间要少得多。
 - en: The default lookaside configuration, the size of the small-slots, and the details
     of how heap space is allocated between small-slots and big-slots, are all subject
     to change from one release to the next.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认的Lookaside配置、小槽的大小以及如何在小槽和大槽之间分配堆空间的细节，都可能在一个版本发布后发生变化。
 - en: 3.4\. Memory status
+  id: totrans-95
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.4\. 内存状态
 - en: By default, SQLite keeps statistics on its memory usage. These statistics are
     useful in helping to determine how much memory an application really needs. The
     statistics can also be used in high-reliability system to determine if the memory
     usage is coming close to or exceeding the limits of the [Robson proof](malloc.html#nofrag)
     and hence that the memory allocation subsystem is liable to breakdown.
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，SQLite会记录其内存使用情况的统计信息。这些统计信息有助于确定应用程序实际需要多少内存。这些统计数据还可以用于高可靠性系统，以确定内存使用是否接近或超过[Robson证明](malloc.html#nofrag)的限制，从而使得内存分配子系统有可能崩溃。
 - en: 'Most memory statistics are global, and therefore the tracking of statistics
     must be serialized with a mutex. Statistics are turned on by default, but an option
     exists to disable them. By disabling memory statistics, SQLite avoids entering
     and leaving a mutex on each memory allocation and deallocation. That savings can
     be noticeable on systems where mutex operations are expensive. To disable memory
     statistics, the following interface is used at start-time:'
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: 大多数内存统计信息是全局的，因此必须使用互斥锁对统计信息进行串行化跟踪。默认情况下启用统计信息，但存在一个选项可禁用它们。通过禁用内存统计信息，在每次内存分配和释放时避免进入和退出互斥锁。在互斥操作昂贵的系统上，这种节省是显著的。为了在启动时禁用内存统计信息，使用以下接口：
 - en: '[PRE6]'
+  id: totrans-98
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: The "onoff" parameter is true to enable the tracking of memory statistics and
     false to disable statistics tracking.
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: '"onoff" 参数为 true 表示启用内存统计跟踪，false 表示禁用统计跟踪。'
 - en: 'Assuming statistics are enabled, the following routine can be used to access
     them:'
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设统计数据已启用，可以使用以下例程访问它们：
 - en: '[PRE7]'
+  id: totrans-101
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: The "verb" argument determines what statistic is accessed. There are [various
     verbs](c3ref/c_status_malloc_count.html#sqlitestatusmemoryused) defined. The list
     is expected to grow as the [sqlite3_status()](c3ref/status.html) interface matures.
@@ -657,33 +889,47 @@
     the highest historical value is written into integer "highwater". If resetflag
     is true, then the high-water mark is reset down to the current value after the
     call returns.
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: '"verb" 参数决定访问哪种统计信息。定义了[各种动词](c3ref/c_status_malloc_count.html#sqlitestatusmemoryused)。随着[sqlite3_status()](c3ref/status.html)
+    接口的成熟，预计列表将增长。所选参数的当前值写入整数 "current"，最高历史值写入整数 "highwater"。如果 resetflag 为 true，则在调用返回后，高水位标记会被重置为当前值。'
 - en: 'A different interface is used to find statistics associated with a single [database
     connection](c3ref/sqlite3.html):'
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用不同的接口查找与单个[数据库连接](c3ref/sqlite3.html) 关联的统计信息：
 - en: '[PRE8]'
+  id: totrans-104
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: This interface is similar except that it takes a pointer to a [database connection](c3ref/sqlite3.html)
     as its first argument and returns statistics about that one object rather than
     about the entire SQLite library. The [sqlite3_db_status()](c3ref/db_status.html)
     interface currently only recognizes a single verb [SQLITE_DBSTATUS_LOOKASIDE_USED](c3ref/c_dbstatus_options.html#sqlitedbstatuslookasideused),
     though additional verbs may be added in the future.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 此接口类似，但它将指向[数据库连接](c3ref/sqlite3.html) 的指针作为其第一个参数，并返回关于该对象而不是整个SQLite库的统计信息。[sqlite3_db_status()](c3ref/db_status.html)
+    接口当前仅识别单个动词 [SQLITE_DBSTATUS_LOOKASIDE_USED](c3ref/c_dbstatus_options.html#sqlitedbstatuslookasideused)，尽管未来可能会添加其他动词。
 - en: The per-connection statistics do not use global variables and hence do not require
     mutexes to update or access. Consequently the per-connection statistics continue
     to function even if [SQLITE_CONFIG_MEMSTATUS](c3ref/c_config_covering_index_scan.html#sqliteconfigmemstatus)
     is turned off.
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 连接统计数据不使用全局变量，因此不需要互斥体来更新或访问。因此，即使关闭了[SQLITE_CONFIG_MEMSTATUS](c3ref/c_config_covering_index_scan.html#sqliteconfigmemstatus)，连接统计数据仍然可以正常工作。
 - en: 3.5\. Setting memory usage limits
+  id: totrans-107
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.5\. 设置内存使用限制
 - en: The [sqlite3_soft_heap_limit64()](c3ref/hard_heap_limit64.html) interface can
     be used to set an upper bound on the total amount of outstanding memory that the
     general-purpose memory allocator for SQLite will allow to be outstanding at one
@@ -693,62 +939,86 @@
     statistics](malloc.html#memstatus) are enabled and it works best if the SQLite
     library is compiled with the [SQLITE_ENABLE_MEMORY_MANAGEMENT](compile.html#enable_memory_management)
     compile-time option.
+  id: totrans-108
   prefs: []
   type: TYPE_NORMAL
+  zh: '[sqlite3_soft_heap_limit64()](c3ref/hard_heap_limit64.html)接口可用于设置SQLite通用内存分配器在任一时间允许的总未完成内存的上限。如果试图分配超出软堆限制指定的内存，则SQLite将首先尝试释放缓存内存，然后继续分配请求。软堆限制机制仅在启用[内存统计](malloc.html#memstatus)时有效，并且在编译SQLite库时最好启用[SQLITE_ENABLE_MEMORY_MANAGEMENT](compile.html#enable_memory_management)选项。'
 - en: 'The soft heap limit is "soft" in this sense: If SQLite is not able to free
     up enough auxiliary memory to stay below the limit, it goes ahead and allocates
     the extra memory and exceeds its limit. This occurs under the theory that it is
     better to use additional memory than to fail outright.'
+  id: totrans-109
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这里，“软”软堆限制的意义是：如果SQLite无法释放足够的辅助内存以保持在限制以下，则继续分配额外内存并超过其限制。这是基于使用额外内存比直接失败更好的理论。
 - en: As of SQLite [version 3.6.1](releaselog/3_6_1.html) (2008-08-06), the soft heap
     limit only applies to the general-purpose memory allocator. The soft heap limit
     does not know about or interact with the [pagecache memory allocator](malloc.html#pagecache)
     or the [lookaside memory allocator](malloc.html#lookaside). This deficiency will
     likely be addressed in a future release.
+  id: totrans-110
   prefs: []
   type: TYPE_NORMAL
+  zh: 自 SQLite [版本 3.6.1](releaselog/3_6_1.html)（2008-08-06）起，软堆限制仅适用于通用内存分配器。软堆限制不了解或与[页缓存内存分配器](malloc.html#pagecache)或[预留内存分配器](malloc.html#lookaside)交互。这个不足可能在将来的版本中得到解决。
 - en: 4\. Mathematical Guarantees Against Memory Allocation Failures
+  id: totrans-111
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. 防止内存分配失败的数学保证
 - en: 'The problem of dynamic memory allocation, and specifically the problem of a
     memory allocator breakdown, has been studied by J. M. Robson and the results published
     as:'
+  id: totrans-112
   prefs: []
   type: TYPE_NORMAL
+  zh: 动态内存分配问题，特别是内存分配器崩溃问题，已由J. M. Robson研究，并发布为：
 - en: J. M. Robson. "Bounds for Some Functions Concerning Dynamic Storage Allocation".
     *Journal of the Association for Computing Machinery*, Volume 21, Number 8, July
     1974, pages 491-499.
+  id: totrans-113
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: J. M. Robson. "关于动态存储分配的一些函数的界限". *计算机协会期刊*, 第21卷，第8期，1974年7月，第491-499页。
 - en: 'Let us use the following notation (similar but not identical to Robson''s notation):'
+  id: totrans-114
   prefs: []
   type: TYPE_NORMAL
+  zh: 让我们使用以下符号（与Robson的符号类似但不完全相同）：
 - en: '| **N** | The amount of raw memory needed by the memory allocation system in
     order to guarantee that no memory allocation will ever fail. |'
+  id: totrans-115
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| **N** | 内存分配系统所需的原始内存量，以确保永远不会发生内存分配失败。 |'
 - en: '| **M** | The maximum amount of memory that the application ever has checked
     out at any point in time. |'
+  id: totrans-116
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| **M** | 应用程序在任何时间点上曾经检查过的最大内存量。 |'
 - en: '| **n** | The ratio of the largest memory allocation to the smallest. We assume
     that every memory allocation size is an integer multiple of the smallest memory
     allocation size. |'
+  id: totrans-117
   prefs:
   - PREF_BQ
   type: TYPE_TB
+  zh: '| **n** | 最大内存分配与最小内存分配的比率。我们假设每个内存分配大小都是最小内存分配大小的整数倍数。 |'
 - en: 'Robson proves the following result:'
+  id: totrans-118
   prefs: []
   type: TYPE_NORMAL
+  zh: Robson证明了以下结果：
 - en: '**N** = **M***(1 + (log[2] **n**)/2) - **n** + 1'
+  id: totrans-119
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: '**N** = **M***(1 + (log[2] **n**)/2) - **n** + 1'
 - en: Colloquially, the Robson proof shows that in order to guarantee breakdown-free
     operation, any memory allocator must use a memory pool of size **N** which exceeds
     the maximum amount of memory ever used **M** by a multiplier that depends on **n**,
@@ -758,16 +1028,20 @@
     see that the amount of surplus memory required grows rapidly as the ratio of largest
     to smallest allocations increases, and so there is strong incentive to keep all
     allocations as near to the same size as possible.
+  id: totrans-120
   prefs: []
   type: TYPE_NORMAL
+  zh: 通俗地说，Robson的证明表明，为了保证无故障运行，任何内存分配器必须使用大小为**N**的内存池，该大小超过了通过**n**，即最大和最小分配大小的比率，确定的最大内存使用量**M**的倍数。换句话说，除非所有内存分配的大小完全相同（**n**=1），否则系统需要比其一次使用的内存更多。此外，我们看到所需的多余内存量随着最大和最小分配之间的比率增加而迅速增长，因此有强烈的动机尽可能保持所有分配大小接近。
 - en: Robson's proof is constructive. He provides an algorithm for computing a sequence
     of allocation and deallocation operations that will lead to an allocation failure
     due to memory fragmentation if available memory is as much as one byte less than
     **N**. And, Robson shows that a power-of-two first-fit memory allocator (such
     as implemented by [memsys5](malloc.html#memsys5)) will never fail a memory allocation
     provided that available memory is **N** or more bytes.
+  id: totrans-121
   prefs: []
   type: TYPE_NORMAL
+  zh: Robson的证明是建设性的。他提供了一个算法，用于计算一系列分配和释放操作，如果可用内存比**N**少一字节，则会导致内存碎片化而导致分配失败。此外，Robson还表明，类似于[memsys5](malloc.html#memsys5)实现的二次幂首次适配内存分配器将不会因可用内存为**N**或更多字节而导致内存分配失败。
 - en: The values **M** and **n** are properties of the application. If an application
     is constructed in such a way that both **M** and **n** are known, or at least
     have known upper bounds, and if the application uses the [memsys5](malloc.html#memsys5)
@@ -780,40 +1054,60 @@
     that a new memory allocation request cannot be satisfied. This is an important
     property for applications where a software fault could cause injury, physical
     harm, or loss of irreplaceable data.
+  id: totrans-122
   prefs: []
   type: TYPE_NORMAL
+  zh: 值 **M** 和 **n** 是应用程序的属性。如果应用程序构建方式使得 **M** 和 **n** 已知，或者至少有已知的上限，并且应用程序使用 [memsys5](malloc.html#memsys5)
+    内存分配器并提供了 **N** 字节的可用内存空间使用 [SQLITE_CONFIG_HEAP](c3ref/c_config_covering_index_scan.html#sqliteconfigheap)，则
+    Robson 证明在应用程序内部任何内存分配请求都不会失败。换句话说，应用程序开发者可以选择一个 **N** 的值，可以保证任何 SQLite 接口的调用永远不会返回
+    [SQLITE_NOMEM](rescode.html#nomem)。内存池永远不会变得如此碎片化，以至于无法满足新的内存分配请求。这对于软件故障可能导致损害、身体伤害或不可替代数据丢失的应用程序是一个重要的特性。
 - en: 4.1\. Computing and controlling parameters **M** and **n**
+  id: totrans-123
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.1\. 计算和控制参数 **M** 和 **n**
 - en: 'The Robson proof applies separately to each of the memory allocators used by
     SQLite:'
+  id: totrans-124
   prefs: []
   type: TYPE_NORMAL
+  zh: Robson 证明分别适用于 SQLite 使用的每个内存分配器：
 - en: The general-purpose memory allocator ([memsys5](malloc.html#memsys5)).
+  id: totrans-125
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 通用内存分配器 ([memsys5](malloc.html#memsys5))。
 - en: The [pagecache memory allocator](malloc.html#pagecache).
+  id: totrans-126
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[页面缓存内存分配器](malloc.html#pagecache)。'
 - en: The [lookaside memory allocator](malloc.html#lookaside).
+  id: totrans-127
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[旁路内存分配器](malloc.html#lookaside)。'
 - en: For allocators other than [memsys5](malloc.html#memsys5), all memory allocations
     are of the same size. Hence, **n**=1 and therefore **N**=**M**. In other words,
     the memory pool need be no larger than the largest amount of memory in use at
     any given moment.
+  id: totrans-128
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于除了 [memsys5](malloc.html#memsys5) 之外的分配器，所有内存分配大小都相同。因此，**n**=1，因此 **N**=**M**。换句话说，内存池的大小不需要大于任何给定时刻使用的最大内存量。
 - en: The usage of pagecache memory is somewhat harder to control in SQLite version
     3.6.1, though mechanisms are planned for subsequent releases that will make controlling
     pagecache memory much easier. Prior to the introduction of these new mechanisms,
     the only way to control pagecache memory is using the [cache_size pragma](pragma.html#pragma_cache_size).
+  id: totrans-129
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 SQLite 版本 3.6.1 中，页面缓存内存的使用相对较难控制，尽管计划在后续版本中引入机制，使页面缓存内存的控制变得更加容易。在引入这些新机制之前，唯一控制页面缓存内存的方法是使用
+    [cache_size pragma](pragma.html#pragma_cache_size)。
 - en: 'Safety-critical applications will usually want to modify the default lookaside
     memory configuration so that when the initial lookaside memory buffer is allocated
     during [sqlite3_open()](c3ref/open.html) the resulting memory allocation is not
@@ -821,35 +1115,49 @@
     under control, it is best to try to keep the largest memory allocation below 2
     or 4 kilobytes. Hence, a reasonable default setup for the lookaside memory allocator
     might any one of the following:'
+  id: totrans-130
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于安全关键应用程序，通常希望修改默认的旁路内存配置，以便在调用[sqlite3_open()](c3ref/open.html)时分配的初始旁路内存缓冲区不要太大，以至于强制**n**参数过大。为了控制**n**的大小，最好尝试将最大内存分配保持在2或4千字节以下。因此，旁路内存分配器的合理默认设置可以是以下任何一种：
 - en: '[PRE9]'
+  id: totrans-131
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'Another approach is to initially disable the lookaside memory allocator:'
+  id: totrans-132
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一种方法是最初禁用旁路内存分配器：
 - en: '[PRE10]'
+  id: totrans-133
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: Then let the application maintain a separate pool of larger lookaside memory
     buffers that it can distribute to [database connections](c3ref/sqlite3.html) as
     they are created. In the common case, the application will only have a single
     [database connection](c3ref/sqlite3.html) and so the lookaside memory pool can
     consist of a single large buffer.
+  id: totrans-134
   prefs: []
   type: TYPE_NORMAL
+  zh: 然后，让应用程序维护一个单独的较大旁路内存缓冲池，它可以在创建时分配给[数据库连接](c3ref/sqlite3.html)。在通常情况下，应用程序只会有一个单独的[数据库连接](c3ref/sqlite3.html)，因此旁路内存池可以由一个单独的大缓冲区组成。
 - en: '[PRE11]'
+  id: totrans-135
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: The lookaside memory allocator is really intended as performance optimization,
     not as a method for assuring breakdown-free memory allocation, so it is not unreasonable
     to completely disable the lookaside memory allocator for safety-critical operations.
+  id: totrans-136
   prefs: []
   type: TYPE_NORMAL
+  zh: 旁路内存分配器实际上是作为性能优化而不是作为确保无故障内存分配的方法，因此对于安全关键操作完全禁用旁路内存分配器并不是不合理的选择。
 - en: The general purpose memory allocator is the most difficult memory pool to manage
     because it supports allocations of varying sizes. Since **n** is a multiplier
     on **M** we want to keep **n** as small as possible. This argues for keeping the
@@ -858,38 +1166,54 @@
     is able to handle small allocations. So it is reasonable to set the minimum allocation
     size for [memsys5](malloc.html#memsys5) to 2, 4 or even 8 times the maximum size
     of a lookaside allocation. A minimum allocation size of 512 is a reasonable setting.
+  id: totrans-137
   prefs: []
   type: TYPE_NORMAL
+  zh: 通用目的的内存分配器是最难管理的内存池，因为它支持各种大小的分配。由于**n**是**M**的一个乘数，我们希望尽可能将**n**保持小。这意味着应该尽可能将[memsys5](malloc.html#memsys5)的最小分配大小设置为尽可能大。在大多数应用中，[旁路内存分配器](malloc.html#lookaside)能够处理小的分配。因此，将[memsys5](malloc.html#memsys5)的最小分配大小设置为旁路分配的最大大小的2、4甚至8倍是合理的。512的最小分配大小是一个合理的设置。
 - en: 'Further to keeping **n** small, one desires to keep the size of the largest
     memory allocations under control. Large requests to the general-purpose memory
     allocator might come from several sources:'
+  id: totrans-138
   prefs: []
   type: TYPE_NORMAL
+  zh: 进一步保持**n**的小值，希望控制最大内存分配的大小。通用内存分配器的大请求可能来自几个源：
 - en: SQL table rows that contain large strings or BLOBs.
+  id: totrans-139
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 包含大字符串或BLOB的SQL表行。
 - en: Complex SQL queries that compile down to large [prepared statements](c3ref/stmt.html).
+  id: totrans-140
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 复杂的SQL查询最终编译成大型[预处理语句](c3ref/stmt.html)。
 - en: SQL parser objects used internally by [sqlite3_prepare_v2()](c3ref/prepare.html).
+  id: totrans-141
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 内部使用的SQL解析器对象由[sqlite3_prepare_v2()](c3ref/prepare.html)调用。
 - en: Storage space for [database connection](c3ref/sqlite3.html) objects.
+  id: totrans-142
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '[数据库连接](c3ref/sqlite3.html)对象的存储空间。'
 - en: Page cache memory allocations that overflow into the general-purpose memory
     allocator.
+  id: totrans-143
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 页面缓存内存分配超出通用内存分配器。
 - en: Lookaside buffer allocations for new [database connections](c3ref/sqlite3.html).
+  id: totrans-144
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 新[数据库连接](c3ref/sqlite3.html)的看边缓存分配。
 - en: The last two allocations can be controlled and/or eliminated by configuring
     the [pagecache memory allocator](malloc.html#pagecache), and [lookaside memory
     allocator](malloc.html#lookaside) appropriately, as described above. The storage
@@ -899,8 +1223,10 @@
     size of pointers.) Each parser object uses about 1.6KB of memory. Thus, elements
     3 through 6 above can easily be controlled to keep the maximum memory allocation
     size below 2KB.
+  id: totrans-145
   prefs: []
   type: TYPE_NORMAL
+  zh: 最后两个分配可以通过适当配置[页面缓存内存分配器](malloc.html#pagecache)和[看边内存分配器](malloc.html#lookaside)来控制和/或消除，如上所述。[数据库连接](c3ref/sqlite3.html)对象所需的存储空间在某种程度上取决于数据库文件名的长度，但在32位系统上很少超过2KB。（64位系统由于指针大小增加，需要更多空间。）每个解析器对象使用约1.6KB的内存。因此，可以轻松控制上述第3至6个元素，以保持最大内存分配大小在2KB以下。
 - en: If the application is designed to manage data in small pieces, then the database
     should never contain any large strings or BLOBs and hence element 1 above should
     not be a factor. If the database does contain large strings or BLOBs, they should
@@ -909,8 +1235,11 @@
     BLOB I/O](c3ref/blob.html). Otherwise, the [sqlite3_step()](c3ref/step.html) routine
     will need to read the entire row into contiguous memory at some point, and that
     will involve at least one large memory allocation.
+  id: totrans-146
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果应用程序设计为管理小数据片段，则数据库不应包含任何大字符串或BLOB，因此上述第1点不应成为问题。如果数据库确实包含大字符串或BLOB，则应使用[增量BLOB
+    I/O](c3ref/blob.html)读取它们，同时包含大字符串或BLOB的行不应通过除[增量BLOB I/O](c3ref/blob.html)以外的任何方式更新。否则，[sqlite3_step()](c3ref/step.html)例程将在某些时候需要将整个行读入连续内存，这将涉及至少一个大内存分配。
 - en: The final source of large memory allocations is the space to hold the [prepared
     statements](c3ref/stmt.html) that result from compiling complex SQL operations.
     Ongoing work by the SQLite developers is reducing the amount of space required
@@ -918,13 +1247,19 @@
     that are several kilobytes in size. The only workaround at the moment is for the
     application to break complex SQL operations up into two or more smaller and simpler
     operations contained in separate [prepared statements](c3ref/stmt.html).
+  id: totrans-147
   prefs: []
   type: TYPE_NORMAL
+  zh: 大型内存分配的最终来源是用于保存编译复杂 SQL 操作生成的[预处理语句](c3ref/stmt.html)所需的空间。SQLite 开发人员正在努力减少这里所需的空间量。但是大型复杂查询可能仍需要大小为几千字节的[预处理语句](c3ref/stmt.html)。目前唯一的解决方法是让应用程序将复杂
+    SQL 操作分解成两个或两个以上简单操作，各自包含在单独的[预处理语句](c3ref/stmt.html)中。
 - en: All things considered, applications should normally be able to hold their maximum
     memory allocation size below 2K or 4K. This gives a value for log[2](**n**) of
     2 or 3\. This will limit **N** to between 2 and 2.5 times **M**.
+  id: totrans-148
   prefs: []
   type: TYPE_NORMAL
+  zh: 综上所述，应用程序通常应能将其最大内存分配大小保持在 2K 或 4K 以下。这给出了 log[2](**n**) 为 2 或 3 的值。这将限制 **N**
+    在 2 倍和 2.5 倍 **M** 之间。
 - en: The maximum amount of general-purpose memory needed by the application is determined
     by such factors as how many simultaneous open [database connection](c3ref/sqlite3.html)
     and [prepared statement](c3ref/stmt.html) objects the application uses, and on
@@ -932,12 +1267,17 @@
     these factors are normally fixed and can be determined experimentally using [SQLITE_STATUS_MEMORY_USED](c3ref/c_status_malloc_count.html#sqlitestatusmemoryused).
     A typical application might only use about 40KB of general-purpose memory. This
     gives a value of **N** of around 100KB.
+  id: totrans-149
   prefs: []
   type: TYPE_NORMAL
+  zh: 应用程序所需的通用内存的最大量由诸如应用程序同时打开了多少个[数据库连接](c3ref/sqlite3.html)和[预处理语句](c3ref/stmt.html)对象，以及[预处理语句](c3ref/stmt.html)的复杂性等因素确定。对于任何给定的应用程序，这些因素通常是固定的，可以使用[SQLITE_STATUS_MEMORY_USED](c3ref/c_status_malloc_count.html#sqlitestatusmemoryused)进行实验性确定。一个典型的应用程序可能只使用约
+    40KB 的通用内存。这给出了**N** 约为 100KB 的值。
 - en: 4.2\. Ductile failure
+  id: totrans-150
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.2\. 韧性破坏
 - en: If the memory allocation subsystems within SQLite are configured for breakdown-free
     operation but the actual memory usage exceeds design limits set by the [Robson
     proof](malloc.html#nofrag), SQLite will usually continue to operate normally.
@@ -952,21 +1292,33 @@
     that SQLite has never been observed to follow. So in practice it is usually the
     case that the limits imposed by Robson can be exceeded by a considerable margin
     with no ill effect.
+  id: totrans-151
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果   如果 SQLite 内存分配子系统配置为无故障运行，但实际内存使用量超过了由[罗布森证明](malloc.html#nofrag)设置的设计限制，SQLite
+    通常会继续正常运行。 [页缓存内存分配器](malloc.html#pagecache)和[查找内存分配器](malloc.html#lookaside)会自动切换到[memsys5](malloc.html#memsys5)通用内存分配器。通常情况下，即使
+    **M** 和/或 **n** 超过[罗布森证明](malloc.html#nofrag)所规定的限制，[memsys5](malloc.html#memsys5)内存分配器也会继续工作而不产生碎片。[罗布森证明](malloc.html#nofrag)表明，在这种情况下，内存分配可能会发生故障，但这种故障需要一系列特别糟糕的分配和释放操作序列
+    - SQLite从未观察到过这种序列。因此，在实践中，通常情况下，罗布森设置的限制可以大幅度超过而不会产生不良影响。
 - en: Nevertheless, application developers are admonished to monitor the state of
     the memory allocation subsystems and raise alarms when memory usage approaches
     or exceeds Robson limits. In this way, the application will provide operators
     with abundant warning well in advance of failure. The [memory statistics](malloc.html#memstatus)
     interfaces of SQLite provide the application with all the mechanism necessary
     to complete the monitoring portion of this task.
+  id: totrans-152
   prefs: []
   type: TYPE_NORMAL
+  zh: 尽管如此，应用程序开发人员被告诫要监控内存分配子系统的状态，并在内存使用量接近或超过罗布森限制时发出警报。通过这种方式，应用程序将提前向操作员提供丰富的警告以避免失败。SQLite
+    的[内存统计](malloc.html#memstatus)接口为应用程序提供了完成此任务监控部分所需的所有机制。
 - en: 5\. Stability Of Memory Interfaces
+  id: totrans-153
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 5\. 内存接口的稳定性
 - en: '**Update:** As of SQLite version 3.7.0 (2010-07-21), all of SQLite memory allocation
     interfaces are considered stable and will be supported in future releases.'
+  id: totrans-154
   prefs: []
   type: TYPE_NORMAL
+  zh: '**更新：** 截至 SQLite 版本 3.7.0（2010-07-21），所有 SQLite 内存分配接口都被认为是稳定的，并将在未来的版本中得到支持。'

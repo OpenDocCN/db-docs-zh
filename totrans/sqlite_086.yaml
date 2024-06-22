@@ -1,48 +1,65 @@
 - en: 1\. Introduction
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 1\. Introduction
 - en: 原文：[https://sqlite.com/queryplanner-ng.html](https://sqlite.com/queryplanner-ng.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/queryplanner-ng.html](https://sqlite.com/queryplanner-ng.html)
 - en: The task of the "query planner" is to figure out the best algorithm or "query
     plan" to accomplish an SQL statement. Beginning with SQLite [version 3.8.0](releaselog/3_8_0.html)
     (2013-08-26), the query planner component has been rewritten so that it runs faster
     and generates better plans. The rewrite is called the "next generation query planner"
     or "NGQP".
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: '"查询规划器（query planner）"的任务是找出执行 SQL 语句的最佳算法或"查询计划（query plan）"。从 SQLite [版本
+    3.8.0](releaselog/3_8_0.html)（2013-08-26）开始，查询规划器组件已重写，以提高运行速度并生成更好的计划。这次重写被称为"下一代查询规划器（NGQP）"。'
 - en: This article overviews the importance of query planning, describes some of the
     problems inherent to query planning, and outlines how the NGQP solves those problems.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文概述了查询规划的重要性，描述了查询规划中固有的一些问题，并概述了NGQP如何解决这些问题。
 - en: The NGQP is almost always better than the legacy query planner. However, there
     may exist legacy applications that unknowingly depend on undefined and/or suboptimal
     behavior in the legacy query planner, and upgrading to the NGQP on those legacy
     applications could cause performance regressions. This risk is considered and
     a checklist is provided for reducing the risk and for fixing any issues that do
     arise.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: NGQP 几乎总是优于传统的查询规划器。然而，可能存在一些传统应用程序不知不觉地依赖于传统查询规划器中未定义和/或次优行为，并且在这些传统应用程序上升级到NGQP可能会导致性能回退。这种风险已经被考虑，并提供了一个清单来减少风险并修复任何可能出现的问题。
 - en: This document focuses on the NGQP. For a more general overview of the SQLite
     query planner that encompasses the entire history of SQLite, see the "[The SQLite
     Query Optimizer Overview](optoverview.html)" and "[How Indexes Work](queryplanner.html)"
     documents.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文重点介绍NGQP。关于SQLite查询规划器的更一般概述，涵盖了SQLite的整个历史，请参阅"[SQLite查询优化器概述](optoverview.html)"和"[索引工作原理](queryplanner.html)"文档。
 - en: 2\. Background
+  id: totrans-6
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 2\. 背景
 - en: For simple queries against a single table with few indexes, there is usually
     an obvious choice for the best algorithm. But for larger and more complex queries,
     such as multi-way joins with many indexes and subqueries, there can be hundreds,
     thousands, or millions of reasonable algorithms for computing the result. The
     job of the query planner is to choose the single "best" query plan from this multitude
     of possibilities.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于简单查询针对单个表且只有少量索引的情况，通常有一个最佳算法的明显选择。但是对于更大更复杂的查询，如带有多个索引和子查询的多路连接，可能会有数百、数千或数百万种合理的计算结果的算法。查询规划器的任务是从这多种可能性中选择单一的"最佳"查询计划。
 - en: Query planners are what make SQL database engines so amazingly useful and powerful.
     (This is true of all SQL database engines, not just SQLite.) The query planner
     frees the programmer from the chore of selecting a particular query plan, and
@@ -53,8 +70,10 @@
     planner can greatly speed and simplify the work of application development. There
     is amazing power in being about to tell the database engine what content is desired,
     and then let the database engine figure out the best way to retrieve that content.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 查询规划器是使得 SQL 数据库引擎如此令人惊奇有用和强大的关键。（这对所有 SQL 数据库引擎都是真实的，而不仅仅是 SQLite。）查询规划器使程序员免于选择特定查询计划的繁琐工作，从而使程序员能够将更多的精力集中在更高级的应用程序问题上，并为最终用户提供更多的价值。对于简单查询，在选择查询计划显而易见时，这是方便但并不是非常重要的。但随着应用程序、模式和查询变得越来越复杂，一个聪明的查询规划器可以极大地加速和简化应用程序开发的工作。能够告诉数据库引擎所需内容，并让数据库引擎找出检索该内容的最佳方式，这具有惊人的力量。
 - en: Writing a good query planner is more art than science. The query planner must
     work with incomplete information. It cannot determine how long any particular
     plan will take without actually running that plan. So when comparing two or more
@@ -62,66 +81,94 @@
     and assumptions and those guesses and assumptions will sometimes be wrong. A good
     query planner is one that will find the correct solution often enough that application
     programmers rarely need to get involved.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 编写一个优秀的查询规划器更像是艺术而不是科学。查询规划器必须处理不完整的信息。它无法确定任何特定计划的执行时间，除非实际运行该计划。因此，在比较两个或多个计划以确定哪个“最佳”时，查询规划器必须做出一些猜测和假设，而这些猜测和假设有时会是错误的。一个优秀的查询规划器是那种经常能找到正确解决方案，以至于应用程序员很少需要介入的规划器。
 - en: 2.1\. Query Planning In SQLite
+  id: totrans-10
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.1\. SQLite 中的查询规划
 - en: 'SQLite computes joins using nested loops, one loop for each table in the join.
     (Additional loops might be inserted for IN and OR operators in the WHERE clause.
     SQLite considers those too, but for simplicity we will ignore them in this essay.)
     One or more indexes might be used on each loop to speed the search, or a loop
     might be a "full table scan" that reads every row in the table. Thus query planning
     decomposes into two subtasks:'
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 使用嵌套循环计算连接，每个表在连接中使用一个循环。（在 WHERE 子句中的 IN 和 OR 运算符可能会插入额外的循环。SQLite 也会考虑这些情况，但出于简单起见，在本文中我们将忽略它们。）每个循环可能使用一个或多个索引来加速搜索，或者一个循环可能是一个“全表扫描”，读取表中的每一行。因此，查询规划分解为两个子任务：
 - en: Picking the nested order of the various loops
+  id: totrans-12
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择各种循环的嵌套顺序
 - en: Choosing good indexes for each loop
+  id: totrans-13
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 选择每个循环的良好索引
 - en: Picking the nesting order is generally the more challenging problem. Once the
     nesting order of the join is established, the choice of indexes for each loop
     is normally obvious.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 选择嵌套顺序通常是更具挑战性的问题。一旦确定了连接的嵌套顺序，为每个循环选择索引的选择通常是显而易见的。
 - en: 2.2\. The SQLite Query Planner Stability Guarantee
+  id: totrans-15
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.2\. SQLite 查询规划器稳定性保证
 - en: 'When the Query Planner Stability Guarantee (QPSG) is enabled SQLite will always
     pick the same query plan for any given SQL statement as long as:'
+  id: totrans-16
   prefs: []
   type: TYPE_NORMAL
+  zh: 当启用查询规划器稳定性保证（QPSG）时，SQLite 将始终针对任何给定的 SQL 语句选择相同的查询计划，条件是：
 - en: the database schema does not change in significant ways such as adding or dropping
     indexes,
+  id: totrans-17
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 数据库架构没有显著改变，如添加或删除索引，
 - en: the ANALYZE command is not rerun,
+  id: totrans-18
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 未重新运行 ANALYZE 命令，
 - en: the same version of SQLite is used.
+  id: totrans-19
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用相同版本的 SQLite。
 - en: The QPSG is disabled by default. It can be enabled at compile-time using the
     [SQLITE_ENABLE_QPSG](compile.html#enable_qpsg) compile-time option, or at run-time
     by invoking [sqlite3_db_config](c3ref/db_config.html)(db,[SQLITE_DBCONFIG_ENABLE_QPSG](c3ref/c_dbconfig_defensive.html#sqlitedbconfigenableqpsg),1,0).
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: QPSG 默认情况下是禁用的。可以在编译时使用 [SQLITE_ENABLE_QPSG](compile.html#enable_qpsg) 编译选项启用它，或者在运行时通过调用
+    [sqlite3_db_config](c3ref/db_config.html)(db,[SQLITE_DBCONFIG_ENABLE_QPSG](c3ref/c_dbconfig_defensive.html#sqlitedbconfigenableqpsg),1,0)
+    来启用。
 - en: The QPSG means that if all of your queries run efficiently during testing, and
     if your application does not change the schema, then SQLite will not suddenly
     decide to start using a different query plan, possibly causing a performance problem
     after your application is released to users. If your application works in the
     lab, it will continue working the same way after deployment.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: QPSG 意味着如果在测试期间所有查询都运行有效，并且应用程序未更改架构，那么SQLite不会突然决定开始使用不同的查询计划，可能导致应用发布后的性能问题。如果您的应用在实验室中运行良好，那么部署后它将继续以相同的方式工作。
 - en: Client/server SQL database engines do not normally make this guarantee. In client/server
     SQL database engines, the server keeps track of statistics on the sizes of tables
     and on the quality of indexes and the query planner uses those statistics to help
@@ -134,8 +181,11 @@
     come up. But DBAs are not available to fix problems in an embedded database like
     SQLite, and hence SQLite is careful to ensure that plans do not change unexpectedly
     after deployment.
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 客户端/服务器 SQL 数据库引擎通常不会做出这种保证。在客户端/服务器 SQL 数据库引擎中，服务器会跟踪表的大小和索引质量的统计信息，查询规划器利用这些统计信息来帮助选择最佳的执行计划。随着内容在数据库中的添加、删除或更改，这些统计数据将会演变，可能会导致查询规划器开始对某些特定查询使用不同的执行计划。通常情况下，新计划对数据结构的演变会更好。但有时新的查询计划会导致性能下降。在客户端/服务器数据库引擎中，通常会有数据库管理员（DBA）来处理这些罕见的问题。但是在像
+    SQLite 这样的嵌入式数据库中，没有 DBA 可以解决问题，因此 SQLite 努力确保部署后执行计划不会意外改变。
 - en: It is important to note that changing versions of SQLite might cause changes
     in query plans. The same version of SQLite will always pick the same query plan,
     but if you relink your application to use a different version of SQLite, then
@@ -143,23 +193,35 @@
     a performance regression. This is one reason you should consider statically linking
     your applications against SQLite rather than use a system-wide SQLite shared library
     which might change without your knowledge or control.
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 需要注意的是，更改 SQLite 版本可能会导致查询计划的变化。同一版本的 SQLite 将始终选择相同的查询计划，但是如果重新链接应用程序以使用不同版本的
+    SQLite，则查询计划可能会改变。在罕见情况下，SQLite 版本更改可能会导致性能回退。这是您应考虑静态链接应用程序与 SQLite 而不是使用可能在未经您知情或控制的情况下发生变化的系统范围内的
+    SQLite 共享库的一个原因。
 - en: 'See also:'
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 另请参阅：
 - en: '[Recommended usage patterns for ANALYZE](lang_analyze.html#req)'
+  id: totrans-25
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[分析使用模式的推荐](lang_analyze.html#req)'
 - en: '[PRAGMA optimize](pragma.html#pragma_optimize)'
+  id: totrans-26
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '[PRAGMA 优化](pragma.html#pragma_optimize)'
 - en: 3\. A Difficult Case
+  id: totrans-27
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. 一个困难案例
 - en: '"TPC-H Q8" is a test query from the [Transaction Processing Performance Council](http://www.tpc.org/tpch/).
     The query planners in SQLite versions 3.7.17 and earlier do not choose good plans
     for TPC-H Q8\. And it has been determined that no amount of tweaking of the legacy
@@ -168,18 +230,28 @@
     necessary to redesign the query planner. This section tries to explain why this
     redesign was necessary and how the NGQP is different and addresses the TPC-H Q8
     problem.'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: '"TPC-H Q8" 是来自[事务处理性能委员会（Transaction Processing Performance Council）](http://www.tpc.org/tpch/)的一个测试查询。SQLite
+    版本 3.7.17 及更早版本的查询规划器并不为 TPC-H Q8 选择好的计划。经过判断，无论如何调整旧有的查询规划器，都无法解决这个问题。为了找到 TPC-H
+    Q8 查询的好解决方案，并持续改进 SQLite 的查询规划器质量，有必要重新设计查询规划器。本节试图解释为何需要进行这一重新设计，以及 NGQP 如何不同并解决了
+    TPC-H Q8 问题。'
 - en: 3.1\. Query Details
+  id: totrans-29
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.1\. 查询详情
 - en: 'TPC-H Q8 is an eight-way join. As observed above, the main task of the query
     planner is to figure out the best nesting order of the eight loops in order to
     minimize the work needed to complete the join. A simplified model of this problem
     for the case of TPC-H Q8 is shown by the following diagram:'
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: TPC-H Q8 是一个八路连接查询。正如前文所述，查询规划器的主要任务是找出这八个循环的最佳嵌套顺序，以尽量减少完成连接所需的工作量。对于 TPC-H
+    Q8 的简化模型如下图所示：
 - en: <svg class="pikchr" viewBox="0 0 677.503 310.031"><text x="132" y="104" text-anchor="middle"
     font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%" dominant-baseline="central">S</text>
     <text x="234" y="104" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
@@ -228,24 +300,77 @@
     fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 3.56</text> <text
     x="234" y="293" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text>
     <text x="234" y="256" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 7.71</text></svg>
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: <svg class="pikchr" viewBox="0 0 677.503 310.031"><text x="132" y="104" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%" dominant-baseline="central">S</text>
+    <text x="234" y="104" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    font-size="156.25%" dominant-baseline="central">L</text> <text x="336" y="104"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%"
+    dominant-baseline="central">O</text> <text x="438" y="104" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%" dominant-baseline="central">C</text>
+    <text x="539" y="104" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    font-size="156.25%" dominant-baseline="central">N1</text> <text x="641" y="104"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%"
+    dominant-baseline="central">R</text> <text x="234" y="205" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%" dominant-baseline="central">P</text>
+    <text x="30" y="104" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    font-size="156.25%" dominant-baseline="central">N2</text> <text x="81" y="84"
+    text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">6.00</text>
+    <text x="81" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">2.08</text>
+    <text x="183" y="84" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">9.17</text>
+    <text x="183" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">2.30</text>
+    <text x="285" y="84" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">2.77</text>
+    <text x="285" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">4.03</text>
+    <text x="387" y="84" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">2.64</text>
+    <text x="387" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">5.30</text>
+    <text x="489" y="84" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">2.08</text>
+    <text x="489" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">6.40</text>
+    <text x="590" y="84" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">1.79</text>
+    <text x="590" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">3.47</text>
+    <text x="245" y="155" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">2.64</text>
+    <text x="222" y="155" text-anchor="end" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">6.01</text>
+    <text x="30" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text> <text x="30" y="53" text-anchor="start" fill="rgb(0,0,0)"
+    font-size="80%" dominant-baseline="central"> 5.52</text> <text x="132" y="16"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text>
+    <text x="132" y="53" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 9.47</text>
+    <text x="234" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text> <text x="234" y="53" text-anchor="start"
+    fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 16.40</text> <text
+    x="336" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text>
+    <text x="336" y="53" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 13.87</text>
+    <text x="438" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text> <text x="438" y="53" text-anchor="start"
+    fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 12.56</text> <text
+    x="539" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text>
+    <text x="539" y="53" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 5.52</text>
+    <text x="641" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text> <text x="641" y="53" text-anchor="start"
+    fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 3.56</text> <text
+    x="234" y="293" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text>
+    <text x="234" y="256" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 7.71</text></svg>
 - en: 'In the diagram, each of the 8 tables in the FROM clause of the query is identified
     by a large circle with the label of the FROM-clause term: N2, S, L, P, O, C, N1
     and R. The arcs in the graph represent the estimated cost of computing each term
     assuming that the origin of the arc is in an outer loop. For example, the cost
     of running the S loop as an inner loop to L is 2.30 whereas the cost of running
     the S loop as an outer loop to L is 9.17.'
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 在图表中，查询的FROM子句中的每个8个表都用一个大圆圈表示，标有FROM子句术语的标签：N2、S、L、P、O、C、N1和R。图中的弧线代表了假设弧线起点在外部循环时计算每个术语的估计成本。例如，将S循环作为L的内部循环的成本为2.30，而将S循环作为L的外部循环的成本为9.17。
 - en: The "cost" here is logarithmic. With nested loops, the work is multiplied, not
     added. But it is customary to think of graphs with additive weights and so the
     graph shows the logarithm of the various costs. The graph shows a cost advantage
     of S being inside of L of about 6.87, but this translates into the query running
     about 963 times faster when S loop is inside of the L loop rather than being outside
     of it.
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里的“成本”是对数的。对于嵌套循环，工作是相乘而不是相加。但通常将图形视为具有加法权重，因此图表显示各种成本的对数。图表显示S位于L内部的成本优势约为6.87，但这意味着当S循环在L循环内部而不是外部时，查询运行大约快963倍。
 - en: The arrows from the small circles labeled with "*" indicate the cost of running
     each loop with no dependencies. The outermost loop must use this *-cost. Inner
     loops have the option of using the *-cost or a cost assuming one of the other
@@ -254,20 +379,28 @@
     other nodes in the graph. The graph is therefore "complete", meaning that there
     are arcs (some explicit and some implied) in both directions between every pair
     of nodes in the graph.
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 从带有"*"标签的小圆圈指向的箭头表示在没有依赖关系的情况下运行每个循环的成本。最外层循环必须使用此*-成本。内部循环可以选择使用*-成本或者假设另一个术语是外部循环的成本，以给出最佳结果。可以将*-成本看作是一种简化表示，表示图中每个其他节点都有一条弧线。因此，该图是“完全的”，意味着图中的每对节点之间都有弧线（一些显式的，一些隐含的）。
 - en: The problem of finding the best query plan is equivalent to finding a minimum-cost
     path through the graph that visits each node exactly once.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 寻找最佳查询计划的问题相当于找到通过图中每个节点恰好一次的最小成本路径。
 - en: '(Side note: The cost estimates in the TPC-H Q8 graph above were computed by
     the query planner in SQLite 3.7.16 and converted using a natural logarithm.)'
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: （顺便说一句：上述TPC-H Q8图中的成本估算是由SQLite 3.7.16中的查询规划器计算的，并使用自然对数进行转换。）
 - en: 3.2\. Complications
+  id: totrans-37
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.2\. 复杂性
 - en: The presentation of the query planner problem above is a simplification. The
     costs are estimates. We cannot know what the true cost of running a loop is until
     we actually run the loop. SQLite makes guesses for the cost of running a loop
@@ -276,8 +409,10 @@
     [ANALYZE](lang_analyze.html) command to collect additional statistical information
     about the database can sometimes enable SQLite to make better guesses about the
     cost.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 上面所述的查询规划器问题的展示是简化的。成本是估算的。在实际运行循环之前，我们无法知道运行循环的真实成本。SQLite根据WHERE子句中找到的索引和约束的可用性对运行循环的成本进行猜测。这些猜测通常相当准确，但有时可能会偏离。使用[ANALYZE](lang_analyze.html)命令收集关于数据库的额外统计信息，有时可以使SQLite更好地猜测成本。
 - en: The costs are comprised of multiple numbers, not a single number as shown in
     the graph. SQLite computes several different estimated costs for each loop that
     apply at different times. For example, there is a "setup" cost that is incurred
@@ -287,34 +422,47 @@
     estimate of the number rows generated by the loop, which is information needed
     in estimating the costs of inner loops. Sorting costs may come into play if the
     query has an ORDER BY clause.
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 成本由多个数字组成，而不是如图所示的单个数字。SQLite为每个在不同时间应用的循环计算几种不同的估计成本。例如，一旦查询开始，就会产生“设置”成本。设置成本是为表计算查询时间索引（[查询时间索引](optoverview.html#autoindex)）而发生的成本，如果表尚无索引。然后是运行每个循环步骤的成本。最后，还有循环生成的行数的估计，这是在估算内部循环成本时需要的信息。如果查询有ORDER
+    BY子句，则可能涉及排序成本。
 - en: In a general query, dependencies need not be on a single loop, and hence the
     matrix of dependencies might not be representable as a graph. For example, one
     of the WHERE clause constraints might be S.a=L.b+P.c, implying that the S loop
     must be an inner loop of both L and P. Such dependencies cannot be drawn as a
     graph since there is no way for an arc to originate at two or more nodes at once.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 在一般查询中，依赖关系不需要在单个循环上，因此依赖关系的矩阵可能无法表示为图形。例如，WHERE子句中的一个约束可能是S.a=L.b+P.c，这意味着S循环必须是L和P的内部循环。这种依赖关系无法绘制为图形，因为一个弧线无法同时起源于两个或更多的节点。
 - en: If the query contains an ORDER BY clause or a GROUP BY clause or if the query
     uses the DISTINCT keyword then it is advantageous to select a path through the
     graph that causes rows to naturally appear in sorted order, so that no separate
     sorting step is required. Automatic elimination of ORDER BY clauses can make a
     large performance difference, so this is another factor that needs to be considered
     in a complete implementation.
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果查询包含 ORDER BY 子句或 GROUP BY 子句，或者查询使用 DISTINCT 关键字，则选择通过图形的路径使行自然按排序顺序出现将是有利的，这样就不需要单独的排序步骤。自动消除
+    ORDER BY 子句可以产生很大的性能差异，因此这是需要在完整实现中考虑的另一个因素。
 - en: In the TPC-H Q8 query, the setup costs are all negligible, all dependencies
     are between individual nodes, and there is no ORDER BY, GROUP BY, or DISTINCT
     clause. So for TPC-H Q8, the graph above is a reasonable representation of what
     needs to be computed. The general case involves a lot of extra complication, which
     for clarity is neglected in the remainder of this article.
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 TPC-H Q8 查询中，设置成本都可以忽略不计，所有依赖都在各个单独节点之间，且没有 ORDER BY、GROUP BY 或 DISTINCT 子句。因此对于
+    TPC-H Q8，上述图形是需要计算的合理表示。一般情况涉及大量额外的复杂性，为了清晰起见，在本文的其余部分将忽略这些。
 - en: 3.3\. Finding The Best Query Plan
+  id: totrans-43
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.3\. 寻找最佳查询计划
 - en: Prior to [version 3.8.0](releaselog/3_8_0.html) (2013-08-26), SQLite always
     used the "Nearest Neighbor" or "NN" heuristic when searching for the best query
     plan. The NN heuristic makes a single traversal of the graph, always choosing
@@ -323,8 +471,12 @@
     for even large 64-way joins. In contrast, other SQL database engines that do more
     extensive searching tend to bog down when the number of tables in a join goes
     above 10 or 15.
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 [版本 3.8.0](releaselog/3_8_0.html)（2013-08-26）之前，SQLite 在寻找最佳查询计划时总是使用“最近邻”或“NN”启发式方法。NN
+    启发式方法在遍历图形时总是选择成本最低的弧作为下一步。NN 启发式方法在大多数情况下表现出色。而且 NN 很快，因此 SQLite 能够快速找到即使是大型
+    64 路连接的良好计划。相比之下，其他执行更广泛搜索的 SQL 数据库引擎在连接表数超过 10 或 15 时往往会陷入困境。
 - en: Unfortunately, the query plan computed by NN for TPC-H Q8 is not optimal. The
     plan computed using NN is R-N1-N2-S-C-O-L-P with a cost of 36.92. The notation
     in the previous sentence means that the R table is run in the outer loop, N1 is
@@ -333,123 +485,179 @@
     search) is P-L-O-C-N1-R-S-N2 with a cost of 27.38\. The difference might not seem
     like much, but remember that the costs are logarithmic, so the shortest path is
     nearly 750 times faster than that path found using the NN heuristic.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 不幸的是，NN 为 TPC-H Q8 计算的查询计划并不是最优的。使用 NN 计算的计划是 R-N1-N2-S-C-O-L-P，成本为 36.92。前面句子中的符号意味着
+    R 表在外部循环中运行，N1 在下一个内部循环中，N2 在第三个循环中，依此类推，最内层循环是 P。通过详尽搜索找到的图中最短路径是 P-L-O-C-N1-R-S-N2，成本为
+    27.38。差异看起来可能不大，但请记住成本是对数级别的，因此最短路径几乎比使用 NN 启发式方法找到的路径快 750 倍。
 - en: One solution to this problem is to change SQLite to do an exhaustive search
     for the best path. But an exhaustive search requires time proportional to K! (where
     K is the number of tables in the join) and so when you get beyond a 10-way join,
     the time to run [sqlite3_prepare()](c3ref/prepare.html) becomes very large.
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 这个问题的一个解决方案是改变 SQLite，使其对最佳路径进行详尽搜索。但详尽搜索需要时间与 K! 成正比（其中 K 是连接中的表数），所以当连接表数超过
+    10 时，运行 [sqlite3_prepare()](c3ref/prepare.html) 的时间变得非常长。
 - en: 3.4\. The N Nearest Neighbors or "N3" Heuristic
+  id: totrans-47
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.4\. N 最近邻居或 "N3" 启发式方法
 - en: 'The NGQP uses a new heuristic for seeking the best path through the graph:
     "N Nearest Neighbors" (hereafter "N3"). With N3, instead of choosing just one
     nearest neighbor for each step, the algorithm keeps track of the N bests paths
     at each step for some small integer N.'
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: NGQP 使用了一个新的启发式方法来寻找图中的最佳路径："N 最近邻居"（以下简称 "N3"）。使用 N3，算法在每一步都跟踪当前步骤中的 N 条最佳路径，其中
+    N 是一个小整数。
 - en: 'Suppose N=4\. Then for the TPC-H Q8 graph, the first step finds the four shortest
     paths to visit any single node in the graph:'
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设 N=4。对于 TPC-H Q8 图，第一步是找到访问图中任何单个节点的四条最短路径：
 - en: 'R (cost: 3.56)'
+  id: totrans-50
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'R (cost: 3.56)'
 - en: 'N1 (cost: 5.52)'
+  id: totrans-51
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'N1 (cost: 5.52)'
 - en: 'N2 (cost: 5.52)'
+  id: totrans-52
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'N2 (cost: 5.52)'
 - en: 'P (cost: 7.71)'
+  id: totrans-53
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'P (cost: 7.71)'
 - en: 'The second step finds the four shortest paths to visit two nodes beginning
     with one of the four paths from the previous step. In the case where two or more
     paths are equivalent (they have the same set of visited nodes, though possibly
     in a different order) only the first and lowest-cost path is retained. We have:'
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: 第二步是找到访问两个节点的四条最短路径，以前一步中的四条路径之一开始。如果两条或更多路径是等效的（它们访问的节点集合相同，尽管可能顺序不同），则仅保留第一个和成本最低的路径。我们有：
 - en: 'R-N1 (cost: 7.03)'
+  id: totrans-55
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'R-N1 (cost: 7.03)'
 - en: 'R-N2 (cost: 9.08)'
+  id: totrans-56
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'R-N2 (cost: 9.08)'
 - en: 'N2-N1 (cost: 11.04)'
+  id: totrans-57
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'N2-N1 (cost: 11.04)'
 - en: 'R-P {cost: 11.27}'
+  id: totrans-58
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'R-P {cost: 11.27}'
 - en: 'The third step starts with the four shortest two-node paths and finds the four
     shortest three-node paths:'
+  id: totrans-59
   prefs: []
   type: TYPE_NORMAL
+  zh: 第三步从四条最短的两节点路径开始，并找到四条最短的三节点路径：
 - en: 'R-N1-N2 (cost: 12.55)'
+  id: totrans-60
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'R-N1-N2 (cost: 12.55)'
 - en: 'R-N1-C (cost: 13.43)'
+  id: totrans-61
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 'R-N1-C (cost: 13.43)'
 - en: 'R-N1-P (cost: 14.74)'
+  id: totrans-62
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: R-N1-P (成本：14.74)
 - en: 'R-N2-S (cost: 15.08)'
+  id: totrans-63
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: R-N2-S (成本：15.08)
 - en: And so forth. There are 8 nodes in the TPC-H Q8 query, so this process repeats
     a total of 8 times. In the general case of a K-way join, the storage requirement
     is O(N) and the computation time is O(K*N), which is significantly faster than
     the O(2^K) exact solution.
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 等等。在TPC-H Q8查询中有8个节点，因此这个过程总共重复8次。在K路连接的一般情况下，存储需求是O(N)，计算时间是O(K*N)，比O(2^K)的精确解法快得多。
 - en: But what value to choose for N? One might try N=K. This makes the algorithm
     O(K²) which is actually still quite efficient, since the maximum value of K is
     64 and K rarely exceeds 10. But that is not enough for the TPC-H Q8 problem. With
     N=8 on TPC-H Q8 the N3 algorithm finds the solution R-N1-C-O-L-S-N2-P with a cost
     of 29.78. That is a big improvement over NN, but it is still not optimal. N3 finds
     the optimal solution for TPC-H Q8 when N is 10 or greater.
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 但是选择多少的N值呢？可以尝试N=K。这使得算法为O(K²)，实际上仍然相当高效，因为K的最大值为64，而K很少超过10。但这对于TPC-H Q8问题来说还不够。在TPC-H
+    Q8上，当N=8时，N3算法找到了成本为29.78的解决方案R-N1-C-O-L-S-N2-P。这比NN有了很大的改进，但仍不是最优解。当N为10或更大时，N3找到了TPC-H
+    Q8的最优解。
 - en: The initial implementation of NGQP chooses N=1 for simple queries, N=5 for two-way
     joins and N=10 for all joins with three or more tables. This formula for selecting
     N might change in subsequent releases.
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: NGQP的初始实现选择简单查询时的N=1，两表连接时的N=5，三个或更多表连接时的N=10。这种选择N的公式可能会在后续版本中更改。
 - en: 4\. Hazards Of Upgrading To NGQP
+  id: totrans-67
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. 升级到NGQP的风险
 - en: '*→ Update: **This section is obsolete and retained for historical reference
     only.** This section was important when the NGQP was new. But a decade has elapsed,
     the NGQP has been deployed successfully to billions of devices, and everyone has
     upgraded, and no performance regressions were ever reported back to the SQLite
     developers. The upgrade hazard has vanished. This section is retained for historical
     reference only. Modern readers can **skip ahead to the [query planner checklist](queryplanner-ng.html#howtofix)**.←*'
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: '*→ 更新：**此部分已过时，仅供历史参考。** 当NGQP刚推出时，此部分非常重要。但是十年过去了，NGQP已成功部署到数十亿设备上，并且每个人都已经升级，且未曾报告任何性能退化问题给SQLite开发者。升级的风险已经消失。此部分仅作历史参考。现代读者可以**跳转至[查询规划器检查清单](queryplanner-ng.html#howtofix)**。←*'
 - en: For most applications, upgrading from the legacy query planner to the NGQP requires
     little thought or effort. Simply replace the older SQLite version with the newer
     version of SQLite and recompile and the application will run faster. There are
     no API changes nor modifications to compilation procedures.
+  id: totrans-69
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于大多数应用程序，从传统查询规划器升级到NGQP几乎不需要思考或努力。只需用新版本的SQLite替换旧版本并重新编译，应用程序将运行得更快。无需更改API，也无需修改编译程序。
 - en: But as with any query planner change, upgrading to the NGQP does carry a small
     risk of introducing performance regressions. The problem here is not that the
     NGQP is incorrect or buggy or inferior to the legacy query planner. Given reliable
@@ -462,32 +670,47 @@
     a different query plan that works better in theory, assuming good indexes, but
     which gives a performance regression in practice, because of the shape of the
     data.
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: 但是，像任何查询规划器的更改一样，升级到 NGQP 也会带来引入性能退化的小风险。问题并非 NGQP 不正确、有 bug 或比传统查询规划器差。只要有关索引选择性的可靠信息，NGQP
+    应该总是能选择与以前一样好或更好的计划。问题在于，一些应用可能使用质量低下且选择性低的索引，而没有运行 [ANALYZE](lang_analyze.html)。旧的查询规划器每个查询考虑的实现较少，因此它们可能通过愚蠢的运气找到了一个好的计划。另一方面，NGQP
+    考虑了更多的查询计划可能性，它可能会选择在理论上更好的不同查询计划，假设有良好的索引，但由于数据的形状，实际上会导致性能退化。
 - en: 'Key points:'
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 关键点：
 - en: The NGQP will always find an equal or better query plan, compared to prior query
     planners, as long as it has access to accurate [ANALYZE](lang_analyze.html) data
     in the [SQLITE_STAT1](fileformat2.html#stat1tab) file.
+  id: totrans-72
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 与先前的查询规划器相比，只要 NGQP 能够访问 [ANALYZE](lang_analyze.html) 数据并且准确，它总是能找到一个相等或更好的查询计划，该数据存储在
+    [SQLITE_STAT1](fileformat2.html#stat1tab) 文件中。
 - en: The NGQP will always find a good query plan as long as the schema does not contain
     indexes that have more than about 10 or 20 rows with the same value in the left-most
     column of the index.
+  id: totrans-73
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: NGQP 只要模式不包含在索引的最左列上有超过大约 10 或 20 行相同值的索引，总是能找到一个良好的查询计划。
 - en: Not all applications meet these conditions. Fortunately, the NGQP will still
     usually find good query plans, even without these conditions. However, cases do
     arise (rarely) where performance regressions can occur.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 并非所有应用程序都满足这些条件。幸运的是，即使没有这些条件，NGQP 通常仍能找到良好的查询计划。然而，偶尔会出现（很少）性能退化的情况。
 - en: '4.1\. Case Study: Upgrading Fossil to the NGQP'
+  id: totrans-75
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.1\. 案例研究：将 Fossil 升级至 NGQP
 - en: The [Fossil DVCS](http://www.fossil-scm.org/) is the version control system
     used to track all of the SQLite source code. A Fossil repository is an SQLite
     database file. (Readers are invited to ponder this recursion as an independent
@@ -495,44 +718,62 @@
     for SQLite. Whenever enhancements are made to SQLite, Fossil is one of the first
     applications to test and evaluate those enhancements. So Fossil was an early adopter
     of the NGQP.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: '[Fossil DVCS](http://www.fossil-scm.org/)是用于跟踪所有SQLite源代码的版本控制系统。Fossil存储库是一个SQLite数据库文件。（读者被邀请思考这种递归作为一个独立的练习。）Fossil既是SQLite的版本控制系统，也是SQLite的测试平台。每当对SQLite进行增强时，Fossil是首批应用程序之一来测试和评估这些增强。因此，Fossil是NGQP的早期采用者之一。'
 - en: Unfortunately, the NGQP caused a performance regression in Fossil.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 不幸的是，NGQP在Fossil中引发了性能回归。
 - en: One of the many reports that Fossil makes available is a timeline of changes
     to a single branch showing all merges in and out of that branch. See [https://www.sqlite.org/src/timeline?nd&n=200&r=trunk](https://www.sqlite.org/src/timeline?nd&n=200&r=trunk)
     for a typical example of such a report. Generating such a report normally takes
     just a few milliseconds. But after upgrading to the NGQP we noticed that this
     one report was taking closer to 10 seconds for the trunk of the repository.
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: Fossil提供的众多报告之一是显示单个分支更改时间线的报告，显示该分支的所有合并情况。请参见[https://www.sqlite.org/src/timeline?nd&n=200&r=trunk](https://www.sqlite.org/src/timeline?nd&n=200&r=trunk)以查看此类报告的典型示例。生成此类报告通常只需几毫秒。但在升级到NGQP后，我们注意到这一报告对存储库的trunk分支的处理时间接近10秒。
 - en: The core query used to generate the branch timeline is shown below. (Readers
     are not expected to understand the details of this query. Commentary will follow.)
+  id: totrans-79
   prefs: []
   type: TYPE_NORMAL
+  zh: 生成分支时间线的核心查询如下所示。（读者无需理解此查询的详细内容。评论将随后提供。）
 - en: '[PRE0]'
+  id: totrans-80
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 'This query is not especially complicated, but even so it replaces hundreds
     or perhaps thousands of lines of procedural code. The gist of the query is this:
     Scan down the EVENT table looking for the most recent 200 check-ins that satisfy
     any one of three conditions:'
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 此查询并不特别复杂，但即使如此，它替换了数百甚至可能数千行的过程性代码。查询的要点是：扫描EVENT表，寻找满足以下三个条件之一的最近的200次检入：
 - en: The check-in has a "trunk" tag.
+  id: totrans-82
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检入项具有一个“trunk”标签。
 - en: The check-in has a child that has a "trunk" tag.
+  id: totrans-83
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检入项具有一个带有“trunk”标签的子项。
 - en: The check-in has a parent that has a "trunk" tag.
+  id: totrans-84
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检入项具有一个具有“trunk”标签的父项。
 - en: 'The first condition causes all of the trunk check-ins to be displayed and the
     second and third cause check-ins that merge into or fork from the trunk to also
     be included. The three conditions are implemented by the three OR-connected EXISTS
@@ -540,36 +781,51 @@
     NGQP was caused by the second and third conditions. The problem is the same in
     each, so we will examine just the second one. The subquery of the second condition
     can be rewritten (with minor and immaterial simplifications) as follows:'
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一个条件导致所有主干检查点被显示，第二和第三个条件导致与主干合并或分叉的检查点也被包含在内。这三个条件由查询的 WHERE 子句中的三个 OR 连接的
+    EXISTS 语句实现。NGQP 导致的减速是由第二和第三个条件引起的。问题在每个条件中都是相同的，因此我们只会检查第二个条件。第二个条件的子查询可以重写（进行轻微和无实质性简化）如下：
 - en: '[PRE1]'
+  id: totrans-86
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'The PLINK table holds parent-child relationships between check-ins. The TAGXREF
     table maps tags into check-ins. For reference, the relevant portions of the schemas
     for these two tables is shown here:'
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: PLINK 表保存了检查点之间的父子关系。TAGXREF 表将标签映射到检查点。为了参考，这两个表的相关部分模式如下所示：
 - en: '[PRE2]'
+  id: totrans-88
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: There are only two reasonable ways to implement this query. (There are many
     other possible algorithms, but none of the others are contenders for being the
     "best" algorithm.)
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 只有两种合理的实现此查询的方式。（还有许多其他可能的算法，但其他算法都不适合成为“最佳”算法的候选者。）
 - en: Find all children of check-in $ckid and test each one to see if it has the $trunk
     tag.
+  id: totrans-90
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 找到所有 $ckid 的子节点，并测试每一个是否具有 $trunk 标签。
 - en: Find all check-ins with the $trunk tag and test each one to see if it is a child
     of $ckid.
+  id: totrans-91
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 找到所有具有 $trunk 标签的检查点，并测试每一个是否是 $ckid 的子节点。
 - en: Intuitively, we humans understand that algorithm-1 is best. Each check-in is
     likely to have few children (one child is the most common case) and each child
     can be tested for the $trunk tag in logarithmic time. Indeed, algorithm-1 is the
@@ -582,31 +838,41 @@
     the NGQP is correct to judge it to be the better algorithm. The scores are close
     and algorithm-2 just barely squeaks ahead of algorithm-1\. But algorithm-2 really
     is the correct choice here.
+  id: totrans-92
   prefs: []
   type: TYPE_NORMAL
+  zh: 直觉上，我们人类理解算法-1是最好的。每个检查点可能只有几个子项（一个子项是最常见的情况），每个子项可以在对数时间内检测“trunk”标签。事实上，在实践中，算法-1是更快的选择。但是NGQP没有直觉。NGQP必须使用严格的数学，而数学上算法-2稍微更好。这是因为在没有其他信息的情况下，NGQP必须假设索引PLINK_I1和TAGXREF_I1的质量相等且选择性相等。算法-2使用TAGXREF_I1索引的一个字段和PLINK_I1索引的两个字段，而算法-1只使用每个索引的第一个字段。由于算法-2使用更多的索引材料，NGQP正确判断它是更好的算法。分数非常接近，算法-2略微领先于算法-1。但是在这里，算法-2确实是正确的选择。
 - en: Unfortunately, algorithm-2 is slower than algorithm-1 in this application.
+  id: totrans-93
   prefs: []
   type: TYPE_NORMAL
+  zh: 不幸的是，算法-2在这个应用中比算法-1慢。
 - en: The problem is that the indexes are not of equal quality. A check-in is likely
     to only have one child. So the first field of PLINK_I1 will usually narrow down
     the search to just a single row. But there are thousands and thousands check-ins
     tagged with "trunk", so the first field of TAGXREF_I1 will be of little help in
     narrowing down the search.
+  id: totrans-94
   prefs: []
   type: TYPE_NORMAL
+  zh: 索引质量不均等是问题所在。检查点通常只有一个子项。因此，PLINK_I1的第一个字段通常只能将搜索范围缩小到单行。但是标记为“trunk”的检查点有成千上万个，因此TAGXREF_I1的第一个字段在缩小搜索范围方面帮助不大。
 - en: The NGQP has no way of knowing that TAGXREF_I1 is almost useless in this query,
     unless [ANALYZE](lang_analyze.html) has been run on the database. The [ANALYZE](lang_analyze.html)
     command gathers statistics on the quality of the various indexes and stores those
     statistics in [SQLITE_STAT1](fileformat2.html#stat1tab) table. Having access to
     this statistical information, the NGQP easily chooses algorithm-1 as the best
     algorithm, by a wide margin.
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: 除非在数据库上运行了[ANALYZE](lang_analyze.html)，否则NGQP无法知道TAGXREF_I1在此查询中几乎没有用处。[ANALYZE](lang_analyze.html)命令会收集有关各种索引质量的统计信息，并将这些统计信息存储在[SQLITE_STAT1](fileformat2.html#stat1tab)表中。有了这些统计信息，NGQP很容易选择算法-1作为最佳算法，优势很大。
 - en: 'Why didn''t the legacy query planner choose algorithm-2? Easy: because the
     NN algorithm never even considered algorithm-2\. Graphs of the planning problem
     look like this:'
+  id: totrans-96
   prefs: []
   type: TYPE_NORMAL
+  zh: 为什么传统的查询规划器不选择算法-2？很简单：因为NN算法甚至没有考虑过算法-2。规划问题的图表如下：
 - en: <svg class="pikchr" viewBox="0 0 523.232 186.76"><text x="55" y="104" text-anchor="middle"
     font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%" dominant-baseline="central">P</text>
     <text x="157" y="104" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
@@ -632,8 +898,34 @@
     <text x="486" y="53" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 6.1</text>
     <text x="435" y="171" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
     font-size="125%" dominant-baseline="central">with ANALYZE</text></svg>
+  id: totrans-97
   prefs: []
   type: TYPE_NORMAL
+  zh: <svg class="pikchr" viewBox="0 0 523.232 186.76"><text x="55" y="104" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%" dominant-baseline="central">P</text>
+    <text x="157" y="104" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    font-size="156.25%" dominant-baseline="central">T</text> <text x="106" y="84"
+    text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">4.8</text>
+    <text x="106" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">4.4</text>
+    <text x="55" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text> <text x="55" y="53" text-anchor="start" fill="rgb(0,0,0)"
+    font-size="80%" dominant-baseline="central"> 4.9</text> <text x="157" y="16" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text> <text
+    x="157" y="53" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 5.2</text>
+    <text x="106" y="171" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    font-size="125%" dominant-baseline="central">without ANALYZE</text> <text x="384"
+    y="104" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%"
+    dominant-baseline="central">P</text> <text x="486" y="104" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" font-size="156.25%" dominant-baseline="central">T</text>
+    <text x="435" y="84" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">4.4</text>
+    <text x="435" y="123" text-anchor="middle" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central">3.8</text>
+    <text x="384" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text> <text x="384" y="53" text-anchor="start"
+    fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 3.9</text> <text
+    x="486" y="16" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text>
+    <text x="486" y="53" text-anchor="start" fill="rgb(0,0,0)" font-size="80%" dominant-baseline="central"> 6.1</text>
+    <text x="435" y="171" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    font-size="125%" dominant-baseline="central">with ANALYZE</text></svg>
 - en: In the "without ANALYZE" case on the left, the NN algorithm chooses loop P (PLINK)
     as the outer loop because 4.9 is less than 5.2, resulting in path P-T which is
     algorithm-1\. NN only looks at the single best choice at each step so it completely
@@ -641,22 +933,33 @@
     the N3 algorithm keeps track of the 5 best paths for a 2-way join, so it ends
     up selecting path T-P because of its slightly lower overall cost. Path T-P is
     algorithm-2.
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 在左侧的“without ANALYZE”情况下，NN 算法选择将循环 P（PLINK）作为外部循环，因为 4.9 小于 5.2，导致路径 P-T，即算法-1。NN
+    每次只查看每一步的单一最佳选择，因此完全忽略了 5.2 + 4.4 比 4.9 + 4.8 稍便宜的事实。但是 N3 算法会为双向连接保留最佳的 5 条路径，因此最终选择路径
+    T-P，因为其总体成本稍低。路径 T-P 是算法-2。
 - en: Note that with ANALYZE the cost estimates are better aligned with reality and
     algorithm-1 is selected by both NN and N3.
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，使用 ANALYZE 后，成本估算与实际更好地对齐，并且 NN 和 N3 都选择算法-1。
 - en: '(Side note: The costs estimates in the two most recent graphs were computed
     by the NGQP using a base-2 logarithm and slightly different cost assumptions compared
     to the legacy query planner. Hence, the cost estimates in these latter two graphs
     are not directly comparable to the cost estimates in the TPC-H Q8 graph.)'
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: （附注：最近两个图表中的成本估算是由 NGQP 使用基于2的对数和与传统查询规划器稍有不同的成本假设计算的。因此，这两个图表中的成本估算与 TPC-H
+    Q8 图表中的成本估算并不直接可比。）
 - en: 4.2\. Fixing The Problem
+  id: totrans-101
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.2\. 修复问题
 - en: Running [ANALYZE](lang_analyze.html) on the repository database immediately
     fixed the performance problem. However, we want Fossil to be robust and to always
     work quickly regardless of whether or not its repository has been analyzed. For
@@ -667,8 +970,12 @@
     to CROSS JOIN (the addition of a single keyword) the NGQP was forced to choose
     the faster algorithm-1 regardless of whether or not statistical information had
     been gathered using ANALYZE.
+  id: totrans-102
   prefs: []
   type: TYPE_NORMAL
+  zh: 运行 [ANALYZE](lang_analyze.html) 对仓库数据库立即解决了性能问题。然而，我们希望 Fossil 能够健壮并且始终快速工作，无论其仓库是否已分析。因此，查询被修改为使用
+    CROSS JOIN 操作符而不是普通的 JOIN 操作符。SQLite 不会重新排序 CROSS JOIN 的表格。这是 SQLite 的长期特性，专门设计用于让有经验的程序员能够强制执行特定的循环嵌套顺序。一旦将连接改为
+    CROSS JOIN（只增加了一个关键词），NGQP 就会被迫选择更快的算法-1，无论是否使用 ANALYZE 收集了统计信息。
 - en: We say that algorithm-1 is "faster", but this is not strictly true. Algorithm-1
     is faster in common repositories, but it is possible to construct a repository
     in which every check-in is on a different uniquely-named branch and all check-ins
@@ -677,18 +984,25 @@
     such repositories are very unlikely to appear in practice and so hard-coding the
     loop nested order using the CROSS JOIN syntax is a reasonable solution to the
     problem in this case.
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 我们说算法-1更"快"，但这并不完全正确。在通常的存储库中，算法-1更快，但也可以构建一个存储库，其中每次检入位于不同且唯一命名的分支，并且所有检入都是根检入的子检入。在这种情况下，TAGXREF_I1会比PLINK_I1更具选择性，算法-2确实是更快的选择。但是这样的存储库在实践中很不可能出现，因此在这种情况下，使用CROSS
+    JOIN语法进行硬编码循环嵌套顺序是解决问题的合理方法。
 - en: '4.3\. Update 2017: A Better Fix'
+  id: totrans-104
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: '4.3\. 更新 2017: 更好的修复方案'
 - en: The prior text was written in early 2013, before the first release of SQLite
     version 3.8.0\. This paragraph was added in mid 2021. While all of the previous
     discussion remains true, a lot of improvements have been made to the query planner,
     making this whole section largely moot.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: 前文撰写于2013年初，早于SQLite版本3.8.0的首次发布。这段文字添加于2021年中。虽然之前的讨论仍然有效，但查询规划器已经进行了大量改进，使得整个章节大多已经不再重要。
 - en: In 2017, Fossil was enhanced to make use of the new [PRAGMA optimize](pragma.html#pragma_optimize)
     statement. Whenever Fossil is about to close the database connection to its repository,
     it first runs "PRAGMA optimize", which will in turn cause ANALYZE to be run if
@@ -699,55 +1013,74 @@
     ANALYZE is run periodically to keep the [sqlite_stat1](fileformat2.html#stat1tab)
     table up-to-date means that hand-tuning of queries is no longer required. We have
     not had to tweak a query in Fossil in ages.
+  id: totrans-106
   prefs: []
   type: TYPE_NORMAL
+  zh: 2017年，Fossil进行了增强，以利用新的[PRAGMA optimize](pragma.html#pragma_optimize)语句。每当Fossil准备关闭与其存储库的数据库连接时，它首先运行"PRAGMA
+    optimize"，这将导致如有必要则运行ANALYZE。通常情况下不需要运行ANALYZE，因此这样做不会带来可测量的性能损失。但是偶尔可能会在存储库数据库的几个表上运行ANALYZE。因此，Fossil中不再出现类似于这里描述的查询规划问题。定期运行ANALYZE以保持[sqlite_stat1](fileformat2.html#stat1tab)表的更新意味着不再需要手动调整查询。我们很久以前就不再在Fossil中调整查询了。
 - en: Therefore, the current recommendation for avoiding problems such as this one
     is to simply run "PRAGMA optimize" just prior to closing each database connection.
     Or, if your application is long-running and never closes any database connections,
     then run "PRAGMA optimize" once per day or so. Also consider running "PRAGMA optimize"
     after any schema change.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，目前建议避免类似问题的方法是在每次关闭数据库连接前简单地运行"PRAGMA optimize"。或者，如果您的应用程序长时间运行且不关闭任何数据库连接，则每天运行一次"PRAGMA
+    optimize"。还要考虑在任何模式更改后运行"PRAGMA optimize"。
 - en: 5\. Checklist For Avoiding Or Fixing Query Planner Problems
+  id: totrans-108
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 5\. 避免或修复查询规划器问题的检查列表
 - en: '**Don''t panic!** Cases where the query planner picks an inferior plan are
     actually quite rare. You are unlikely to run across any problems in your application.
     If you are not having performance issues, you do not need to worry about any of
     this.'
+  id: totrans-109
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**不要惊慌！** 查询规划器选择较差计划的情况实际上非常少见。您不太可能在应用程序中遇到任何问题。如果没有性能问题，您不需要担心这些问题。'
 - en: '**Create appropriate indexes.** Most SQL performance problems arise not because
     of query planner issues but rather due to lack of appropriate indexes. Make sure
     indexes are available to assist all large queries. Most performance issues can
     be resolved by one or two CREATE INDEX commands and with no changes to application
     code.'
+  id: totrans-110
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**创建适当的索引。** 大多数SQL性能问题不是由于查询规划器的问题，而是由于缺乏适当的索引引起的。确保索引能够帮助所有大查询。大多数性能问题可以通过一两个CREATE
+    INDEX命令解决，而无需更改应用程序代码。'
 - en: '**Avoid creating low-quality indexes.**. A low-quality index (for the purpose
     of this checklist) is one where there are more than 10 or 20 rows in the table
     that have the same value for the left-most column of the index. In particular,
     avoid using boolean or "enum" columns as the left-most columns of your indexes.'
+  id: totrans-111
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**避免创建低质量的索引。** 低质量的索引（根据此检查列表的定义）是指表中左列有超过10或20行具有相同值的索引。特别是，避免将布尔或"enum"列用作索引的左列。'
 - en: The Fossil performance problem described in the previous section of this document
     arose because there were over ten-thousand entries in the TAGXREF table with the
     same value for the left-most column (the TAGID column) of the TAGXREF_I1 index.
+  id: totrans-112
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 在本文档前面部分描述的Fossil性能问题是由于TAGXREF表中TAGXREF_I1索引的左列（TAGID列）具有超过一万个相同值的条目引起的。
 - en: '**If you must use a low-quality index, be sure to run [ANALYZE](lang_analyze.html).**
     Low-quality indexes will not confuse the query planner as long as the query planner
     knows that the indexes are of low quality. And the way the query planner knows
     this is by the content of the [SQLITE_STAT1](fileformat2.html#stat1tab) table,
     which is computed by the ANALYZE command.'
+  id: totrans-113
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**如果必须使用低质量的索引，请确保运行[ANALYZE](lang_analyze.html)。** 只要查询规划器知道索引质量低，低质量的索引就不会让查询规划器混淆。查询规划器知道这一点的方式是通过[SQLITE_STAT1](fileformat2.html#stat1tab)表的内容，该内容由ANALYZE命令计算得出。'
 - en: Of course, ANALYZE only works effectively if you have a significant amount of
     content in your database in the first place. When creating a new database that
     you expect to accumulate a lot of data, you can run the command "ANALYZE sqlite_schema"
@@ -758,36 +1091,51 @@
     "[PRAGMA optimize](pragma.html#pragma_optimize)" before shutting down database
     connections so that ANALYZE will be run automatically as needed to keep the [sqlite_stat1](fileformat2.html#stat1tab)
     table current.
+  id: totrans-114
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 当然，只有在数据库中有大量内容的情况下，**ANALYZE** 才能有效地发挥作用。当创建一个新的数据库，并且预计会积累大量数据时，可以运行命令"ANALYZE
+    sqlite_schema"来创建**SQLITE_STAT1**表，然后通过普通的INSERT语句预先填充[sqlite_stat1](fileformat2.html#stat1tab)表，这些内容描述了你的应用程序的典型数据库，可能是在实验室中对一个已经填充良好的模板数据库运行ANALYZE后提取的内容。或者，你也可以在关闭数据库连接之前运行"[PRAGMA
+    optimize](pragma.html#pragma_optimize)"，这样ANALYZE会根据需要自动运行，以保持[sqlite_stat1](fileformat2.html#stat1tab)表的最新状态。
 - en: '**Instrument your code.** Add logic that lets you know quickly and easily which
     queries are taking too much time. Then work on just those specific queries.'
+  id: totrans-115
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '-   **为你的代码添加仪器。** 添加逻辑，可以让你快速简单地了解哪些查询花费了太多时间。然后专注于那些具体的查询。'
 - en: '* * *'
+  id: totrans-116
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '* * *'
 - en: '*Update 2024: The query planner has been improved so much over the years that
     you should never need to use any of the hacks described below. The capabilities
     described below are still available, for backwards compatibility. But you shouldn''t
     use them. If you do find a case where you are getting a suboptimal query plan,
     please report it to the SQLite developers on the [SQLite Forum](https://sqlite.org/forum)
     so that they can try to fix the problem. In other words:***Stop Reading Here!**'
+  id: totrans-117
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '*更新2024：查询规划器经过多年的改进，你几乎不需要使用以下描述的任何技巧。虽然以下功能仍然可用，用于向后兼容，但你不应该使用它们。如果确实发现查询计划次优，敬请在[SQLite
+    Forum](https://sqlite.org/forum)上向SQLite开发者报告，以便他们尝试解决问题。换句话说：***从这里停止阅读！'
 - en: To help encourage you to stop reading, the remainder of this checklist is now
     grayed out.
+  id: totrans-118
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 为了帮助你停止阅读，这个清单的其余部分现在已经变灰。
 - en: '* * *'
+  id: totrans-119
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: '* * *'
 - en: Use [unlikely()](lang_corefunc.html#unlikely) and [likelihood()](lang_corefunc.html#likelihood)
     SQL functions. SQLite normally assumes that terms in the WHERE clause that cannot
     be used by indexes have a strong probability of being true. If this assumption
@@ -795,17 +1143,24 @@
     and [likelihood()](lang_corefunc.html#likelihood) SQL functions can be used to
     provide hints to the query planner about WHERE clause terms that are probably
     not true, and thus aid the query planner in selecting the best possible plan.
+  id: totrans-120
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用[unlikely()](lang_corefunc.html#unlikely) 和 [likelihood()](lang_corefunc.html#likelihood)
+    SQL 函数。SQLite 通常假定 WHERE 子句中不能使用索引的条款有很强的真实概率。如果此假设是不正确的，则可能导致子优化的查询计划。[unlikely()](lang_corefunc.html#unlikely)
+    和 [likelihood()](lang_corefunc.html#likelihood) SQL 函数可用于向查询规划器提供关于 WHERE 子句中可能不真实的条款的提示，从而帮助查询规划器选择最佳的计划。
 - en: Use the [CROSS JOIN](optoverview.html#crossjoin) syntax to enforce a particular
     loop nesting order on queries that might use low-quality indexes in an unanalyzed
     database. SQLite [treats the CROSS JOIN operator specially](lang_select.html#crossjoin),
     forcing the table to the left to be an outer loop relative to the table on the
     right.
+  id: totrans-121
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用[CROSS JOIN](optoverview.html#crossjoin) 语法来强制在可能使用未分析数据库中的低质量索引的查询上执行特定的循环嵌套顺序。SQLite
+    [特别对待 CROSS JOIN 操作符](lang_select.html#crossjoin)，强制左侧的表相对于右侧的表成为外部循环。
 - en: Use unary "+" operators to disqualify WHERE clause terms. If the query planner
     insists on selecting a poor-quality index for a particular query when a much higher-quality
     index is available, then [careful use of unary "+" operators](optoverview.html#uplus)
@@ -814,20 +1169,26 @@
     application development cycle. Beware that adding a unary "+" operator to an equality
     expression might change the result of that expression if [type affinity](datatype3.html#affinity)
     is involved.
+  id: totrans-122
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用一元“+”运算符来排除 WHERE 子句中的条件。如果查询规划器坚持为特定查询选择质量较差的索引，而另一个质量更高的索引可用，则在 WHERE 子句中[谨慎使用一元“+”运算符](optoverview.html#uplus)可以迫使查询规划器避开质量较差的索引。尽量避免使用这种技巧，特别是在应用程序开发周期的早期阶段要格外小心。请注意，如果[类型亲和性](datatype3.html#affinity)涉及，向等式表达式添加一元“+”运算符可能会改变该表达式的结果。
 - en: Use the [INDEXED BY](lang_indexedby.html) syntax to enforce the selection of
     particular indexes on problem queries. As with the previous two bullets, avoid
     this step if possible, and especially avoid doing this early in development as
     it is clearly a premature optimization.
+  id: totrans-123
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用[INDEXED BY](lang_indexedby.html) 语法来强制在问题查询中选择特定的索引。与前两点类似，尽量避免此步骤，特别是在开发早期，因为这显然是一种过早的优化。
 - en: 6\. Summary
+  id: totrans-124
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 6\. 摘要
 - en: The query planner in SQLite normally does a terrific job of selecting fast algorithms
     for running your SQL statements. This is true of the legacy query planner and
     even more true of the new NGQP. There may be an occasional situation where, due
@@ -837,5 +1198,9 @@
     and help the query planner to do the right thing. In the common case, the NGQP
     is just a new enhancement to SQLite that makes the application run a little faster
     and which requires no new developer thought or action.
+  id: totrans-125
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 SQLite 中，查询规划器通常能够很好地选择快速算法来运行您的 SQL 语句。这对于传统的查询规划器来说是正确的，甚至对于新的 NGQP 来说更为如此。偶尔会出现一种情况，即由于信息不完整，查询规划器选择了一个次优的执行计划。相比传统的查询规划器，使用
+    NGQP 出现这种情况的频率会更少，但仍然可能发生。只有在这些罕见情况下，应用程序开发人员才需要介入，帮助查询规划器做正确的事情。在普通情况下，NGQP 只是
+    SQLite 的一项新增功能，使应用程序运行速度稍快，而不需要开发人员进行新的思考或操作。
