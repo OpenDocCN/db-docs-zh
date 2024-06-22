@@ -1,0 +1,375 @@
+- en: C/C++ Interface For SQLite Version 3
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 原文：[https://sqlite.com/capi3.html](https://sqlite.com/capi3.html)
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: '**Note:** This document was written in 2004 as a guide to helping programmers
+    move from using SQLite version 2 to SQLite version 3\. The information in this
+    document is still essentially correct, however there have been many changes and
+    enhancements over the years. We recommend that the following documents be used
+    instead:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[An Introduction To The SQLite C/C++ Interface](cintro.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '[SQLite C/C++ Reference Guide](c3ref/intro.html)'
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: 1.0 Overview
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'SQLite version 3.0 is a new version of SQLite, derived from the SQLite 2.8.13
+    code base, but with an incompatible file format and API. SQLite version 3.0 was
+    created to answer demand for the following features:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Support for UTF-16.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: User-definable text collating sequences.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The ability to store BLOBs in indexed columns.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It was necessary to move to version 3.0 to implement these features because
+    each requires incompatible changes to the database file format. Other incompatible
+    changes, such as a cleanup of the API, were introduced at the same time under
+    the theory that it is best to get your incompatible changes out of the way all
+    at once.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The API for version 3.0 is similar to the version 2.X API, but with some important
+    changes. Most noticeably, the "`sqlite_`" prefix that occurs on the beginning
+    of all API functions and data structures are changed to "`sqlite3_`". This avoids
+    confusion between the two APIs and allows linking against both SQLite 2.X and
+    SQLite 3.0 at the same time.
+  prefs: []
+  type: TYPE_NORMAL
+- en: There is no agreement on what the C datatype for a UTF-16 string should be.
+    Therefore, SQLite uses a generic type of void* to refer to UTF-16 strings. Client
+    software can cast the void* to whatever datatype is appropriate for their system.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 2.0 C/C++ Interface
+  prefs:
+  - PREF_H3
+  type: TYPE_NORMAL
+- en: 'The API for SQLite 3.0 includes 83 separate functions in addition to several
+    data structures and #defines. (A complete [API reference](c3ref/intro.html) is
+    provided as a separate document.) Fortunately, the interface is not nearly as
+    complex as its size implies. Simple programs can still make do with only 3 functions:
+    [sqlite3_open()](c3ref/open.html), [sqlite3_exec()](c3ref/exec.html), and [sqlite3_close()](c3ref/close.html).
+    More control over the execution of the database engine is provided using [sqlite3_prepare_v2()](c3ref/prepare.html)
+    to compile an SQLite statement into byte code and [sqlite3_step()](c3ref/step.html)
+    to execute that bytecode. A family of routines with names beginning with [sqlite3_column_](c3ref/column_blob.html)
+    is used to extract information about the result set of a query. Many interface
+    functions come in pairs, with both a UTF-8 and UTF-16 version. And there is a
+    collection of routines used to implement user-defined SQL functions and user-defined
+    text collating sequences.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 2.1 Opening and closing a database
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: The sqlite3_open() routine returns an integer error code rather than a pointer
+    to the sqlite3 structure as the version 2 interface did. The difference between
+    sqlite3_open() and sqlite3_open16() is that sqlite3_open16() takes UTF-16 (in
+    host native byte order) for the name of the database file. If a new database file
+    needs to be created, then sqlite3_open16() sets the internal text representation
+    to UTF-16 whereas sqlite3_open() sets the text representation to UTF-8.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The opening and/or creating of the database file is deferred until the file
+    is actually needed. This allows options and parameters, such as the native text
+    representation and default page size, to be set using PRAGMA statements.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The sqlite3_errcode() routine returns a result code for the most recent major
+    API call. sqlite3_errmsg() returns an English-language text error message for
+    the most recent error. The error message is represented in UTF-8 and will be ephemeral
+    - it could disappear on the next call to any SQLite API function. sqlite3_errmsg16()
+    works like sqlite3_errmsg() except that it returns the error message represented
+    as UTF-16 in host native byte order.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The error codes for SQLite version 3 are unchanged from version 2. They are
+    as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: 2.2 Executing SQL statements
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: The [sqlite3_exec()](c3ref/exec.html) function works much as it did in SQLite
+    version 2. Zero or more SQL statements specified in the second parameter are compiled
+    and executed. Query results are returned to a callback routine.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In SQLite version 3, the sqlite3_exec routine is just a wrapper around calls
+    to the prepared statement interface.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: The sqlite3_prepare interface compiles a single SQL statement into byte code
+    for later execution. This interface is now the preferred way of accessing the
+    database.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The SQL statement is a UTF-8 string for sqlite3_prepare(). The sqlite3_prepare16()
+    works the same way except that it expects a UTF-16 string as SQL input. Only the
+    first SQL statement in the input string is compiled. The fifth parameter is filled
+    in with a pointer to the next (uncompiled) SQLite statement in the input string,
+    if any. The sqlite3_finalize() routine deallocates a prepared SQL statement. All
+    prepared statements must be finalized before the database can be closed. The sqlite3_reset()
+    routine resets a prepared SQL statement so that it can be executed again.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The SQL statement may contain tokens of the form "?" or "?nnn" or ":aaa" where
+    "nnn" is an integer and "aaa" is an identifier. Such tokens represent unspecified
+    literal values (or "wildcards") to be filled in later by the [sqlite3_bind](c3ref/bind_blob.html)
+    interface. Each wildcard has an associated number which is its sequence in the
+    statement or the "nnn" in the case of a "?nnn" form. It is allowed for the same
+    wildcard to occur more than once in the same SQL statement, in which case all
+    instance of that wildcard will be filled in with the same value. Unbound wildcards
+    have a value of NULL.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: There is an assortment of sqlite3_bind routines used to assign values to wildcards
+    in a prepared SQL statement. Unbound wildcards are interpreted as NULLs. Bindings
+    are not reset by sqlite3_reset(). But wildcards can be rebound to new values after
+    an sqlite3_reset().
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'After an SQL statement has been prepared (and optionally bound), it is executed
+    using:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: 'The sqlite3_step() routine return SQLITE_ROW if it is returning a single row
+    of the result set, or SQLITE_DONE if execution has completed, either normally
+    or due to an error. It might also return SQLITE_BUSY if it is unable to open the
+    database file. If the return value is SQLITE_ROW, then the following routines
+    can be used to extract information about that row of the result set:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: The [sqlite3_column_count()](c3ref/column_count.html) function returns the number
+    of columns in the results set. sqlite3_column_count() can be called at any time
+    after [sqlite3_prepare_v2()](c3ref/prepare.html). [sqlite3_data_count()](c3ref/data_count.html)
+    works similarly to [sqlite3_column_count()](c3ref/column_count.html) except that
+    it only works following [sqlite3_step()](c3ref/step.html). If the previous call
+    to [sqlite3_step()](c3ref/step.html) returned SQLITE_DONE or an error code, then
+    [sqlite3_data_count()](c3ref/data_count.html) will return 0 whereas [sqlite3_column_count()](c3ref/column_count.html)
+    will continue to return the number of columns in the result set.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Returned data is examined using the other [sqlite3_column_***()](c3ref/column_blob.html)
+    functions, all of which take a column number as their second parameter. Columns
+    are zero-indexed from left to right. Note that this is different to parameters,
+    which are indexed starting at one.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The [sqlite3_column_type()](c3ref/column_blob.html) function returns the datatype
+    for the value in the Nth column. The return value is one of these:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: The sqlite3_column_decltype() routine returns text which is the declared type
+    of the column in the CREATE TABLE statement. For an expression, the return type
+    is an empty string. sqlite3_column_name() returns the name of the Nth column.
+    sqlite3_column_bytes() returns the number of bytes in a column that has type BLOB
+    or the number of bytes in a TEXT string with UTF-8 encoding. sqlite3_column_bytes16()
+    returns the same value for BLOBs but for TEXT strings returns the number of bytes
+    in a UTF-16 encoding. sqlite3_column_blob() return BLOB data. sqlite3_column_text()
+    return TEXT data as UTF-8. sqlite3_column_text16() return TEXT data as UTF-16.
+    sqlite3_column_int() return INTEGER data in the host machines native integer format.
+    sqlite3_column_int64() returns 64-bit INTEGER data. Finally, sqlite3_column_double()
+    return floating point data.
+  prefs: []
+  type: TYPE_NORMAL
+- en: It is not necessary to retrieve data in the format specify by sqlite3_column_type().
+    If a different format is requested, the data is converted automatically.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Data format conversions can invalidate the pointer returned by prior calls
+    to sqlite3_column_blob(), sqlite3_column_text(), and/or sqlite3_column_text16().
+    Pointers might be invalided in the following cases:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: The initial content is a BLOB and sqlite3_column_text() or sqlite3_column_text16()
+    is called. A zero-terminator might need to be added to the string.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The initial content is UTF-8 text and sqlite3_column_bytes16() or sqlite3_column_text16()
+    is called. The content must be converted to UTF-16.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The initial content is UTF-16 text and sqlite3_column_bytes() or sqlite3_column_text()
+    is called. The content must be converted to UTF-8.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: Note that conversions between UTF-16be and UTF-16le are always done in place
+    and do not invalidate a prior pointer, though of course the content of the buffer
+    that the prior pointer points to will have been modified. Other kinds of conversion
+    are done in place when it is possible, but sometime it is not possible and in
+    those cases prior pointers are invalidated.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The safest and easiest to remember policy is this: assume that any result from'
+  prefs: []
+  type: TYPE_NORMAL
+- en: sqlite3_column_blob(),
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: sqlite3_column_text(), or
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: sqlite3_column_text16()
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: is invalided by subsequent calls to
+  prefs: []
+  type: TYPE_NORMAL
+- en: sqlite3_column_bytes(),
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: sqlite3_column_bytes16(),
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: sqlite3_column_text(), or
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: sqlite3_column_text16().
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: This means that you should always call sqlite3_column_bytes() or sqlite3_column_bytes16()
+    before calling sqlite3_column_blob(), sqlite3_column_text(), or sqlite3_column_text16().
+  prefs: []
+  type: TYPE_NORMAL
+- en: 2.3 User-defined functions
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'User defined functions can be created using the following routine:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: The nArg parameter specifies the number of arguments to the function. A value
+    of 0 indicates that any number of arguments is allowed. The eTextRep parameter
+    specifies what representation text values are expected to be in for arguments
+    to this function. The value of this parameter should be one of the parameters
+    defined above. SQLite version 3 allows multiple implementations of the same function
+    using different text representations. The database engine chooses the function
+    that minimization the number of text conversions required.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Normal functions specify only xFunc and leave xStep and xFinal set to NULL.
+    Aggregate functions specify xStep and xFinal and leave xFunc set to NULL. There
+    is no separate sqlite3_create_aggregate() API.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The function name is specified in UTF-8\. A separate sqlite3_create_function16()
+    API works the same as sqlite_create_function() except that the function name is
+    specified in UTF-16 host byte order.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Notice that the parameters to functions are now pointers to sqlite3_value structures
+    instead of pointers to strings as in SQLite version 2.X. The following routines
+    are used to extract useful information from these "values":'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: 'Function implementations use the following APIs to acquire context and to report
+    results:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE10]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: 2.4 User-defined collating sequences
+  prefs:
+  - PREF_H4
+  type: TYPE_NORMAL
+- en: 'The following routines are used to implement user-defined collating sequences:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE11]'
+  prefs:
+  - PREF_BQ
+  type: TYPE_PRE
+- en: The sqlite3_create_collation() function specifies a collating sequence name
+    and a comparison function to implement that collating sequence. The comparison
+    function is only used for comparing text values. The eTextRep parameter is one
+    of SQLITE_UTF8, SQLITE_UTF16LE, SQLITE_UTF16BE, or SQLITE_ANY to specify which
+    text representation the comparison function works with. Separate comparison functions
+    can exist for the same collating sequence for each of the UTF-8, UTF-16LE and
+    UTF-16BE text representations. The sqlite3_create_collation16() works like sqlite3_create_collation()
+    except that the collation name is specified in UTF-16 host byte order instead
+    of in UTF-8.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The sqlite3_collation_needed() routine registers a callback which the database
+    engine will invoke if it encounters an unknown collating sequence. The callback
+    can lookup an appropriate comparison function and invoke sqlite_3_create_collation()
+    as needed. The fourth parameter to the callback is the name of the collating sequence
+    in UTF-8\. For sqlite3_collation_need16() the callback sends the collating sequence
+    name in UTF-16 host byte order.
+  prefs: []
+  type: TYPE_NORMAL

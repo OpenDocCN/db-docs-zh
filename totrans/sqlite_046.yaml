@@ -1,0 +1,263 @@
+- en: Using the SQLite Online Backup API
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 原文：[https://sqlite.com/backup.html](https://sqlite.com/backup.html)
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: 'Historically, backups (copies) of SQLite databases have been created using
+    the following method:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Establish a shared lock on the database file using the SQLite API (i.e. the
+    shell tool).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Copy the database file using an external tool (for example the unix 'cp' utility
+    or the DOS 'copy' command).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Relinquish the shared lock on the database file obtained in step 1.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'This procedure works well in many scenarios and is usually very fast. However,
+    this technique has the following shortcomings:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Any database clients wishing to write to the database file while a backup is
+    being created must wait until the shared lock is relinquished.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: It cannot be used to copy data to or from in-memory databases.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If a power failure or operating system failure occurs while copying the database
+    file the backup database may be corrupted following system recovery.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: The [Online Backup API](c3ref/backup_finish.html#sqlite3backupinit) was created
+    to address these concerns. The online backup API allows the contents of one database
+    to be copied into another database file, replacing any original contents of the
+    target database. The copy operation may be done incrementally, in which case the
+    source database does not need to be locked for the duration of the copy, only
+    for the brief periods of time when it is actually being read from. This allows
+    other database users to continue without excessive delays while a backup of an
+    online database is made.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The effect of completing the backup call sequence is to make the destination
+    a bit-wise identical copy of the source database as it was when the copying commenced.
+    (The destination becomes a "snapshot.")
+  prefs: []
+  type: TYPE_NORMAL
+- en: The online backup API is [documented here](c3ref/backup_finish.html#sqlite3backupinit).
+    The remainder of this page contains two C language examples illustrating common
+    uses of the API and discussions thereof. Reading these examples is no substitute
+    for reading the API documentation!
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Update: The [VACUUM INTO](lang_vacuum.html#vacuuminto) command introduced in
+    SQLite version 3.27.0 (2019-02-07) can serve as an alternative to the backup API.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Example 1: Loading and Saving In-Memory Databases'
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The C function to the right demonstrates one of the simplest, and most common,
+    uses of the backup API: loading and saving the contents of an in-memory database
+    to a file on disk. The backup API is used as follows in this example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Function [sqlite3_backup_init()](c3ref/backup_finish.html#sqlite3backupinit)
+    is called to create an [sqlite3_backup](c3ref/backup.html) object to copy data
+    between the two databases (either from a file and into the in-memory database,
+    or vice-versa).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Function [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep)
+    is called with a parameter of `-1` to copy the entire source database to the destination.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Function [sqlite3_backup_finish()](c3ref/backup_finish.html#sqlite3backupfinish)
+    is called to clean up resources allocated by [sqlite3_backup_init()](c3ref/backup_finish.html#sqlite3backupinit).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**Error handling**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: If an error occurs in any of the three main backup API routines then the [error
+    code](rescode.html) and [message](c3ref/errcode.html) are attached to the destination
+    [database connection](c3ref/sqlite3.html). Additionally, if [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep)
+    encounters an error, then the [error code](rescode.html) is returned by both the
+    [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep) call itself,
+    and by the subsequent call to [sqlite3_backup_finish()](c3ref/backup_finish.html#sqlite3backupfinish).
+    So a call to [sqlite3_backup_finish()](c3ref/backup_finish.html#sqlite3backupfinish)
+    does not overwrite an [error code](rescode.html) stored in the destination [database
+    connection](c3ref/sqlite3.html) by [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep).
+    This feature is used in the example code to reduce amount of error handling required.
+    The return values of the [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep)
+    and [sqlite3_backup_finish()](c3ref/backup_finish.html#sqlite3backupfinish) calls
+    are ignored and the error code indicating the success or failure of the copy operation
+    collected from the destination [database connection](c3ref/sqlite3.html) afterward.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**Possible Enhancements**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The implementation of this function could be enhanced in at least two ways:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Failing to obtain the lock on database file zFilename (an [SQLITE_BUSY](rescode.html#busy)
+    error) could be handled, and
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Cases where the page-sizes of database pInMemory and zFilename are different
+    could be handled better.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Since database zFilename is a file on disk, then it may be accessed externally
+    by another process. This means that when the call to sqlite3_backup_step() attempts
+    to read from or write data to it, it may fail to obtain the required file lock.
+    If this happens, this implementation will fail, returning SQLITE_BUSY immediately.
+    The solution would be to register a busy-handler callback or timeout with [database
+    connection](c3ref/sqlite3.html) pFile using [sqlite3_busy_handler()](c3ref/busy_handler.html)
+    or [sqlite3_busy_timeout()](c3ref/busy_timeout.html) as soon as it is opened.
+    If it fails to obtain a required lock immediately, [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep)
+    uses any registered busy-handler callback or timeout in the same way as [sqlite3_step()](c3ref/step.html)
+    or [sqlite3_exec()](c3ref/exec.html) does.
+  prefs: []
+  type: TYPE_NORMAL
+- en: Usually, it does not matter if the page-sizes of the source database and the
+    destination database are different before the contents of the destination are
+    overwritten. The page-size of the destination database is simply changed as part
+    of the backup operation. The exception is if the destination database happens
+    to be an in-memory database. In this case, if the page sizes are not the same
+    at the start of the backup operation, then the operation fails with an SQLITE_READONLY
+    error. Unfortunately, this could occur when loading a database image from a file
+    into an in-memory database using function loadOrSaveDb().
+  prefs: []
+  type: TYPE_NORMAL
+- en: However, if in-memory database pInMemory has just been opened (and is therefore
+    completely empty) before being passed to function loadOrSaveDb(), then it is still
+    possible to change its page size using an SQLite "PRAGMA page_size" command. Function
+    loadOrSaveDb() could detect this case, and attempt to set the page-size of the
+    in-memory database to the page-size of database zFilename before invoking the
+    online backup API functions.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Example 2: Online Backup of a Running Database'
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The function presented in the previous example copies the entire source database
+    in one call to [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep).
+    This requires holding a read-lock on the source database file for the duration
+    of the operation, preventing any other database user from writing to the database.
+    It also holds the mutex associated with database pInMemory throughout the copy,
+    preventing any other thread from using it. The C function in this section, designed
+    to be called by a background thread or process for creating a backup of an online
+    database, avoids these problems using the following approach:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Function [sqlite3_backup_init()](c3ref/backup_finish.html#sqlite3backupinit)
+    is called to create an [sqlite3_backup](c3ref/backup.html) object to copy data
+    from database pDb to the backup database file identified by zFilename.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Function [sqlite3_backup_step()](c3ref/backup_finish.html#sqlite3backupstep)
+    is called with a parameter of 5 to copy 5 pages of database pDb to the backup
+    database (file zFilename).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: If there are still more pages to copy from database pDb, then the function sleeps
+    for 250 milliseconds (using the [sqlite3_sleep()](c3ref/sleep.html) utility) and
+    then returns to step 2.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: Function [sqlite3_backup_finish()](c3ref/backup_finish.html#sqlite3backupfinish)
+    is called to clean up resources allocated by [sqlite3_backup_init()](c3ref/backup_finish.html#sqlite3backupinit).
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: '**File and Database Connection Locking**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: During the 250 ms sleep in step 3 above, no read-lock is held on the database
+    file and the mutex associated with pDb is not held. This allows other threads
+    to use [database connection](c3ref/sqlite3.html) pDb and other connections to
+    write to the underlying database file.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'If another thread or process writes to the source database while this function
+    is sleeping, then SQLite detects this and usually restarts the backup process
+    when sqlite3_backup_step() is next called. There is one exception to this rule:
+    If the source database is not an in-memory database, and the write is performed
+    from within the same process as the backup operation and uses the same database
+    handle (pDb), then the destination database (the one opened using connection pFile)
+    is automatically updated along with the source. The backup process may then be
+    continued after the sqlite3_sleep() call returns as if nothing had happened.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'Whether or not the backup process is restarted as a result of writes to the
+    source database mid-backup, the user can be sure that when the backup operation
+    is completed the backup database contains a consistent and up-to-date snapshot
+    of the original. However:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Writes to an in-memory source database, or writes to a file-based source database
+    by an external process or thread using a database connection other than pDb are
+    significantly more expensive than writes made to a file-based source database
+    using pDb (as the entire backup operation must be restarted in the former two
+    cases).
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: If the backup process is restarted frequently enough it may never run to completion
+    and the backupDb() function may never return.
+  prefs:
+  - PREF_UL
+  type: TYPE_NORMAL
+- en: '**backup_remaining() and backup_pagecount()**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The backupDb() function uses the sqlite3_backup_remaining() and sqlite3_backup_pagecount()
+    functions to report its progress via the user-supplied xProgress() callback. Function
+    sqlite3_backup_remaining() returns the number of pages left to copy and sqlite3_backup_pagecount()
+    returns the total number of pages in the source database (in this case the database
+    opened by pDb). So the percentage completion of the process may be calculated
+    as:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: Completion = 100% * (pagecount() - remaining()) / pagecount()
+  prefs: []
+  type: TYPE_NORMAL
+- en: The sqlite3_backup_remaining() and sqlite3_backup_pagecount() APIs report values
+    stored by the previous call to sqlite3_backup_step(), they do not actually inspect
+    the source database file. This means that if the source database is written to
+    by another thread or process after the call to sqlite3_backup_step() returns but
+    before the values returned by sqlite3_backup_remaining() and sqlite3_backup_pagecount()
+    are used, the values may be technically incorrect. This is not usually a problem.
+  prefs: []
+  type: TYPE_NORMAL

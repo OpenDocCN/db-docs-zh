@@ -1,0 +1,146 @@
+- en: NULL Handling in SQLite Versus Other Database Engines
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 原文：[https://sqlite.com/nulls.html](https://sqlite.com/nulls.html)
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: The goal is to make SQLite handle NULLs in a standards-compliant way. But the
+    descriptions in the SQL standards on how to handle NULLs seem ambiguous. It is
+    not clear from the standards documents exactly how NULLs should be handled in
+    all circumstances.
+  prefs: []
+  type: TYPE_NORMAL
+- en: So instead of going by the standards documents, various popular SQL engines
+    were tested to see how they handle NULLs. The idea was to make SQLite work like
+    all the other engines. An SQL test script was developed and run by volunteers
+    on various SQL RDBMSes and the results of those tests were used to deduce how
+    each engine processed NULL values. The original tests were run in May of 2002.
+    A copy of the test script is found at the end of this document.
+  prefs: []
+  type: TYPE_NORMAL
+- en: SQLite was originally coded in such a way that the answer to all questions in
+    the chart below would be "Yes". But the experiments run on other SQL engines showed
+    that none of them worked this way. So SQLite was modified to work the same as
+    Oracle, PostgreSQL, and DB2\. This involved making NULLs indistinct for the purposes
+    of the SELECT DISTINCT statement and for the UNION operator in a SELECT. NULLs
+    are still distinct in a UNIQUE column. This seems somewhat arbitrary, but the
+    desire to be compatible with other engines outweighed that objection.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'It is possible to make SQLite treat NULLs as distinct for the purposes of the
+    SELECT DISTINCT and UNION. To do so, one should change the value of the NULL_ALWAYS_DISTINCT
+    #define in the `sqliteInt.h` source file and recompile.'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '*Update 2003-07-13:* Since this document was originally written some of the
+    database engines tested have been updated and users have been kind enough to send
+    in corrections to the chart below. The original data showed a wide variety of
+    behaviors, but over time the range of behaviors has converged toward the PostgreSQL/Oracle
+    model. The only significant difference is that Informix and MS-SQL both treat
+    NULLs as indistinct in a UNIQUE column.'
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: ''
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: The fact that NULLs are distinct for UNIQUE columns but are indistinct for SELECT
+    DISTINCT and UNION continues to be puzzling. It seems that NULLs should be either
+    distinct everywhere or nowhere. And the SQL standards documents suggest that NULLs
+    should be distinct everywhere. Yet as of this writing, no SQL engine tested treats
+    NULLs as distinct in a SELECT DISTINCT statement or in a UNION.
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: The following table shows the results of the NULL handling experiments.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '|    | SQLite | PostgreSQL | Oracle | Informix | DB2 | MS-SQL | OCELOT |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Adding anything to null gives null | Yes | Yes | Yes | Yes | Yes | Yes |
+    Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Multiplying null by zero gives null | Yes | Yes | Yes | Yes | Yes | Yes |
+    Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| nulls are distinct in a UNIQUE column | Yes | Yes | Yes | No | (Note 4) |
+    No | Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| nulls are distinct in SELECT DISTINCT | No | No | No | No | No | No | No
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| nulls are distinct in a UNION | No | No | No | No | No | No | No |'
+  prefs: []
+  type: TYPE_TB
+- en: '| "CASE WHEN null THEN 1 ELSE 0 END" is 0? | Yes | Yes | Yes | Yes | Yes |
+    Yes | Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| "null OR true" is true | Yes | Yes | Yes | Yes | Yes | Yes | Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| "not (null AND false)" is true | Yes | Yes | Yes | Yes | Yes | Yes | Yes
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '|    | MySQL 3.23.41 | MySQL 4.0.16 | Firebird | SQL Anywhere | Borland Interbase
+    |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Adding anything to null gives null | Yes | Yes | Yes | Yes | Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Multiplying null by zero gives null | Yes | Yes | Yes | Yes | Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| nulls are distinct in a UNIQUE column | Yes | Yes | Yes | (Note 4) | (Note
+    4) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| nulls are distinct in SELECT DISTINCT | No | No | No (Note 1) | No | No |'
+  prefs: []
+  type: TYPE_TB
+- en: '| nulls are distinct in a UNION | (Note 3) | No | No (Note 1) | No | No |'
+  prefs: []
+  type: TYPE_TB
+- en: '| "CASE WHEN null THEN 1 ELSE 0 END" is 0? | Yes | Yes | Yes | Yes | (Note
+    5) |'
+  prefs: []
+  type: TYPE_TB
+- en: '| "null OR true" is true | Yes | Yes | Yes | Yes | Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| "not (null AND false)" is true | No | Yes | Yes | Yes | Yes |'
+  prefs: []
+  type: TYPE_TB
+- en: '| Notes:   | 1.  | Older versions of firebird omit all NULLs from SELECT DISTINCT
+    and from UNION. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 2.  | Test data unavailable. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 3.  | MySQL version 3.23.41 does not support UNION. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 4.  | DB2, SQL Anywhere, and Borland Interbase do not allow NULLs in a UNIQUE
+    column. |'
+  prefs: []
+  type: TYPE_TB
+- en: '| 5.  | Borland Interbase does not support CASE expressions. |'
+  prefs: []
+  type: TYPE_TB
+- en: The following script was used to gather information for the table above.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE

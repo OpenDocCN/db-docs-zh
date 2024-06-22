@@ -1,0 +1,802 @@
+- en: 1\. Introduction
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 原文：[https://sqlite.com/partialindex.html](https://sqlite.com/partialindex.html)
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: A partial index is an index over a subset of the rows of a table.
+  prefs: []
+  type: TYPE_NORMAL
+- en: In ordinary indexes, there is exactly one entry in the index for every row in
+    the table. In partial indexes, only some subset of the rows in the table have
+    corresponding index entries. For example, a partial index might omit entries for
+    which the column being indexed is NULL. When used judiciously, partial indexes
+    can result in smaller database files and improvements in both query and write
+    performance.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 2\. Creating Partial Indexes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Create a partial index by adding a WHERE clause to the end of an ordinary [CREATE
+    INDEX](lang_createindex.html) statement.
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[create-index-stmt:](syntax/create-index-stmt.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 907.43 232.632"><text x="74" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">CREATE</text> <text x="194" y="41"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNIQUE</text>
+    <text x="307" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">INDEX</text>
+    <text x="393" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">IF</text>
+    <text x="457" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="542" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXISTS</text>
+    <text x="92" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">schema-name</text>
+    <text x="193" y="109" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">.</text> <text x="299" y="109" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">index-name</text> <text x="395"
+    y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ON</text>
+    <text x="491" y="109" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-name</text>
+    <text x="582" y="109" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="705" y="109" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">indexed-column</text> <text x="828"
+    y="109" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="705" y="147" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="709" y="215" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">WHERE</text> <text x="796" y="215"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[expr:](syntax/expr.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 963.96 1068.77"><text x="101" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">literal-value</text> <text x="116"
+    y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">bind-parameter</text>
+    <text x="108" y="115" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">schema-name</text>
+    <text x="210" y="115" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">.</text> <text x="313" y="115" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">table-name</text> <text x="404"
+    y="115" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text>
+    <text x="518" y="115" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">column-name</text>
+    <text x="114" y="153" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">unary-operator</text>
+    <text x="231" y="153" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="69" y="191" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="189" y="191" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">binary-operator</text>
+    <text x="308" y="191" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="111" y="230" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">function-name</text>
+    <text x="209" y="230" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="348" y="230" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">function-arguments</text> <text
+    x="488" y="230" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="597" y="260" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">filter-clause</text>
+    <text x="783" y="260" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">over-clause</text>
+    <text x="60" y="306" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="136" y="306" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="211" y="306"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="136" y="269" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="74" y="343" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">CAST</text> <text x="141" y="343"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text>
+    <text x="204" y="343" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="269" y="343" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text>
+    <text x="358" y="343" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">type-name</text>
+    <text x="446" y="343" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">)</text> <text x="69" y="381" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="164" y="381"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text>
+    <text x="302" y="381" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text>
+    <text x="69" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="155" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="261" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LIKE</text>
+    <text x="264" y="457" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">GLOB</text>
+    <text x="276" y="495" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">REGEXP</text>
+    <text x="274" y="532" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">MATCH</text>
+    <text x="403" y="495" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="403" y="419" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="506" y="449" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ESCAPE</text>
+    <text x="595" y="449" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="69" y="570" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="170" y="570" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ISNULL</text>
+    <text x="180" y="608" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOTNULL</text>
+    <text x="155" y="646" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="234" y="646" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULL</text>
+    <text x="69" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="132" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">IS</text>
+    <text x="209" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="355" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DISTINCT</text>
+    <text x="473" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FROM</text>
+    <text x="566" y="684" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="69" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="155" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="268" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BETWEEN</text>
+    <text x="367" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="440" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AND</text>
+    <text x="513" y="729" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="69" y="782" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="155" y="782" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="233" y="782" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">IN</text>
+    <text x="300" y="782" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="403" y="782" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">select-stmt</text> <text x="507"
+    y="782" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="403" y="820" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="403" y="857" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="348" y="910" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">schema-name</text> <text x="444"
+    y="910" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text>
+    <text x="577" y="910" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-function</text>
+    <text x="674" y="910" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="759" y="910" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="844" y="910"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="566" y="850" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-name</text>
+    <text x="759" y="877" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="70" y="956" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">NOT</text> <text x="169" y="956"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXISTS</text>
+    <text x="257" y="956" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="347" y="956" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">select-stmt</text> <text x="438"
+    y="956" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="74" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CASE</text>
+    <text x="164" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="278" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">WHEN</text>
+    <text x="360" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="440" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">THEN</text>
+    <text x="519" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="645" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ELSE</text>
+    <text x="721" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="807" y="994" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">END</text>
+    <text x="109" y="1051" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">raise-function</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[filter-clause:](syntax/filter-clause.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 422.381 34.56"><text x="70" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">FILTER</text> <text x="146" y="17"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text>
+    <text x="224" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">WHERE</text>
+    <text x="312" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="374" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">)</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[function-arguments:](syntax/function-arguments.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 456.566 223.344"><text x="116" y="26" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">DISTINCT</text> <text x="278" y="56"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="278" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="228" y="192" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">*</text> <text
+    x="127" y="117" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ORDER</text>
+    <text x="199" y="117" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text>
+    <text x="310" y="117" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ordering-term</text>
+    <text x="310" y="154" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[ordering-term:](syntax/ordering-term.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 798.451 99.576"><text x="56" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="158" y="44"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text>
+    <text x="296" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text>
+    <text x="477" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DESC</text>
+    <text x="471" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ASC</text>
+    <text x="627" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text>
+    <text x="718" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FIRST</text>
+    <text x="627" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text>
+    <text x="714" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LAST</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[literal-value:](syntax/literal-value.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 341.376 336.96"><text x="159" y="319" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">CURRENT_TIMESTAMP</text> <text x="119"
+    y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">numeric-literal</text>
+    <text x="109" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">string-literal</text>
+    <text x="103" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">blob-literal</text>
+    <text x="81" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULL</text>
+    <text x="81" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">TRUE</text>
+    <text x="85" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FALSE</text>
+    <text x="128" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT_TIME</text>
+    <text x="129" y="281" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT_DATE</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[over-clause:](syntax/over-clause.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 600.706 418.392"><text x="62" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">OVER</text> <text x="192" y="17"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">window-name</text>
+    <text x="149" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="292" y="82" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">base-window-name</text> <text x="261"
+    y="157" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PARTITION</text>
+    <text x="356" y="157" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text>
+    <text x="434" y="157" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="434" y="195" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="244" y="271" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">ORDER</text> <text x="321" y="271"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text> <text
+    x="439" y="271" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ordering-term</text>
+    <text x="439" y="309" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="258" y="384" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">frame-spec</text> <text x="534"
+    y="384" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[frame-spec:](syntax/frame-spec.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 1039.65 522.72"><text x="93" y="92" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">GROUPS</text> <text x="258" y="17"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BETWEEN</text>
+    <text x="417" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text>
+    <text x="559" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="685" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AND</text>
+    <text x="817" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text>
+    <text x="961" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text>
+    <text x="87" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">RANGE</text>
+    <text x="83" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROWS</text>
+    <text x="272" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text>
+    <text x="420" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="231" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="338" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="257" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="357" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="375" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="482" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="401" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="501" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="375" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="484" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text>
+    <text x="776" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="883" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="802" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="902" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="776" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="885" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text>
+    <text x="495" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="617" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="717" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="495" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="604" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">GROUP</text>
+    <text x="495" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="593" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">TIES</text>
+    <text x="495" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="586" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NO</text>
+    <text x="672" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">OTHERS</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[ordering-term:](syntax/ordering-term.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 798.451 99.576"><text x="56" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="158" y="44"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text>
+    <text x="296" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text>
+    <text x="477" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DESC</text>
+    <text x="471" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ASC</text>
+    <text x="627" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text>
+    <text x="718" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FIRST</text>
+    <text x="627" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text>
+    <text x="714" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LAST</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[raise-function:](syntax/raise-function.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 627.302 147.96"><text x="65" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">RAISE</text> <text x="135" y="17"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text>
+    <text x="246" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROLLBACK</text>
+    <text x="351" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="456" y="55" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">error-message</text> <text x="579"
+    y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="233" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">IGNORE</text>
+    <text x="228" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ABORT</text>
+    <text x="218" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FAIL</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[select-stmt:](syntax/select-stmt.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 669.677 1162.3"><text x="76" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">WITH</text> <text x="210" y="47"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">RECURSIVE</text>
+    <text x="471" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">common-table-expression</text>
+    <text x="471" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="167" y="129" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">SELECT</text> <text x="299" y="159"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DISTINCT</text>
+    <text x="481" y="129" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">result-column</text>
+    <text x="481" y="166" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="272" y="197" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">ALL</text> <text x="186" y="272"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FROM</text>
+    <text x="371" y="272" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-or-subquery</text>
+    <text x="371" y="346" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">join-clause</text>
+    <text x="371" y="309" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="193" y="422" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">WHERE</text> <text x="280" y="422"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="190" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">GROUP</text>
+    <text x="267" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text>
+    <text x="345" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="493" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">HAVING</text>
+    <text x="582" y="520" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="345" y="558" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="200" y="634" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">WINDOW</text> <text x="346" y="634"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">window-name</text>
+    <text x="450" y="634" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text>
+    <text x="550" y="634" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">window-defn</text>
+    <text x="446" y="671" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="168" y="785" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">VALUES</text> <text x="260" y="785"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text>
+    <text x="336" y="785" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="412" y="785" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">)</text> <text x="336" y="747" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text
+    x="336" y="823" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text>
+    <text x="336" y="876" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">compound-operator</text>
+    <text x="667" y="275" text-anchor="middle" font-style="italic" fill="rgb(128,128,128)"
+    transform="rotate(-90 667,285)" dominant-baseline="central">select-core</text>
+    <text x="190" y="951" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ORDER</text>
+    <text x="268" y="951" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text>
+    <text x="185" y="1057" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LIMIT</text>
+    <text x="264" y="1057" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="395" y="951" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ordering-term</text>
+    <text x="395" y="989" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="389" y="1087" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">OFFSET</text> <text x="477" y="1087"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="363" y="1125" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="426" y="1125" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[common-table-expression:](syntax/common-table-expression.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 638.525 167.4"><text x="85" y="29" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">table-name</text> <text x="211"
+    y="29" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text>
+    <text x="348" y="29" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">column-name</text>
+    <text x="461" y="29" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">)</text> <text x="49" y="150" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">AS</text> <text x="137" y="119"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="278" y="119" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">MATERIALIZED</text>
+    <text x="410" y="150" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="500" y="150" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">select-stmt</text> <text x="591"
+    y="150" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="348" y="66" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[compound-operator:](syntax/compound-operator.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 293.842 147.96"><text x="105" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">UNION</text> <text x="105" y="55"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNION</text>
+    <text x="125" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">INTERSECT</text>
+    <text x="109" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCEPT</text>
+    <text x="187" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ALL</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[join-clause:](syntax/join-clause.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 793.282 84.24"><text x="112" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">table-or-subquery</text> <text x="319"
+    y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">join-operator</text>
+    <text x="483" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-or-subquery</text>
+    <text x="654" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">join-constraint</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[join-constraint:](syntax/join-constraint.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 483.336 126.576"><text x="85" y="55" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">USING</text> <text x="158" y="55"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text>
+    <text x="271" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">column-name</text>
+    <text x="384" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">)</text> <text x="271" y="92" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">,</text> <text
+    x="70" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ON</text>
+    <text x="137" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[join-operator:](syntax/join-operator.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 620.333 255.312"><text x="99" y="71" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">NATURAL</text> <text x="259" y="71"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LEFT</text>
+    <text x="415" y="71" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">OUTER</text>
+    <text x="543" y="41" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">JOIN</text>
+    <text x="310" y="17" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="265" y="109" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">RIGHT</text> <text x="260" y="147"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FULL</text>
+    <text x="267" y="192" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">INNER</text>
+    <text x="267" y="238" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CROSS</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[ordering-term:](syntax/ordering-term.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 798.451 99.576"><text x="56" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="158" y="44"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text>
+    <text x="296" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text>
+    <text x="477" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DESC</text>
+    <text x="471" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ASC</text>
+    <text x="627" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text>
+    <text x="718" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FIRST</text>
+    <text x="627" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NULLS</text>
+    <text x="714" y="82" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">LAST</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[result-column:](syntax/result-column.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 398.054 163.08"><text x="69" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="153" y="55"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text> <text
+    x="265" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">column-alias</text>
+    <text x="66" y="108" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text> <text x="103" y="145" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">table-name</text> <text x="194"
+    y="145" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text>
+    <text x="247" y="145" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">*</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[table-or-subquery:](syntax/table-or-subquery.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 720.778 457.704"><text x="114" y="74" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">schema-name</text> <text x="209"
+    y="74" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">.</text>
+    <text x="319" y="36" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-name</text>
+    <text x="425" y="36" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AS</text>
+    <text x="527" y="36" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-alias</text>
+    <text x="356" y="112" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">INDEXED</text>
+    <text x="443" y="112" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text>
+    <text x="538" y="112" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">index-name</text>
+    <text x="333" y="150" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NOT</text>
+    <text x="429" y="150" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">INDEXED</text>
+    <text x="356" y="213" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-function-name</text>
+    <text x="478" y="213" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="554" y="213" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">expr</text> <text x="630" y="213"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="554" y="175" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="409" y="289" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">AS</text> <text x="548" y="289"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">table-alias</text>
+    <text x="66" y="327" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="156" y="327" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">select-stmt</text> <text x="246"
+    y="327" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="65" y="364" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="215" y="364" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">table-or-subquery</text> <text x="365"
+    y="364" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="215" y="402" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="173" y="440" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">join-clause</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[window-defn:](syntax/window-defn.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 479.765 380.592"><text x="47" y="17" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text> <text
+    x="190" y="44" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">base-window-name</text>
+    <text x="159" y="120" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PARTITION</text>
+    <text x="254" y="120" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text>
+    <text x="332" y="120" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="332" y="157" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="141" y="233" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">ORDER</text> <text x="219" y="233"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BY</text> <text
+    x="337" y="233" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ordering-term</text>
+    <text x="337" y="271" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="156" y="346" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">frame-spec</text> <text x="432"
+    y="346" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[frame-spec:](syntax/frame-spec.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 1039.65 522.72"><text x="93" y="92" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">GROUPS</text> <text x="258" y="17"
+    text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">BETWEEN</text>
+    <text x="417" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text>
+    <text x="559" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="685" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">AND</text>
+    <text x="817" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text>
+    <text x="961" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text>
+    <text x="87" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">RANGE</text>
+    <text x="83" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROWS</text>
+    <text x="272" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">UNBOUNDED</text>
+    <text x="420" y="168" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="231" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="338" y="206" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="257" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="357" y="244" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="375" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="482" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="401" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="501" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="375" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="484" y="130" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text>
+    <text x="776" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="883" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">PRECEDING</text>
+    <text x="802" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="902" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="776" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="885" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">FOLLOWING</text>
+    <text x="495" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="617" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">CURRENT</text>
+    <text x="717" y="395" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ROW</text>
+    <text x="495" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="604" y="433" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">GROUP</text>
+    <text x="495" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="593" y="470" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">TIES</text>
+    <text x="495" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">EXCLUDE</text>
+    <text x="586" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">NO</text>
+    <text x="672" y="357" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">OTHERS</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[type-name:](syntax/type-name.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 661.008 110.16"><text x="74" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">name</text> <text x="180" y="92"
+    text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">(</text>
+    <text x="281" y="92" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">signed-number</text>
+    <text x="382" y="92" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">,</text> <text x="484" y="92" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">signed-number</text> <text x="585"
+    y="92" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text>
+    <text x="180" y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">(</text> <text x="281" y="55" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">signed-number</text> <text x="382"
+    y="55" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">)</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[signed-number:](syntax/signed-number.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 292.013 99.576"><text x="66" y="44" text-anchor="middle"
+    font-weight="bold" fill="rgb(0,0,0)" dominant-baseline="central">+</text> <text
+    x="191" y="17" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">numeric-literal</text>
+    <text x="66" y="82" text-anchor="middle" font-weight="bold" fill="rgb(0,0,0)"
+    dominant-baseline="central">-</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: '**[indexed-column:](syntax/indexed-column.html)**'
+  prefs: []
+  type: TYPE_NORMAL
+- en: <svg class="pikchr" viewBox="0 0 696.36 102.6"><text x="113" y="17" text-anchor="middle"
+    fill="rgb(0,0,0)" dominant-baseline="central">column-name</text> <text x="293"
+    y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">COLLATE</text>
+    <text x="426" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">collation-name</text>
+    <text x="597" y="85" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">DESC</text>
+    <text x="75" y="55" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">expr</text>
+    <text x="591" y="47" text-anchor="middle" fill="rgb(0,0,0)" dominant-baseline="central">ASC</text></svg>
+  prefs: []
+  type: TYPE_NORMAL
+- en: Any index that includes the WHERE clause at the end is considered to be a partial
+    index. Indexes that omit the WHERE clause (or indexes that are created by UNIQUE
+    or PRIMARY KEY constraints inside of CREATE TABLE statements) are ordinary full
+    indexes.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The expression following the WHERE clause may contain operators, literal values,
+    and names of columns in the table being indexed. The WHERE clause may *not* contain
+    subqueries, references to other tables, [non-deterministic functions](deterministic.html),
+    or [bound parameters](lang_expr.html#varparam).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Only rows of the table for which the WHERE clause evaluates to true are included
+    in the index. If the WHERE clause expression evaluates to NULL or to false for
+    some rows of the table, then those rows are omitted from the index.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The columns referenced in the WHERE clause of a partial index can be any of
+    the columns in the table, not just columns that happen to be indexed. However,
+    it is very common for the WHERE clause expression of a partial index to be a simple
+    expression on the column being indexed. The following is a typical example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'In the example above, if most purchase orders do not have a "parent" purchase
+    order, then most parent_po values will be NULL. That means only a small subset
+    of the rows in the purchaseorder table will be indexed. Hence the index will take
+    up much less space. And changes to the original purchaseorder table will run faster
+    since the po_parent index only needs to be updated for those exceptional rows
+    where parent_po is not NULL. But the index is still useful for querying. In particular,
+    if one wants to know all "children" of a particular purchase order "?1", the query
+    would be:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: The query above will use the po_parent index to help find the answer, since
+    the po_parent index contains entries for all rows of interest. Note that since
+    po_parent is smaller than a full index, the query will likely run faster too.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 2.1\. Unique Partial Indexes
+  prefs:
+  - PREF_H2
+  type: TYPE_NORMAL
+- en: A partial index definition may include the UNIQUE keyword. If it does, then
+    SQLite requires every entry *in the index* to be unique. This provides a mechanism
+    for enforcing uniqueness across some subset of the rows in a table.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'For example, suppose you have a database of the members of a large organization
+    where each person is assigned to a particular "team". Each team has a "leader"
+    who is also a member of that team. The table might look something like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'The team_id field cannot be unique because there are usually multiple people
+    on the same team. One cannot make the combination of team_id and is_team_leader
+    unique since there are usually multiple non-leaders on each team. The solution
+    to enforcing one leader per team is to create a unique index on team_id but restricted
+    to those entries for which is_team_leader is true:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Coincidentally, that same index is useful for locating the team leader of a
+    particular team:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 3\. Queries Using Partial Indexes
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Let X be the expression in the WHERE clause of a partial index, and let W be
+    the WHERE clause of a query that uses the table that is indexed. Then, the query
+    is permitted to use the partial index if W⇒X, where the ⇒ operator (usually pronounced
+    "implies") is the logic operator equivalent to "X or not W". Hence, determining
+    whether or not a partial index is usable in a particular query reduces to proving
+    a theorem in first-order logic.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'SQLite does not have a sophisticated theorem prover with which to determine
+    W⇒X. Instead, SQLite uses two simple rules to find the common cases where W⇒X
+    is true, and it assumes all the other cases are false. The rules used by SQLite
+    are these:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: If W is AND-connected terms and X is OR-connected terms and if any term of W
+    appears as a term of X, then the partial index is usable.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: For example, let the index be
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'And let the query be:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then the index is usable by the query because the "b=6" term appears in both
+    the index definition and in the query. Remember: terms in the index should be
+    OR-connected and terms in the query should be AND-connected.'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: The terms in W and X must match exactly. SQLite does not do algebra to try to
+    get them to look the same. The term "b=6" does not match "b=3+3" or "b-6=0" or
+    "b BETWEEN 6 AND 6". "b=6" will match to "6=b" as long as "b=6" is on the index
+    and "6=b" is in the query. If a term of the form "6=b" appears in the index, it
+    will never match anything.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: If a term in X is of the form "z IS NOT NULL" and if a term in W is a comparison
+    operator on "z" other than "IS", then those terms match.
+  prefs:
+  - PREF_OL
+  type: TYPE_NORMAL
+- en: 'Example: Let the index be'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'Then any query that uses operators =, <, >, <=, >=, <>, IN, LIKE, or GLOB on
+    column "c" would be usable with the partial index because those comparison operators
+    are only true if "c" is not NULL. So the following query could use the partial
+    index:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: 'But the next query can not use the partial index:'
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: '[PRE9]'
+  prefs:
+  - PREF_IND
+  type: TYPE_PRE
+- en: The latter query can not use the partial index because there might be rows in
+    the table with b=456 and where c is NULL. But those rows would not be in the partial
+    index.
+  prefs:
+  - PREF_IND
+  type: TYPE_NORMAL
+- en: These two rules describe how the query planner for SQLite works as of this writing
+    (2013-08-01). And the rules above will always be honored. However, future versions
+    of SQLite might incorporate a better theorem prover that can find other cases
+    where W⇒X is true and thus may find more instances where partial indexes are useful.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 4\. Supported Versions
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Partial indexes have been supported in SQLite since [version 3.8.0](releaselog/3_8_0.html)
+    (2013-08-26).
+  prefs: []
+  type: TYPE_NORMAL
+- en: Database files that contain partial indices are not readable or writable by
+    versions of SQLite prior to 3.8.0\. However, a database file created by SQLite
+    3.8.0 is still readable and writable by prior versions as long as its schema contains
+    no partial indexes. A database that is unreadable by legacy versions of SQLite
+    can be made readable simply by running [DROP INDEX](lang_dropindex.html) on the
+    partial indexes.
+  prefs: []
+  type: TYPE_NORMAL

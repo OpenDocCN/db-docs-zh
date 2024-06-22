@@ -1,0 +1,201 @@
+- en: 1\. Overview
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 原文：[https://sqlite.com/dbstat.html](https://sqlite.com/dbstat.html)
+  prefs:
+  - PREF_BQ
+  type: TYPE_NORMAL
+- en: The DBSTAT virtual table is a read-only [eponymous virtual table](vtab.html#epovtab)
+    that returns information about the amount of disk space used to store the content
+    of an SQLite database. Example use cases for the DBSTAT virtual table include
+    the [sqlite3_analyzer.exe](sqlanalyze.html) utility program and the [table size
+    pie-chart](https://www.sqlite.org/src/repo-tabsize) in the [Fossil-implemented](https://www.fossil-scm.org/)
+    version control system for SQLite.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The DBSTAT virtual table is available on all [database connections](c3ref/sqlite3.html)
+    when SQLite is built using the [SQLITE_ENABLE_DBSTAT_VTAB](compile.html#enable_dbstat_vtab)
+    compile-time option.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The DBSTAT virtual table is an [eponymous virtual table](vtab.html#epovtab),
+    meaning that is not necessary to run [CREATE VIRTUAL TABLE](lang_createvtab.html)
+    to create an instance of the dbstat virtual table before using it. The "dbstat"
+    module name can be used as if it were a table name to query the dbstat virtual
+    table directly. For example:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE0]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If a named virtual table that uses the dbstat module is desired, then the recommended
+    way to create an instance of the dbstat virtual table is as follows:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE1]'
+  prefs: []
+  type: TYPE_PRE
+- en: Note the "temp." qualifier before the virtual table name ("stat"). This qualifier
+    causes the virtual table to be temporary - to only exist for the duration of the
+    current database connection. This is the recommended approach.
+  prefs: []
+  type: TYPE_NORMAL
+- en: The "main" argument to dbstat is default schema for which information is to
+    be provided. The default is "main", and so the use of "main" in the example above
+    is redundant. For any particular query, the schema can be changed by specifying
+    the alternative schema as a function argument to the virtual table name in the
+    FROM clause of the query. (See further discussion of [table-valued functions in
+    the FROM clause](lang_select.html#tabfunc1) for more details.)
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The schema for the DBSTAT virtual table looks like this:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE2]'
+  prefs: []
+  type: TYPE_PRE
+- en: The DBSTAT table only reports on the content of btrees within the database file.
+    Freelist pages, pointer-map pages, and the lock page are omitted from the analysis.
+  prefs: []
+  type: TYPE_NORMAL
+- en: By default, there is a single row in the DBSTAT table for each btree page the
+    database file. Each row provides information about the space utilization of that
+    one page of the database. However, if the hidden column "aggregate" is TRUE, then
+    results are aggregated and there is a single row in the DBSTAT table for each
+    btree in the database, providing information about space utilization across the
+    entire btree.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 2\. The "path" column of the dbstat virtual table
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'The "path" column describes the path taken from the root node of the btree
+    structure to each page. The "path" of the root node itself is ''/''. The "path"
+    is NULL when "aggregate" is TRUE. The "path" for the left-most child page of the
+    root of a btree page is ''/000/''. (Btrees store content ordered from left to
+    right so the pages to the left have smaller keys than the pages to the right.)
+    The next to left-most child of the root page is ''/001'', and so on, each sibling
+    page identified by a 3-digit hex value. The children of the 451st left-most sibling
+    have paths such as ''/1c2/000/, ''/1c2/001/'' etc. Overflow pages are specified
+    by appending a ''+'' character and a six-digit hexadecimal value to the path to
+    the cell they are linked from. For example, the three overflow pages in a chain
+    linked from the left-most cell of the 450th child of the root page are identified
+    by the paths:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE3]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'If the paths are sorted using the BINARY collation sequence, then the overflow
+    pages associated with a cell will appear earlier in the sort-order than its child
+    page:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE4]'
+  prefs: []
+  type: TYPE_PRE
+- en: 3\. Aggregated Data
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: Beginning with SQLite version 3.31.0 (2020-01-22), the DBSTAT table has a new
+    [hidden column](vtab.html#hiddencol) named "aggregate", which if constrained to
+    be TRUE will cause DBSTAT to generate one row per btree in the database, rather
+    than one row per page. When running in aggregated mode, the "path", "pagetype",
+    and "pgoffset" columns are always NULL and the "pageno" column holds the number
+    of pages in the entire btree, rather than the number of the page that corresponds
+    to the row.
+  prefs: []
+  type: TYPE_NORMAL
+- en: 'The following table shows the meanings of the (non-hidden) columns of DBSTAT
+    in both normal and aggregated mode:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '| Column | Normal meaning | Aggregate-mode meaning |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| name | The name of the table or index that is implemented by the btree of
+    the current row |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| path | See [description above](#dbstatpath) | Always NULL |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| pageno | The page number of the database page for the current row | The total
+    number of pages in the btree for the current row |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| pagetype | ''leaf'' or ''interior'' | Always NULL |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| ncell | Number of cells on the current page or btree |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| payload | Bytes of useful payload on the current page or btree |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| unused | Unused bytes of on the current page or btree |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| mx_payload | The largest payload found anywhere in the current page or btree.
+    |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| pgoffset | Byte offset to the start of the page | Always NULL |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: '| pgsize | Total storage space used by the current page or btree. |'
+  prefs:
+  - PREF_BQ
+  type: TYPE_TB
+- en: 4\. Example uses of the dbstat virtual table
+  prefs:
+  - PREF_H1
+  type: TYPE_NORMAL
+- en: 'To find the total number of pages used to store table "xyz" in schema "aux1",
+    use either of the following two queries (the first is the traditional way, and
+    the second shows the use of the aggregated feature):'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE5]'
+  prefs: []
+  type: TYPE_PRE
+- en: To see how efficiently the content of a table is stored on disk, compute the
+    amount of space used to hold actual content divided by the total amount of disk
+    space used. The closer this number is to 100%, the more efficient the packing.
+    (In this example, the 'xyz' table is assumed to be in the 'main' schema. Again,
+    there are two different versions that show the use of DBSTAT both without and
+    with the new aggregated feature, respectively.)
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE6]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'To find the average fan-out for a table, run:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE7]'
+  prefs: []
+  type: TYPE_PRE
+- en: 'Modern filesystems operate faster when disk accesses are sequential. Hence,
+    SQLite will run faster if the content of the database file is on sequential pages.
+    To find out what fraction of the pages in a database are sequential (and thus
+    obtain a measurement that might be useful in determining when to [VACUUM](lang_vacuum.html)),
+    run a query like the following:'
+  prefs: []
+  type: TYPE_NORMAL
+- en: '[PRE8]'
+  prefs: []
+  type: TYPE_PRE
