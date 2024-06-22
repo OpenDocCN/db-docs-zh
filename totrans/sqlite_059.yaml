@@ -1,39 +1,55 @@
 - en: 1\. SQLite Shared-Cache Mode
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 1\. SQLite 共享缓存模式
 - en: 原文：[https://sqlite.com/sharedcache.html](https://sqlite.com/sharedcache.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/sharedcache.html](https://sqlite.com/sharedcache.html)
 - en: Starting with [version 3.3.0](releaselog/3_3_0.html) (2006-01-11), SQLite includes
     a special "shared-cache" mode (disabled by default) intended for use in embedded
     servers. If shared-cache mode is enabled and a thread establishes multiple connections
     to the same database, the connections share a single data and schema cache. This
     can significantly reduce the quantity of memory and IO required by the system.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 [版本 3.3.0](releaselog/3_3_0.html)（2006-01-11）开始，SQLite 包括一种特殊的“共享缓存”模式（默认情况下禁用），旨在用于嵌入式服务器。如果启用了共享缓存模式，并且一个线程建立了对同一数据库的多个连接，这些连接将共享单一的数据和模式缓存。这可以显著减少系统所需的内存和IO操作量。
 - en: In [version 3.5.0](releaselog/3_5_0.html) (2007-09-04), shared-cache mode was
     modified so that the same cache can be shared across an entire process rather
     than just within a single thread. Prior to this change, there were restrictions
     on passing database connections between threads. Those restrictions were dropped
     in 3.5.0 update. This document describes shared-cache mode as of version 3.5.0.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 [版本 3.5.0](releaselog/3_5_0.html)（2007-09-04）中，共享缓存模式被修改，使得相同的缓存可以在整个进程中共享，而不仅仅在单个线程内。在这一变更之前，存在于线程间传递数据库连接的限制。这些限制在
+    3.5.0 更新中被取消。本文档描述了版本 3.5.0 中的共享缓存模式。
 - en: Shared-cache mode changes the semantics of the locking model in some cases.
     The details are described by this document. A basic understanding of the normal
     SQLite locking model (see [File Locking And Concurrency In SQLite Version 3](lockingv3.html)
     for details) is assumed.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: 在某些情况下，共享缓存模式改变了锁定模型的语义。这些细节由本文档描述。假定对正常的 SQLite 锁定模型有基本的理解（详情请参见 [SQLite 版本
+    3 中的文件锁定与并发性](lockingv3.html)）。
 - en: 1.1\. Use of shared-cache is discouraged
+  id: totrans-5
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 1.1\. 不建议使用共享缓存
 - en: Shared-cache mode is an obsolete feature. The use of shared-cache mode is discouraged.
     Most use cases for shared-cache are better served by [WAL mode](wal.html).
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: 共享缓存模式是一个已经过时的功能。不建议使用共享缓存模式。大多数共享缓存的使用场景通过 [WAL 模式](wal.html) 更好地实现。
 - en: Shared-cache mode was invented in 2006 at the request of developers of [Symbian](https://en.wikipedia.org/wiki/Symbian).
     Their problem was that if the contacts database on the phone was being synced,
     that would lock the database file. Then if a call came in, the database lock would
@@ -41,172 +57,242 @@
     ring-tone for the incoming call, or a photo of the caller to show on screen, and
     so forth. [WAL mode](wal.html) (circa 2010) is a better solution to this problem
     as it permits simultaneous access without breaking transaction isolation.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: 共享缓存模式是在 2006 年由 [Symbian](https://zh.wikipedia.org/wiki/Symbian) 的开发人员请求发明的。他们的问题是，如果手机上的联系人数据库正在同步，那么会锁定数据库文件。然后，如果有来电，数据库锁将阻止他们查询联系人数据库以查找适当的铃声或显示来电者的照片等信息。
+    [WAL 模式](wal.html)（约 2010 年）是这个问题的更好解决方案，因为它允许在不破坏事务隔离的情况下进行同时访问。
 - en: Applications that build their own copy of SQLite from source code are encouraged
     to use the [-DSQLITE_OMIT_SHARED_CACHE](compile.html#omit_shared_cache) compile-time
     option, as the resulting binary will be both smaller and faster.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 鼓励从源代码构建他们自己的 SQLite 的应用程序使用 [-DSQLITE_OMIT_SHARED_CACHE](compile.html#omit_shared_cache)
+    编译时选项，因为生成的二进制文件将更小更快。
 - en: The shared-cache interfaces described here will continue to be supported in
     SQLite, to insure full backwards compatibility. However, the use of shared-cache
     is discouraged.
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 这里描述的共享缓存接口将继续在 SQLite 中得到支持，以确保完全向后兼容。然而，不建议使用共享缓存。
 - en: 2\. Shared-Cache Locking Model
+  id: totrans-10
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 2\. 共享缓存锁模型
 - en: Externally, from the point of view of another process or thread, two or more
     [database connections](c3ref/sqlite3.html) using a shared-cache appear as a single
     connection. The locking protocol used to arbitrate between multiple shared-caches
     or regular database users is described elsewhere.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 从另一个进程或线程的角度来看，使用共享缓存的两个或更多个 [数据库连接](c3ref/sqlite3.html) 看起来像是单个连接。用于在多个共享缓存或常规数据库用户之间进行仲裁的锁定协议在其他地方描述。
 - en: '| ![](../Images/112aab80027912de767daa79863773dc.png) |'
+  id: totrans-12
   prefs: []
   type: TYPE_TB
+  zh: '| ![](../Images/112aab80027912de767daa79863773dc.png) |'
 - en: Figure 1
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 图 1
 - en: Figure 1 depicts an example runtime configuration where three database connections
     have been established. Connection 1 is a normal SQLite database connection. Connections
     2 and 3 share a cache The normal locking protocol is used to serialize database
     access between connection 1 and the shared cache. The internal protocol used to
     serialize (or not, see "Read-Uncommitted Isolation Mode" below) access to the
     shared-cache by connections 2 and 3 is described in the remainder of this section.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 图1显示了一个运行时配置示例，其中建立了三个数据库连接。连接1是一个普通的SQLite数据库连接。连接2和连接3共享一个缓存。用于在连接2和连接3之间序列化（或不序列化，参见下文的“读未提交隔离模式”）访问共享缓存的内部协议在本节的其余部分描述。
 - en: There are three levels to the shared-cache locking model, transaction level
     locking, table level locking and schema level locking. They are described in the
     following three sub-sections.
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 共享缓存锁定模型有三个级别，即事务级别锁定、表级别锁定和模式级别锁定。它们在以下三个小节中描述。
 - en: 2.1\. Transaction Level Locking
+  id: totrans-16
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.1\. 事务级别锁定
 - en: SQLite connections can open two kinds of transactions, read and write transactions.
     This is not done explicitly, a transaction is implicitly a read-transaction until
     it first writes to a database table, at which point it becomes a write-transaction.
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite连接可以打开两种类型的事务，读事务和写事务。这并不是显式执行的，事务隐式地是一个读事务，直到首次向数据库表写入，此时它变成一个写事务。
 - en: At most one connection to a single shared cache may open a write transaction
     at any one time. This may co-exist with any number of read transactions.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: 在单个共享缓存中，最多只能有一个连接同时打开写事务。这可以与任意数量的读事务共存。
 - en: 2.2\. Table Level Locking
+  id: totrans-19
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.2\. 表级别锁定
 - en: When two or more connections use a shared-cache, locks are used to serialize
     concurrent access attempts on a per-table basis. Tables support two types of locks,
     "read-locks" and "write-locks". Locks are granted to connections - at any one
     time, each database connection has either a read-lock, write-lock or no lock on
     each database table.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 当两个或更多连接使用共享缓存时，锁定用于在每个表的基础上序列化并发访问尝试。表支持两种类型的锁定，“读锁定”和“写锁定”。锁定授予连接 - 同一时间，每个数据库连接对每个数据库表要么具有读锁定、写锁定，要么没有锁定。
 - en: At any one time, a single table may have any number of active read-locks or
     a single active write lock. To read data from a table, a connection must first
     obtain a read-lock. To write to a table, a connection must obtain a write-lock
     on that table. If a required table lock cannot be obtained, the query fails and
     SQLITE_LOCKED is returned to the caller.
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: 同一时间，单个表可以具有任意数量的活动读锁或单个活动写锁。要从表中读取数据，连接必须首先获取读锁。要向表中写入数据，连接必须在该表上获取写锁。如果无法获取所需的表锁定，则查询失败，并返回SQLITE_LOCKED给调用者。
 - en: Once a connection obtains a table lock, it is not released until the current
     transaction (read or write) is concluded.
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 一旦连接获取了表锁定，直到当前事务（读或写）结束为止，该锁定才会被释放。
 - en: 2.2.1\. Read-Uncommitted Isolation Mode
+  id: totrans-23
   prefs:
   - PREF_H3
   type: TYPE_NORMAL
+  zh: 2.2.1\. 读未提交隔离模式
 - en: The behaviour described above may be modified slightly by using the [read_uncommitted](pragma.html#pragma_read_uncommitted)
     pragma to change the isolation level from serialized (the default), to read-uncommitted.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述行为可以通过使用[read_uncommitted](pragma.html#pragma_read_uncommitted) pragma轻微修改，从串行化（默认）修改为读未提交的隔离级别。
 - en: A database connection in read-uncommitted mode does not attempt to obtain read-locks
     before reading from database tables as described above. This can lead to inconsistent
     query results if another database connection modifies a table while it is being
     read, but it also means that a read-transaction opened by a connection in read-uncommitted
     mode can neither block nor be blocked by any other connection.
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 在读未提交模式下的数据库连接在从数据库表中读取之前不会尝试获取读锁，如上所述。如果另一个数据库连接在读取时修改了表，可能导致查询结果不一致，但这也意味着由读未提交模式中的连接打开的读事务既不会被阻塞也不会阻塞其他任何连接。
 - en: Read-uncommitted mode has no effect on the locks required to write to database
     tables (i.e. read-uncommitted connections must still obtain write-locks and hence
     database writes may still block or be blocked). Also, read-uncommitted mode has
     no effect on the [sqlite_schema](schematab.html) locks required by the rules enumerated
     below (see section "Schema (sqlite_schema) Level Locking").
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 读未提交模式对写入数据库表所需的锁定没有影响（即，读未提交连接仍然必须获取写锁定，因此数据库写入可能仍然会被阻塞或被阻塞）。此外，读未提交模式对下面列出的规则所需的[sqlite_schema](schematab.html)锁也没有影响（请参见“模式（sqlite_schema）级别锁定”章节）。
 - en: '[PRE0]'
+  id: totrans-27
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: 2.3\. Schema (sqlite_schema) Level Locking
+  id: totrans-28
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.3\. 模式（sqlite_schema）级锁定
 - en: 'The [sqlite_schema table](schematab.html) supports shared-cache read and write
     locks in the same way as all other database tables (see description above). The
     following special rules also apply:'
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 表[sqlite_schema](schematab.html)与所有其他数据库表一样支持共享缓存读写锁（请参见上述说明）。还有以下特殊规则适用：
 - en: A connection must obtain a read-lock on *sqlite_schema* before accessing any
     database tables or obtaining any other read or write locks.
+  id: totrans-30
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在访问任何数据库表或获取任何其他读或写锁之前，连接必须在*sqlite_schema*上获取读锁。
 - en: Before executing a statement that modifies the database schema (i.e. a CREATE
     or DROP TABLE statement), a connection must obtain a write-lock on *sqlite_schema*.
+  id: totrans-31
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在执行修改数据库模式的语句（如CREATE或DROP TABLE语句）之前，连接必须在*sqlite_schema*上获取写锁。
 - en: A connection may not compile an SQL statement if any other connection is holding
     a write-lock on the *sqlite_schema* table of any attached database (including
     the default database, "main").
+  id: totrans-32
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果任何其他连接持有对任何附加数据库（包括默认数据库“main”）的*sqlite_schema*表的写锁，则连接可能无法编译SQL语句。
 - en: 3\. Thread Related Issues
+  id: totrans-33
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. 与线程相关的问题
 - en: In SQLite versions 3.3.0 through 3.4.2 when shared-cache mode is enabled, a
     database connection may only be used by the thread that called [sqlite3_open()](c3ref/open.html)
     to create it. And a connection could only share cache with another connection
     in the same thread. These restrictions were dropped beginning with SQLite [version
     3.5.0](releaselog/3_5_0.html) (2007-09-04).
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 在启用共享缓存模式的SQLite版本3.3.0至3.4.2中，数据库连接只能由调用[sqlite3_open()](c3ref/open.html)创建它的线程使用。连接也只能与同一线程中的另一个连接共享缓存。这些限制从SQLite[版本3.5.0](releaselog/3_5_0.html)（2007-09-04）开始被取消。
 - en: 4\. Shared Cache And Virtual Tables
+  id: totrans-35
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. 共享缓存和虚拟表
 - en: In older versions of SQLite, shared cache mode could not be used together with
     virtual tables. This restriction was removed in SQLite [version 3.6.17](releaselog/3_6_17.html)
     (2009-08-10).
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 在较旧版本的SQLite中，无法将共享缓存模式与虚拟表一起使用。此限制在SQLite[版本3.6.17](releaselog/3_6_17.html)（2009-08-10）中被移除。
 - en: 5\. Enabling Shared-Cache Mode
+  id: totrans-37
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 5\. 启用共享缓存模式
 - en: 'Shared-cache mode is enabled on a per-process basis. Using the C interface,
     the following API can be used to globally enable or disable shared-cache mode:'
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 共享缓存模式是基于进程的。使用C接口，可以使用以下API全局启用或禁用共享缓存模式：
 - en: '[PRE1]'
+  id: totrans-39
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: Each call to [sqlite3_enable_shared_cache()](c3ref/enable_shared_cache.html)
     affects subsequent database connections created using [sqlite3_open()](c3ref/open.html),
     [sqlite3_open16()](c3ref/open.html), or [sqlite3_open_v2()](c3ref/open.html).
     Database connections that already exist are unaffected. Each call to [sqlite3_enable_shared_cache()](c3ref/enable_shared_cache.html)
     overrides all previous calls within the same process.
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 每次调用[sqlite3_enable_shared_cache()](c3ref/enable_shared_cache.html)都会影响使用[sqlite3_open()](c3ref/open.html)、[sqlite3_open16()](c3ref/open.html)或[sqlite3_open_v2()](c3ref/open.html)创建的后续数据库连接。已存在的数据库连接不受影响。每次调用[sqlite3_enable_shared_cache()](c3ref/enable_shared_cache.html)都会覆盖同一进程中先前的所有调用。
 - en: Individual database connections created using [sqlite3_open_v2()](c3ref/open.html)
     can choose to participate or not participate in shared cache mode by using the
     [SQLITE_OPEN_SHAREDCACHE](c3ref/c_open_autoproxy.html) or [SQLITE_OPEN_PRIVATECACHE](c3ref/c_open_autoproxy.html)
@@ -215,24 +301,33 @@
     No more than one of the flags should be used; if both SQLITE_OPEN_SHAREDCACHE
     and SQLITE_OPEN_PRIVATECACHE flags are used in the third argument to [sqlite3_open_v2()](c3ref/open.html)
     then the behavior is undefined.
+  id: totrans-41
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用[sqlite3_open_v2()](c3ref/open.html)创建的单独数据库连接可以通过在第三个参数中使用[SQLITE_OPEN_SHAREDCACHE](c3ref/c_open_autoproxy.html)或[SQLITE_OPEN_PRIVATECACHE](c3ref/c_open_autoproxy.html)标志来选择是否参与共享缓存模式。使用这些标志之一将覆盖由[sqlite3_enable_shared_cache()](c3ref/enable_shared_cache.html)建立的全局共享缓存模式设置。不应同时使用SQLITE_OPEN_SHAREDCACHE和SQLITE_OPEN_PRIVATECACHE标志；如果在[sqlite3_open_v2()](c3ref/open.html)的第三个参数中同时使用这两个标志，则行为未定义。
 - en: 'When [URI filenames](uri.html) are used, the "cache" query parameter can be
     used to specify whether or not the database will use shared cache. Use "cache=shared"
     to enable shared cache and "cache=private" to disable shared cache. The ability
     to use URI query parameters to specify the cache sharing behavior of a database
     connection allows cache sharing to be controlled in [ATTACH](lang_attach.html)
     statements. For example:'
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: 当使用[URI文件名](uri.html)时，可以使用 "cache" 查询参数来指定数据库是否使用共享缓存。使用 "cache=shared" 来启用共享缓存，使用
+    "cache=private" 来禁用共享缓存。使用URI查询参数来指定数据库连接的缓存共享行为允许在[ATTACH](lang_attach.html)语句中控制缓存共享。例如：
 - en: '[PRE2]'
+  id: totrans-43
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 6\. Shared Cache And In-Memory Databases
+  id: totrans-44
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 6\. 共享缓存和内存数据库
 - en: Beginning with SQLite [version 3.7.13](releaselog/3_7_13.html) (2012-06-11),
     shared cache can be used on [in-memory databases](inmemorydb.html), provided that
     the database is created using a [URI filename](uri.html). For backwards compatibility,
@@ -240,11 +335,16 @@
     ":memory:" is used to open the database. Prior to version 3.7.13, shared cache
     was always disabled for in-memory databases regardless of the database name used,
     current system shared cache setting, or query parameters or flags.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 从SQLite [版本 3.7.13](releaselog/3_7_13.html)（2012-06-11）开始，可以在创建使用[URI文件名](uri.html)的[内存数据库](inmemorydb.html)时使用共享缓存。为了向后兼容，如果使用未加修饰的名称
+    ":memory:" 打开数据库，则始终禁用内存数据库的共享缓存。在版本 3.7.13 之前，无论使用的数据库名称、当前系统共享缓存设置还是查询参数或标志如何，内存数据库的共享缓存始终被禁用。
 - en: Enabling shared-cache for an in-memory database allows two or more database
     connections in the same process to have access to the same in-memory database.
     An in-memory database in shared cache is automatically deleted and memory is reclaimed
     when the last connection to that database closes.
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 启用内存数据库的共享缓存允许同一进程中的两个或多个数据库连接访问同一个内存数据库。共享缓存中的内存数据库在最后一个连接关闭时会自动删除并释放内存。

@@ -1,19 +1,27 @@
 - en: 1\. Introduction to Foreign Key Constraints
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 1\. 外键约束介绍
 - en: 原文：[https://sqlite.com/foreignkeys.html](https://sqlite.com/foreignkeys.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/foreignkeys.html](https://sqlite.com/foreignkeys.html)
 - en: Overview
+  id: totrans-2
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 概述
 - en: This document describes the support for SQL foreign key constraints introduced
     in SQLite [version 3.6.19](releaselog/3_6_19.html) (2009-10-14).
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文描述了 SQLite 中引入的 SQL 外键约束的支持 [版本 3.6.19](releaselog/3_6_19.html)（2009-10-14）。
 - en: The first section introduces the concept of an SQL foreign key by example and
     defines the terminology used for the remainder of the document. Section 2 describes
     the steps an application must take in order to enable foreign key constraints
@@ -25,21 +33,33 @@
     [DROP TABLE](lang_droptable.html) commands are enhanced to support foreign key
     constraints. Finally, section 6 enumerates the missing features and limits of
     the current implementation.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: 第一部分通过示例介绍了 SQL 外键的概念，并定义了文档其余部分使用的术语。第 2 部分描述了应用程序必须执行的步骤，以便在 SQLite 中启用外键约束（默认情况下是禁用的）。接下来的第
+    3 部分描述了用户必须创建的索引，以便使用外键约束，并描述了应为了使外键约束有效而创建的索引。第 4 部分描述了 SQLite 支持的高级外键相关功能，第
+    5 部分描述了增强以支持外键约束的 [ALTER](lang_altertable.html) 和 [DROP TABLE](lang_droptable.html)
+    命令的方式。最后，第 6 部分列举了当前实现的缺失功能和限制。
 - en: This document does not contain a full description of the syntax used to create
     foreign key constraints in SQLite. This may be found as part of the documentation
     for the [CREATE TABLE](lang_createtable.html) statement.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文不包含有关在 SQLite 中创建外键约束所使用的语法的完整描述。此可在 [CREATE TABLE](lang_createtable.html)
+    语句的文档中找到。
 - en: 'SQL foreign key constraints are used to enforce "exists" relationships between
     tables. For example, consider a database schema created using the following SQL
     commands:'
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: SQL 外键约束用于在表之间强制“存在”关系。例如，考虑使用以下 SQL 命令创建的数据库模式：
 - en: '[PRE0]'
+  id: totrans-7
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: The applications using this database are entitled to assume that for each row
     in the *track* table there exists a corresponding row in the *artist* table. After
     all, the comment in the declaration says so. Unfortunately, if a user edits the
@@ -49,17 +69,25 @@
     in the *track* table that do not correspond to any of the remaining rows in *artist*.
     This might cause the application or applications to malfunction later on, or at
     least make coding the application more difficult.
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用此数据库的应用程序有权假定，在 *track* 表中的每一行都存在对应的 *artist* 表中的一行。毕竟，声明中的注释就这么说的。不幸的是，如果用户使用外部工具编辑数据库，或者应用程序中存在错误，可能会插入到
+    *track* 表中不对应于 *artist* 表中任何行的行。或者，从 *artist* 表中删除行，使 *track* 表中存在孤立行，这些行不对应于
+    *artist* 中剩余行的任何行。这可能会导致应用程序或稍后出现故障，或者至少使编写应用程序更加困难。
 - en: 'One solution is to add an SQL foreign key constraint to the database schema
     to enforce the relationship between the *artist* and *track* table. To do so,
     a foreign key definition may be added by modifying the declaration of the *track*
     table to the following:'
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 一种解决方案是在数据库模式中添加 SQL 外键约束，以强制 *artist* 表和 *track* 表之间的关系。为此，可以通过修改 *track* 表的声明来添加外键定义，如下所示：
 - en: '[PRE1]'
+  id: totrans-10
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: 'This way, the constraint is enforced by SQLite. Attempting to insert a row
     into the *track* table that does not correspond to any row in the *artist* table
     will fail, as will attempting to delete a row from the *artist* table when there
@@ -67,91 +95,129 @@
     key column in the *track* table is NULL, then no corresponding entry in the *artist*
     table is required. Expressed in SQL, this means that for every row in the *track*
     table, the following expression evaluates to true:'
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 这样，SQLite 强制执行约束。尝试向 *track* 表中插入不对应于 *artist* 表中任何行的行将失败，同样，尝试在 *artist* 表中存在依赖行时删除行也将失败。有一个例外：如果
+    *track* 表中的外键列为 NULL，则不需要 *artist* 表中的对应条目。用 SQL 表达，这意味着对于 *track* 表中的每一行，以下表达式都为真：
 - en: '[PRE2]'
+  id: totrans-12
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE2]'
 - en: 'Tip: If the application requires a stricter relationship between *artist* and
     *track*, where NULL values are not permitted in the *trackartist* column, simply
     add the appropriate "NOT NULL" constraint to the schema.'
+  id: totrans-13
   prefs: []
   type: TYPE_NORMAL
+  zh: 提示：如果应用程序要求*艺术家*和*曲目*之间有更严格的关系，不允许在*trackartist*列中出现NULL值，只需在架构中添加适当的“NOT NULL”约束即可。
 - en: There are several other ways to add an equivalent foreign key declaration to
     a [CREATE TABLE](lang_createtable.html) statement. Refer to the [CREATE TABLE
     documentation](lang_createtable.html) for details.
+  id: totrans-14
   prefs: []
   type: TYPE_NORMAL
+  zh: 还有其他几种方法可以向[CREATE TABLE](lang_createtable.html)语句添加等效的外键声明。有关详细信息，请参阅[CREATE
+    TABLE文档](lang_createtable.html)。
 - en: 'The following SQLite command-line session illustrates the effect of the foreign
     key constraint added to the *track* table:'
+  id: totrans-15
   prefs: []
   type: TYPE_NORMAL
+  zh: 下面的SQLite命令行会话说明了添加到*track*表的外键约束的效果：
 - en: '[PRE3]'
+  id: totrans-16
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE3]'
 - en: 'As you would expect, it is not possible to manipulate the database to a state
     that violates the foreign key constraint by deleting or updating rows in the *artist*
     table either:'
+  id: totrans-17
   prefs: []
   type: TYPE_NORMAL
+  zh: 正如您所预期的那样，通过删除或更新*artist*表中的行来操纵数据库，使其违反外键约束状态是不可能的：
 - en: '[PRE4]'
+  id: totrans-18
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE4]'
 - en: 'SQLite uses the following terminology:'
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite使用以下术语：
 - en: The **parent table** is the table that a foreign key constraint refers to. The
     parent table in the example in this section is the *artist* table. Some books
     and articles refer to this as the *referenced table*, which is arguably more correct,
     but tends to lead to confusion.
+  id: totrans-20
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**父表**是外键约束所引用的表。本节示例中的父表是*artist*表。一些书籍和文章将其称为*被引用表*，这可能更加正确，但往往会导致混淆。'
 - en: The **child table** is the table that a foreign key constraint is applied to
     and the table that contains the REFERENCES clause. The example in this section
     uses the *track* table as the child table. Other books and articles refer to this
     as the *referencing table*.
+  id: totrans-21
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**子表**是应用外键约束的表，也是包含REFERENCES子句的表。本节示例中使用*track*表作为子表。其他书籍和文章将其称为*引用表*。'
 - en: The **parent key** is the column or set of columns in the parent table that
     the foreign key constraint refers to. This is normally, but not always, the primary
     key of the parent table. The parent key must be a named column or columns in the
     parent table, not the [rowid](lang_createtable.html#rowid).
+  id: totrans-22
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**父键**是外键约束所引用的父表中的列或列集。这通常是父表的主键，但并非总是如此。父键必须是父表中的命名列或列，而不是[rowid](lang_createtable.html#rowid)。'
 - en: The **child key** is the column or set of columns in the child table that are
     constrained by the foreign key constraint and which hold the REFERENCES clause.
+  id: totrans-23
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**子键**是受外键约束限制的子表中的列或列集，并保存REFERENCES子句。'
 - en: The foreign key constraint is satisfied if for each row in the child table either
     one or more of the child key columns are NULL, or there exists a row in the parent
     table for which each parent key column contains a value equal to the value in
     its associated child key column.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 外键约束在子表中的每一行，要么一个或多个子键列为空，要么存在父表中的一行，其中每个父键列包含与其关联的子键列中的值相等的值。
 - en: 'In the above paragraph, the term "equal" means equal when values are compared
     using the rules [specified here](datatype3.html#comparisons). The following clarifications
     apply:'
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: 在上述段落中，“相等”的术语意味着在使用[此处指定的规则](datatype3.html#comparisons)进行比较时相等。以下澄清适用：
 - en: When comparing text values, the [collating sequence](datatype3.html#collation)
     associated with the parent key column is always used.
+  id: totrans-26
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在比较文本值时，始终使用与父键列关联的排序序列。
 - en: When comparing values, if the parent key column has an [affinity](datatype3.html#affinity),
     then that affinity is applied to the child key value before the comparison is
     performed.
+  id: totrans-27
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在比较值时，如果父键列具有[亲和性](datatype3.html#affinity)，则在执行比较之前将该亲和性应用于子键值。
 - en: 2\. Enabling Foreign Key Support
+  id: totrans-28
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 2\. 启用外键支持
 - en: In order to use foreign key constraints in SQLite, the library must be compiled
     with neither [SQLITE_OMIT_FOREIGN_KEY](compile.html#omit_foreign_key) nor [SQLITE_OMIT_TRIGGER](compile.html#omit_trigger)
     defined. If SQLITE_OMIT_TRIGGER is defined but SQLITE_OMIT_FOREIGN_KEY is not,
@@ -162,16 +228,24 @@
     is a no-op in this configuration. If OMIT_FOREIGN_KEY is defined, then foreign
     key definitions cannot even be parsed (attempting to specify a foreign key definition
     is a syntax error).
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 要在SQLite中使用外键约束，库必须未定义[SQLITE_OMIT_FOREIGN_KEY](compile.html#omit_foreign_key)和[SQLITE_OMIT_TRIGGER](compile.html#omit_trigger)。如果定义了SQLITE_OMIT_TRIGGER但未定义SQLITE_OMIT_FOREIGN_KEY，则SQLite的行为与[版本3.6.19](releaselog/3_6_19.html)（2009-10-14）之前的版本相同
+    - 解析外键定义，并可以使用[PRAGMA foreign_key_list](pragma.html#pragma_foreign_key_list)进行查询，但不强制执行外键约束。在此配置中，[PRAGMA
+    foreign_keys](pragma.html#pragma_foreign_keys)命令是无效的。如果定义了OMIT_FOREIGN_KEY，则甚至不能解析外键定义（尝试指定外键定义将导致语法错误）。
 - en: 'Assuming the library is compiled with foreign key constraints enabled, it must
     still be enabled by the application at runtime, using the [PRAGMA foreign_keys](pragma.html#pragma_foreign_keys)
     command. For example:'
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 假设库已经编译启用了外键约束，但仍需在运行时由应用程序使用[PRAGMA foreign_keys](pragma.html#pragma_foreign_keys)命令启用它。例如：
 - en: '[PRE5]'
+  id: totrans-31
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE5]'
 - en: 'Foreign key constraints are disabled by default (for backwards compatibility),
     so must be enabled separately for each [database connection](c3ref/sqlite3.html).
     (Note, however, that future releases of SQLite might change so that foreign key
@@ -180,39 +254,55 @@
     or disable them as necessary.) The application can also use a [PRAGMA foreign_keys](pragma.html#pragma_foreign_keys)
     statement to determine if foreign keys are currently enabled. The following command-line
     session demonstrates this:'
+  id: totrans-32
   prefs: []
   type: TYPE_NORMAL
+  zh: 外键约束默认情况下处于禁用状态（为了向后兼容性），因此必须为每个[数据库连接](c3ref/sqlite3.html)单独启用它们。（然而，请注意，SQLite的未来版本可能会更改，以使外键约束默认启用。小心的开发人员不会假设外键默认启用或禁用，而是根据需要启用或禁用它们。）应用程序还可以使用[PRAGMA
+    foreign_keys](pragma.html#pragma_foreign_keys)语句来确定当前是否已启用外键。以下命令行会话演示了这一点：
 - en: '[PRE6]'
+  id: totrans-33
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE6]'
 - en: 'Tip: If the command "PRAGMA foreign_keys" returns no data instead of a single
     row containing "0" or "1", then the version of SQLite you are using does not support
     foreign keys (either because it is older than 3.6.19 or because it was compiled
     with [SQLITE_OMIT_FOREIGN_KEY](compile.html#omit_foreign_key) or [SQLITE_OMIT_TRIGGER](compile.html#omit_trigger)
     defined).'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 提示：如果命令"PRAGMA foreign_keys"返回的不是包含"0"或"1"的单行数据，那么您正在使用的SQLite版本不支持外键（可能是因为版本低于3.6.19或编译时定义了[SQLITE_OMIT_FOREIGN_KEY](compile.html#omit_foreign_key)或[SQLITE_OMIT_TRIGGER](compile.html#omit_trigger)）。
 - en: It is not possible to enable or disable foreign key constraints in the middle
     of a [multi-statement transaction](lang_transaction.html) (when SQLite is not
     in [autocommit mode](c3ref/get_autocommit.html)). Attempting to do so does not
     return an error; it simply has no effect.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: 不可能在[多语句事务](lang_transaction.html)（SQLite不处于[自动提交模式](c3ref/get_autocommit.html)时）中间启用或禁用外键约束。尝试这样做不会返回错误；它只是无效果。
 - en: 3\. Required and Suggested Database Indexes
+  id: totrans-36
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. 必需和建议的数据库索引
 - en: Usually, the parent key of a foreign key constraint is the primary key of the
     parent table. If they are not the primary key, then the parent key columns must
     be collectively subject to a UNIQUE constraint or have a UNIQUE index. If the
     parent key columns have a UNIQUE index, then that index must use the collation
     sequences that are specified in the CREATE TABLE statement for the parent table.
     For example,
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 通常情况下，外键约束的父键是父表的主键。如果它们不是主键，则父键列必须共同受到唯一约束或具有唯一索引的约束。如果父键列具有唯一索引，则该索引必须使用在父表的CREATE
+    TABLE语句中指定的排序序列。例如，
 - en: '[PRE7]'
+  id: totrans-38
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE7]'
 - en: The foreign key constraints created as part of tables *child1*, *child2* and
     *child3* are all fine. The foreign key declared as part of table *child4* is an
     error because even though the parent key column is indexed, the index is not UNIQUE.
@@ -221,8 +311,11 @@
     Tables *child6* and *child7* are incorrect because while both have UNIQUE indices
     on their parent keys, the keys are not an exact match to the columns of a single
     UNIQUE index.
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: 表 *child1*、*child2* 和 *child3* 中作为表的一部分创建的外键约束都是正确的。表 *child4* 中作为表的一部分创建的外键是错误的，因为即使父键列被索引，该索引也不是唯一的。表
+    *child5* 中的外键是错误的，因为即使父键列有唯一索引，该索引使用了不同的排序序列。表 *child6* 和 *child7* 是不正确的，因为虽然两者在其父键上有唯一索引，但这些键不完全匹配单个唯一索引的列。
 - en: 'If the database schema contains foreign key errors that require looking at
     more than one table definition to identify, then those errors are not detected
     when the tables are created. Instead, such errors prevent the application from
@@ -234,118 +327,172 @@
     for foreign key DML errors is usually "foreign key mismatch" but can also be "no
     such table" if the parent table does not exist. Foreign key DML errors are reported
     if:'
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果数据库模式包含外键错误，需要查看超过一个表定义才能识别这些错误，则在创建表时不会检测到这些错误。相反，这些错误会阻止应用程序准备使用外键修改子或父表内容的
+    SQL 语句。在更改内容时报告的错误是“DML 错误”，在更改模式时报告的错误是“DDL 错误”。换句话说，需要查看子表和父表的配置错误外键约束是 DML
+    错误。外键 DML 错误的英语语言错误消息通常是“外键不匹配”，但如果父表不存在，则也可以是“没有这样的表”。如果：
 - en: The parent table does not exist, or
+  id: totrans-41
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 父表不存在，或者
 - en: The parent key columns named in the foreign key constraint do not exist, or
+  id: totrans-42
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在外键约束中命名的父键列不存在，或者
 - en: The parent key columns named in the foreign key constraint are not the primary
     key of the parent table and are not subject to a unique constraint using collating
     sequence specified in the CREATE TABLE, or
+  id: totrans-43
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 在外键约束中命名的父键列不是父表的主键，并且不受使用在 CREATE TABLE 中指定的排序序列的唯一约束的约束，或者
 - en: The child table references the primary key of the parent without specifying
     the primary key columns and the number of primary key columns in the parent do
     not match the number of child key columns.
+  id: totrans-44
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 子表引用父表的主键，但未指定主键列，并且父表中的主键列数与子键列数不匹配。
 - en: 'The last bullet above is illustrated by the following:'
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述最后一个项目如下所示：
 - en: '[PRE8]'
+  id: totrans-46
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE8]'
 - en: By contrast, if foreign key errors can be recognized simply by looking at the
     definition of the child table and without having to consult the parent table definition,
     then the [CREATE TABLE](lang_createtable.html) statement for the child table fails.
     Because the error occurs during a schema change, this is a DDL error. Foreign
     key DDL errors are reported regardless of whether or not foreign key constraints
     are enabled when the table is created.
+  id: totrans-47
   prefs: []
   type: TYPE_NORMAL
+  zh: 相比之下，如果外键错误可以通过简单查看子表的定义而不必查看父表定义就可以识别，则子表的 [CREATE TABLE](lang_createtable.html)
+    语句失败。因为错误发生在模式更改期间，这是 DDL 错误。无论在创建表时是否启用外键约束，都会报告外键 DDL 错误。
 - en: Indices are not required for child key columns but they are almost always beneficial.
     Returning to the example in [section 1](#fk_basics), each time an application
     deletes a row from the *artist* table (the parent table), it performs the equivalent
     of the following SELECT statement to search for referencing rows in the *track*
     table (the child table).
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 索引不是必需的子键列，但几乎总是有益的。回到 [第 1 节](#fk_basics) 中的示例，每当应用程序从 *artist* 表（父表）中删除一行时，它执行以下
+    SELECT 语句来搜索 *track* 表（子表）中的引用行的等效内容。
 - en: '[PRE9]'
+  id: totrans-49
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE9]'
 - en: 'where ? in the above is replaced with the value of the *artistid* column of
     the record being deleted from the *artist* table (recall that the *trackartist*
     column is the child key and the *artistid* column is the parent key). Or, more
     generally:'
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 上述的“？”被替换为从 *artist* 表中删除的记录的 *artistid* 列的值（请记住 *trackartist* 列是子键，*artistid*
+    列是父键）。或者更一般地说：
 - en: '[PRE10]'
+  id: totrans-51
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE10]'
 - en: If this SELECT returns any rows at all, then SQLite concludes that deleting
     the row from the parent table would violate the foreign key constraint and returns
     an error. Similar queries may be run if the content of the parent key is modified
     or a new row is inserted into the parent table. If these queries cannot use an
     index, they are forced to do a linear scan of the entire child table. In a non-trivial
     database, this may be prohibitively expensive.
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果此 SELECT 返回任何行，则 SQLite 认为从父表中删除行将违反外键约束并返回错误。如果修改了父键的内容或在父表中插入了新行，则可能运行类似的查询。如果这些查询不能使用索引，则被迫对整个子表进行线性扫描。在一个非平凡的数据库中，这可能成本太高。
 - en: 'So, in most real systems, an index should be created on the child key columns
     of each foreign key constraint. The child key index does not have to be (and usually
     will not be) a UNIQUE index. Returning again to the example in section 1, the
     complete database schema for efficient implementation of the foreign key constraint
     might be:'
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，在大多数实际系统中，应在每个外键约束的子键列上创建索引。子键索引不必是（通常也不会是）唯一索引。再次回到第1节中的示例，为了有效实现外键约束，完整的数据库模式可能是：
 - en: '[PRE11]'
+  id: totrans-54
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE11]'
 - en: The block above uses a shorthand form to create the foreign key constraint.
     Attaching a "REFERENCES *<parent-table>*" clause to a column definition creates
     a foreign key constraint that maps the column to the primary key of *<parent-table>*.
     Refer to the [CREATE TABLE](lang_createtable.html) documentation for further details.
+  id: totrans-55
   prefs: []
   type: TYPE_NORMAL
+  zh: 上面的代码块使用了一种简写形式来创建外键约束。在列定义中附加一个"REFERENCES *<parent-table>*"子句将创建一个将该列映射到*<parent-table>*主键的外键约束。更多详细信息请参阅
+    [CREATE TABLE](lang_createtable.html) 文档。
 - en: 4\. Advanced Foreign Key Constraint Features
+  id: totrans-56
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. 高级外键约束特性
 - en: 4.1\. Composite Foreign Key Constraints
+  id: totrans-57
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.1\. 复合外键约束
 - en: 'A composite foreign key constraint is one where the child and parent keys are
     both composite keys. For example, consider the following database schema:'
+  id: totrans-58
   prefs: []
   type: TYPE_NORMAL
+  zh: 复合外键约束是指子键和父键都是复合键的约束。例如，考虑以下数据库模式：
 - en: '[PRE12]'
+  id: totrans-59
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE12]'
 - en: In this system, each entry in the song table is required to map to an entry
     in the album table with the same combination of artist and album.
+  id: totrans-60
   prefs: []
   type: TYPE_NORMAL
+  zh: 在这个系统中，歌曲表中的每个条目都必须映射到具有相同艺术家和专辑组合的专辑表中的条目。
 - en: Parent and child keys must have the same cardinality. In SQLite, if any of the
     child key columns (in this case songartist and songalbum) are NULL, then there
     is no requirement for a corresponding row in the parent table.
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 父键和子键必须具有相同的基数。在 SQLite 中，如果任何子键列（在本例中为 songartist 和 songalbum）为空，则不需要在父表中有相应的行。
 - en: 4.2\. Deferred Foreign Key Constraints
+  id: totrans-62
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.2\. 延迟外键约束
 - en: Each foreign key constraint in SQLite is classified as either immediate or deferred.
     Foreign key constraints are immediate by default. All the foreign key examples
     presented so far have been of immediate foreign key constraints.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 每个 SQLite 中的外键约束都被分为立即生效和延迟生效。外键约束默认为立即生效。到目前为止，所展示的所有外键示例都是立即生效的外键约束。
 - en: If a statement modifies the contents of the database so that an immediate foreign
     key constraint is in violation at the conclusion the statement, an exception is
     thrown and the effects of the statement are reverted. By contrast, if a statement
@@ -356,76 +503,113 @@
     in a state that violates any number of deferred foreign key constraints. However,
     [COMMIT](lang_transaction.html) will fail as long as foreign key constraints remain
     in violation.
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果一条语句修改了数据库内容，导致在语句结束时立即外键约束被违反，则会抛出异常并回滚语句的效果。相反，如果一条语句修改了数据库内容，导致延迟外键约束被违反，则不会立即报告违反情况。延迟外键约束直到事务尝试
+    [COMMIT](lang_transaction.html) 才会检查。只要用户有一个打开的事务，数据库允许存在违反任意数量的延迟外键约束的状态。但是，只要外键约束仍然违反，[COMMIT](lang_transaction.html)
+    将会失败。
 - en: If the current statement is not inside an explicit transaction (a [BEGIN](lang_transaction.html)/[COMMIT](lang_transaction.html)/[ROLLBACK](lang_transaction.html)
     block), then an implicit transaction is committed as soon as the statement has
     finished executing. In this case deferred constraints behave the same as immediate
     constraints.
+  id: totrans-65
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果当前语句不在显式事务（[BEGIN](lang_transaction.html)/[COMMIT](lang_transaction.html)/[ROLLBACK](lang_transaction.html)
+    块）中，则隐式事务在语句执行完毕后立即提交。在这种情况下，延迟约束的行为与即时约束相同。
 - en: 'To mark a foreign key constraint as deferred, its declaration must include
     the following clause:'
+  id: totrans-66
   prefs: []
   type: TYPE_NORMAL
+  zh: 要将外键约束标记为延迟，其声明必须包括以下子句：
 - en: '[PRE13]'
+  id: totrans-67
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE13]'
 - en: The full syntax for specifying foreign key constraints is available as part
     of the [CREATE TABLE](lang_createtable.html) documentation. Replacing the phrase
     above with any of the following creates an immediate foreign key constraint.
+  id: totrans-68
   prefs: []
   type: TYPE_NORMAL
+  zh: 指定外键约束的完整语法作为 [CREATE TABLE](lang_createtable.html) 文档的一部分提供。用以下任何短语替换上述短语将创建一个即时外键约束。
 - en: '[PRE14]'
+  id: totrans-69
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE14]'
 - en: The [defer_foreign_keys pragma](pragma.html#pragma_defer_foreign_keys) can be
     used to temporarily change all foreign key constraints to deferred regardless
     of how they are declared.
+  id: totrans-70
   prefs: []
   type: TYPE_NORMAL
+  zh: '[defer_foreign_keys pragma](pragma.html#pragma_defer_foreign_keys) 可用于临时更改所有外键约束为延迟约束，而不管它们的声明方式如何。'
 - en: The following example illustrates the effect of using a deferred foreign key
     constraint.
+  id: totrans-71
   prefs: []
   type: TYPE_NORMAL
+  zh: 以下示例说明了使用延迟外键约束的效果。
 - en: '[PRE15]'
+  id: totrans-72
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE15]'
 - en: A [nested savepoint](lang_savepoint.html) transaction may be RELEASEd while
     the database is in a state that does not satisfy a deferred foreign key constraint.
     A transaction savepoint (a non-nested savepoint that was opened while there was
     not currently an open transaction), on the other hand, is subject to the same
     restrictions as a COMMIT - attempting to RELEASE it while the database is in such
     a state will fail.
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以在数据库不满足延迟外键约束的状态下 RELEASE [nested savepoint](lang_savepoint.html) 事务。然而，事务保存点（在当前没有打开事务的情况下打开的非嵌套保存点）受到与
+    COMMIT 相同的限制 - 在数据库处于这种状态时尝试 RELEASE 它将失败。
 - en: If a COMMIT statement (or the RELEASE of a transaction SAVEPOINT) fails because
     the database is currently in a state that violates a deferred foreign key constraint
     and there are currently [nested savepoints](lang_savepoint.html), the nested savepoints
     remain open.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果 COMMIT 语句（或事务 SAVEPOINT 的 RELEASE）因为数据库当前处于违反延迟外键约束的状态而失败，并且当前存在 [nested
+    savepoints](lang_savepoint.html)，则嵌套保存点保持打开状态。
 - en: 4.3\. ON DELETE and ON UPDATE Actions
+  id: totrans-75
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 4.3\. ON DELETE 和 ON UPDATE 操作
 - en: Foreign key ON DELETE and ON UPDATE clauses are used to configure actions that
     take place when deleting rows from the parent table (ON DELETE), or modifying
     the parent key values of existing rows (ON UPDATE). A single foreign key constraint
     may have different actions configured for ON DELETE and ON UPDATE. Foreign key
     actions are similar to triggers in many ways.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 外键的 ON DELETE 和 ON UPDATE 子句用于配置删除父表行时的操作（ON DELETE），或修改现有行的父键值时的操作（ON UPDATE）。单个外键约束可以为
+    ON DELETE 和 ON UPDATE 配置不同的操作。外键操作在许多方面类似于触发器。
 - en: The ON DELETE and ON UPDATE action associated with each foreign key in an SQLite
     database is one of "NO ACTION", "RESTRICT", "SET NULL", "SET DEFAULT" or "CASCADE".
     If an action is not explicitly specified, it defaults to "NO ACTION".
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 SQLite 数据库中，每个外键的 ON DELETE 和 ON UPDATE 操作可以是 "NO ACTION"、"RESTRICT"、"SET
+    NULL"、"SET DEFAULT" 或 "CASCADE" 中的一个。如果未明确指定操作，则默认为 "NO ACTION"。
 - en: '**NO ACTION**: Configuring "NO ACTION" means just that: when a parent key is
     modified or deleted from the database, no special action is taken.'
+  id: totrans-78
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**NO ACTION**: 配置为 "NO ACTION" 意味着：当数据库中的父键被修改或删除时，不会执行任何特殊操作。'
 - en: '**RESTRICT**: The "RESTRICT" action means that the application is prohibited
     from deleting (for ON DELETE RESTRICT) or modifying (for ON UPDATE RESTRICT) a
     parent key when there exists one or more child keys mapped to it. The difference
@@ -436,127 +620,183 @@
     Even if the foreign key constraint it is attached to is deferred, configuring
     a RESTRICT action causes SQLite to return an error immediately if a parent key
     with dependent child keys is deleted or modified.'
+  id: totrans-79
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**RESTRICT**: “RESTRICT”操作意味着当存在一个或多个映射到其上的子键时，应用程序被禁止删除（对于ON DELETE RESTRICT）或修改（对于ON
+    UPDATE RESTRICT）父键。 RESTRICT操作与正常的外键约束执行的区别在于，RESTRICT操作处理发生在更新字段时 - 而不是像即时约束一样在当前语句结束时，或者像延迟约束一样在当前事务结束时。即使外键约束是延迟的，配置RESTRICT操作也会导致SQLite在删除或修改具有依赖子键的父键时立即返回错误。'
 - en: '**SET NULL**: If the configured action is "SET NULL", then when a parent key
     is deleted (for ON DELETE SET NULL) or modified (for ON UPDATE SET NULL), the
     child key columns of all rows in the child table that mapped to the parent key
     are set to contain SQL NULL values.'
+  id: totrans-80
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**SET NULL**: 如果配置的操作是“SET NULL”，那么当删除父键（对于ON DELETE SET NULL）或修改父键（对于ON UPDATE
+    SET NULL）时，子表中映射到父键的所有行的子键列将设置为SQL NULL值。'
 - en: '**SET DEFAULT**: The "SET DEFAULT" actions are similar to "SET NULL", except
     that each of the child key columns is set to contain the column''s default value
     instead of NULL. Refer to the [CREATE TABLE](lang_createtable.html) documentation
     for details on how default values are assigned to table columns.'
+  id: totrans-81
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**SET DEFAULT**: “SET DEFAULT”操作与“SET NULL”类似，不同之处在于每个子键列设置为包含列的默认值而不是NULL。有关如何为表列分配默认值的详细信息，请参阅[CREATE
+    TABLE](lang_createtable.html)文档。'
 - en: '**CASCADE**: A "CASCADE" action propagates the delete or update operation on
     the parent key to each dependent child key. For an "ON DELETE CASCADE" action,
     this means that each row in the child table that was associated with the deleted
     parent row is also deleted. For an "ON UPDATE CASCADE" action, it means that the
     values stored in each dependent child key are modified to match the new parent
     key values.'
+  id: totrans-82
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**CASCADE**: “CASCADE”操作将删除或更新父键的操作传播到每个依赖子键。对于“ON DELETE CASCADE”操作，这意味着与已删除的父行相关联的子表中的每行也将被删除。对于“ON
+    UPDATE CASCADE”操作，这意味着将修改每个依赖子键中存储的值以匹配新的父键值。'
 - en: 'For example, adding an "ON UPDATE CASCADE" clause to the foreign key as shown
     below enhances the example schema from section 1 to allow the user to update the
     artistid (the parent key of the foreign key constraint) column without breaking
     referential integrity:'
+  id: totrans-83
   prefs: []
   type: TYPE_NORMAL
+  zh: 例如，向外键添加如下所示的“ON UPDATE CASCADE”子句，可以增强第1节中示例模式，允许用户更新artistid（外键约束的父键）列而不会破坏引用完整性：
 - en: '[PRE16]'
+  id: totrans-84
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE16]'
 - en: 'Configuring an ON UPDATE or ON DELETE action does not mean that the foreign
     key constraint does not need to be satisfied. For example, if an "ON DELETE SET
     DEFAULT" action is configured, but there is no row in the parent table that corresponds
     to the default values of the child key columns, deleting a parent key while dependent
     child keys exist still causes a foreign key violation. For example:'
+  id: totrans-85
   prefs: []
   type: TYPE_NORMAL
+  zh: 配置ON UPDATE或ON DELETE操作并不意味着不需要满足外键约束。例如，如果配置了“ON DELETE SET DEFAULT”操作，但父表中不存在与子键列的默认值对应的行，则在存在依赖子键的情况下删除父键仍会导致外键违规。例如：
 - en: '[PRE17]'
+  id: totrans-86
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE17]'
 - en: 'Those familiar with [SQLite triggers](lang_createtrigger.html) will have noticed
     that the "ON DELETE SET DEFAULT" action demonstrated in the example above is similar
     in effect to the following AFTER DELETE trigger:'
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 熟悉[SQLite触发器](lang_createtrigger.html)的人会注意到，在上面示例中演示的“ON DELETE SET DEFAULT”操作与以下AFTER
+    DELETE触发器的效果类似：
 - en: '[PRE18]'
+  id: totrans-88
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE18]'
 - en: 'Whenever a row in the parent table of a foreign key constraint is deleted,
     or when the values stored in the parent key column or columns are modified, the
     logical sequence of events is:'
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 每当删除外键约束的父表中的行，或者修改存储在父键列或列中的值时，逻辑事件的序列是：
 - en: Execute applicable BEFORE trigger programs,
+  id: totrans-90
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行适用的BEFORE触发程序，
 - en: Check local (non foreign key) constraints,
+  id: totrans-91
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检查本地（非外键）约束，
 - en: Update or delete the row in the parent table,
+  id: totrans-92
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 更新或删除父表中的行，
 - en: Perform any required foreign key actions,
+  id: totrans-93
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行任何必需的外键操作，
 - en: Execute applicable AFTER trigger programs.
+  id: totrans-94
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 执行适用的 AFTER 触发程序。
 - en: 'There is one important difference between ON UPDATE foreign key actions and
     SQL triggers. An ON UPDATE action is only taken if the values of the parent key
     are modified so that the new parent key values are not equal to the old. For example:'
+  id: totrans-95
   prefs: []
   type: TYPE_NORMAL
+  zh: ON UPDATE 外键操作和 SQL 触发器之间有一个重要的区别。只有当父键的值被修改，使新的父键值不等于旧值时，才会执行 ON UPDATE 操作。例如：
 - en: '[PRE19]'
+  id: totrans-96
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE19]'
 - en: 5\. CREATE, ALTER and DROP TABLE commands
+  id: totrans-97
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 5\. CREATE、ALTER 和 DROP TABLE 命令
 - en: This section describes the way the [CREATE TABLE](lang_createtable.html), [ALTER
     TABLE](lang_altertable.html), and [DROP TABLE](lang_droptable.html) commands interact
     with SQLite's foreign keys.
+  id: totrans-98
   prefs: []
   type: TYPE_NORMAL
+  zh: 本节描述了 [CREATE TABLE](lang_createtable.html)、[ALTER TABLE](lang_altertable.html)
+    和 [DROP TABLE](lang_droptable.html) 命令与 SQLite 的外键交互方式。
 - en: A [CREATE TABLE](lang_createtable.html) command operates the same whether or
     not [foreign key constraints are enabled](foreignkeys.html#fk_enable). The parent
     key definitions of foreign key constraints are not checked when a table is created.
     There is nothing stopping the user from creating a foreign key definition that
     refers to a parent table that does not exist, or to parent key columns that do
     not exist or are not collectively bound by a PRIMARY KEY or UNIQUE constraint.
+  id: totrans-99
   prefs: []
   type: TYPE_NORMAL
+  zh: '[CREATE TABLE](lang_createtable.html) 命令在启用或禁用 [外键约束](foreignkeys.html#fk_enable)
+    时操作相同。在创建表时不会检查外键约束的父键定义。用户可以创建引用不存在的父表或者不存在或者不被主键或唯一约束共同绑定的父键列的外键定义。'
 - en: 'The [ALTER TABLE](lang_altertable.html) command works differently in two respects
     when foreign key constraints are enabled:'
+  id: totrans-100
   prefs: []
   type: TYPE_NORMAL
+  zh: '[ALTER TABLE](lang_altertable.html) 命令在启用外键约束时，在两个方面的工作方式有所不同：'
 - en: It is not possible to use the "ALTER TABLE ... ADD COLUMN" syntax to add a column
     that includes a REFERENCES clause, unless the default value of the new column
     is NULL. Attempting to do so returns an error.
+  id: totrans-101
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 不可能使用 "ALTER TABLE ... ADD COLUMN" 语法添加包含 REFERENCES 子句的列，除非新列的默认值为 NULL。尝试这样做会返回错误。
 - en: If an "ALTER TABLE ... RENAME TO" command is used to rename a table that is
     the parent table of one or more foreign key constraints, the definitions of the
     foreign key constraints are modified to refer to the parent table by its new name.
     The text of the child CREATE TABLE statement or statements stored in the [sqlite_schema
     table](schematab.html) are modified to reflect the new parent table name.
+  id: totrans-102
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果使用 "ALTER TABLE ... RENAME TO" 命令重命名一个包含一个或多个外键约束的父表，那么外键约束的定义将被修改，以引用父表的新名称。存储在
+    [sqlite_schema 表](schematab.html) 中的子 CREATE TABLE 语句的文本将被修改，以反映新的父表名称。
 - en: If foreign key constraints are enabled when it is prepared, the [DROP TABLE](lang_droptable.html)
     command performs an implicit [DELETE](lang_delete.html) to remove all rows from
     the table before dropping it. The implicit DELETE does not cause any SQL triggers
@@ -566,8 +806,13 @@
     is reported when the user attempts to commit the transaction if the foreign key
     constraint violations still exist at that point. Any "foreign key mismatch" errors
     encountered as part of an implicit DELETE are ignored.
+  id: totrans-103
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在准备时启用了外键约束，那么 [DROP TABLE](lang_droptable.html) 命令在删除表之前执行隐式的 [DELETE](lang_delete.html)
+    操作来删除表中的所有行。隐式的 DELETE 操作不会触发任何 SQL 触发器，但可能会调用外键操作或约束违规。如果立即外键约束违反，则 DROP TABLE
+    语句失败，表不会被删除。如果延迟外键约束违反，则在用户尝试提交事务时报告错误，如果在那时仍然存在外键约束违反。隐式 DELETE 过程中遇到的任何 "foreign
+    key mismatch" 错误都将被忽略。
 - en: The intent of these enhancements to the [ALTER TABLE](lang_altertable.html)
     and [DROP TABLE](lang_droptable.html) commands is to ensure that they cannot be
     used to create a database that contains foreign key violations, at least while
@@ -582,8 +827,11 @@
     that do not refer to any parent table row. This case can be avoided if all parent
     keys in the database schema are constrained by PRIMARY KEY or UNIQUE constraints
     added as part of the parent table definition, not by external UNIQUE indexes.
+  id: totrans-104
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于 [ALTER TABLE](lang_altertable.html) 和 [DROP TABLE](lang_droptable.html) 命令的这些增强功能的目的是确保它们在启用外键约束时无法用于创建包含外键违规的数据库，至少是在外键约束启用时。但是，这个规则有一个例外。如果父键不受作为父表定义的一部分创建的主键或唯一约束的约束，而是通过使用
+    [CREATE INDEX](lang_createindex.html) 命令创建的索引受唯一约束的约束，则可以在不引起“外键不匹配”错误的情况下填充子表。如果从数据库模式中删除唯一索引，则将删除父表本身，不会报错。但是数据库可能处于一个状态，其中外键约束的子表包含不引用任何父表行的行。如果数据库模式中的所有父键都受到作为父表定义的一部分添加的主键或唯一约束的约束，而不是外部唯一索引的约束，则可以避免这种情况。
 - en: The properties of the [DROP TABLE](lang_droptable.html) and [ALTER TABLE](lang_altertable.html)
     commands described above only apply if foreign keys are enabled. If the user considers
     them undesirable, then the workaround is to use [PRAGMA foreign_keys](pragma.html#pragma_foreign_keys)
@@ -591,16 +839,24 @@
     Of course, while foreign key constraints are disabled, there is nothing to stop
     the user from violating foreign key constraints and thus creating an internally
     inconsistent database.
+  id: totrans-105
   prefs: []
   type: TYPE_NORMAL
+  zh: '[DROP TABLE](lang_droptable.html) 和 [ALTER TABLE](lang_altertable.html) 命令的属性如上所述仅在启用外键时适用。如果用户认为它们不可取，那么解决方法是在执行
+    DROP 或 ALTER TABLE 命令之前使用 [PRAGMA foreign_keys](pragma.html#pragma_foreign_keys)
+    来禁用外键约束。当然，在禁用外键约束时，用户可以违反外键约束，从而创建内部不一致的数据库。'
 - en: 6\. Limits and Unsupported Features
+  id: totrans-106
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 6\. 限制和不支持的功能
 - en: This section lists a few limitations and omitted features that are not mentioned
     elsewhere.
+  id: totrans-107
   prefs: []
   type: TYPE_NORMAL
+  zh: 本节列出了一些在其他地方未提及的限制和省略功能。
 - en: '**No support for the MATCH clause.** According to SQL92, a MATCH clause may
     be attached to a composite foreign key definition to modify the way NULL values
     that occur in child keys are handled. If "MATCH SIMPLE" is specified, then a child
@@ -611,23 +867,33 @@
     is declared as "MATCH PARTIAL" and one of the child key values is NULL, there
     must exist at least one row in the parent table for which the non-NULL child key
     values match the parent key values.'
+  id: totrans-108
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**不支持 MATCH 子句。** 根据 SQL92，MATCH 子句可以附加到复合外键定义，以修改处理子键中出现的 NULL 值的方式。如果指定了
+    "MATCH SIMPLE"，则不需要子键对应于父表的任何行，如果一个或多个子键值为 NULL。如果指定了 "MATCH FULL"，则如果任何子键值为 NULL，则不需要父表中的相应行，但是所有子键值必须为
+    NULL。最后，如果外键约束声明为 "MATCH PARTIAL" 并且一个子键值为 NULL，则必须存在至少一行父表，其中非 NULL 子键值与父键值匹配。'
 - en: SQLite parses MATCH clauses (i.e. does not report a syntax error if you specify
     one), but does not enforce them. All foreign key constraints in SQLite are handled
     as if MATCH SIMPLE were specified.
+  id: totrans-109
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: SQLite 解析 MATCH 子句（即，如果指定了 MATCH 子句，不会报告语法错误），但不强制执行它们。在 SQLite 中，所有外键约束都被处理为如果指定了
+    MATCH SIMPLE。
 - en: '**No support for switching constraints between deferred and immediate mode.**
     Many systems allow the user to toggle individual foreign key constraints between
     [deferred](#fk_deferred) and immediate mode at runtime (for example using the
     Oracle "SET CONSTRAINT" command). SQLite does not support this. In SQLite, a foreign
     key constraint is permanently marked as deferred or immediate when it is created.'
+  id: totrans-110
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**不支持在延迟模式和立即模式之间切换约束。** 许多系统允许用户在运行时切换单个外键约束的[延迟](#fk_deferred)和立即模式（例如使用
+    Oracle 的 "SET CONSTRAINT" 命令）。SQLite 不支持这一功能。在 SQLite 中，创建外键约束时会永久标记为延迟或立即模式。'
 - en: '**Recursion limit on foreign key actions.** The [SQLITE_MAX_TRIGGER_DEPTH](limits.html#max_trigger_depth)
     and [SQLITE_LIMIT_TRIGGER_DEPTH](c3ref/c_limit_attached.html#sqlitelimittriggerdepth)
     settings determine the maximum allowable depth of trigger program recursion. For
@@ -635,12 +901,19 @@
     are considered trigger programs. The [PRAGMA recursive_triggers](pragma.html#pragma_recursive_triggers)
     setting does not affect the operation of foreign key actions. It is not possible
     to disable recursive foreign key actions.'
+  id: totrans-111
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**外键操作的递归限制。** [SQLITE_MAX_TRIGGER_DEPTH](limits.html#max_trigger_depth) 和
+    [SQLITE_LIMIT_TRIGGER_DEPTH](c3ref/c_limit_attached.html#sqlitelimittriggerdepth)
+    设置确定触发器程序递归的最大允许深度。对于这些限制，[外键操作](foreignkeys.html#fk_actions)被视为触发器程序。[PRAGMA
+    recursive_triggers](pragma.html#pragma_recursive_triggers) 设置不影响外键操作的运行。不可能禁用递归外键操作。'
 - en: '**Foreign keys may not cross schema boundaries.** That is, in `REFERENCES (X.Y)`
     table `X` will only be resolved within the schema which contains the `REFERENCES`
     clause.'
+  id: totrans-112
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '**外键可能不会跨越模式边界。** 也就是说，在`REFERENCES (X.Y)`表中，表`X`只会在包含`REFERENCES`子句的模式内解析。'

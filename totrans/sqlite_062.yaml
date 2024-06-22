@@ -1,67 +1,94 @@
 - en: 1\. Overview
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 1\. 概述
 - en: 原文：[https://sqlite.com/wal.html](https://sqlite.com/wal.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/wal.html](https://sqlite.com/wal.html)
 - en: The default method by which SQLite implements [atomic commit and rollback](atomiccommit.html)
     is a [rollback journal](lockingv3.html#rollback). Beginning with [version 3.7.0](releaselog/3_7_0.html)
     (2010-07-21), a new "Write-Ahead Log" option (hereafter referred to as "WAL")
     is available.
+  id: totrans-2
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite实现[原子提交和回滚](atomiccommit.html)的默认方法是[回滚日志](lockingv3.html#rollback)。从[版本3.7.0](releaselog/3_7_0.html)（2010-07-21）开始，提供了一种新的“写前日志”选项（以下简称WAL）。
 - en: 'There are advantages and disadvantages to using WAL instead of a rollback journal.
     Advantages include:'
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用WAL而不是回滚日志的优缺点有：
 - en: WAL is significantly faster in most scenarios.
+  id: totrans-4
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在大多数场景下，WAL明显更快。
 - en: WAL provides more concurrency as readers do not block writers and a writer does
     not block readers. Reading and writing can proceed concurrently.
+  id: totrans-5
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: WAL提供更多的并发性，因为读者不会阻塞写入者，写入者也不会阻塞读者。读取和写入可以并发进行。
 - en: Disk I/O operations tends to be more sequential using WAL.
+  id: totrans-6
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用WAL时，磁盘I/O操作倾向于更加顺序化。
 - en: WAL uses many fewer fsync() operations and is thus less vulnerable to problems
     on systems where the fsync() system call is broken.
+  id: totrans-7
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: WAL使用较少的fsync()操作，因此在fsync()系统调用存在问题的系统上，它更不容易出现问题。
 - en: 'But there are also disadvantages:'
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: 但是也有一些缺点：
 - en: 'WAL normally requires that the [VFS](vfs.html) support shared-memory primitives.
     (Exception: [WAL without shared memory](wal.html#noshm)) The built-in unix and
     windows VFSes support this but third-party extension VFSes for custom operating
     systems might not.'
+  id: totrans-9
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: WAL通常要求[VFS](vfs.html)支持共享内存原语。（例外情况：[无共享内存的WAL](wal.html#noshm)）内置的unix和windows
+    VFS支持此功能，但第三方扩展的自定义操作系统的VFS可能不支持。
 - en: All processes using a database must be on the same host computer; WAL does not
     work over a network filesystem.
+  id: totrans-10
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用数据库的所有进程必须在同一台主机上；WAL不适用于网络文件系统。
 - en: Transactions that involve changes against multiple [ATTACHed](lang_attach.html)
     databases are atomic for each individual database, but are not atomic across all
     databases as a set.
+  id: totrans-11
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对涉及多个[ATTACH](lang_attach.html)数据库的事务在每个单独的数据库中是原子的，但在整个数据库集合中不是原子的。
 - en: It is not possible to change the [page_size](pragma.html#pragma_page_size) after
     entering WAL mode, either on an empty database or by using [VACUUM](lang_vacuum.html)
     or by restoring from a backup using the [backup API](backup.html). You must be
     in a rollback journal mode to change the page size.
+  id: totrans-12
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 进入WAL模式后，无法通过[VACUUM](lang_vacuum.html)或使用[备份API](backup.html)从空数据库或备份中恢复来更改[page_size](pragma.html#pragma_page_size)。必须处于回滚日志模式才能更改页面大小。
 - en: ~~It is not possible to open [read-only WAL databases](wal.html#readonly). The
     opening process must have write privileges for "`-shm`" [wal-index](walformat.html#shm)
     shared memory file associated with the database, if that file exists, or else
@@ -69,26 +96,34 @@
     does not exist.~~ Beginning with [version 3.22.0](releaselog/3_22_0.html) (2018-01-22),
     a read-only WAL-mode database file can be opened if the `-shm` and `-wal` files
     already exists or those files can be created or the [database is immutable](uri.html#uriimmutable).
+  id: totrans-13
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从[版本3.22.0](releaselog/3_22_0.html)（2018-01-22）开始，如果`-shm`和`-wal`文件已经存在，或者这些文件可以被创建，或者[数据库是不可变的](uri.html#uriimmutable)，可以打开只读WAL模式数据库文件。
 - en: WAL might be very slightly slower (perhaps 1% or 2% slower) than the traditional
     rollback-journal approach in applications that do mostly reads and seldom write.
+  id: totrans-14
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在大多数情况下，WAL可能会比传统的回滚日志方法稍微慢一些（可能慢1%到2%），特别是在主要进行读取而很少写入的应用程序中。
 - en: There is an additional quasi-persistent "`-wal`" file and "`-shm`" shared memory
     file associated with each database, which can make SQLite less appealing for use
     as an [application file-format](appfileformat.html).
+  id: totrans-15
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 每个数据库都有一个额外的准持久化的“-wal”文件和“-shm”共享内存文件，这可能会使SQLite在作为[应用程序文件格式](appfileformat.html)时不太适用。
 - en: There is the extra operation of [checkpointing](wal.html#ckpt) which, though
     automatic by default, is still something that application developers need to be
     mindful of.
+  id: totrans-16
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 还有一个额外的[检查点操作](wal.html#ckpt)，虽然默认情况下是自动的，但应用程序开发人员仍然需要注意。
 - en: ~~WAL works best with smaller transactions. WAL does not work well for very
     large transactions. For transactions larger than about 100 megabytes, traditional
     rollback journal modes will likely be faster. For transactions in excess of a
@@ -97,21 +132,28 @@
     few dozen megabytes.~~ Beginning with [version 3.11.0](releaselog/3_11_0.html)
     (2016-02-15), WAL mode works as efficiently with large transactions as does rollback
     mode.
+  id: totrans-17
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 从 [version 3.11.0](releaselog/3_11_0.html) (2016-02-15) 起，WAL 模式对大事务的处理效率与回滚模式一样高效，甚至更高。
 - en: 2\. How WAL Works
+  id: totrans-18
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 2\. WAL 工作原理
 - en: The traditional rollback journal works by writing a copy of the original unchanged
     database content into a separate rollback journal file and then writing changes
     directly into the database file. In the event of a crash or [ROLLBACK](lang_transaction.html),
     the original content contained in the rollback journal is played back into the
     database file to revert the database file to its original state. The [COMMIT](lang_transaction.html)
     occurs when the rollback journal is deleted.
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: 传统的回滚日志通过将原始未更改的数据库内容复制到单独的回滚日志文件中，然后直接将更改写入数据库文件来工作。在崩溃或 [ROLLBACK](lang_transaction.html)
+    的情况下，回滚日志中包含的原始内容将被播放回数据库文件，以将数据库文件恢复到其原始状态。当删除回滚日志时，会发生 [COMMIT](lang_transaction.html)。
 - en: The WAL approach inverts this. The original content is preserved in the database
     file and the changes are appended into a separate WAL file. A [COMMIT](lang_transaction.html)
     occurs when a special record indicating a commit is appended to the WAL. Thus
@@ -119,23 +161,32 @@
     readers to continue operating from the original unaltered database while changes
     are simultaneously being committed into the WAL. Multiple transactions can be
     appended to the end of a single WAL file.
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: WAL 方法正好相反。原始内容保留在数据库文件中，而更改则附加到单独的 WAL 文件中。在 WAL 中附加一个特殊的记录指示提交时，就会发生 [COMMIT](lang_transaction.html)。因此，COMMIT
+    可以在不写入原始数据库的情况下发生，这使得读者可以继续从未更改的原始数据库中操作，同时将更改提交到 WAL 中。多个事务可以附加到单个 WAL 文件的末尾。
 - en: 2.1\. Checkpointing
+  id: totrans-21
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.1\. 检查点
 - en: Of course, one wants to eventually transfer all the transactions that are appended
     in the WAL file back into the original database. Moving the WAL file transactions
     back into the database is called a "*checkpoint*".
+  id: totrans-22
   prefs: []
   type: TYPE_NORMAL
+  zh: 当然，最终希望将附加在 WAL 文件中的所有事务转移到原始数据库中。将 WAL 文件事务移回数据库的过程称为“*检查点*”。
 - en: 'Another way to think about the difference between rollback and write-ahead
     log is that in the rollback-journal approach, there are two primitive operations,
     reading and writing, whereas with a write-ahead log there are now three primitive
     operations: reading, writing, and checkpointing.'
+  id: totrans-23
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一种理解回滚日志和写前日志之间差异的方法是，在回滚日志方法中，有两种基本操作，即读取和写入；而在写前日志方法中，则有三种基本操作：读取、写入和检查点。
 - en: By default, SQLite does a checkpoint automatically when the WAL file reaches
     a threshold size of 1000 pages. (The [SQLITE_DEFAULT_WAL_AUTOCHECKPOINT](compile.html#default_wal_autocheckpoint)
     compile-time option can be used to specify a different default.) Applications
@@ -143,12 +194,17 @@
     But if they want to, applications can adjust the automatic checkpoint threshold.
     Or they can turn off the automatic checkpoints and run checkpoints during idle
     moments or in a separate thread or process.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，当 WAL 文件达到 1000 页的阈值时，SQLite 会自动进行检查点。可以通过 [SQLITE_DEFAULT_WAL_AUTOCHECKPOINT](compile.html#default_wal_autocheckpoint)
+    编译时选项来指定不同的默认值。使用 WAL 的应用程序无需采取任何措施即可执行这些检查点。但如果需要的话，应用程序可以调整自动检查点的阈值。或者可以关闭自动检查点，在空闲时段或在单独的线程或进程中运行检查点。
 - en: 2.2\. Concurrency
+  id: totrans-25
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.2\. 并发性
 - en: When a read operation begins on a WAL-mode database, it first remembers the
     location of the last valid commit record in the WAL. Call this point the "end
     mark". Because the WAL can be growing and adding new commit records while various
@@ -156,8 +212,10 @@
     mark. But for any particular reader, the end mark is unchanged for the duration
     of the transaction, thus ensuring that a single read transaction only sees the
     database content as it existed at a single point in time.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 当在WAL模式数据库上开始读取操作时，首先记住WAL中最后一个有效提交记录的位置。将这一点称为“结束标记”。因为WAL可以在各种读取器连接到数据库时不断增长并添加新的提交记录，每个读取器可能都有自己的结束标记。但对于任何特定的读取器，在事务期间结束标记保持不变，从而确保单个读取事务只能看到数据库内容在某个时间点存在的样子。
 - en: When a reader needs a page of content, it first checks the WAL to see if that
     page appears there, and if so it pulls in the last copy of the page that occurs
     in the WAL prior to the reader's end mark. If no copy of the page exists in the
@@ -169,14 +227,18 @@
     and with a minimum of I/O. The wal-index greatly improves the performance of readers,
     but the use of shared memory means that all readers must exist on the same machine.
     This is why the write-ahead log implementation will not work on a network filesystem.
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: 当读取器需要内容页时，首先检查WAL文件，看看是否有该页，如果有，则拉取在读取器结束标记之前WAL中出现的该页的最后一份拷贝。如果在读取器结束标记之前的WAL中不存在该页的任何拷贝，则从原始数据库文件读取该页。读取器可以存在于不同的进程中，为了避免强制每个读取器扫描整个WAL以查找页面（根据检查点运行频率，WAL文件可能会增长到多兆字节），维护一种称为“wal-index”的数据结构在共享内存中，帮助读取器快速定位WAL中的页面，并最小化I/O操作。wal-index大大提高了读取器的性能，但使用共享内存意味着所有读取器必须存在于同一台机器上。这就是为什么写前日志实现在网络文件系统上无法工作的原因。
 - en: Writers merely append new content to the end of the WAL file. Because writers
     do nothing that would interfere with the actions of readers, writers and readers
     can run at the same time. However, since there is only one WAL file, there can
     only be one writer at a time.
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: 写入者只是将新内容追加到WAL文件的末尾。由于写入者不会干扰读取操作的动作，因此写入者和读取者可以同时运行。但是，由于只有一个WAL文件，因此一次只能有一个写入者。
 - en: A checkpoint operation takes content from the WAL file and transfers it back
     into the original database file. A checkpoint can run concurrently with readers,
     however the checkpoint must stop when it reaches a page in the WAL that is past
@@ -185,24 +247,32 @@
     using. The checkpoint remembers (in the wal-index) how far it got and will resume
     transferring content from the WAL to the database from where it left off on the
     next invocation.
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 一个检查点操作将内容从WAL文件传输回原始数据库文件。检查点可以与读取操作同时运行，但是当检查点达到WAL中任何当前读取器结束标记之后的页面时，必须停止。检查点必须在那一点停止，否则可能会覆盖读取器正在使用的数据库文件的部分内容。检查点会在wal-index中记住其进展的程度，并在下一次调用时从上次停止的地方继续将WAL中的内容传输到数据库中。
 - en: Thus a long-running read transaction can prevent a checkpointer from making
     progress. But presumably every read transaction will eventually end and the checkpointer
     will be able to continue.
+  id: totrans-30
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，长时间运行的读取事务可能会阻止检查点程序取得进展。但是可以假定每个读取事务最终会结束，检查点程序就能够继续运行。
 - en: Whenever a write operation occurs, the writer checks how much progress the checkpointer
     has made, and if the entire WAL has been transferred into the database and synced
     and if no readers are making use of the WAL, then the writer will rewind the WAL
     back to the beginning and start putting new transactions at the beginning of the
     WAL. This mechanism prevents a WAL file from growing without bound.
+  id: totrans-31
   prefs: []
   type: TYPE_NORMAL
+  zh: 每当发生写入操作时，写入者会检查检查点程序的进展情况，如果整个WAL已经传输到数据库并同步，且没有读取器在使用WAL，那么写入者将回溯WAL到开始位置，并开始将新事务放在WAL的开头。这种机制防止WAL文件无限增长。
 - en: 2.3\. Performance Considerations
+  id: totrans-32
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 2.3\. 性能考虑
 - en: Write transactions are very fast since they only involve writing the content
     once (versus twice for rollback-journal transactions) and because the writes are
     all sequential. Further, syncing the content to the disk is not required, as long
@@ -210,16 +280,23 @@
     hard reboot. (Writers sync the WAL on every transaction commit if [PRAGMA synchronous](pragma.html#pragma_synchronous)
     is set to FULL but omit this sync if [PRAGMA synchronous](pragma.html#pragma_synchronous)
     is set to NORMAL.)
+  id: totrans-33
   prefs: []
   type: TYPE_NORMAL
+  zh: 写事务非常快，因为它们只涉及写入内容一次（与回滚日志事务相比需要写两次），并且所有写入都是顺序的。此外，只要应用程序愿意在断电或硬重启后牺牲耐久性，就不需要将内容同步到磁盘。（如果
+    [PRAGMA synchronous](pragma.html#pragma_synchronous) 设置为 FULL，写入者在每次事务提交时都会同步
+    WAL，但如果设置为 NORMAL，则会省略此同步。）
 - en: On the other hand, read performance deteriorates as the WAL file grows in size
     since each reader must check the WAL file for the content and the time needed
     to check the WAL file is proportional to the size of the WAL file. The wal-index
     helps find content in the WAL file much faster, but performance still falls off
     with increasing WAL file size. Hence, to maintain good read performance it is
     important to keep the WAL file size down by running checkpoints at regular intervals.
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 另一方面，随着 WAL 文件大小的增长，读取性能会下降，因为每个读取器必须检查 WAL 文件的内容，并且检查 WAL 文件所需的时间与 WAL 文件的大小成正比。Wal-index
+    能够更快地在 WAL 文件中找到内容，但随着 WAL 文件大小的增加，性能仍会下降。因此，为了保持良好的读取性能，通过定期运行检查点来保持 WAL 文件大小很重要。
 - en: Checkpointing does require sync operations in order to avoid the possibility
     of database corruption following a power loss or hard reboot. The WAL must be
     synced to persistent storage prior to moving content from the WAL into the database
@@ -229,8 +306,12 @@
     in ascending order) but even then there will typically be many seek operations
     interspersed among the page writes. These factors combine to make checkpoints
     slower than write transactions.
+  id: totrans-35
   prefs: []
   type: TYPE_NORMAL
+  zh: Checkpointing 在避免因断电或硬重启后可能导致数据库损坏的情况下确实需要同步操作。在将 WAL 中的内容移入数据库之前，必须将 WAL 同步到持久存储，而且在重置
+    WAL 之前必须同步数据库文件。Checkpoint 还需要更多的寻址操作。Checkpointer 尽力将尽可能多的数据库顺序页面写入（页面按升序从 WAL
+    转移到数据库），但即便如此，在页面写入中通常仍会有许多寻址操作。这些因素结合在一起使得检查点比写事务慢。
 - en: The default strategy is to allow successive write transactions to grow the WAL
     until the WAL becomes about 1000 pages in size, then to run a checkpoint operation
     for each subsequent COMMIT until the WAL is reset to be smaller than 1000 pages.
@@ -241,8 +322,12 @@
     can disable automatic checkpointing and run the periodic checkpoints in a separate
     thread, or separate process. (Links to commands and interfaces to accomplish this
     are [shown below](#how_to_checkpoint).)
+  id: totrans-36
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认策略是允许连续的写事务增长 WAL，直到 WAL 大约为 1000 页大小，然后为每个后续的 COMMIT 运行一个检查点操作，直到 WAL 被重置为小于
+    1000 页。默认情况下，检查点将由执行将 WAL 推到其大小限制的 COMMIT 的同一线程自动运行。这导致大多数 COMMIT 操作非常快，但偶尔会有一些
+    COMMIT（触发检查点的那些）变得慢得多。如果这种效果不理想，应用程序可以禁用自动检查点并在单独的线程或进程中运行周期性检查点。 （可以查看下文显示的命令和接口来完成此操作。）
 - en: Note that with [PRAGMA synchronous](pragma.html#pragma_synchronous) set to NORMAL,
     the checkpoint is the only operation to issue an I/O barrier or sync operation
     (fsync() on unix or FlushFileBuffers() on windows). If an application therefore
@@ -251,8 +336,12 @@
     helps to prevent "latch-up" in applications running on a busy disk drive. The
     downside to this configuration is that transactions are no longer durable and
     might rollback following a power failure or hard reset.
+  id: totrans-37
   prefs: []
   type: TYPE_NORMAL
+  zh: 请注意，当 [PRAGMA synchronous](pragma.html#pragma_synchronous) 设置为 NORMAL 时，检查点是唯一会发出
+    I/O 屏障或同步操作（在 Unix 上为 fsync()，在 Windows 上为 FlushFileBuffers()）的操作。因此，如果应用程序在单独的线程或进程中运行检查点，则执行数据库查询和更新的主线程或进程将不会因同步操作而阻塞。这有助于防止在繁忙磁盘驱动器上运行的应用程序中出现
+    "锁死"。这种配置的缺点是事务不再是持久的，可能会在断电或硬重置后回滚。
 - en: Notice too that there is a tradeoff between average read performance and average
     write performance. To maximize the read performance, one wants to keep the WAL
     as small as possible and hence run checkpoints frequently, perhaps as often as
@@ -265,31 +354,47 @@
     the WAL reaches 1000 pages and this strategy seems to work well in test applications
     on workstations, but other strategies might work better on different platforms
     or for different workloads.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 同时请注意，平均读取性能和平均写入性能之间存在权衡。为了最大化读取性能，应尽量保持 WAL 的大小尽可能小，并且频繁运行检查点，可能是每次 COMMIT
+    都运行一次。为了最大化写入性能，应尽可能将每次检查点的成本分摊到尽可能多的写入中，意味着应该不经常运行检查点，并允许 WAL 在每次检查点之前尽可能增大。因此，根据应用程序的相对读写性能需求，运行检查点的频率决策可能因应用程序而异。默认策略是一旦
+    WAL 达到 1000 页就运行一次检查点，在工作站上的测试应用程序中，这种策略似乎运行良好，但在不同平台或不同工作负载下，可能有其他更好的策略。
 - en: 3\. Activating And Configuring WAL Mode
+  id: totrans-39
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 3\. 激活和配置 WAL 模式
 - en: 'An SQLite database connection defaults to [journal_mode=DELETE](pragma.html#pragma_journal_mode).
     To convert to WAL mode, use the following pragma:'
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，SQLite 数据库连接使用 [journal_mode=DELETE](pragma.html#pragma_journal_mode)。要转换为
+    WAL 模式，请使用以下 pragma：
 - en: '[PRE0]'
+  id: totrans-41
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: The journal_mode pragma returns a string which is the new journal mode. On success,
     the pragma will return the string "`wal`". If the conversion to WAL could not
     be completed (for example, if the [VFS](vfs.html) does not support the necessary
     shared-memory primitives) then the journaling mode will be unchanged and the string
     returned from the primitive will be the prior journaling mode (for example "`delete`").
+  id: totrans-42
   prefs: []
   type: TYPE_NORMAL
+  zh: '`journal_mode` pragma 返回一个字符串，表示新的日志模式。成功时，该 pragma 将返回字符串"`wal`"。如果无法完成转换到
+    WAL（例如，如果[VFS](vfs.html)不支持必要的共享内存原语），则日志模式将保持不变，并且从原语返回的字符串将是先前的日志模式（例如"`delete`"）。'
 - en: 3.1\. Automatic Checkpoint
+  id: totrans-43
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.1\. 自动检查点
 - en: By default, SQLite will automatically checkpoint whenever a [COMMIT](lang_transaction.html)
     occurs that causes the WAL file to be 1000 pages or more in size, or when the
     last database connection on a database file closes. The default configuration
@@ -305,12 +410,19 @@
     or [sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html) based on whatever
     criteria it thinks is appropriate. (The automatic checkpoint mechanism is implemented
     as a simple wrapper around [sqlite3_wal_hook()](c3ref/wal_hook.html).)
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 默认情况下，当WAL文件的大小达到1000页或更多，或者当数据库文件上的最后一个数据库连接关闭时，SQLite将自动进行检查点。默认配置旨在适用于大多数应用程序。但是需要更多控制的程序可以使用[wal_checkpoint
+    pragma](pragma.html#pragma_wal_checkpoint)或调用C接口[sqlite3_wal_checkpoint()](c3ref/wal_checkpoint.html)来强制进行检查点。可以通过使用[wal_autocheckpoint
+    pragma](pragma.html#pragma_wal_autocheckpoint)或调用C接口[sqlite3_wal_autocheckpoint()](c3ref/wal_autocheckpoint.html)来更改自动检查点阈值或完全禁用自动检查点。程序还可以使用[sqlite3_wal_hook()](c3ref/wal_hook.html)来注册在任何事务提交到WAL时调用的回调。然后，这个回调可以根据自己认为适当的标准调用[sqlite3_wal_checkpoint()](c3ref/wal_checkpoint.html)或[sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html)。
+    （自动检查点机制是围绕[sqlite3_wal_hook()](c3ref/wal_hook.html)简单封装的。）
 - en: 3.2\. Application-Initiated Checkpoints
+  id: totrans-45
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.2\. 应用启动的检查点
 - en: 'An application can initiate a checkpoint using any writable database connection
     on the database simply by invoking [sqlite3_wal_checkpoint()](c3ref/wal_checkpoint.html)
     or [sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html). There are three
@@ -323,41 +435,59 @@
     the checkpoint to completion and can only be initiated by a call to [sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html).
     See the [sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html) documentation
     for additional information on FULL and RESET checkpoints.'
+  id: totrans-46
   prefs: []
   type: TYPE_NORMAL
+  zh: 应用程序可以通过对数据库上任何可写数据库连接调用[sqlite3_wal_checkpoint()](c3ref/wal_checkpoint.html)或[sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html)来启动检查点。检查点有三种类型，根据它们的侵略性而有所不同：PASSIVE、FULL
+    和 RESTART。默认的检查点样式是PASSIVE，它尽可能多地进行工作，而不干扰其他数据库连接，如果存在并发的读取或写入，可能无法完成。由[sqlite3_wal_checkpoint()](c3ref/wal_checkpoint.html)和自动检查点机制启动的所有检查点都是PASSIVE。FULL和RESTART检查点尝试更努力地运行检查点以完成，并且只能通过调用[sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html)来启动。有关FULL和RESET检查点的附加信息，请参阅[sqlite3_wal_checkpoint_v2()](c3ref/wal_checkpoint_v2.html)文档。
 - en: 3.3\. Persistence of WAL mode
+  id: totrans-47
   prefs:
   - PREF_H2
   type: TYPE_NORMAL
+  zh: 3.3\. WAL模式的持久性
 - en: Unlike the other journaling modes, [PRAGMA journal_mode=WAL](pragma.html#pragma_journal_mode)
     is persistent. If a process sets WAL mode, then closes and reopens the database,
     the database will come back in WAL mode. In contrast, if a process sets (for example)
     PRAGMA journal_mode=TRUNCATE and then closes and reopens the database will come
     back up in the default rollback mode of DELETE rather than the previous TRUNCATE
     setting.
+  id: totrans-48
   prefs: []
   type: TYPE_NORMAL
+  zh: 与其他日志模式不同，[PRAGMA journal_mode=WAL](pragma.html#pragma_journal_mode)是持久的。如果一个进程设置了WAL模式，然后关闭并重新打开数据库，数据库将以WAL模式重新启动。相比之下，如果一个进程设置（例如）PRAGMA
+    journal_mode=TRUNCATE，然后关闭并重新打开数据库，数据库将以默认的回滚模式DELETE而不是前一个TRUNCATE设置重新启动。
 - en: The persistence of WAL mode means that applications can be converted to using
     SQLite in WAL mode without making any changes to the application itself. One has
     merely to run "`PRAGMA journal_mode=WAL;`" on the database file(s) using the [command-line
     shell](cli.html) or other utility, then restart the application.
+  id: totrans-49
   prefs: []
   type: TYPE_NORMAL
+  zh: WAL模式的持久性意味着可以将应用程序转换为使用SQLite的WAL模式，而无需对应用程序本身进行任何更改。只需在使用[命令行 shell](cli.html)或其他实用程序的数据库文件上运行"`PRAGMA
+    journal_mode=WAL;`"，然后重新启动应用程序即可。
 - en: The WAL journal mode will be set on all connections to the same database file
     if it is set on any one connection.
+  id: totrans-50
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在任何一个连接上设置了WAL（Write-Ahead Logging）日志模式，那么同一数据库文件上的所有连接都将设置为WAL日志模式。
 - en: 4\. The WAL File
+  id: totrans-51
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 4\. WAL文件
 - en: While a [database connection](c3ref/sqlite3.html) is open on a WAL-mode database,
     SQLite maintains an extra journal file called a "Write Ahead Log" or "WAL File".
     The name of this file on disk is usually the name of the database file with an
     extra "`-wal`" suffix, though different naming rules may apply if SQLite is compiled
     with [SQLITE_ENABLE_8_3_NAMES](compile.html#enable_8_3_names).
+  id: totrans-52
   prefs: []
   type: TYPE_NORMAL
+  zh: 当在WAL模式数据库上打开[数据库连接](c3ref/sqlite3.html)时，SQLite会维护一个额外的日志文件，称为“Write Ahead
+    Log”或“WAL文件”。此文件在磁盘上的名称通常是数据库文件名加上额外的“`-wal`”后缀，尽管如果SQLite使用[SQLITE_ENABLE_8_3_NAMES](compile.html#enable_8_3_names)编译，则可能适用不同的命名规则。
 - en: The WAL file exists for as long as any [database connection](c3ref/sqlite3.html)
     has the database open. Usually, the WAL file is deleted automatically when the
     last connection to the database closes. However, if the last process to have the
@@ -371,49 +501,69 @@
     lost, or the database file might become corrupted. The only safe way to remove
     a WAL file is to open the database file using one of the [sqlite3_open()](c3ref/open.html)
     interfaces then immediately close the database using [sqlite3_close()](c3ref/close.html).
+  id: totrans-53
   prefs: []
   type: TYPE_NORMAL
+  zh: 只要有任何[数据库连接](c3ref/sqlite3.html)打开数据库，WAL文件就会存在。通常，当最后一个连接关闭时，WAL文件会被自动删除。但是，如果最后一个持有数据库打开连接的进程退出时没有正确关闭数据库连接，或者使用[SQLITE_FCNTL_PERSIST_WAL](c3ref/c_fcntl_begin_atomic_write.html#sqlitefcntlpersistwal)[文件控制](c3ref/file_control.html)，那么在关闭数据库的所有连接后，WAL文件可能会在磁盘上保留。WAL文件是数据库的持久状态的一部分，如果复制或移动数据库，应将其与数据库一起保存。如果将数据库文件与其WAL文件分开，则先前提交到数据库的事务可能会丢失，或者数据库文件可能会损坏。删除WAL文件的唯一安全方法是使用其中一个[sqlite3_open()](c3ref/open.html)接口打开数据库文件，然后立即使用[sqlite3_close()](c3ref/close.html)关闭数据库。
 - en: The [WAL file format](fileformat2.html#walformat) is precisely defined and is
     cross-platform.
+  id: totrans-54
   prefs: []
   type: TYPE_NORMAL
+  zh: '[WAL文件格式](fileformat2.html#walformat)有明确定义，是跨平台的。'
 - en: 5\. Read-Only Databases
+  id: totrans-55
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 5\. 只读数据库
 - en: Older versions of SQLite could not read a WAL-mode database that was read-only.
     In other words, write access was required in order to read a WAL-mode database.
     This constraint was relaxed beginning with SQLite [version 3.22.0](releaselog/3_22_0.html)
     (2018-01-22).
+  id: totrans-56
   prefs: []
   type: TYPE_NORMAL
+  zh: 旧版本的SQLite无法读取只读的WAL模式数据库。换句话说，需要写访问权限才能读取WAL模式数据库。从SQLite [版本3.22.0](releaselog/3_22_0.html)（2018-01-22）开始，这个约束条件被放宽。
 - en: 'On newer versions of SQLite, a WAL-mode database on read-only media, or a WAL-mode
     database that lacks write permission, can still be read as long as one or more
     of the following conditions are met:'
+  id: totrans-57
   prefs: []
   type: TYPE_NORMAL
+  zh: 在较新版本的SQLite上，只要满足以下一个或多个条件，就可以读取只读介质上的WAL模式数据库，或者没有写权限的WAL模式数据库：
 - en: The `-shm` and `-wal` files already exists and are readable
+  id: totrans-58
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: '`-shm`和`-wal`文件已经存在且可读'
 - en: There is write permission on the directory containing the database so that the
     `-shm` and `-wal` files can be created.
+  id: totrans-59
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 包含数据库的目录具有写权限，以便创建`-shm`和`-wal`文件。
 - en: The database connection is opened using the [immutable query parameter](uri.html#uriimmutable).
+  id: totrans-60
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 使用[不可变查询参数](uri.html#uriimmutable)打开数据库连接。
 - en: Even though it is possible to open a read-only WAL-mode database, it is good
     practice to converted to [PRAGMA journal_mode=DELETE](pragma.html#pragma_journal_mode)
     prior to burning an SQLite database image onto read-only media.
+  id: totrans-61
   prefs: []
   type: TYPE_NORMAL
+  zh: 即使可以打开一个只读的 WAL 模式数据库，最好在将 SQLite 数据库映像刻录到只读介质之前转换为[PRAGMA journal_mode=DELETE](pragma.html#pragma_journal_mode)。
 - en: 6\. Avoiding Excessively Large WAL Files
+  id: totrans-62
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 6\. 避免过大的 WAL 文件
 - en: In normal cases, new content is appended to the WAL file until the WAL file
     accumulates about 1000 pages (and is thus about 4MB in size) at which point a
     checkpoint is automatically run and the WAL file is recycled. The checkpoint does
@@ -423,24 +573,34 @@
     file than to append. When the last connection to a database closes, that connection
     does one last checkpoint and then deletes the WAL and its associated shared-memory
     file, to clean up the disk.
+  id: totrans-63
   prefs: []
   type: TYPE_NORMAL
+  zh: 在正常情况下，新内容会追加到 WAL 文件，直到 WAL 文件累积约 1000 页（大约 4MB 大小），此时将自动运行检查点并回收 WAL 文件。检查点通常不会截断
+    WAL 文件（除非设置了[journal_size_limit pragma](pragma.html#pragma_journal_size_limit)）。相反，它只是导致
+    SQLite 从头开始覆写 WAL 文件。这样做是因为覆写现有文件通常比追加更快。当数据库的最后一个连接关闭时，该连接会进行最后一个检查点，然后删除 WAL
+    及其关联的共享内存文件，以清理磁盘。
 - en: So in the vast majority of cases, applications need not worry about the WAL
     file at all. SQLite will automatically take care of it. But it is possible to
     get SQLite into a state where the WAL file will grow without bound, causing excess
     disk space usage and slow queries speeds. The following bullets enumerate some
     of the ways that this can happen and how to avoid them.
+  id: totrans-64
   prefs: []
   type: TYPE_NORMAL
+  zh: 因此，在绝大多数情况下，应用程序根本不需要担心 WAL 文件。SQLite 将自动处理它。但是可能会使 SQLite 进入 WAL 文件无限增长的状态，导致磁盘空间使用过多和查询速度变慢。以下几点列举了可能发生这种情况的一些方式以及如何避免它们。
 - en: '**Disabling the automatic checkpoint mechanism.** In its default configuration,
     SQLite will checkpoint the WAL file at the conclusion of any transaction when
     the WAL file is more than 1000 pages long. However, compile-time and run-time
     options exist that can disable or defer this automatic checkpoint. If an application
     disables the automatic checkpoint, then there is nothing to prevent the WAL file
     from growing excessively.'
+  id: totrans-65
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**禁用自动检查点机制。** 在默认配置中，SQLite 在 WAL 文件超过 1000 页时，在任何事务结束时会进行检查点。然而，存在编译时和运行时选项可以禁用或推迟此自动检查点。如果应用程序禁用了自动检查点，则没有任何机制可以防止
+    WAL 文件过度增长。'
 - en: '**Checkpoint starvation.** A checkpoint is only able to run to completion,
     and reset the WAL file, if there are no other database connections using the WAL
     file. If another connection has a read transaction open, then the checkpoint cannot
@@ -449,15 +609,20 @@
     it cannot run to completion. The checkpoint will start up again where it left
     off after the next write transaction. This repeats until some checkpoint is able
     to complete.'
+  id: totrans-66
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**检查点饥饿。** 只有在没有其他数据库连接使用 WAL 文件时，检查点才能完成运行并重置 WAL 文件。如果另一个连接有打开的读事务，则检查点无法重置
+    WAL 文件，因为这样做可能会在读取者正在使用时删除内容。检查点会尽可能多地工作而不会打扰读取者，但无法完成运行。在下一次写事务之后，检查点会从中断的地方重新启动。这种过程会重复，直到某个检查点能够完成为止。'
 - en: However, if a database has many concurrent overlapping readers and there is
     always at least one active reader, then no checkpoints will be able to complete
     and hence the WAL file will grow without bound.
+  id: totrans-67
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 然而，如果一个数据库有许多并发的重叠读取者，并且始终至少有一个活动读取者，则没有检查点能够完成，因此 WAL 文件会无限增长。
 - en: 'This scenario can be avoided by ensuring that there are "reader gaps": times
     when no processes are reading from the database and that checkpoints are attempted
     during those times. In applications with many concurrent readers, one might also
@@ -466,31 +631,39 @@
     ensure that the checkpoint runs to completion before returning. The disadvantage
     of using [SQLITE_CHECKPOINT_RESTART](c3ref/c_checkpoint_full.html) and [SQLITE_CHECKPOINT_TRUNCATE](c3ref/c_checkpoint_full.html)
     is that readers might block while the checkpoint is running.'
+  id: totrans-68
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 可通过确保存在“读者间隙”来避免此情况：即没有进程从数据库读取，并尝试在这些时间进行检查点。在具有许多并发读取器的应用程序中，还可以考虑使用[SQLITE_CHECKPOINT_RESTART](c3ref/c_checkpoint_full.html)或[SQLITE_CHECKPOINT_TRUNCATE](c3ref/c_checkpoint_full.html)选项手动运行检查点，这将确保检查点在返回之前完成运行。使用[SQLITE_CHECKPOINT_RESTART](c3ref/c_checkpoint_full.html)和[SQLITE_CHECKPOINT_TRUNCATE](c3ref/c_checkpoint_full.html)的缺点是读取器在检查点运行时可能会阻塞。
 - en: '**Very large write transactions.** A checkpoint can only complete when no other
     transactions are running, which means the WAL file cannot be reset in the middle
     of a write transaction. So a large change to a large database might result in
     a large WAL file. The WAL file will be checkpointed once the write transaction
     completes (assuming there are no other readers blocking it) but in the meantime,
     the file can grow very big.'
+  id: totrans-69
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: '**非常大的写事务。** 只有当没有其他事务运行时，检查点才能完成，这意味着无法在写事务的中间重置WAL文件。因此，对大型数据库的大更改可能导致WAL文件变得很大。在写事务完成后（假设没有其他读取器阻塞），WAL文件将被检查点。但与此同时，文件可能会变得非常大。'
 - en: As of SQLite [version 3.11.0](releaselog/3_11_0.html) (2016-02-15), the WAL
     file for a single transaction should be proportional in size to the transaction
     itself. Pages that are changed by the transaction should only be written into
     the WAL file once. However, with older versions of SQLite, the same page might
     be written into the WAL file multiple times if the transaction grows larger than
     the page cache.
+  id: totrans-70
   prefs:
   - PREF_IND
   type: TYPE_NORMAL
+  zh: 截至SQLite [版本 3.11.0](releaselog/3_11_0.html)（2016-02-15），单个事务的WAL文件大小应与事务本身成比例。只有被事务更改的页面才会写入WAL文件一次。但是，对于较旧版本的SQLite，如果事务比页面缓存大，同一页面可能会多次写入WAL文件。
 - en: 7\. Implementation Of Shared-Memory For The WAL-Index
+  id: totrans-71
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 7\. WAL-Index 的共享内存实现
 - en: The [wal-index](walformat.html#shm) is implemented using an ordinary file that
     is mmapped for robustness. Early (pre-release) implementations of WAL mode stored
     the wal-index in volatile shared-memory, such as files created in /dev/shm on
@@ -503,27 +676,37 @@
     found to guarantee that all processes accessing the same database file use the
     same shared memory is to create the shared memory by mmapping a file in the same
     directory as the database itself.
+  id: totrans-72
   prefs: []
   type: TYPE_NORMAL
+  zh: '[wal-index](walformat.html#shm) 是通过映射成为鲁棒性普通文件来实现的。早期（预发布）的WAL模式实现将wal-index存储在易失性共享内存中，例如Linux上创建在/dev/shm或其他Unix系统上的/tmp文件。该方法的问题在于，使用不同根目录（通过[chroot](http://en.wikipedia.org/wiki/Chroot)修改）的进程将看到不同的文件，从而使用不同的共享内存区域，导致数据库损坏。在各种Unix系统中，其他创建无名称共享内存块的方法并不可移植。我们也找不到在Windows上创建无名称共享内存块的方法。确保所有访问同一数据库文件的进程使用相同共享内存的唯一方法是通过在与数据库本身相同目录中映射文件来创建共享内存。'
 - en: Using an ordinary disk file to provide shared memory has the disadvantage that
     it might actually do unnecessary disk I/O by writing the shared memory to disk.
     However, the developers do not think this is a major concern since the wal-index
     rarely exceeds 32 KiB in size and is never synced. Furthermore, the wal-index
     backing file is deleted when the last database connection disconnects, which often
     prevents any real disk I/O from ever happening.
+  id: totrans-73
   prefs: []
   type: TYPE_NORMAL
+  zh: 使用普通磁盘文件提供共享内存的缺点是，它可能会通过将共享内存写入磁盘而进行不必要的磁盘I/O。但是，开发人员认为这不是一个主要问题，因为wal-index很少超过32
+    KiB，并且从未同步。此外，当最后一个数据库连接断开时，通常会删除wal-index的后备文件，从而通常防止发生任何真正的磁盘I/O。
 - en: Specialized applications for which the default implementation of shared memory
     is unacceptable can devise alternative methods via a custom [VFS](vfs.html). For
     example, if it is known that a particular database will only be accessed by threads
     within a single process, the wal-index can be implemented using heap memory instead
     of true shared memory.
+  id: totrans-74
   prefs: []
   type: TYPE_NORMAL
+  zh: 对于默认的共享内存实现不可接受的专用应用程序可以通过自定义的 [VFS](vfs.html) 设计替代方法。例如，如果已知特定数据库仅由单个进程内的线程访问，那么可以使用堆内存而不是真正的共享内存来实现
+    wal-index。
 - en: 8\. Use of WAL Without Shared-Memory
+  id: totrans-75
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 8\. 在没有共享内存的情况下使用 WAL
 - en: Beginning in SQLite [version 3.7.4](releaselog/3_7_4.html) (2010-12-07), WAL
     databases can be created, read, and written even if shared memory is unavailable
     as long as the [locking_mode](pragma.html#pragma_locking_mode) is set to EXCLUSIVE
@@ -533,8 +716,13 @@
     be created, read, and written by legacy [VFSes](vfs.html) that lack the "version
     2" shared-memory methods xShmMap, xShmLock, xShmBarrier, and xShmUnmap on the
     [sqlite3_io_methods](c3ref/io_methods.html) object.
+  id: totrans-76
   prefs: []
   type: TYPE_NORMAL
+  zh: 从 SQLite [版本 3.7.4](releaselog/3_7_4.html)（2010-12-07）开始，即使没有共享内存，只要在第一次尝试访问之前将
+    [locking_mode](pragma.html#pragma_locking_mode) 设置为 EXCLUSIVE，也可以创建、读取和写入 WAL
+    数据库。换句话说，如果确保只有一个进程访问数据库，就可以使用不支持 "version 2" 共享内存方法 xShmMap、xShmLock、xShmBarrier
+    和 xShmUnmap 的传统 [VFSes](vfs.html) 创建、读取和写入 WAL 数据库。
 - en: If [EXCLUSIVE locking mode](pragma.html#pragma_locking_mode) is set prior to
     the first WAL-mode database access, then SQLite never attempts to call any of
     the shared-memory methods and hence no shared-memory wal-index is ever created.
@@ -542,8 +730,13 @@
     journal mode is WAL; attempts to change the locking mode using "`PRAGMA locking_mode=NORMAL;`"
     are no-ops. The only way to change out of EXCLUSIVE locking mode is to first change
     out of WAL journal mode.
+  id: totrans-77
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果在第一次访问 WAL 模式数据库之前设置了 [EXCLUSIVE 锁定模式](pragma.html#pragma_locking_mode)，那么
+    SQLite 永远不会尝试调用任何共享内存方法，因此永远不会创建共享内存的 wal-index。在这种情况下，只要日志模式为 WAL，数据库连接将保持在 EXCLUSIVE
+    模式；尝试使用 "`PRAGMA locking_mode=NORMAL;`" 修改锁定模式将不起作用。退出 EXCLUSIVE 锁定模式的唯一方法是首先退出
+    WAL 日志模式。
 - en: If NORMAL locking mode is in effect for the first WAL-mode database access,
     then the shared-memory wal-index is created. This means that the underlying VFS
     must support the "version 2" shared-memory. If the VFS does not support shared-memory
@@ -553,50 +746,74 @@
     NORMAL and EXCLUSIVE. It is only when the shared-memory wal-index is omitted,
     when the locking mode is EXCLUSIVE prior to the first WAL-mode database access,
     that the locking mode is stuck in EXCLUSIVE.
+  id: totrans-78
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果第一次访问 WAL 模式数据库时处于 NORMAL 锁定模式，则会创建共享内存的 wal-index。这意味着底层 VFS 必须支持 "version
+    2" 共享内存。如果 VFS 不支持共享内存方法，则尝试打开已经处于 WAL 模式的数据库或尝试将数据库转换为 WAL 模式将失败。只要仅有一个连接使用共享内存的
+    wal-index，就可以在 NORMAL 和 EXCLUSIVE 之间自由更改锁定模式。只有在省略共享内存的 wal-index，即在第一次访问 WAL
+    模式数据库之前，锁定模式才会被固定为 EXCLUSIVE。
 - en: 9\. Sometimes Queries Return SQLITE_BUSY In WAL Mode
+  id: totrans-79
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 9\. 有时在 WAL 模式下查询会返回 SQLITE_BUSY
 - en: The [second advantage of WAL-mode](wal.html#advantages) is that writers do not
     block readers and readers to do not block writers. This is mostly true. But there
     are some obscure cases where a query against a WAL-mode database can return [SQLITE_BUSY](rescode.html#busy),
     so applications should be prepared for that happenstance.
+  id: totrans-80
   prefs: []
   type: TYPE_NORMAL
+  zh: WAL 模式的 [第二个优势](wal.html#advantages) 是写操作不会阻塞读操作，读操作也不会阻塞写操作。这基本上是正确的。但在某些罕见的情况下，对
+    WAL 模式数据库的查询可能会返回 [SQLITE_BUSY](rescode.html#busy)，因此应用程序应对此种情况做好准备。
 - en: 'Cases where a query against a WAL-mode database can return [SQLITE_BUSY](rescode.html#busy)
     include the following:'
+  id: totrans-81
   prefs: []
   type: TYPE_NORMAL
+  zh: 查询 WAL 模式数据库可能返回 [SQLITE_BUSY](rescode.html#busy) 的情况包括以下几种：
 - en: If another database connection has the database mode open in [exclusive locking
     mode](pragma.html#pragma_locking_mode) then all queries against the database will
     return [SQLITE_BUSY](rescode.html#busy). Both Chrome and Firefox open their database
     files in exclusive locking mode, so attempts to read Chrome or Firefox databases
     while the applications are running will run into this problem, for example.
+  id: totrans-82
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果另一个数据库连接以 [排他锁定模式](pragma.html#pragma_locking_mode) 打开数据库模式，则针对数据库的所有查询都将返回
+    [SQLITE_BUSY](rescode.html#busy)。Chrome 和 Firefox 都以排他锁定模式打开它们的数据库文件，因此在应用程序运行时尝试读取
+    Chrome 或 Firefox 数据库将遇到此问题，例如。
 - en: When the last connection to a particular database is closing, that connection
     will acquire an exclusive lock for a short time while it cleans up the WAL and
     shared-memory files. If a separate attempt is made to open and query the database
     while the first connection is still in the middle of its cleanup process, the
     second connection might get an [SQLITE_BUSY](rescode.html#busy) error.
+  id: totrans-83
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 当最后一个连接到特定数据库正在关闭时，该连接将在清理 WAL 和共享内存文件时短暂获取独占锁。如果在第一个连接仍在其清理过程中时尝试打开和查询数据库，则第二个连接可能会收到
+    [SQLITE_BUSY](rescode.html#busy) 错误。
 - en: If the last connection to a database crashed, then the first new connection
     to open the database will start a recovery process. An exclusive lock is held
     during recovery. So if a third database connection tries to jump in and query
     while the second connection is running recovery, the third connection will get
     an [SQLITE_BUSY](rescode.html#busy) error.
+  id: totrans-84
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 如果最后一个连接到数据库崩溃，则打开数据库的第一个新连接将启动恢复过程。在恢复期间保持独占锁。因此，如果第三个数据库连接在第二个连接正在运行恢复时尝试插入和查询，第三个连接将收到
+    [SQLITE_BUSY](rescode.html#busy) 错误。
 - en: 10\. Backwards Compatibility
+  id: totrans-85
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 10\. 向后兼容性
 - en: The database file format is unchanged for WAL mode. However, the WAL file and
     the [wal-index](walformat.html#shm) are new concepts and so older versions of
     SQLite will not know how to recover a crashed SQLite database that was operating
@@ -607,17 +824,28 @@
     1 to 2 in WAL mode. Thus, if an older version of SQLite attempts to connect to
     an SQLite database that is operating in WAL mode, it will report an error along
     the lines of "file is encrypted or is not a database".
+  id: totrans-86
   prefs: []
   type: TYPE_NORMAL
+  zh: 数据库文件格式在 WAL 模式下保持不变。但是，WAL 文件和 [wal-index](walformat.html#shm) 是新概念，因此旧版本的
+    SQLite 不会知道如何恢复在发生崩溃时正在 WAL 模式下运行的 SQLite 数据库。为了防止较旧的 SQLite 版本（2010-07-22 之前的版本，即
+    3.7.0 之前）尝试恢复 WAL 模式数据库（并使情况变得更糟），数据库文件格式版本号（数据库头部的第 18 和 19 字节）在 WAL 模式下从 1 增加到
+    2。因此，如果较旧版本的 SQLite 尝试连接正在 WAL 模式下运行的 SQLite 数据库，它将报告类似于 "文件已加密或不是数据库" 的错误。
 - en: 'One can explicitly change out of WAL mode using a pragma such as this:'
+  id: totrans-87
   prefs: []
   type: TYPE_NORMAL
+  zh: 可以使用如下的 pragma 明确退出 WAL 模式：
 - en: '[PRE1]'
+  id: totrans-88
   prefs:
   - PREF_BQ
   type: TYPE_PRE
+  zh: '[PRE1]'
 - en: Deliberately changing out of WAL mode changes the database file format version
     numbers back to 1 so that older versions of SQLite can once again access the database
     file.
+  id: totrans-89
   prefs: []
   type: TYPE_NORMAL
+  zh: 故意退出 WAL 模式会将数据库文件格式版本号更改回 1，以便较旧版本的 SQLite 再次访问数据库文件。

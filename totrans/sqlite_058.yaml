@@ -1,14 +1,20 @@
 - en: Using the sqlite3_unlock_notify() API
+  id: totrans-0
   prefs:
   - PREF_H1
   type: TYPE_NORMAL
+  zh: 使用 sqlite3_unlock_notify() API
 - en: 原文：[https://sqlite.com/unlock_notify.html](https://sqlite.com/unlock_notify.html)
+  id: totrans-1
   prefs:
   - PREF_BQ
   type: TYPE_NORMAL
+  zh: 原文：[https://sqlite.com/unlock_notify.html](https://sqlite.com/unlock_notify.html)
 - en: '[PRE0]'
+  id: totrans-2
   prefs: []
   type: TYPE_PRE
+  zh: '[PRE0]'
 - en: When two or more connections access the same database in shared-cache mode,
     read and write (shared and exclusive) locks on individual tables are used to ensure
     that concurrently executing transactions are kept isolated. Before writing to
@@ -16,40 +22,61 @@
     a read (shared) lock must be obtained. A connection releases all held table locks
     when it concludes its transaction. If a connection cannot obtain a required lock,
     then the call to [sqlite3_step()](c3ref/step.html) returns SQLITE_LOCKED.
+  id: totrans-3
   prefs: []
   type: TYPE_NORMAL
+  zh: 当两个或多个连接以共享缓存模式访问同一数据库时，对各个表的读写（共享和排他）锁用于确保并发执行的事务保持隔离。在写入表之前，必须获得该表的写（排他）锁。在读取之前，必须获得读（共享）锁。连接在结束事务时释放所有持有的表锁。如果连接无法获得所需的锁，则对
+    [sqlite3_step()](c3ref/step.html) 的调用将返回 SQLITE_LOCKED。
 - en: Although it is less common, a call to [sqlite3_prepare()](c3ref/prepare.html)
     or [sqlite3_prepare_v2()](c3ref/prepare.html) may also return SQLITE_LOCKED if
     it cannot obtain a read-lock on the [sqlite_schema table](schematab.html) of each
     attached database. These APIs need to read the schema data contained in the sqlite_schema
     table in order to compile SQL statements to [sqlite3_stmt*](c3ref/stmt.html) objects.
+  id: totrans-4
   prefs: []
   type: TYPE_NORMAL
+  zh: 虽然不常见，调用 [sqlite3_prepare()](c3ref/prepare.html) 或 [sqlite3_prepare_v2()](c3ref/prepare.html)
+    也可能因为无法在每个附加数据库的 [sqlite_schema 表](schematab.html) 上获取读锁而返回 SQLITE_LOCKED。这些 API
+    需要读取 sqlite_schema 表中包含的模式数据，以便将 SQL 语句编译为 [sqlite3_stmt*](c3ref/stmt.html) 对象。
 - en: This article presents a technique using the SQLite [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
     interface such that calls to [sqlite3_step()](c3ref/step.html) and [sqlite3_prepare_v2()](c3ref/prepare.html)
     block until the required locks are available instead of returning SQLITE_LOCKED
     immediately. If the sqlite3_blocking_step() or sqlite3_blocking_prepare_v2() functions
     presented to the left return SQLITE_LOCKED, this indicates that to block would
     deadlock the system.
+  id: totrans-5
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文介绍了一种使用 SQLite [sqlite3_unlock_notify()](c3ref/unlock_notify.html) 接口的技术，使得对
+    [sqlite3_step()](c3ref/step.html) 和 [sqlite3_prepare_v2()](c3ref/prepare.html)
+    的调用在所需锁可用之前将阻塞，而不是立即返回 SQLITE_LOCKED。如果左侧提供的 sqlite3_blocking_step() 或 sqlite3_blocking_prepare_v2()
+    函数返回 SQLITE_LOCKED，则表明阻塞会导致系统死锁。
 - en: The [sqlite3_unlock_notify()](c3ref/unlock_notify.html) API, which is only available
     if the library is compiled with the pre-processor symbol [SQLITE_ENABLE_UNLOCK_NOTIFY](compile.html#enable_unlock_notify)
     defined, is [documented here](c3ref/unlock_notify.html). This article is not a
     substitute for reading the full API documentation!
+  id: totrans-6
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果库编译时定义了预处理符号 [SQLITE_ENABLE_UNLOCK_NOTIFY](compile.html#enable_unlock_notify)，则可以使用
+    [sqlite3_unlock_notify()](c3ref/unlock_notify.html) API。这篇文章没有替代阅读完整的 API 文档！
 - en: The [sqlite3_unlock_notify()](c3ref/unlock_notify.html) interface is designed
     for use in systems that have a separate thread assigned to each [database connection](c3ref/sqlite3.html).
     There is nothing in the implementation that prevents a single thread from running
     multiple database connections. However, the [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
     interface only works on a single connection at a time, so the lock resolution
     logic presented here will only work for a single database connection per thread.
+  id: totrans-7
   prefs: []
   type: TYPE_NORMAL
+  zh: '[sqlite3_unlock_notify()](c3ref/unlock_notify.html) 接口适用于每个 [数据库连接](c3ref/sqlite3.html)
+    都有专门线程的系统。实现中没有任何东西阻止单个线程运行多个数据库连接。然而，[sqlite3_unlock_notify()](c3ref/unlock_notify.html)
+    接口一次只能处理一个连接，因此这里呈现的锁定解决逻辑仅适用于每个线程的单个数据库连接。'
 - en: '**The sqlite3_unlock_notify() API**'
+  id: totrans-8
   prefs: []
   type: TYPE_NORMAL
+  zh: '**sqlite3_unlock_notify() API**'
 - en: After a call to [sqlite3_step()](c3ref/step.html) or [sqlite3_prepare_v2()](c3ref/prepare.html)
     returns SQLITE_LOCKED, the [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
     API may be invoked to register for an unlock-notify callback. The unlock-notify
@@ -62,8 +89,15 @@
     called, the unlock-notify callback will be invoked after connection Y's transaction
     is concluded. The connection that the unlock-notify callback is waiting on, in
     this case connection Y, is known as the "blocking connection".
+  id: totrans-9
   prefs: []
   type: TYPE_NORMAL
+  zh: 在调用 [sqlite3_step()](c3ref/step.html) 或 [sqlite3_prepare_v2()](c3ref/prepare.html)
+    后返回 SQLITE_LOCKED 之后，可以调用 [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
+    API 注册解锁通知回调函数。解锁通知回调函数由 SQLite 在持有阻止调用 [sqlite3_step()](c3ref/step.html) 或 [sqlite3_prepare_v2()](c3ref/prepare.html)
+    成功的数据库连接完成其事务并释放所有锁之后调用。例如，如果调用 sqlite3_step() 是尝试从表 X 读取数据，并且某些其他连接 Y 正在持有表 X
+    的写锁，则 sqlite3_step() 将返回 SQLITE_LOCKED。如果随后调用了 [sqlite3_unlock_notify()](c3ref/unlock_notify.html)，则在连接
+    Y 的事务结束后将调用解锁通知回调函数。在本例中解锁通知回调函数正在等待的连接，即连接 Y，被称为“阻塞连接”。
 - en: If a call to sqlite3_step() that attempts to write to a database table returns
     SQLITE_LOCKED, then more than one other connection may be holding a read-lock
     on the database table in question. In this case SQLite simply selects one of those
@@ -71,74 +105,107 @@
     connection's transaction is finished. Whether the call to sqlite3_step() was blocked
     by one or many connections, when the corresponding unlock-notify callback is issued
     it is not guaranteed that the required lock is available, only that it may be.
+  id: totrans-10
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果尝试向数据库表写入的 sqlite3_step() 调用返回 SQLITE_LOCKED，则可能有多个其他连接正在持有所涉及的数据库表的读锁。在这种情况下，SQLite
+    简单地任意选择其中一个其他连接，并在该连接的事务完成时发出解锁通知回调。无论 sqlite3_step() 调用被一个还是多个连接阻止，当发出相应的解锁通知回调时，并不保证所需的锁可用，只是可能可用。
 - en: When the unlock-notify callback is issued, it is issued from within a call to
     sqlite3_step() (or sqlite3_close()) associated with the blocking connection. It
     is illegal to invoke any sqlite3_XXX() API functions from within an unlock-notify
     callback. The expected use is that the unlock-notify callback will signal some
     other waiting thread or schedule some action to take place later.
+  id: totrans-11
   prefs: []
   type: TYPE_NORMAL
+  zh: 当发出解锁通知回调时，它是从与阻止连接相关联的 sqlite3_step()（或 sqlite3_close()）调用中发出的。从解锁通知回调中调用任何
+    sqlite3_XXX() API 函数都是非法的。预期的使用是解锁通知回调将信号发送到其他等待的线程或安排稍后执行的某些操作。
 - en: 'The algorithm used by the sqlite3_blocking_step() function is as follows:'
+  id: totrans-12
   prefs: []
   type: TYPE_NORMAL
+  zh: sqlite3_blocking_step() 函数使用的算法如下所示：
 - en: Call sqlite3_step() on the supplied statement handle. If the call returns anything
     other than SQLITE_LOCKED, then return this value to the caller. Otherwise, continue.
+  id: totrans-13
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对所提供的语句句柄调用 sqlite3_step()。如果调用返回的结果不是 SQLITE_LOCKED，则将此值返回给调用者。否则，继续。
 - en: Invoke [sqlite3_unlock_notify()](c3ref/unlock_notify.html) on the database connection
     handle associated with the supplied statement handle to register for an unlock-notify
     callback. If the call to unlock_notify() returns SQLITE_LOCKED, then return this
     value to the caller.
+  id: totrans-14
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 在与提供的语句句柄相关联的数据库连接句柄上调用 [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
+    注册解锁通知回调函数。如果调用 unlock_notify() 返回 SQLITE_LOCKED，则将此值返回给调用者。
 - en: Block until the unlock-notify callback is invoked by another thread.
+  id: totrans-15
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 阻塞直到另一个线程调用解锁通知回调。
 - en: Call sqlite3_reset() on the statement handle. Since an SQLITE_LOCKED error may
     only occur on the first call to sqlite3_step() (it is not possible for one call
     to sqlite3_step() to return SQLITE_ROW and then the next SQLITE_LOCKED), the statement
     handle may be reset at this point without affecting the results of the query from
     the point of view of the caller. If sqlite3_reset() were not called at this point,
     the next call to sqlite3_step() would return SQLITE_MISUSE.
+  id: totrans-16
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 对语句句柄调用 sqlite3_reset()。由于 SQLITE_LOCKED 错误只可能发生在第一次调用 sqlite3_step() 时（不可能一次调用
+    sqlite3_step() 返回 SQLITE_ROW，然后下一个返回 SQLITE_LOCKED），因此此时可以重置语句句柄而不会影响调用者视角下的查询结果。如果此时不调用
+    sqlite3_reset()，则下一次调用 sqlite3_step() 将返回 SQLITE_MISUSE。
 - en: Return to step 1.
+  id: totrans-17
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 返回到步骤 1。
 - en: The algorithm used by the sqlite3_blocking_prepare_v2() function is similar,
     except that step 4 (resetting the statement handle) is omitted.
+  id: totrans-18
   prefs: []
   type: TYPE_NORMAL
+  zh: sqlite3_blocking_prepare_v2() 函数使用的算法类似，不同之处在于省略了步骤 4（重置语句句柄）。
 - en: '**Writer Starvation**'
+  id: totrans-19
   prefs: []
   type: TYPE_NORMAL
+  zh: '**写入器饥饿**'
 - en: Multiple connections may hold a read-lock simultaneously. If many threads are
     acquiring overlapping read-locks, it might be the case that at least one thread
     is always holding a read lock. Then a table waiting for a write-lock will wait
     forever. This scenario is called "writer starvation."
+  id: totrans-20
   prefs: []
   type: TYPE_NORMAL
+  zh: 多个连接可以同时持有读锁。如果许多线程正在获取重叠的读锁，可能至少有一个线程始终持有读锁。然后，等待写锁的表将永远等待。这种情况称为 "写入器饥饿"。
 - en: 'SQLite helps applications avoid writer starvation. After any attempt to obtain
     a write-lock on a table fails (because one or more other connections are holding
     read-locks), all attempts to open new transactions on the shared-cache fail until
     one of the following is true:'
+  id: totrans-21
   prefs: []
   type: TYPE_NORMAL
+  zh: SQLite 帮助应用程序避免写入器饥饿。在尝试获取表的写锁失败后（因为一个或多个其他连接持有读锁），在共享缓存上所有尝试打开新事务的尝试都失败，直到以下之一为真：
 - en: The current writer concludes its transaction, OR
+  id: totrans-22
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 当前的写入程序结束其事务，或者
 - en: The number of open read-transactions on the shared-cache drops to zero.
+  id: totrans-23
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 共享缓存上的打开读事务数减少到零。
 - en: Failed attempts to open new read-transactions return SQLITE_LOCKED to the caller.
     If the caller then calls [sqlite3_unlock_notify()](c3ref/unlock_notify.html) to
     register for an unlock-notify callback, the blocking connection is the connection
@@ -146,11 +213,16 @@
     writer-starvation since if no new read-transactions may be opened and assuming
     all existing read-transactions are eventually concluded, the writer will eventually
     have an opportunity to obtain the required write-lock.
+  id: totrans-24
   prefs: []
   type: TYPE_NORMAL
+  zh: 尝试打开新读事务失败，将 SQLITE_LOCKED 返回给调用方。如果调用方随后调用 [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
+    来注册解锁通知回调函数，则阻塞连接是当前在共享缓存上有打开写事务的连接。这样可以防止写入器饥饿，因为如果不能打开新的读事务，并且假设所有现有的读事务最终会结束，写入器最终将有机会获取所需的写锁。
 - en: '**The pthreads API**'
+  id: totrans-25
   prefs: []
   type: TYPE_NORMAL
+  zh: '**pthread API**'
 - en: By the time [sqlite3_unlock_notify()](c3ref/unlock_notify.html) is invoked by
     wait_for_unlock_notify(), it is possible that the blocking connection that prevented
     the sqlite3_step() or sqlite3_prepare_v2() call from succeeding has already finished
@@ -158,77 +230,115 @@
     before [sqlite3_unlock_notify()](c3ref/unlock_notify.html) returns. Or, it is
     possible that the unlock-notify callback is invoked by a second thread after [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
     is called but before the thread starts waiting to be asynchronously signaled.
+  id: totrans-26
   prefs: []
   type: TYPE_NORMAL
+  zh: 在 wait_for_unlock_notify() 调用 [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
+    时，阻塞连接可能已经完成了阻止 sqlite3_step() 或 sqlite3_prepare_v2() 调用成功的事务。在这种情况下，解锁通知回调函数会立即调用，即在
+    [sqlite3_unlock_notify()](c3ref/unlock_notify.html) 返回之前。或者，在调用 [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
+    之后，但在线程开始等待异步信号之前，解锁通知回调函数可能由第二个线程调用。
 - en: Exactly how such a potential race-condition is handled depends on the threads
     and synchronization primitives interface used by the application. This example
     uses pthreads, the interface provided by modern UNIX-like systems, including Linux.
+  id: totrans-27
   prefs: []
   type: TYPE_NORMAL
+  zh: 如何处理这种潜在的竞争条件取决于应用程序使用的线程和同步原语接口。本示例使用 pthreads，这是现代类 UNIX 系统（包括 Linux）提供的接口。
 - en: 'The pthreads interface provides the pthread_cond_wait() function. This function
     allows the caller to simultaneously release a mutex and start waiting for an asynchronous
     signal. Using this function, a "fired" flag and a mutex, the race-condition described
     above may be eliminated as follows:'
+  id: totrans-28
   prefs: []
   type: TYPE_NORMAL
+  zh: pthreads 接口提供了 pthread_cond_wait() 函数。此函数允许调用者同时释放互斥锁并开始等待异步信号。使用此函数、"fired"
+    标志和互斥锁，可以消除上述描述的竞争条件：
 - en: 'When the unlock-notify callback is invoked, which may be before the thread
     that called [sqlite3_unlock_notify()](c3ref/unlock_notify.html) begins waiting
     for the asynchronous signal, it does the following:'
+  id: totrans-29
   prefs: []
   type: TYPE_NORMAL
+  zh: 当调用解锁通知回调函数时，可能在调用 [sqlite3_unlock_notify()](c3ref/unlock_notify.html) 的线程开始等待异步信号之前，执行以下操作：
 - en: Obtains the mutex.
+  id: totrans-30
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获得互斥锁。
 - en: Sets the "fired" flag to true.
+  id: totrans-31
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 将 "fired" 标志设置为 true。
 - en: Attempts to signal a waiting thread.
+  id: totrans-32
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 尝试向等待的线程发出信号。
 - en: Releases the mutex.
+  id: totrans-33
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 释放互斥锁。
 - en: 'When the wait_for_unlock_notify() thread is ready to begin waiting for the
     unlock-notify callback to arrive, it:'
+  id: totrans-34
   prefs: []
   type: TYPE_NORMAL
+  zh: 当 wait_for_unlock_notify() 线程准备好开始等待解锁通知回调函数到达时，它：
 - en: Obtains the mutex.
+  id: totrans-35
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 获取互斥锁。
 - en: Checks if the "fired" flag has been set. If so, the unlock-notify callback has
     already been invoked. Release the mutex and continue.
+  id: totrans-36
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 检查是否设置了“fired”标志。如果是，则解锁通知回调已经被调用。释放互斥锁并继续。
 - en: Atomically releases the mutex and begins waiting for the asynchronous signal.
     When the signal arrives, continue.
+  id: totrans-37
   prefs:
   - PREF_OL
   type: TYPE_NORMAL
+  zh: 原子性地释放互斥锁并开始等待异步信号。当信号到达时，继续执行。
 - en: This way, it doesn't matter if the unlock-notify callback has already been invoked,
     or is being invoked, when the wait_for_unlock_notify() thread begins blocking.
+  id: totrans-38
   prefs: []
   type: TYPE_NORMAL
+  zh: 这种方式，当`wait_for_unlock_notify()`线程开始阻塞时，无论解锁通知回调函数是否已被调用或正在被调用都无关紧要。
 - en: '**Possible Enhancements**'
+  id: totrans-39
   prefs: []
   type: TYPE_NORMAL
+  zh: '**可能的增强**'
 - en: 'The code in this article could be improved in at least two ways:'
+  id: totrans-40
   prefs: []
   type: TYPE_NORMAL
+  zh: 本文中的代码至少可以通过两种方式改进：
 - en: It could manage thread priorities.
+  id: totrans-41
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 它可以管理线程优先级。
 - en: It could handle a special case of SQLITE_LOCKED that can occur when dropping
     a table or index.
+  id: totrans-42
   prefs:
   - PREF_UL
   type: TYPE_NORMAL
+  zh: 它可以处理在删除表或索引时可能发生的SQLITE_LOCKED特殊情况。
 - en: Even though the [sqlite3_unlock_notify()](c3ref/unlock_notify.html) function
     only allows the caller to specify a single user-context pointer, an unlock-notify
     callback is passed an array of such context pointers. This is because if when
@@ -237,8 +347,10 @@
     an array and a single callback issued. If each thread were assigned a priority,
     then instead of just signaling the threads in arbitrary order as this implementation
     does, higher priority threads could be signaled before lower priority threads.
+  id: totrans-43
   prefs: []
   type: TYPE_NORMAL
+  zh: 即使[sqlite3_unlock_notify()](c3ref/unlock_notify.html)函数只允许调用者指定单个用户上下文指针，解锁通知回调函数会传递一个这样的上下文指针数组。这是因为如果阻塞连接结束其事务时，如果有多个注册了调用同一个C函数的解锁通知，上下文指针会被整理成数组并发出单个回调。如果每个线程被分配一个优先级，那么不像这个实现所做的随机顺序信号线程，高优先级线程可以在低优先级线程之前被通知。
 - en: If a "DROP TABLE" or "DROP INDEX" SQL command is executed, and the same database
     connection currently has one or more actively executing SELECT statements, then
     SQLITE_LOCKED is returned. If [sqlite3_unlock_notify()](c3ref/unlock_notify.html)
@@ -246,8 +358,11 @@
     Re-attempting the "DROP TABLE" or "DROP INDEX" statement will return another SQLITE_LOCKED
     error. In the implementation of sqlite3_blocking_step() shown to the left, this
     could cause an infinite loop.
+  id: totrans-44
   prefs: []
   type: TYPE_NORMAL
+  zh: 如果执行了“DROP TABLE”或“DROP INDEX” SQL命令，并且同一数据库连接当前有一个或多个正在执行的SELECT语句，则会返回SQLITE_LOCKED。如果在这种情况下调用[sqlite3_unlock_notify()](c3ref/unlock_notify.html)，则指定的回调函数将立即被调用。重新尝试“DROP
+    TABLE”或“DROP INDEX”语句将返回另一个SQLITE_LOCKED错误。在左侧显示的sqlite3_blocking_step()实现中，这可能导致无限循环。
 - en: The caller could distinguish between this special "DROP TABLE|INDEX" case and
     other cases by using [extended error codes](rescode.html#extrc). When it is appropriate
     to call [sqlite3_unlock_notify()](c3ref/unlock_notify.html), the extended error
@@ -256,5 +371,8 @@
     of times that any single query could be reattempted (to say 100). Although this
     might be less efficient than one might wish, the situation in question is not
     likely to occur often.
+  id: totrans-45
   prefs: []
   type: TYPE_NORMAL
+  zh: 调用方可以通过[扩展错误代码](rescode.html#extrc)区分这种特殊的“DROP TABLE|INDEX”情况和其他情况。在适当调用[sqlite3_unlock_notify()](c3ref/unlock_notify.html)的情况下，扩展错误代码是SQLITE_LOCKED_SHAREDCACHE。否则，在“DROP
+    TABLE|INDEX”情况下，仅仅是普通的SQLITE_LOCKED。另一种解决方法可能是限制单个查询的重试次数（比如100次）。尽管这可能不如人意，但这种情况并不经常发生。
